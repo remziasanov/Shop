@@ -6,6 +6,8 @@ namespace App\Providers;
 
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
+use App\Services\Import\DnsHostResolver;
+use App\Services\Import\HostResolver;
 use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Pricing\PriceRuleRepository;
@@ -38,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(HtmlSanitizer::class);
         $this->app->singleton(ImageProcessor::class);
         $this->app->singleton(StorefrontComposer::class);
+        $this->app->bind(HostResolver::class, DnsHostResolver::class);
     }
 
     /**

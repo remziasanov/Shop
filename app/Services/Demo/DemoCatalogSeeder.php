@@ -23,16 +23,16 @@ final class DemoCatalogSeeder
 
     public const SLUG_PREFIX = 'demo-';
 
-    private const BRANDS = ['Acme', 'Nordika', 'Техномир', 'Домовик', 'Лесная Артель', 'Вектор', 'Северный Ветер'];
+    public const BRANDS = ['Acme', 'Nordika', 'Техномир', 'Домовик', 'Лесная Артель', 'Вектор', 'Северный Ветер'];
 
-    private const COLORS = ['Белый', 'Чёрный', 'Серый', 'Бежевый', 'Синий', 'Зелёный', 'Графит'];
+    public const COLORS = ['Белый', 'Чёрный', 'Серый', 'Бежевый', 'Синий', 'Зелёный', 'Графит'];
 
     /**
      * Category tree: key => [parent key, name, sales mode]. Parents are listed before children.
      *
      * @var array<string, array{0: string|null, 1: string, 2?: SalesMode}>
      */
-    private const CATEGORIES = [
+    public const CATEGORIES = [
         'elektronika' => [null, 'Электроника'],
         'telefony' => ['elektronika', 'Телефоны'],
         'smartfony' => ['telefony', 'Смартфоны'],
@@ -55,7 +55,7 @@ final class DemoCatalogSeeder
      *
      * @var list<array{0: string, 1: string, 2: string, 3: string}>
      */
-    private const PRODUCTS = [
+    public const PRODUCTS = [
         ['elektronika', 'Портативная зарядная станция 300 Вт', '18990', 'Пластик'],
         ['telefony', 'Кнопочный телефон Классика Duo', '2490', 'Пластик'],
         ['telefony', 'Радиотелефон DECT с автоответчиком', '3290', 'Пластик'],
@@ -109,9 +109,9 @@ final class DemoCatalogSeeder
     ];
 
     /** Indexes (0-based) of products shown as "price on request". */
-    private const PRICE_ON_REQUEST = [20, 47];
+    public const PRICE_ON_REQUEST = [20, 47];
 
-    public function __construct(private readonly ImageProcessor $images) {}
+    public function __construct(private readonly ImageProcessor $images, private readonly DemoImageDrawer $drawer = new DemoImageDrawer) {}
 
     /**
      * Create or update the demo data.
@@ -292,7 +292,7 @@ final class DemoCatalogSeeder
                 continue;
             }
 
-            $file = $this->drawImage($product->sku, $n);
+            $file = $this->drawer->draw($product->sku, $n);
 
             try {
                 $this->images->attachToProduct($product, $file, null, $hash, deleteSource: true);
@@ -303,96 +303,5 @@ final class DemoCatalogSeeder
                 }
             }
         }
-    }
-
-    /**
-     * Draw a 1200x900 picture with GD: a coloured background (deterministic per sku), a few shapes and
-     * the sku in Latin (built-in GD fonts have no Cyrillic). Returns the path of a temporary JPEG.
-     */
-    private function drawImage(string $sku, int $n): string
-    {
-        $width = 1200;
-        $height = 900;
-        $seed = crc32($sku);
-        $rand = fn (int $k, int $max): int => crc32($sku.':'.$n.':'.$k) % ($max + 1);
-
-        $image = imagecreatetruecolor($width, $height);
-
-        if ($image === false) {
-            throw new \RuntimeException('GD is not available.');
-        }
-
-        $hue = ($seed + $n * 40) % 360;
-        [$r, $g, $b] = self::hsl($hue, 0.45, 0.82);
-        imagefilledrectangle($image, 0, 0, $width, $height, (int) imagecolorallocate($image, $r, $g, $b));
-
-        for ($k = 0; $k < 5; $k++) {
-            [$r, $g, $b] = self::hsl(($hue + 25 * ($k + 1)) % 360, 0.5, 0.55 - $k * 0.05);
-            $color = (int) imagecolorallocate($image, $r, $g, $b);
-            $x = $rand($k * 3, $width - 200);
-            $y = $rand($k * 3 + 1, $height - 200);
-            $size = 120 + $rand($k * 3 + 2, 280);
-
-            match ($k % 3) {
-                0 => imagefilledellipse($image, $x + 100, $y + 100, $size, $size, $color),
-                1 => imagefilledrectangle($image, $x, $y, $x + $size, $y + (int) ($size * 0.6), $color),
-                default => imagefilledpolygon($image, [$x, $y + $size, $x + $size, $y + $size, $x + intdiv($size, 2), $y], $color),
-            };
-        }
-
-        $this->drawLabel($image, $sku.' #'.$n, $width, $height);
-
-        $path = tempnam(sys_get_temp_dir(), 'shopdemo');
-
-        if ($path === false || ! imagejpeg($image, $path, 85)) {
-            throw new \RuntimeException('Cannot write a temporary image.');
-        }
-
-        return $path;
-    }
-
-    /**
-     * The label is drawn small with a built-in font and magnified, so it is readable.
-     */
-    private function drawLabel(\GdImage $image, string $text, int $width, int $height): void
-    {
-        $scale = 5;
-        $textWidth = imagefontwidth(5) * strlen($text) + 16;
-        $textHeight = imagefontheight(5) + 12;
-
-        $label = imagecreatetruecolor($textWidth, $textHeight);
-
-        if ($label === false) {
-            return;
-        }
-
-        imagefilledrectangle($label, 0, 0, $textWidth, $textHeight, (int) imagecolorallocate($label, 255, 255, 255));
-        imagestring($label, 5, 8, 6, $text, (int) imagecolorallocate($label, 40, 40, 40));
-
-        $w = $textWidth * $scale;
-        $h = $textHeight * $scale;
-        imagecopyresized($image, $label, intdiv($width - $w, 2), intdiv($height - $h, 2), 0, 0, $w, $h, $textWidth, $textHeight);
-    }
-
-    /**
-     * @return array{0: int, 1: int, 2: int}
-     */
-    private static function hsl(int $h, float $s, float $l): array
-    {
-        $l = max(0.1, min(0.95, $l));
-        $c = (1 - abs(2 * $l - 1)) * $s;
-        $x = $c * (1 - abs(fmod($h / 60, 2) - 1));
-        $m = $l - $c / 2;
-
-        [$r, $g, $b] = match (intdiv($h, 60) % 6) {
-            0 => [$c, $x, 0],
-            1 => [$x, $c, 0],
-            2 => [0, $c, $x],
-            3 => [0, $x, $c],
-            4 => [$x, 0, $c],
-            default => [$c, 0, $x],
-        };
-
-        return [(int) round(($r + $m) * 255), (int) round(($g + $m) * 255), (int) round(($b + $m) * 255)];
     }
 }

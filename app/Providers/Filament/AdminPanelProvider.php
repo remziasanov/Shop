@@ -34,6 +34,8 @@ class AdminPanelProvider extends PanelProvider
             ->path((string) config('shop.admin_path'))
             ->login()
             ->passwordReset()
+            // Import/export results arrive in the bell (TZ section 9, D-037).
+            ->databaseNotifications()
             ->brandName(fn (): string => $this->brandName())
             ->colors([
                 'primary' => Color::Blue,
