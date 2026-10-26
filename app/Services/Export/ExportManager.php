@@ -7,12 +7,12 @@ namespace App\Services\Export;
 use App\Enums\ExportStatus;
 use App\Enums\ExportType;
 use App\Jobs\ExportCatalog;
+use App\Jobs\ExportOrders;
 use App\Models\Export;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Storage;
-use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -20,23 +20,37 @@ use Throwable;
  * at once, larger ones in the queue. Files live on the private disk in `exports/{id}/` for 7 days.
  *
  * @phpstan-import-type Filters from CatalogExporter
+ * @phpstan-import-type Params from \App\Services\Orders\OrderQuery
  */
 final class ExportManager
 {
     public const DISK = 'local';
 
-    public function __construct(private readonly CatalogExporter $catalog) {}
+    public function __construct(
+        private readonly CatalogExporter $catalog,
+        private readonly OrdersExporter $orders,
+    ) {}
 
     /**
-     * @param  Filters  $filters
+     * Rows an export with these parameters would have.
+     *
+     * @param  array<string, mixed>  $filters  catalog {@see Filters} or request {@see Params}
+     */
+    public function count(ExportType $type, array $filters): int
+    {
+        /** @var Filters&Params $filters */
+        return match ($type) {
+            ExportType::Catalog => $this->catalog->count($filters),
+            ExportType::Orders => $this->orders->count($filters),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters  catalog {@see Filters} or request {@see Params}
      */
     public function request(ExportType $type, array $filters, ?User $user): Export
     {
-        if ($type !== ExportType::Catalog) {
-            throw new InvalidArgumentException('Unsupported export type: '.$type->value);
-        }
-
-        $rows = $this->catalog->count($filters);
+        $rows = $this->count($type, $filters);
 
         $export = Export::query()->create([
             'user_id' => $user?->id,
@@ -52,7 +66,10 @@ final class ExportManager
             return $export->refresh();
         }
 
-        ExportCatalog::dispatch($export->id);
+        match ($type) {
+            ExportType::Catalog => ExportCatalog::dispatch($export->id),
+            ExportType::Orders => ExportOrders::dispatch($export->id),
+        };
 
         return $export;
     }
@@ -64,12 +81,16 @@ final class ExportManager
     {
         $export->update(['status' => ExportStatus::Processing, 'failure_message' => null]);
 
-        $relative = 'exports/'.$export->id.'/catalog-'.now()->format('Ymd-His').'.xlsx';
+        $relative = 'exports/'.$export->id.'/'.$export->type->value.'-'.now()->format('Ymd-His').'.xlsx';
         $disk = Storage::disk(self::DISK);
         $disk->makeDirectory(dirname($relative));
 
         try {
-            $rows = $this->catalog->export($export->params ?? [], $disk->path($relative));
+            $params = $export->params ?? [];
+            $rows = match ($export->type) {
+                ExportType::Catalog => $this->catalog->export($params, $disk->path($relative)),
+                ExportType::Orders => $this->orders->export($params, $disk->path($relative)),
+            };
         } catch (Throwable $e) {
             $disk->delete($relative);
             $export->update(['status' => ExportStatus::Failed, 'failure_message' => mb_substr($e->getMessage(), 0, 1000)]);

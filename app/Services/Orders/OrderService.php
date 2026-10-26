@@ -314,24 +314,36 @@ final class OrderService
     /**
      * Expire reservations whose term has passed (SF-53): status `expired`, reserved stock returned. Every
      * reservation is handled in its own transaction and re-checked under lock, so repeated runs are harmless.
+     * Reservations are taken in batches; when `$deadline` (microtime) passes, the rest waits for the next run.
      * Returns the number of expired reservations.
      */
-    public function expireReservations(): int
+    public function expireReservations(?float $deadline = null): int
     {
-        $ids = Order::query()->overdueReservations()->orderBy('id')->pluck('id');
         $expired = 0;
+        $lastId = 0;
+        $batch = 100;
 
-        foreach ($ids as $id) {
-            try {
-                $order = Order::query()->find($id);
+        do {
+            $ids = Order::query()->overdueReservations()->where('orders.id', '>', $lastId)->orderBy('orders.id')->limit($batch)->pluck('id');
 
-                if ($order !== null && $this->transition($order, OrderStatus::Expired, null, __('sales.history.expired'), null, bySystem: true, onlyIfOverdue: true)) {
-                    $expired++;
+            foreach ($ids as $id) {
+                if ($deadline !== null && microtime(true) >= $deadline) {
+                    return $expired;
                 }
-            } catch (Throwable $e) {
-                report($e);
+
+                $lastId = (int) $id;
+
+                try {
+                    $order = Order::query()->find($id);
+
+                    if ($order !== null && $this->transition($order, OrderStatus::Expired, null, __('sales.history.expired'), null, bySystem: true, onlyIfOverdue: true)) {
+                        $expired++;
+                    }
+                } catch (Throwable $e) {
+                    report($e);
+                }
             }
-        }
+        } while ($ids->count() === $batch);
 
         return $expired;
     }

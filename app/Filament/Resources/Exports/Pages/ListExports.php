@@ -64,12 +64,12 @@ class ListExports extends ListRecords
     /**
      * Start a catalog export and tell the user what happened.
      *
-     * @param  array{category_id?: int|null, active?: string|null, product_ids?: list<int>|null}  $filters
+     * @param  array<string, mixed>  $filters
      */
-    public static function start(array $filters, ?User $user): void
+    public static function start(array $filters, ?User $user, ExportType $type = ExportType::Catalog): void
     {
         try {
-            $export = app(ExportManager::class)->request(ExportType::Catalog, $filters, $user);
+            $export = app(ExportManager::class)->request($type, $filters, $user);
         } catch (Throwable $e) {
             report($e);
             Notification::make()->danger()->title(__('export.notifications.failed'))->send();
@@ -94,7 +94,7 @@ class ListExports extends ListRecords
 
         Notification::make()->success()
             ->title(__('export.notifications.queued'))
-            ->body(__('export.notifications.queued_body', ['rows' => app(CatalogExporter::class)->count($filters)]))
+            ->body(__('export.notifications.queued_body', ['rows' => app(ExportManager::class)->count($type, $filters)]))
             ->send();
     }
 }

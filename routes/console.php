@@ -15,3 +15,6 @@ Schedule::command('shop:heartbeat')->everyMinute()->withoutOverlapping();
 // PR-02: promo start/end passes within 15 minutes; nightly full rebuild as a safety net (TZ section 8).
 Schedule::command('shop:recalc-prices --boundaries')->everyFifteenMinutes()->withoutOverlapping();
 Schedule::command('shop:recalc-prices --all')->dailyAt('03:10')->withoutOverlapping();
+
+// SF-53: expire overdue reservations and return their stock (TZ section 8).
+Schedule::command('shop:expire-reservations')->everyFiveMinutes()->withoutOverlapping();

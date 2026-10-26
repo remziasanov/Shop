@@ -6,6 +6,8 @@ namespace App\Filament\Resources\Exports;
 
 use App\Enums\ExportStatus;
 use App\Enums\ExportType;
+use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Filament\Resources\Exports\Pages\ListExports;
 use App\Models\Category;
 use App\Models\Export;
@@ -136,6 +138,10 @@ class ExportResource extends Resource
         $params = $export->params ?? [];
         $parts = [];
 
+        if ($export->type === ExportType::Orders) {
+            return self::describeOrderParams($params);
+        }
+
         if (isset($params['product_ids']) && is_array($params['product_ids'])) {
             $parts[] = __('export.table.filter_selected', ['count' => count($params['product_ids'])]);
         } elseif (filled($params['category_id'] ?? null)) {
@@ -152,5 +158,44 @@ class ExportResource extends Resource
         }
 
         return implode(', ', $parts);
+    }
+
+    /**
+     * @param  array<string, mixed>  $params
+     */
+    private static function describeOrderParams(array $params): string
+    {
+        $parts = [];
+
+        foreach (['tab', 'type'] as $key) {
+            $type = filled($params[$key] ?? null) ? OrderType::tryFrom((string) $params[$key]) : null;
+
+            if ($type !== null) {
+                $parts[$type->value] = $type->pluralLabel();
+            }
+        }
+
+        $status = filled($params['status'] ?? null) ? OrderStatus::tryFrom((string) $params['status']) : null;
+
+        if ($status !== null) {
+            $parts[] = $status->label();
+        }
+
+        if (filled($params['created_from'] ?? null) || filled($params['created_until'] ?? null)) {
+            $parts[] = __('admin_orders.export.period', [
+                'from' => $params['created_from'] ?? '…',
+                'until' => $params['created_until'] ?? '…',
+            ]);
+        }
+
+        if (filled($params['delivery_method'] ?? null)) {
+            $parts[] = (string) $params['delivery_method'];
+        }
+
+        if (filled($params['search'] ?? null)) {
+            $parts[] = __('admin_orders.export.search', ['term' => (string) $params['search']]);
+        }
+
+        return $parts === [] ? __('admin_orders.export.all') : implode(', ', $parts);
     }
 }
