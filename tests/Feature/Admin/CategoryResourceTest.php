@@ -279,3 +279,24 @@ describe('category image', function (): void {
             ->and(Storage::disk('local')->allFiles())->toBe([]);
     });
 });
+
+it('keeps the cached category tree consistent when a parent change is rolled back', function () {
+    Storage::fake('public');
+    Storage::fake('local');
+    $this->actingAs(User::factory()->admin()->create());
+    $a = Category::factory()->create(['name' => 'A']);
+    $b = Category::factory()->create(['name' => 'B']);
+    $c = Category::factory()->childOf($a)->create(['name' => 'C']);
+    app(CategoryTree::class)->nodes();
+
+    Livewire::test(EditCategory::class, ['record' => $c->getRouteKey()])
+        ->fillForm(['parent_id' => $b->id, 'new_image' => UploadedFile::fake()->createWithContent('broken.jpg', 'not an image')])
+        ->call('save')
+        ->assertHasFormErrors(['new_image']);
+
+    $tree = app(CategoryTree::class);
+    $tree->forgetMemo();
+
+    expect($c->fresh()->parent_id)->toBe($a->id)
+        ->and($tree->node($c->id)->parentId)->toBe($a->id);
+});

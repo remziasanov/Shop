@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\RedirectService;
 use App\Services\Catalog\SlugService;
+use App\Services\Pricing\PriceRuleRecalculator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -20,6 +21,7 @@ final class CategoryObserver
         private readonly SlugService $slugs,
         private readonly CategoryTree $tree,
         private readonly RedirectService $redirects,
+        private readonly PriceRuleRecalculator $prices,
     ) {}
 
     public function saving(Category $category): void
@@ -62,6 +64,15 @@ final class CategoryObserver
     public function saved(Category $category): void
     {
         $this->flush();
+
+        // Moving a branch changes the ancestors of every product below it, hence which "with subcategories"
+        // price rules match them (PR-02).
+        // Deferred until commit: reading the tree inside the transaction would cache a state that
+        // may still be rolled back.
+        if ($category->wasChanged('parent_id')) {
+            $id = $category->id;
+            DB::afterCommit(fn () => $this->prices->dispatchForCategories($this->tree->descendantIds($id)));
+        }
     }
 
     public function deleting(Category $category): void

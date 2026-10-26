@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Livewire\Admin\PriceRecalcBanner;
 use App\Settings\GeneralSettings;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -13,11 +14,13 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Throwable;
 
@@ -47,6 +50,8 @@ class AdminPanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->pages([Dashboard::class])
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
+            // PR-05: price recalculation progress above the page content.
+            ->renderHook(PanelsRenderHook::CONTENT_START, fn (): string => Blade::render('@livewire($banner)', ['banner' => PriceRecalcBanner::class]))
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

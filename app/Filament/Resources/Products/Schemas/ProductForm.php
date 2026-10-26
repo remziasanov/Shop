@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Filament\Resources\Products\Schemas;
 
 use App\Enums\SalesMode;
+use App\Filament\Resources\PriceHistory\PriceHistoryResource;
 use App\Filament\Resources\Products\Support\PhotoUpload;
+use App\Models\PriceHistory;
 use App\Models\Product;
+use App\Providers\AppServiceProvider;
 use App\Rules\RublesAmount;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Pricing\PriceResult;
 use App\Services\Pricing\ProductPriceUpdater;
 use App\Services\Sales\SalesModeResolver;
 use App\Support\Money;
@@ -24,7 +28,10 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 
 /**
@@ -83,7 +90,8 @@ final class ProductForm
                     TextInput::make('brand')
                         ->label(__('admin_products.fields.brand'))
                         ->maxLength(255)
-                        ->datalist(fn (): array => self::brands()),
+                        ->datalist(fn (): array => self::brands())
+                        ->live(onBlur: true),
                     TextInput::make('sort_order')
                         ->label(__('admin_products.fields.sort_order'))
                         ->numeric()
@@ -96,10 +104,12 @@ final class ProductForm
                         ->default(true),
                     Toggle::make('is_featured')
                         ->label(__('admin_products.fields.is_featured'))
-                        ->default(false),
+                        ->default(false)
+                        ->live(),
                     Toggle::make('is_new')
                         ->label(__('admin_products.fields.is_new'))
-                        ->default(false),
+                        ->default(false)
+                        ->live(),
                 ]),
             ]);
     }
@@ -120,12 +130,21 @@ final class ProductForm
                             ->live()
                             ->default(false),
                     ]),
-                    Section::make(__('admin_products.price.final_block'))
-                        ->schema([
-                            Text::make(fn (Get $get): string => self::finalPriceSummary($get))->weight('bold'),
-                            Text::make(fn (Get $get): string => self::oldPriceSummary($get)),
-                            Text::make(__('admin_products.price.rules_none'))->color('gray'),
-                        ]),
+                    Grid::make(1)->columnSpan(['lg' => 1])->schema([
+                        Section::make(__('admin_products.price.final_block'))
+                            ->schema([
+                                Text::make(fn (Get $get, ?Model $record): string => self::finalPriceSummary($get, $record))->weight('bold'),
+                                Text::make(fn (Get $get, ?Model $record): string => self::oldPriceSummary($get, $record)),
+                                Text::make(fn (Get $get, ?Model $record): HtmlString => self::explanationLines($get, $record))->color('gray'),
+                            ]),
+                        Section::make(__('admin_pricing.history.heading'))
+                            ->collapsible()
+                            ->visibleOn('edit')
+                            ->schema([
+                                SchemaView::make('filament.pricing.history-list')
+                                    ->viewData(fn (?Model $record): array => self::historyViewData($record)),
+                            ]),
+                    ]),
                 ]),
             ]);
     }
@@ -292,44 +311,107 @@ final class ProductForm
             ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? Money::toRubles(Money::fromRubles($state)) : null);
     }
 
-    private static function finalPriceSummary(Get $get): string
+    private static function finalPriceSummary(Get $get, ?Model $record): string
     {
         if ($get('price_on_request')) {
             return __('admin_products.price.on_request');
         }
 
-        $prices = self::preview($get);
+        $result = self::preview($get, $record);
 
-        return $prices === null
+        return $result === null
             ? __('admin_products.price.invalid')
-            : __('admin_products.price.final', ['price' => Money::format(Money::fromRubles($prices['final_price']))]);
+            : __('admin_products.price.final', ['price' => Money::format($result->finalPrice)]);
     }
 
-    private static function oldPriceSummary(Get $get): string
+    private static function oldPriceSummary(Get $get, ?Model $record): string
     {
-        $prices = self::preview($get);
+        $result = self::preview($get, $record);
 
-        if ($prices === null || $get('price_on_request')) {
+        if ($result === null || $get('price_on_request')) {
             return '';
         }
 
-        return $prices['display_old_price'] === null
+        return $result->displayOldPrice === null
             ? __('admin_products.price.no_old')
-            : __('admin_products.price.old', ['price' => Money::format(Money::fromRubles($prices['display_old_price']))]);
+            : __('admin_products.price.old', ['price' => Money::format($result->displayOldPrice)]);
     }
 
     /**
-     * @return array{final_price: string, display_old_price: string|null}|null null when an input is not a valid amount
+     * Calculation steps of the live price (PR-03): base, rules, rounding.
      */
-    private static function preview(Get $get): ?array
+    private static function explanationLines(Get $get, ?Model $record): HtmlString
+    {
+        $result = $get('price_on_request') ? null : self::preview($get, $record);
+
+        if ($result === null) {
+            return new HtmlString('');
+        }
+
+        $lines = $result->explanation->toLines();
+
+        // A lone base step means that no rule touched the price.
+        if (count($lines) <= 1) {
+            return new HtmlString(e(__('admin_products.price.rules_none')));
+        }
+
+        return new HtmlString(implode('<br>', array_map('e', $lines)));
+    }
+
+    /**
+     * The result for the current form state; the record id lets rules limited to specific products match.
+     * Null when an input is not a valid amount.
+     */
+    private static function preview(Get $get, ?Model $record): ?PriceResult
     {
         $value = static fn (string $key): ?string => filled($get($key)) ? (string) $get($key) : null;
 
         try {
-            return app(ProductPriceUpdater::class)->calculate($value('base_price'), $value('fixed_price'), $value('compare_at_price'));
+            return app(ProductPriceUpdater::class)->explainValues(
+                $value('base_price'),
+                $value('fixed_price'),
+                $value('compare_at_price'),
+                filled($get('category_id')) ? (int) $get('category_id') : null,
+                $value('brand'),
+                (bool) $get('is_featured'),
+                (bool) $get('is_new'),
+                $value('cost_price'),
+                $record instanceof Product ? $record->id : null,
+            );
         } catch (InvalidArgumentException) {
             return null;
         }
+    }
+
+    /**
+     * Last 10 price history rows of the product for the read-only block on the edit page.
+     *
+     * @return array{rows: list<array{date: string, field: string, change: string, source: string}>, url: ?string}
+     */
+    private static function historyViewData(?Model $record): array
+    {
+        if (! $record instanceof Product) {
+            return ['rows' => [], 'url' => null];
+        }
+
+        $rows = PriceHistory::query()
+            ->where('product_id', $record->id)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get()
+            ->map(fn (PriceHistory $row): array => [
+                'date' => $row->created_at?->format(AppServiceProvider::DATE_TIME_FORMAT) ?? '',
+                'field' => PriceHistoryResource::fieldLabel($row->field),
+                'change' => PriceHistoryResource::change($row),
+                'source' => $row->source->label(),
+            ])
+            ->all();
+
+        return [
+            'rows' => $rows,
+            'url' => PriceHistoryResource::getUrl('index', ['filters' => ['product' => ['search' => $record->sku]]]),
+        ];
     }
 
     /**

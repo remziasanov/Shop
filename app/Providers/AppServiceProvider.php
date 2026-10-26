@@ -7,6 +7,8 @@ namespace App\Providers;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Media\ImageProcessor;
+use App\Services\Pricing\PriceChangeContext;
+use App\Services\Pricing\PriceRuleRepository;
 use App\View\Composers\StorefrontComposer;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
@@ -31,6 +33,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(CategoryTree::class);
+        $this->app->singleton(PriceRuleRepository::class);
+        $this->app->singleton(PriceChangeContext::class);
         $this->app->singleton(HtmlSanitizer::class);
         $this->app->singleton(ImageProcessor::class);
         $this->app->singleton(StorefrontComposer::class);
@@ -47,7 +51,10 @@ class AppServiceProvider extends ServiceProvider
         $this->configureFilamentFormats();
 
         // A queue worker lives longer than a request: re-read the category tree from the cache per job.
-        Queue::looping(fn () => $this->app->make(CategoryTree::class)->forgetMemo());
+        Queue::looping(function (): void {
+            $this->app->make(CategoryTree::class)->forgetMemo();
+            $this->app->make(PriceRuleRepository::class)->forgetMemo();
+        });
 
         View::composer('storefront.*', StorefrontComposer::class);
 

@@ -7,6 +7,7 @@ namespace App\Services\Catalog;
 use App\Exceptions\CategoryTreeException;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\Pricing\PriceRuleRecalculator;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Facades\DB;
 
@@ -103,6 +104,22 @@ final class CategoryTree
         $this->collectIds($node, $ids);
 
         return $ids;
+    }
+
+    /**
+     * Id of the category followed by the ids of all its ancestors, nearest first. Unknown ids yield just [$id].
+     *
+     * @return list<int>
+     */
+    public function selfAndAncestorIds(int $id): array
+    {
+        $ids = [];
+
+        foreach (array_reverse($this->breadcrumbs($id)) as $node) {
+            $ids[] = $node->id;
+        }
+
+        return $ids === [] ? [$id] : $ids;
     }
 
     /**
@@ -406,7 +423,8 @@ final class CategoryTree
     {
         $parentId = $category->parent_id;
 
-        $hasProducts = Product::withTrashed()->where('category_id', $category->id)->exists();
+        $productIds = Product::withTrashed()->where('category_id', $category->id)->pluck('id')->all();
+        $hasProducts = $productIds !== [];
 
         if ($parentId === null && $hasProducts) {
             throw CategoryTreeException::cannotMoveProductsToRoot();
@@ -426,6 +444,9 @@ final class CategoryTree
         });
 
         $this->flush();
+
+        // The raw UPDATE above bypasses the product observer: the new category may match other price rules.
+        app(PriceRuleRecalculator::class)->dispatch($productIds);
     }
 
     // ------------------------------------------------------------------

@@ -6,10 +6,12 @@ namespace App\Filament\Resources\Products\Tables;
 
 use App\Enums\SalesMode;
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\Products\Support\BulkPriceChangeAction;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\ProductDuplicator;
 use App\Services\Media\ImageProcessor;
+use App\Services\Pricing\PriceRuleRecalculator;
 use App\Services\Sales\SalesModeResolver;
 use App\Support\Money;
 use Filament\Actions\Action;
@@ -284,6 +286,7 @@ final class ProductsTable
                         ->searchable()
                         ->native(false),
                 ],
+                affectsPrice: true,
             ),
             self::updateAction(
                 'set_mode',
@@ -319,7 +322,9 @@ final class ProductsTable
                     self::flagChoice('featured', __('admin_products.actions.flag_featured')),
                     self::flagChoice('new', __('admin_products.actions.flag_new')),
                 ],
+                affectsPrice: true,
             ),
+            BulkPriceChangeAction::make(),
             DeleteBulkAction::make()->chunkSelectedRecords(self::CHUNK),
             RestoreBulkAction::make()->chunkSelectedRecords(self::CHUNK),
             // Force deletion fires the model event that removes the photo files (AD-44).
@@ -329,12 +334,13 @@ final class ProductsTable
 
     /**
      * Bulk action that sets columns on every selected product, processed in chunks of 100 (AD-42).
-     * Flag/state columns have no observer side effects, so a single UPDATE per chunk is enough.
+     * The columns are written with a single UPDATE per chunk (no model events), so when they are inputs of price
+     * rule matching (category, flags) `$affectsPrice` queues the price recalculation of the chunk (PR-02).
      *
      * @param  \Closure(array<string, mixed>): array<string, mixed>  $changes
      * @param  list<Component>  $form
      */
-    private static function updateAction(string $name, string $label, Heroicon $icon, \Closure $changes, array $form = []): BulkAction
+    private static function updateAction(string $name, string $label, Heroicon $icon, \Closure $changes, array $form = [], bool $affectsPrice = false): BulkAction
     {
         return BulkAction::make($name)
             ->label($label)
@@ -343,7 +349,7 @@ final class ProductsTable
             ->schema($form)
             ->chunkSelectedRecords(self::CHUNK)
             ->deselectRecordsAfterCompletion()
-            ->action(function (Enumerable $records, array $data) use ($changes): void {
+            ->action(function (Enumerable $records, array $data) use ($changes, $affectsPrice): void {
                 $values = $changes($data);
 
                 if ($values === []) {
@@ -354,6 +360,10 @@ final class ProductsTable
                 $ids = $records->map(fn (Model $record): mixed => $record->getKey())->values()->all();
 
                 Product::withTrashed()->whereKey($ids)->update($values);
+
+                if ($affectsPrice) {
+                    app(PriceRuleRecalculator::class)->dispatch($ids);
+                }
 
                 Notification::make()->success()->title(__('admin_products.actions.done', ['count' => count($ids)]))->send();
             });
