@@ -67,8 +67,11 @@ final class CategoryObserver
 
         // Moving a branch changes the ancestors of every product below it, hence which "with subcategories"
         // price rules match them (PR-02).
+        // Deferred until commit: reading the tree inside the transaction would cache a state that
+        // may still be rolled back.
         if ($category->wasChanged('parent_id')) {
-            $this->prices->dispatchForCategories($this->tree->descendantIds($category->id));
+            $id = $category->id;
+            DB::afterCommit(fn () => $this->prices->dispatchForCategories($this->tree->descendantIds($id)));
         }
     }
 
