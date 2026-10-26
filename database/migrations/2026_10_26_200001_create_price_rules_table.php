@@ -20,8 +20,8 @@ return new class extends Migration
             $table->string('scope', 16);
             $table->boolean('include_subcategories')->default(true);
             $table->integer('priority')->default(0);
-            $table->timestamp('starts_at')->nullable()->index();
-            $table->timestamp('ends_at')->nullable()->index();
+            $table->dateTime('starts_at')->nullable()->index();
+            $table->dateTime('ends_at')->nullable()->index();
             $table->boolean('show_as_discount')->default(false);
             $table->boolean('stop_processing')->default(false);
             $table->timestamps();

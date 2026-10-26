@@ -457,3 +457,87 @@ describe('preview (PR-04)', function (): void {
         expect($content?->toHtml())->toContain('Кресло в окне')->toContain('Затронуто товаров: 1');
     });
 });
+
+describe('preview of a new rule (D-030)', function (): void {
+    it('sorts a new draft after existing rules of the same priority', function (): void {
+        actingAs(User::factory()->admin()->create());
+        $product = Product::factory()->create(['base_price' => '1000.00']);
+        $existing = PriceRule::factory()->discountPercent(10)->stopProcessing()->create();
+        app(PriceRuleRecalculator::class)->ruleChanged(null, PriceRuleData::fromModel($existing->load('targets')));
+
+        // The saved rule would get the highest id and be applied last; the stopping rule wins, so the draft changes nothing.
+        $html = PriceRuleForm::previewView(ruleForm(['value' => '20']), null)->render();
+
+        expect($html)->toContain(Money::format(90_000))
+            ->and($html)->not->toContain(Money::format(72_000))
+            ->and($product->fresh()->final_price)->toBe('900.00');
+    });
+
+    it('keeps the real id of an edited rule in the tie-break', function (): void {
+        actingAs(User::factory()->admin()->create());
+        Product::factory()->create(['base_price' => '1000.00']);
+        $first = PriceRule::factory()->discountPercent(20)->stopProcessing()->create();
+        $second = PriceRule::factory()->discountPercent(10)->create();
+        app(PriceRuleRecalculator::class)->ruleChanged(null, PriceRuleData::fromModel($first->load('targets')));
+        app(PriceRuleRecalculator::class)->ruleChanged(null, PriceRuleData::fromModel($second->load('targets')));
+
+        // Editing the second rule: it stays behind the stopping first rule.
+        $html = PriceRuleForm::previewView(ruleForm(['value' => '30']), $second)->render();
+
+        expect($html)->toContain(Money::format(80_000));
+    });
+});
+
+describe('value limits (D-031)', function (): void {
+    beforeEach(function (): void {
+        actingAs(User::factory()->admin()->create());
+    });
+
+    it('rejects markup percentages above 1000 and accepts 1000', function (): void {
+        Livewire::test(CreatePriceRule::class)
+            ->fillForm(ruleForm(['action' => 'markup_percent', 'value' => '1000.01']))
+            ->call('create')
+            ->assertHasFormErrors(['value']);
+
+        Livewire::test(CreatePriceRule::class)
+            ->fillForm(ruleForm(['action' => 'cost_markup_percent', 'value' => '99999999']))
+            ->call('create')
+            ->assertHasFormErrors(['value']);
+
+        Livewire::test(CreatePriceRule::class)
+            ->fillForm(ruleForm(['action' => 'markup_percent', 'value' => '1000']))
+            ->call('create')
+            ->assertHasNoFormErrors();
+    });
+
+    it('rejects fixed amounts above the column limit', function (): void {
+        Livewire::test(CreatePriceRule::class)
+            ->fillForm(ruleForm(['action' => 'markup_fixed', 'value' => '100000000']))
+            ->call('create')
+            ->assertHasFormErrors(['value']);
+    });
+
+    it('accepts an end date after 2038', function (): void {
+        Livewire::test(CreatePriceRule::class)
+            ->fillForm(ruleForm(['ends_at' => '2040-12-31 00:00:00']))
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        expect(PriceRule::query()->sole()->ends_at->year)->toBe(2040);
+    });
+});
+
+it('searches products for a rule literally, without LIKE wildcards', function (): void {
+    actingAs(User::factory()->admin()->create());
+    $percent = Product::factory()->create(['name' => 'Скидка 50% лампа', 'sku' => 'P-1']);
+    $other = Product::factory()->create(['name' => 'Скидка 50 лампа', 'sku' => 'P-2']);
+    $underscore = Product::factory()->create(['name' => 'Лампа', 'sku' => 'A_B']);
+    $plain = Product::factory()->create(['name' => 'Лампа', 'sku' => 'AXB']);
+
+    $component = Livewire::test(CreatePriceRule::class)->fillForm(ruleForm(['scope' => 'products']));
+    $field = $component->instance()->getSchema('form')->getComponent('product_ids');
+
+    expect(array_keys($field->getSearchResults('%')))->toBe([$percent->id])
+        ->and(array_keys($field->getSearchResults('A_B')))->toBe([$underscore->id]);
+    unset($other, $plain);
+});

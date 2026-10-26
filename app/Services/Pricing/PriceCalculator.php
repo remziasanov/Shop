@@ -8,6 +8,7 @@ use App\Enums\PriceRuleAction;
 use App\Enums\PriceRulePhase;
 use App\Enums\RoundingScope;
 use App\Enums\RoundingStep;
+use App\Rules\RublesAmount;
 use App\Support\Money;
 use Carbon\CarbonInterface;
 
@@ -60,7 +61,8 @@ final class PriceCalculator
                 }
 
                 $before = $price;
-                $price = $this->apply($rule, $price, $input->costPrice);
+                // Never above what a decimal(12,2) column holds, whatever the rule value.
+                $price = min($this->apply($rule, $price, $input->costPrice), RublesAmount::DEFAULT_MAX_KOPECKS);
                 $applied[] = $rule->id;
                 $steps[] = PriceStep::rule($rule, $before, $price);
 
@@ -87,7 +89,7 @@ final class PriceCalculator
             $rounded = $this->rounding->apply($price, $config->step, $config->direction, $config->psychological);
             $plain = $this->rounding->apply($price, $config->step, $config->direction, false);
             $steps[] = PriceStep::rounding($price, $rounded, $config->step, $config->direction, $rounded !== $plain);
-            $price = $rounded;
+            $price = min($rounded, RublesAmount::DEFAULT_MAX_KOPECKS);
         }
 
         $old = max($input->compareAtPrice ?? 0, $discountShown ? $priceBeforeDiscounts : 0);

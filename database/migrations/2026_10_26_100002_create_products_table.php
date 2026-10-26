@@ -28,7 +28,7 @@ return new class extends Migration
             $table->boolean('price_on_request')->default(false);
             $table->decimal('final_price', 12, 2)->default(0)->index();
             $table->decimal('display_old_price', 12, 2)->nullable();
-            $table->timestamp('price_calculated_at')->nullable();
+            $table->dateTime('price_calculated_at')->nullable();
 
             // null = stock is not tracked for this product.
             $table->integer('stock_qty')->nullable();

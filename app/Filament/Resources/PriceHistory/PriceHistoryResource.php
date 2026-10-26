@@ -10,6 +10,7 @@ use App\Filament\Resources\Products\ProductResource;
 use App\Models\PriceHistory;
 use App\Models\Product;
 use App\Services\Pricing\PriceHistoryRecorder;
+use App\Services\Search\SearchNormalizer;
 use App\Support\Money;
 use BackedEnum;
 use Filament\Forms\Components\DatePicker;
@@ -104,10 +105,12 @@ class PriceHistoryResource extends Resource
                     ->query(function (Builder $query, array $data): Builder {
                         $search = trim((string) ($data['search'] ?? ''));
 
+                        $like = '%'.app(SearchNormalizer::class)->escapeLike($search).'%';
+
                         return $search === ''
                             ? $query
                             : $query->whereIn('product_id', Product::withTrashed()
-                                ->where(fn (Builder $w) => $w->where('name', 'like', '%'.$search.'%')->orWhere('sku', 'like', '%'.$search.'%'))
+                                ->where(fn (Builder $w) => $w->whereRaw("name like ? escape '!'", [$like])->orWhereRaw("sku like ? escape '!'", [$like]))
                                 ->select('id'));
                     })
                     ->indicateUsing(fn (array $data): array => filled($data['search'] ?? null)

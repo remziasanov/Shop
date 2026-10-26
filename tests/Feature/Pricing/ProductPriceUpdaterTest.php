@@ -13,6 +13,7 @@ use App\Services\Pricing\PriceInput;
 use App\Services\Pricing\PriceRuleRepository;
 use App\Services\Pricing\ProductPriceUpdater;
 use App\Settings\PricingSettings;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
@@ -159,6 +160,7 @@ describe('recalculate()', function (): void {
     });
 
     it('updates the old price and the calculation time', function (): void {
+        $this->travelTo(CarbonImmutable::parse('2026-12-31 23:59:30'));
         $product = Product::factory()->create(['base_price' => '1000.00']);
         DB::table('products')->update(['price_calculated_at' => '2020-01-01 00:00:00']);
         PriceRule::factory()->discountPercent(10)->showAsDiscount()->create();
@@ -168,7 +170,7 @@ describe('recalculate()', function (): void {
         $fresh = $product->fresh();
         expect($fresh->final_price)->toBe('900.00')
             ->and($fresh->display_old_price)->toBe('1000.00')
-            ->and($fresh->price_calculated_at->year)->toBe((int) now()->year);
+            ->and($fresh->price_calculated_at->toDateTimeString())->toBe('2026-12-31 23:59:30');
     });
 
     it('processes more than one chunk', function (): void {

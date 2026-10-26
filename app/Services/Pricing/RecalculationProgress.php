@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services\Pricing;
 
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Progress of the background price recalculation (PR-05, D-027): total and done product counts under the
@@ -93,6 +95,11 @@ final class RecalculationProgress
 
     private function locked(callable $callback): void
     {
-        Cache::lock(self::LOCK_KEY, 10)->block(5, fn () => $callback(Cache::store()));
+        // The counter is only a hint for the banner: never fail a request or a job because of it.
+        try {
+            Cache::lock(self::LOCK_KEY, 10)->block(5, fn () => $callback(Cache::store()));
+        } catch (LockTimeoutException) {
+            Log::warning('Price recalculation progress was not updated: lock timeout.');
+        }
     }
 }

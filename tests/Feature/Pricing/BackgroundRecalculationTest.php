@@ -137,6 +137,9 @@ describe('ruleChanged', function (): void {
 });
 
 describe('shop:recalc-prices', function (): void {
+    beforeEach(fn () => @unlink(RecalcPricesCommand::lastRunPath()));
+    afterEach(fn () => @unlink(RecalcPricesCommand::lastRunPath()));
+
     it('requires exactly one of --all and --boundaries', function (): void {
         artisan('shop:recalc-prices')->assertExitCode(2);
         artisan('shop:recalc-prices', ['--all' => true, '--boundaries' => true])->assertExitCode(2);
@@ -183,7 +186,7 @@ describe('shop:recalc-prices', function (): void {
 
         Queue::assertPushed(RecalculatePrices::class, 1);
         Queue::assertPushed(RecalculatePrices::class, fn (RecalculatePrices $job): bool => $job->productIds === [$inside->id]);
-        expect(Cache::get(RecalcPricesCommand::LAST_RUN_KEY))->toBe(now()->getTimestamp());
+        expect(file_get_contents(RecalcPricesCommand::lastRunPath()))->toBe((string) now()->getTimestamp());
         unset($outside, $other);
     });
 
@@ -192,7 +195,9 @@ describe('shop:recalc-prices', function (): void {
         $this->travelTo(now()->startOfMinute());
         $product = Product::factory()->create();
         PriceRule::factory()->discountPercent(10)->create(['starts_at' => now()->subMinutes(5)]);
-        Cache::forever(RecalcPricesCommand::LAST_RUN_KEY, now()->subMinutes(2)->getTimestamp());
+        file_put_contents(RecalcPricesCommand::lastRunPath(), (string) now()->subMinutes(2)->getTimestamp());
+        // A deploy clears the cache; the last run must survive it.
+        Cache::flush();
 
         artisan('shop:recalc-prices', ['--boundaries' => true])->assertSuccessful();
 

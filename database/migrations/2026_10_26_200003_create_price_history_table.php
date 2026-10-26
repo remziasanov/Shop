@@ -20,7 +20,7 @@ return new class extends Migration
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             // The foreign key to `imports` is added together with that table in stage 3.
             $table->unsignedBigInteger('import_id')->nullable()->index();
-            $table->timestamp('created_at')->nullable();
+            $table->dateTime('created_at')->nullable();
 
             $table->index(['product_id', 'created_at']);
         });

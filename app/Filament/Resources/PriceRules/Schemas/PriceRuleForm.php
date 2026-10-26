@@ -13,6 +13,7 @@ use App\Rules\PositiveAmount;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Pricing\PriceRulePreview;
 use App\Services\Pricing\PriceRuleSaver;
+use App\Services\Search\SearchNormalizer;
 use App\Support\Money;
 use Closure;
 use Filament\Actions\Action;
@@ -37,6 +38,11 @@ use InvalidArgumentException;
  */
 final class PriceRuleForm
 {
+    /** Upper bounds of rule values (value is decimal(12,4): at most 8 integer digits). */
+    public const MAX_MARKUP_PERCENT = '1000';
+
+    public const MAX_FIXED_AMOUNT = '99999999.99';
+
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
@@ -114,14 +120,18 @@ final class PriceRuleForm
                         ->searchable()
                         ->native(false)
                         ->required()
-                        ->getSearchResultsUsing(fn (string $search): array => self::productOptions(
-                            Product::query()
-                                ->where(fn ($q) => $q->where('name', 'like', '%'.$search.'%')->orWhere('sku', 'like', '%'.$search.'%'))
-                                ->orderBy('name')
-                                ->limit(50)
-                                ->get(['id', 'name', 'sku'])
-                                ->all(),
-                        ))
+                        ->getSearchResultsUsing(function (string $search): array {
+                            $like = '%'.app(SearchNormalizer::class)->escapeLike($search).'%';
+
+                            return self::productOptions(
+                                Product::query()
+                                    ->where(fn ($q) => $q->whereRaw("name like ? escape '!'", [$like])->orWhereRaw("sku like ? escape '!'", [$like]))
+                                    ->orderBy('name')
+                                    ->limit(50)
+                                    ->get(['id', 'name', 'sku'])
+                                    ->all(),
+                            );
+                        })
                         ->getOptionLabelsUsing(fn (array $values): array => self::productOptions(
                             Product::withTrashed()->whereIn('id', $values)->get(['id', 'name', 'sku'])->all(),
                         ))
@@ -180,7 +190,7 @@ final class PriceRuleForm
     public static function previewView(array $state, ?Model $record): View
     {
         try {
-            $draft = app(PriceRuleSaver::class)->toData($state, $record instanceof PriceRule ? $record->id : 0);
+            $draft = app(PriceRuleSaver::class)->toData($state, $record instanceof PriceRule ? $record->id : PHP_INT_MAX);
         } catch (InvalidArgumentException) {
             return view('filament.pricing.preview-table', ['empty' => __('admin_pricing.preview.incomplete')]);
         }
@@ -238,8 +248,8 @@ final class PriceRuleForm
 
         return match (true) {
             $case === PriceRuleAction::DiscountPercent => new PositiveAmount(4, '100'),
-            $case?->isPercent() === true => new PositiveAmount(4),
-            default => new PositiveAmount(2),
+            $case?->isPercent() === true => new PositiveAmount(4, self::MAX_MARKUP_PERCENT),
+            default => new PositiveAmount(2, self::MAX_FIXED_AMOUNT),
         };
     }
 

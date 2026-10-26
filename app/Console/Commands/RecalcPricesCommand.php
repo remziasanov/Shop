@@ -14,9 +14,7 @@ use App\Services\Pricing\RuleProductMatcher;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Scheduled price recalculation (PR-02, TZ section 8): `--boundaries` every 15 minutes picks up rules whose
@@ -24,7 +22,11 @@ use Illuminate\Support\Facades\DB;
  */
 class RecalcPricesCommand extends Command
 {
-    public const LAST_RUN_KEY = 'pricing.boundaries.last_run';
+    /** Last `--boundaries` run: a file (like the heartbeat), so that clearing the cache on deploy does not lose it. */
+    public static function lastRunPath(): string
+    {
+        return storage_path('app/pricing-boundaries-last-run');
+    }
 
     /** Default window when there was no previous run (a bit more than the 15 minute schedule). */
     private const DEFAULT_WINDOW_MINUTES = 16;
@@ -54,13 +56,8 @@ class RecalcPricesCommand extends Command
         $repository->flush();
         $now = now();
 
-        if ($all) {
-            $ids = DB::table('products')->whereNull('deleted_at')->orderBy('id')->pluck('id')->map(fn (mixed $id): int => (int) $id);
-        } else {
-            $ids = $this->boundaryIds($matcher, $now);
-        }
-
         if ($this->option('sync')) {
+            $ids = $all ? $recalculator->allIds() : $this->boundaryIds($matcher, $now);
             $count = $ids->count();
 
             foreach ($ids->chunk(RecalculatePrices::MAX_IDS) as $chunk) {
@@ -69,16 +66,34 @@ class RecalcPricesCommand extends Command
 
             $this->info(__('pricing.recalc_command.done_sync', ['products' => $count]));
         } else {
-            $result = $recalculator->dispatch($ids);
+            $result = $all ? $recalculator->dispatchAll() : $recalculator->dispatch($this->boundaryIds($matcher, $now));
 
             $this->info(__('pricing.recalc_command.queued', $result));
         }
 
         if ($boundaries) {
-            Cache::forever(self::LAST_RUN_KEY, $now->getTimestamp());
+            $this->storeLastRun($now->getTimestamp());
         }
 
         return self::SUCCESS;
+    }
+
+    private function storeLastRun(int $timestamp): void
+    {
+        $path = self::lastRunPath();
+
+        if (! is_dir(dirname($path))) {
+            mkdir(dirname($path), 0775, true);
+        }
+
+        file_put_contents($path, (string) $timestamp, LOCK_EX);
+    }
+
+    private function readLastRun(): ?string
+    {
+        $path = self::lastRunPath();
+
+        return is_file($path) ? trim((string) file_get_contents($path)) : null;
     }
 
     /**
@@ -86,7 +101,7 @@ class RecalcPricesCommand extends Command
      */
     private function boundaryIds(RuleProductMatcher $matcher, CarbonInterface $now): Collection
     {
-        $stored = Cache::get(self::LAST_RUN_KEY);
+        $stored = $this->readLastRun();
         $lastRun = is_numeric($stored)
             ? Date::createFromTimestamp((int) $stored, $now->getTimezone())
             : $now->copy()->subMinutes(self::DEFAULT_WINDOW_MINUTES);

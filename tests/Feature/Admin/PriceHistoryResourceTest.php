@@ -87,3 +87,19 @@ it('does not run N+1 queries for many rows', function (): void {
 
     Livewire::test(ListPriceHistory::class)->assertOk();
 });
+
+it('filters by product text literally, without LIKE wildcards', function (): void {
+    actingAs(User::factory()->admin()->create());
+    $percent = Product::factory()->create(['name' => 'Скидка 50% лампа', 'sku' => 'H-1']);
+    $plain = Product::factory()->create(['name' => 'Скидка 50 лампа', 'sku' => 'H-2']);
+    $a = PriceHistory::factory()->create(['product_id' => $percent->id]);
+    $b = PriceHistory::factory()->create(['product_id' => $plain->id]);
+
+    Livewire::test(ListPriceHistory::class)
+        ->filterTable('product', ['search' => '%'])
+        ->assertCanSeeTableRecords([$a])
+        ->assertCanNotSeeTableRecords([$b])
+        ->resetTableFilters()
+        ->filterTable('product', ['search' => '_'])
+        ->assertCanNotSeeTableRecords([$a, $b]);
+});

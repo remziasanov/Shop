@@ -89,7 +89,7 @@ final class PriceRuleSaver
     }
 
     /**
-     * Snapshot of the form state for previews. Rule id 0 means "not saved yet".
+     * Snapshot of the form state for previews. Rule id 0 means "not saved yet" (previews of new rules pass PHP_INT_MAX: the newest id sorts last).
      *
      * @param  array<string, mixed>  $state
      *

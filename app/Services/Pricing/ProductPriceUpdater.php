@@ -48,12 +48,14 @@ final class ProductPriceUpdater
     }
 
     /**
-     * Whether a save requires recalculation: a new product, or any input of the price or of rule matching changed.
+     * Whether a save requires recalculation: a new product, a product restored from the trash (batch recalculation
+     * skips deleted products, so its price may be stale), or any input of the price or of rule matching changed.
      */
     public function needsUpdate(Product $product): bool
     {
         return ! $product->exists
             || $product->price_calculated_at === null
+            || ($product->isDirty('deleted_at') && $product->deleted_at === null)
             || $product->isDirty([
                 'base_price', 'cost_price', 'fixed_price', 'compare_at_price', 'price_on_request',
                 'category_id', 'brand', 'is_featured', 'is_new',

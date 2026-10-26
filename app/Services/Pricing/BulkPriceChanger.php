@@ -6,6 +6,7 @@ namespace App\Services\Pricing;
 
 use App\Enums\BulkPriceOperation;
 use App\Enums\PriceChangeSource;
+use App\Jobs\ApplyBulkPriceChange;
 use App\Models\Product;
 use App\Rules\PositiveAmount;
 use App\Support\Money;
@@ -15,13 +16,17 @@ use InvalidArgumentException;
 /**
  * Bulk change of the base price by ±X % or ±N ₽ (AD-42, D-017). Arithmetic is done in integer kopecks with
  * bcmath; a percentage is rounded half-up to a kopeck, the result is never below zero. Changes go through
- * the model, so the observer records price history (source "bulk") and recalculates the final price.
+ * the model, so the observer records price history (source "bulk") and recalculates the final price. The work
+ * runs in queued {@see ApplyBulkPriceChange} jobs (D-032).
  */
 final class BulkPriceChanger
 {
     public const PREVIEW_LIMIT = 20;
 
     public const CHUNK_SIZE = 100;
+
+    /** Products per queued job (about 4 ms each, the job limit is 40 s). */
+    public const JOB_SIZE = 200;
 
     /** Largest value of a decimal(12,2) column, in kopecks. */
     private const MAX_KOPECKS = 999_999_999_999;
@@ -84,42 +89,95 @@ final class BulkPriceChanger
     }
 
     /**
-     * Change the base price of the given products. Returns the number of products whose price changed.
+     * The change for each product whose base price would actually change: id => [old, new] in kopecks,
+     * computed in chunks of {@see CHUNK_SIZE}. The "old" price is what {@see applyTargets()} later checks, so a
+     * retried or duplicated job never applies the change twice.
      *
      * @param  iterable<int>  $ids
+     * @return array<int, array{old: int, new: int}>
      *
      * @throws InvalidArgumentException when the value is not a positive number
      */
-    public function apply(iterable $ids, BulkPriceOperation $operation, string $value): int
+    public function computeTargets(iterable $ids, BulkPriceOperation $operation, string $value): array
     {
         $this->parseValue($value);
 
-        return $this->context->run(PriceChangeSource::Bulk, null, function () use ($ids, $operation, $value): int {
+        $targets = [];
+
+        foreach (collect($ids)->unique()->chunk(self::CHUNK_SIZE) as $chunk) {
+            $products = Product::withTrashed()->whereIn('id', $chunk->values()->all())->orderBy('id')->get(['id', 'base_price']);
+
+            foreach ($products as $product) {
+                $old = Money::fromRubles($product->base_price);
+                $new = $this->newPrice($old, $operation, $value);
+
+                if ($new !== $old) {
+                    $targets[$product->id] = ['old' => $old, 'new' => $new];
+                }
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * Queue the change as {@see ApplyBulkPriceChange} jobs of up to {@see JOB_SIZE} products (a job must stay
+     * within 40 s on shared hosting). The acting user is passed along, because queue workers have no session.
+     *
+     * @param  iterable<int>  $ids
+     * @return array{products: int, jobs: int}
+     *
+     * @throws InvalidArgumentException when the value is not a positive number
+     */
+    public function dispatch(iterable $ids, BulkPriceOperation $operation, string $value, ?int $userId): array
+    {
+        $targets = $this->computeTargets($ids, $operation, $value);
+
+        foreach (array_chunk($targets, self::JOB_SIZE, true) as $chunk) {
+            ApplyBulkPriceChange::dispatch($chunk, $userId)->afterCommit();
+        }
+
+        return ['products' => count($targets), 'jobs' => (int) ceil(count($targets) / self::JOB_SIZE)];
+    }
+
+    /**
+     * Set the new base price of each product, but only when its current base price still equals the expected
+     * old one (idempotent; products changed meanwhile are skipped). Runs in the bulk context of the given user,
+     * so history rows get source "bulk" and the final price is recalculated by the observer.
+     *
+     * @param  array<int, array{old: int, new: int}>  $targets
+     * @return array{changed: int, skipped: int}
+     */
+    public function applyTargets(array $targets, ?int $userId): array
+    {
+        return $this->context->run(PriceChangeSource::Bulk, null, function () use ($targets): array {
             $changed = 0;
+            $skipped = 0;
 
-            foreach (collect($ids)->unique()->chunk(self::CHUNK_SIZE) as $chunk) {
-                $changed += DB::transaction(function () use ($chunk, $operation, $value): int {
-                    $count = 0;
+            foreach (array_chunk($targets, self::CHUNK_SIZE, true) as $chunk) {
+                DB::transaction(function () use ($chunk, &$changed, &$skipped): void {
+                    $products = Product::withTrashed()->whereIn('id', array_keys($chunk))->orderBy('id')->lockForUpdate()->get();
 
-                    foreach (Product::withTrashed()->whereIn('id', $chunk->values()->all())->orderBy('id')->get() as $product) {
-                        $old = Money::fromRubles($product->base_price);
-                        $new = $this->newPrice($old, $operation, $value);
+                    $skipped += count($chunk) - $products->count();
 
-                        if ($new === $old) {
+                    foreach ($products as $product) {
+                        $target = $chunk[$product->id];
+
+                        if (Money::fromRubles($product->base_price) !== $target['old']) {
+                            $skipped++;
+
                             continue;
                         }
 
-                        $product->base_price = Money::toRubles($new);
+                        $product->base_price = Money::toRubles($target['new']);
                         $product->save();
-                        $count++;
+                        $changed++;
                     }
-
-                    return $count;
                 });
             }
 
-            return $changed;
-        });
+            return ['changed' => $changed, 'skipped' => $skipped];
+        }, $userId);
     }
 
     private function parseValue(string $value): string

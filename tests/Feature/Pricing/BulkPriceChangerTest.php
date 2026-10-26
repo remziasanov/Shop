@@ -14,6 +14,18 @@ beforeEach(function (): void {
     $this->changer = app(BulkPriceChanger::class);
 });
 
+/**
+ * Compute and apply the change right away, like the queued job does. Returns the number of changed products.
+ *
+ * @param  list<int>  $ids
+ */
+function applyBulk(array $ids, BulkPriceOperation $operation, string $value, ?int $userId = null): int
+{
+    $changer = app(BulkPriceChanger::class);
+
+    return $changer->applyTargets($changer->computeTargets($ids, $operation, $value), $userId)['changed'];
+}
+
 it('computes every operation in kopecks', function (BulkPriceOperation $operation, string $value, int $old, int $expected): void {
     expect($this->changer->newPrice($old, $operation, $value))->toBe($expected);
 })->with([
@@ -52,7 +64,7 @@ it('applies the change, records bulk history with the user and recalculates fina
     $b = Product::factory()->create(['base_price' => '200.10']);
     $untouched = Product::factory()->create(['base_price' => '300.00']);
 
-    $changed = $this->changer->apply([$a->id, $b->id, $a->id], BulkPriceOperation::IncreasePercent, '10');
+    $changed = applyBulk([$a->id, $b->id, $a->id], BulkPriceOperation::IncreasePercent, '10', $user->id);
 
     expect($changed)->toBe(2)
         ->and($a->fresh()->base_price)->toBe('1100.00')
@@ -75,7 +87,7 @@ it('never goes below zero and skips products whose price does not change', funct
     $cheap = Product::factory()->create(['base_price' => '100.00']);
     $free = Product::factory()->create(['base_price' => '0.00']);
 
-    $changed = $this->changer->apply([$cheap->id, $free->id], BulkPriceOperation::DecreaseFixed, '500');
+    $changed = applyBulk([$cheap->id, $free->id], BulkPriceOperation::DecreaseFixed, '500');
 
     expect($changed)->toBe(1)
         ->and($cheap->fresh()->base_price)->toBe('0.00')
@@ -86,7 +98,7 @@ it('never goes below zero and skips products whose price does not change', funct
 it('restores the manual change context afterwards', function (): void {
     $product = Product::factory()->create(['base_price' => '100.00']);
 
-    $this->changer->apply([$product->id], BulkPriceOperation::IncreaseFixed, '1');
+    applyBulk([$product->id], BulkPriceOperation::IncreaseFixed, '1');
     $product->refresh()->update(['base_price' => '500.00']);
 
     expect(PriceHistory::query()->orderBy('id')->pluck('source')->all())
@@ -96,6 +108,18 @@ it('restores the manual change context afterwards', function (): void {
 it('processes more products than one chunk', function (): void {
     $products = Product::factory()->count(BulkPriceChanger::CHUNK_SIZE + 5)->create(['base_price' => '10.00']);
 
-    expect($this->changer->apply($products->pluck('id')->all(), BulkPriceOperation::IncreaseFixed, '1'))->toBe($products->count())
+    expect(applyBulk($products->pluck('id')->all(), BulkPriceOperation::IncreaseFixed, '1'))->toBe($products->count())
         ->and(Product::query()->where('base_price', '11.00')->count())->toBe($products->count());
+});
+
+it('computes targets only for products whose price would change, in chunks', function (): void {
+    $products = Product::factory()->count(BulkPriceChanger::CHUNK_SIZE + 3)->create(['base_price' => '10.00']);
+    $free = Product::factory()->create(['base_price' => '0.00']);
+
+    $targets = $this->changer->computeTargets([...$products->pluck('id')->all(), $free->id], BulkPriceOperation::DecreaseFixed, '5');
+
+    expect($targets)->toHaveCount($products->count())
+        ->and($targets[$products[0]->id])->toBe(['old' => 1000, 'new' => 500])
+        ->and($targets)->not->toHaveKey($free->id)
+        ->and(Product::query()->where('base_price', '10.00')->count())->toBe($products->count());
 });

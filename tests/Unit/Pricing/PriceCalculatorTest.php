@@ -448,3 +448,15 @@ describe('percent arithmetic', function (): void {
         expect($result->finalPrice)->toBe(37_500);
     });
 });
+
+it('never exceeds the largest decimal(12,2) amount, whatever the rule value', function (): void {
+    $max = 999_999_999_999;
+
+    $markup = pcCalc(pcInput(900_000_000_000), [pcRule(1, PriceRuleAction::MarkupPercent, '99999999')]);
+    $fixed = pcCalc(pcInput($max), [pcRule(1, PriceRuleAction::MarkupFixed, '99999999.99')]);
+    $rounded = pcCalc(pcInput($max - 1), [pcRule(1, PriceRuleAction::MarkupFixed, '0.01')], new PricingConfig(RoundingStep::Hundred, RoundingDirection::Up));
+
+    expect($markup->finalPrice)->toBe($max)
+        ->and($fixed->finalPrice)->toBe($max)
+        ->and($rounded->finalPrice)->toBeLessThanOrEqual($max);
+});

@@ -18,6 +18,7 @@ use Filament\Schemas\Components\View;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Contracts\HasTable;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
 
@@ -83,13 +84,24 @@ class BulkPriceChangeAction extends BulkAction
 
                 $ids = $livewire->getSelectedTableRecords(false)->all();
 
-                $changed = app(BulkPriceChanger::class)->apply(
+                $max = (int) config('shop.bulk_price_max_selection');
+
+                if (count($ids) > $max) {
+                    Notification::make()->danger()
+                        ->title(__('admin_pricing.bulk.too_many', ['max' => number_format($max, 0, '', ' ')]))
+                        ->send();
+
+                    return;
+                }
+
+                $result = app(BulkPriceChanger::class)->dispatch(
                     $ids,
                     BulkPriceOperation::from((string) $data['operation']),
                     (string) $data['value'],
+                    Auth::id() !== null ? (int) Auth::id() : null,
                 );
 
-                Notification::make()->success()->title(__('admin_pricing.bulk.done', ['count' => $changed]))->send();
+                Notification::make()->success()->title(__('admin_pricing.bulk.queued', ['count' => $result['products']]))->send();
             });
     }
 

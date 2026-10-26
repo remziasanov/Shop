@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Pricing;
 
 use App\Jobs\RecalculatePrices;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Recalculates prices after a rule was created, changed, toggled or deleted, or when a rule period boundary
@@ -29,6 +31,51 @@ class PriceRuleRecalculator
         $this->rules->flush();
 
         $this->dispatch($this->matcher->affectedIds($before, $after));
+    }
+
+    /**
+     * Ids of all live (not soft-deleted) products, ascending.
+     *
+     * @return Collection<int, int>
+     */
+    public function allIds(): Collection
+    {
+        return DB::table('products')->whereNull('deleted_at')->orderBy('id')->pluck('id')->map(fn (mixed $id): int => (int) $id);
+    }
+
+    /**
+     * Queue recalculation of every live product (what `shop:recalc-prices --all` does), e.g. after the pricing
+     * settings changed.
+     *
+     * @return array{products: int, jobs: int}
+     */
+    public function dispatchAll(): array
+    {
+        $this->rules->flush();
+
+        return $this->dispatch($this->allIds());
+    }
+
+    /**
+     * Queue recalculation of the live products of the given categories (their rule matching may have changed).
+     *
+     * @param  list<int>  $categoryIds
+     * @return array{products: int, jobs: int}
+     */
+    public function dispatchForCategories(array $categoryIds): array
+    {
+        if ($categoryIds === []) {
+            return ['products' => 0, 'jobs' => 0];
+        }
+
+        $ids = DB::table('products')
+            ->whereNull('deleted_at')
+            ->whereIn('category_id', $categoryIds)
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id);
+
+        return $this->dispatch($ids);
     }
 
     /**
