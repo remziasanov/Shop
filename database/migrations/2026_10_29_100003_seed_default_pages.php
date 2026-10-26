@@ -7,8 +7,9 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * SF-70, D-055: draft (inactive) template pages; idempotent by slug. The privacy policy and the consent
- * pages are wired into the legal settings unless the owner already chose other ones.
+ * SF-70, D-055, D-058: template pages; idempotent by slug. The privacy policy and the consent pages are active
+ * (the consent checkbox needs a document to link to, SF-71; the template marker stays at the top), the other three
+ * are drafts. The privacy policy and the consent pages are wired into the legal settings unless the owner already chose other ones.
  */
 return new class extends Migration
 {
@@ -21,7 +22,7 @@ return new class extends Migration
                 'title' => $page['title'],
                 'slug' => $page['slug'],
                 'content' => $page['content'],
-                'is_active' => false,
+                'is_active' => in_array($page['slug'], [DefaultPageTemplates::PRIVACY_SLUG, DefaultPageTemplates::CONSENT_SLUG], true),
                 'meta_title' => null,
                 'meta_description' => null,
                 'created_at' => $now,

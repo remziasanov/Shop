@@ -5,7 +5,7 @@
             <source media="(max-width: 767px)" srcset="{{ $slide['mobileSrcset'] }}" sizes="100vw">
         @endif
         <img src="{{ $slide['src'] }}" srcset="{{ $slide['srcset'] }}" sizes="(min-width: 1280px) 1216px, 100vw"
-             width="{{ $slide['width'] }}" height="{{ $slide['height'] }}" alt=""
+             width="{{ $slide['width'] }}" height="{{ $slide['height'] }}" alt="{{ $slide['alt'] }}"
              @if ($eager) fetchpriority="high" @else loading="lazy" @endif decoding="async"
              class="block h-auto w-full">
     </picture>

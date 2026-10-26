@@ -22,11 +22,11 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
-it('ships five draft template pages and points the legal settings to them (SF-70, SF-71)', function () {
+it('ships five template pages (consent and policy active, others drafts) and points the legal settings to them (SF-70, SF-71)', function () {
     $pages = Page::query()->whereIn('slug', array_column(DefaultPageTemplates::all(), 'slug'))->get();
 
     expect($pages)->toHaveCount(5)
-        ->and($pages->every(fn (Page $p) => ! $p->is_active))->toBeTrue()
+        ->and($pages->filter(fn (Page $p) => $p->is_active)->pluck('slug')->sort()->values()->all())->toBe(collect([DefaultPageTemplates::PRIVACY_SLUG, DefaultPageTemplates::CONSENT_SLUG])->sort()->values()->all())
         ->and($pages->every(fn (Page $p) => str_contains((string) $p->content, DefaultPageTemplates::MARKER)))->toBeTrue()
         ->and($pages->pluck('content')->join(' '))->toContain('[ИНН]');
 

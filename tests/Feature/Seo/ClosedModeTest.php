@@ -51,8 +51,10 @@ it('keeps the admin panel and health check working (SF-05)', function () {
     $this->actingAs(User::factory()->admin()->create())->get('/'.$admin)->assertSuccessful();
 });
 
-it('serves robots.txt with Disallow all while closed and the sitemap is unavailable', function () {
-    $this->get('/robots.txt')->assertOk()->assertSee('Disallow: /', false)->assertDontSee('Sitemap:', false);
+it('keeps the normal robots.txt rules while closed, pages answer 503 instead (SF-05, D-056)', function () {
+    $text = $this->get('/robots.txt')->assertOk()->getContent();
+
+    expect($text)->not->toMatch('/^Disallow:\s*\/\s*$/m')->and($text)->toContain('Disallow: /cart')->toContain('Sitemap:');
 });
 
 it('is open by default', function () {

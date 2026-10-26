@@ -224,3 +224,18 @@ it('renders page meta from the page values (SF-70, SF-81)', function () {
         ->assertSee('<title>О магазине', false)
         ->assertSee('Всё о нас', false);
 });
+
+it('emits one canonical, og:url and BreadcrumbList on a static page through SeoBuilder::page (SF-83)', function () {
+    $page = Page::factory()->create(['slug' => 'about', 'title' => 'О нас', 'meta_title' => null, 'meta_description' => null, 'content' => '<p>'.str_repeat('Слово ', 80).'</p>']);
+    $url = route('page.show', $page->slug);
+
+    $html = $this->get($url)->assertOk()->getContent();
+    $lists = collect(jsonLdBlocks($html))->firstWhere('@type', 'BreadcrumbList');
+
+    expect(substr_count($html, 'rel="canonical"'))->toBe(1)
+        ->and($html)->toContain('<link rel="canonical" href="'.$url.'">')
+        ->and($html)->toContain('<meta property="og:url" content="'.$url.'">')
+        ->and($html)->toContain('<title>О нас — Лавка Тест</title>')
+        ->and($lists['itemListElement'] ?? [])->toHaveCount(2)
+        ->and(mb_strlen(app(SeoBuilder::class)->page('x', null, null, '<p>'.str_repeat('Слово ', 80).'</p>', $url)->description))->toBeLessThanOrEqual(163);
+});

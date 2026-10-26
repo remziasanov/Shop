@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\Home\HomeLink;
 use App\Services\Home\HomePageRenderer;
 use App\Settings\AppearanceSettings;
 use App\Settings\HomePageSettings;
@@ -230,7 +231,7 @@ describe('products block', function () {
 
         foreach (['hits' => 'hit', 'new' => 'new', 'discounted' => 'sale'] as $source => $flag) {
             productsBlock(['source' => $source]);
-            $this->get(route('home'))->assertSee('Смотреть все')->assertSee(e(route('catalog.index', ['flags' => [$flag]])), false);
+            $this->get(route('home'))->assertSee('Смотреть все')->assertSee(e(route('catalog.index', ['flags' => [$flag]], false)), false);
         }
 
         productsBlock(['source' => 'hits', 'show_all' => false]);
@@ -384,4 +385,33 @@ it('lets a different session add to the cart from the cached home page', functio
     $this->withSession(['_token' => $token])
         ->post(route('cart.add'), ['_token' => $token, 'product_id' => $product->id])
         ->assertStatus(302);
+});
+
+it('rejects backslash and protocol-relative links of banners (HomeLink)', function (string $link, bool $safe) {
+    expect(HomeLink::isSafe($link))->toBe($safe);
+})->with([
+    ['/\\evil.com', false],
+    ['/\\/evil.com', false],
+    ['//evil.com', false],
+    ['\\\\evil.com', false],
+    ["/ok\n//x", false],
+    ['javascript:alert(1)', false],
+    ['/catalog', true],
+    ['https://example.com/a', true],
+    ['mailto:a@example.com', true],
+    ['tel:+79001112233', true],
+]);
+
+it('renders the banner and slide alt text, defaulting to the title (NF-31)', function () {
+    storeHomeBlocks([
+        homeBlock('banner', ['title' => 'Скидки', 'image' => bannerImage('one'), 'image_alt' => 'Распродажа лета -30%']),
+        homeBlock('banner', ['title' => 'Новинки', 'image' => bannerImage('two')]),
+        homeBlock('slider', ['slides' => [['image' => bannerImage('s1')]]]),
+    ]);
+
+    $html = homeMain($this->get(route('home')));
+
+    expect($html)->toContain('alt="Распродажа лета -30%"')
+        ->and($html)->toContain('alt="Новинки"')
+        ->and($html)->toContain('alt=""');
 });

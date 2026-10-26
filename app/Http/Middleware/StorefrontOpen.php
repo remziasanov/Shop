@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Settings\GeneralSettings;
 use Closure;
 use Illuminate\Http\Request;
@@ -11,8 +12,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Closed mode (SF-05): while "shop open" is off, storefront pages answer 503 with the message from the settings.
- * Not affected: the admin panel and its file endpoints, Livewire endpoints (the panel login uses them), the health
- * check and /robots.txt (answers "Disallow: /" itself). Signed-in active staff (administrators and managers) see the
+ * Not affected: the admin panel and its file endpoints, Livewire endpoints (the panel login uses them; storefront components guard themselves with
+ * RequiresOpenShop, D-057), the health check and /robots.txt (normal rules, D-056). Signed-in active staff (administrators and managers) see the
  * storefront normally so they can check it before opening.
  */
 class StorefrontOpen
@@ -25,9 +26,7 @@ class StorefrontOpen
             return $next($request);
         }
 
-        $user = $request->user();
-
-        if ($user !== null && ($user->is_active ?? false)) {
+        if (self::isActiveStaff($request->user())) {
             return $next($request);
         }
 
@@ -35,6 +34,15 @@ class StorefrontOpen
             ->view('errors.shop-closed', ['message' => $this->message()], 503)
             ->header('Retry-After', '3600')
             ->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Signed-in active staff may use the closed storefront (also checked by storefront Livewire components,
+     * see {@see RequiresOpenShop}).
+     */
+    public static function isActiveStaff(?object $user): bool
+    {
+        return $user !== null && (bool) ($user->is_active ?? false);
     }
 
     private function isOpen(): bool

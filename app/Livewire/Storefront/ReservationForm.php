@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Storefront;
 
 use App\Exceptions\SalesException;
+use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
 use App\Models\Product;
 use App\Services\Orders\OrderService;
@@ -23,6 +24,7 @@ use Throwable;
  */
 class ReservationForm extends Component
 {
+    use RequiresOpenShop;
     use SalesFormSupport;
 
     #[Locked]

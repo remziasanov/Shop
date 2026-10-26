@@ -21,6 +21,7 @@ beforeEach(function () {
     $this->dir = storage_path('framework/testing/sitemap-'.uniqid());
     File::ensureDirectoryExists($this->dir);
     config(['shop.sitemap_dir' => $this->dir]);
+    Page::query()->delete(); // the shipped default pages (D-058) are not part of these counts
 });
 
 afterEach(function () {
@@ -142,4 +143,26 @@ it('falls back to the default robots rules when the setting is empty', function 
     $text = $this->get('/robots.txt')->getContent();
 
     expect($text)->toContain('Disallow: /cart')->toContain('Disallow: /checkout')->toContain('Disallow: /search')->toContain('Disallow: /admin');
+});
+
+it('does not generate in parallel: the locked job and command skip, the route answers 503 (SF-82, D-056)', function () {
+    $lock = Cache::lock(SitemapGenerator::LOCK, 60);
+    expect($lock->get())->toBeTrue();
+
+    expect(app(SitemapGenerator::class)->generateLocked())->toBeNull();
+
+    (new GenerateSitemap)->handle(app(SitemapGenerator::class));
+    $this->artisan('shop:sitemap')->assertSuccessful();
+    expect(file_exists($this->dir.'/sitemap.xml'))->toBeFalse();
+
+    $this->get('/sitemap.xml')->assertStatus(503)->assertHeader('Retry-After');
+    expect(file_exists($this->dir.'/sitemap.xml'))->toBeFalse();
+
+    $lock->release();
+
+    expect(app(SitemapGenerator::class)->generateLocked())->toBeInt()
+        ->and(file_exists($this->dir.'/sitemap.xml'))->toBeTrue();
+
+    // The lock is released after a run.
+    expect(Cache::lock(SitemapGenerator::LOCK, 5)->get())->toBeTrue();
 });

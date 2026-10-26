@@ -4,25 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services\Seo;
 
-use App\Settings\GeneralSettings;
 use App\Settings\SeoSettings;
 
 /**
- * Text of /robots.txt (SF-82): the text from SeoSettings plus the sitemap link; everything is disallowed while the shop is closed.
+ * Text of /robots.txt (SF-82): the text from SeoSettings plus the sitemap link. The rules stay the same while the shop is closed (D-056): storefront pages
+ * answer 503 + Retry-After, which crawlers treat as temporary, while `Disallow: /` could drop pages from the index.
  */
 final class RobotsBuilder
 {
-    public function __construct(
-        private readonly SeoSettings $seo,
-        private readonly GeneralSettings $general,
-    ) {}
+    public function __construct(private readonly SeoSettings $seo) {}
 
     public function build(): string
     {
-        if (! $this->general->shop_open) {
-            return "User-agent: *\nDisallow: /\n";
-        }
-
         $admin = '/'.trim((string) config('shop.admin_path'), '/');
         $text = trim(str_replace("\r", '', $this->seo->robots_txt));
 

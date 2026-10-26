@@ -10,6 +10,7 @@ use App\Services\Catalog\CategoryTree;
 use Carbon\CarbonInterface;
 use Generator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -25,6 +26,8 @@ final class SitemapGenerator
 {
     public const MAX_URLS = 50_000;
 
+    public const LOCK = 'sitemap:generate';
+
     private const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 
     public function __construct(private readonly CategoryTree $tree) {}
@@ -34,6 +37,27 @@ final class SitemapGenerator
         $dir = config('shop.sitemap_dir');
 
         return is_string($dir) && $dir !== '' ? $dir : public_path();
+    }
+
+    /**
+     * {@see generate()} under a cache lock, so the cron run, the post-import job and a crawler hitting a missing
+     * file never write the sitemap in parallel (one process could remove the other's parts).
+     *
+     * @return int|null number of URLs written, null when another process is generating right now
+     */
+    public function generateLocked(?string $directory = null, int $maxUrls = self::MAX_URLS): ?int
+    {
+        $lock = Cache::lock(self::LOCK, 120);
+
+        if (! $lock->get()) {
+            return null;
+        }
+
+        try {
+            return $this->generate($directory, $maxUrls);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**

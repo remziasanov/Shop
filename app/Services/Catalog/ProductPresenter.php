@@ -30,18 +30,21 @@ final class ProductPresenter
      * @param  iterable<Product>  $products
      * @return list<ProductView>
      */
-    public function many(iterable $products): array
+    public function many(iterable $products, bool $absolute = true): array
     {
         $views = [];
 
         foreach ($products as $product) {
-            $views[] = $this->present($product);
+            $views[] = $this->present($product, $absolute);
         }
 
         return $views;
     }
 
-    public function present(Product $product): ProductView
+    /**
+     * @param  bool  $absolute  false gives a site-relative URL (for fragments cached across hosts, D-057)
+     */
+    public function present(Product $product, bool $absolute = true): ProductView
     {
         $onRequest = $product->price_on_request;
         $discount = $onRequest ? null : $product->discountPercent();
@@ -54,7 +57,7 @@ final class ProductPresenter
 
         return new ProductView(
             product: $product,
-            url: route('product.show', $product->slug),
+            url: route('product.show', $product->slug, $absolute),
             priceOnRequest: $onRequest,
             price: $onRequest ? __('storefront.product.price_on_request') : Money::format(Money::fromRubles($product->final_price)),
             oldPrice: $oldPrice,

@@ -25,7 +25,7 @@
                 @if ($action['disabled'])
                     <span aria-disabled="true" class="cursor-not-allowed rounded bg-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-500">{{ $action['label'] }}</span>
                 @elseif ($action['key'] === 'cart')
-                    <form method="post" action="{{ route('cart.add') }}" x-data="cardAdd" @submit.prevent="submit($event)" data-error="{{ __('sales.guard.generic') }}">
+                    <form method="post" action="{{ route('cart.add', [], false) }}" x-data="cardAdd" @submit.prevent="submit($event)" data-error="{{ __('sales.guard.generic') }}">
                         @csrf
                         <input type="hidden" name="product_id" value="{{ $product->id }}">
                         <button type="submit" data-action="cart" :disabled="busy" class="w-full rounded bg-primary px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></button>

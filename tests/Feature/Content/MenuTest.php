@@ -170,7 +170,8 @@ it('builds the footer: menu, contacts, social links, requisites and legal links 
 it('hides legal links of inactive pages and refreshes the cached menus on changes (NF-04)', function () {
     $legal = app(LegalSettings::class);
     $page = Page::find($legal->privacy_page_id);
-    expect($page->is_active)->toBeFalse();
+    expect($page->is_active)->toBeTrue(); // D-058: shipped active
+    $page->update(['is_active' => false]);
 
     $this->get('/')->assertOk()->assertDontSee(route('page.show', $page->slug, false), false);
 
@@ -192,8 +193,9 @@ it('hides legal links of inactive pages and refreshes the cached menus on change
 it('links the consent checkbox to the active consent page (SF-71)', function () {
     $consent = Page::find(app(LegalSettings::class)->consent_page_id);
     $product = sellable(['sales_mode' => SalesMode::Inquiry, 'price_on_request' => true]);
+    $consent->update(['is_active' => false]);
 
-    // Draft consent page: the text stays, the link is not shown.
+    // Inactive consent page: the text stays, the link is not shown.
     livewireWithCart(InquiryForm::class, null, ['productId' => $product->id])
         ->assertDontSee(route('page.show', $consent->slug, false), false);
 

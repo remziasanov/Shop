@@ -22,6 +22,7 @@ class GenerateSitemap implements ShouldBeUnique, ShouldQueue
 
     public function handle(SitemapGenerator $generator): void
     {
-        $generator->generate();
+        // Skipped while another process (cron, a crawler request) is generating the same file.
+        $generator->generateLocked();
     }
 }

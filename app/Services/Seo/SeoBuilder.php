@@ -172,7 +172,7 @@ final class SeoBuilder
     {
         return new SeoMeta(
             title: $this->text($metaTitle) ?: $title.' — '.$this->shop(),
-            description: $this->text($metaDescription) ?: $this->excerpt($content),
+            description: $this->text($metaDescription) ?: Str::limit($this->excerpt($content), 160),
             canonical: $url,
             ogImage: $this->defaultImage(),
             ogUrl: $url,

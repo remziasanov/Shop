@@ -60,5 +60,18 @@ it('links the banner to the policy page when it is active (SF-08)', function () 
     $page = Page::factory()->create(['slug' => 'privacy-x']);
     legalSettings(['cookie_banner_enabled' => true, 'privacy_page_id' => $page->id]);
 
-    $this->get('/')->assertSee(route('page.show', 'privacy-x'), false);
+    $this->get('/')->assertSee('href="'.route('page.show', 'privacy-x', false).'"', false);
+});
+
+it('reads the banner policy link from the cached menus without querying pages (SF-08)', function () {
+    $page = Page::factory()->create(['slug' => 'privacy-y']);
+    legalSettings(['cookie_banner_enabled' => true, 'privacy_page_id' => $page->id]);
+
+    $this->get('/')->assertOk();
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $this->get('/')->assertOk()->assertSee('href="'.route('page.show', 'privacy-y', false).'"', false);
+
+    expect(collect(DB::getQueryLog())->filter(fn ($q) => str_contains($q['query'], '"pages"') || str_contains($q['query'], '`pages`'))->count())->toBe(0);
 });

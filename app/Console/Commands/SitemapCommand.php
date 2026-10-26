@@ -15,7 +15,13 @@ class SitemapCommand extends Command
 
     public function handle(SitemapGenerator $generator): int
     {
-        $count = $generator->generate();
+        $count = $generator->generateLocked();
+
+        if ($count === null) {
+            $this->warn('Sitemap generation is already running, skipped.');
+
+            return self::SUCCESS;
+        }
 
         $this->info("Sitemap written: {$count} URLs.");
 

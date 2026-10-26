@@ -175,8 +175,11 @@ final class HomePageRenderer
         $buttonUrl = HomeLink::clean($data['button_link'] ?? null);
         $buttonText = $this->string($data['button_text'] ?? null);
 
+        $title = $this->string($data['title'] ?? null);
+
         return [
-            'title' => $this->string($data['title'] ?? null),
+            'title' => $title,
+            'alt' => $this->string($data['image_alt'] ?? null) ?? $title ?? '',
             'subtitle' => $this->string($data['subtitle'] ?? null),
             'src' => $this->url($image['large']),
             'srcset' => $this->srcset($image),
@@ -266,7 +269,7 @@ final class HomePageRenderer
 
         return [
             'title' => $this->string($data['title'] ?? null),
-            'cards' => $this->presenter->many($products),
+            'cards' => $this->presenter->many($products, false),
             'first' => $first,
             'columns' => $this->appearance->grid_columns === 3 ? 3 : 4,
             'allUrl' => ($data['show_all'] ?? true) ? $this->allUrl($source, (int) ($data['category_id'] ?? 0)) : null,
@@ -291,14 +294,14 @@ final class HomePageRenderer
      */
     private function allUrl(string $source, int $categoryId): ?string
     {
-        $flag = static fn (string $flag): string => route('catalog.index', ['flags' => [$flag]]);
+        $flag = static fn (string $flag): string => route('catalog.index', ['flags' => [$flag]], false);
 
         return match ($source) {
             'hits' => $flag(CatalogFilters::FLAG_HIT),
             'new' => $flag(CatalogFilters::FLAG_NEW),
             'discounted' => $flag(CatalogFilters::FLAG_SALE),
-            'category' => ($node = $this->tree->node($categoryId)) !== null ? route('catalog.category', $node->slug) : null,
-            default => route('catalog.index'),
+            'category' => ($node = $this->tree->node($categoryId)) !== null ? route('catalog.category', $node->slug, false) : null,
+            default => route('catalog.index', [], false),
         };
     }
 
@@ -366,10 +369,10 @@ final class HomePageRenderer
         if ($products->isNotEmpty()) {
             $parts[] = view('storefront.home.blocks.products', [
                 'title' => __('home.storefront.latest'),
-                'cards' => $this->presenter->many($products),
+                'cards' => $this->presenter->many($products, false),
                 'first' => $parts === [],
                 'columns' => $this->appearance->grid_columns === 3 ? 3 : 4,
-                'allUrl' => route('catalog.index'),
+                'allUrl' => route('catalog.index', [], false),
             ])->render();
         }
 
@@ -395,7 +398,7 @@ final class HomePageRenderer
             $counts ??= $this->tree->productCountsWithDescendants(true);
             $tiles[] = [
                 'name' => $node->name,
-                'url' => route('catalog.category', $node->slug),
+                'url' => route('catalog.category', $node->slug, false),
                 'image' => $node->imagePath !== null ? $this->url($node->imagePath) : null,
                 'count' => $counts[$node->id] ?? 0,
             ];

@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\View\Composers;
 
+use App\Services\Content\MenuService;
 use App\Settings\LegalSettings;
 use Illuminate\Contracts\View\View;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Route;
 use Throwable;
 
 /**
@@ -17,7 +16,7 @@ class CookieBannerComposer
 {
     public const COOKIE = 'cookie_consent';
 
-    public function __construct(private readonly LegalSettings $legal) {}
+    public function __construct(private readonly LegalSettings $legal, private readonly MenuService $menus) {}
 
     public function compose(View $view): void
     {
@@ -32,20 +31,15 @@ class CookieBannerComposer
         ]);
     }
 
+    /**
+     * Policy link from the cached menus (no query per request); null while the page is not active.
+     */
     private function policyUrl(): ?string
     {
-        $id = $this->legal->privacy_page_id;
-
-        if ($id === null || ! Route::has('page.show')) {
-            return null;
-        }
-
         try {
-            $slug = DB::table('pages')->where('id', $id)->where('is_active', true)->value('slug');
+            return $this->menus->all()['privacy']['url'] ?? null;
         } catch (Throwable) {
             return null;
         }
-
-        return is_string($slug) && $slug !== '' ? route('page.show', [$slug]) : null;
     }
 }

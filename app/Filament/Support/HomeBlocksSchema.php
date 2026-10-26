@@ -66,6 +66,7 @@ final class HomeBlocksSchema
             self::visible(),
             TextInput::make('title')->label(__('home.fields.title'))->maxLength(150),
             TextInput::make('subtitle')->label(__('home.fields.subtitle'))->maxLength(300),
+            TextInput::make('image_alt')->label(__('home.fields.image_alt'))->helperText(__('home.admin.image_alt_hint'))->maxLength(200),
             ...self::imageFields('image', true),
             ...self::imageFields('image_mobile', false),
             ...self::buttonFields(),
@@ -85,6 +86,7 @@ final class HomeBlocksSchema
                 ->schema([
                     TextInput::make('title')->label(__('home.fields.title'))->maxLength(150),
                     TextInput::make('subtitle')->label(__('home.fields.subtitle'))->maxLength(300),
+                    TextInput::make('image_alt')->label(__('home.fields.image_alt'))->helperText(__('home.admin.image_alt_hint'))->maxLength(200),
                     ...self::imageFields('image', true),
                     ...self::imageFields('image_mobile', false),
                     ...self::buttonFields(),

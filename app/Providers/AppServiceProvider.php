@@ -22,6 +22,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -58,6 +59,7 @@ class AppServiceProvider extends ServiceProvider
         Model::preventLazyLoading(! $this->app->isProduction());
 
         $this->configureFilamentFormats();
+        $this->forceCanonicalUrl();
 
         // A queue worker lives longer than a request: re-read the category tree from the cache per job.
         Queue::looping(function (): void {
@@ -71,6 +73,29 @@ class AppServiceProvider extends ServiceProvider
 
         // NF-12: passwords of at least 10 characters everywhere (user form, password reset).
         Password::defaults(fn () => Password::min(10));
+    }
+
+    /**
+     * D-057: in production every generated absolute URL (canonical, Open Graph, sitemap, cached fragments) is built
+     * from APP_URL, never from the Host header of whichever request happened to come first.
+     */
+    public function forceCanonicalUrl(): void
+    {
+        if (! $this->app->isProduction()) {
+            return;
+        }
+
+        $url = trim((string) config('app.url'));
+
+        if (parse_url($url, PHP_URL_HOST) === null || parse_url($url, PHP_URL_HOST) === false) {
+            return;
+        }
+
+        URL::forceRootUrl($url);
+
+        if (str_starts_with(strtolower($url), 'https://')) {
+            URL::forceScheme('https');
+        }
     }
 
     /**

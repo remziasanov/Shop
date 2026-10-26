@@ -22,6 +22,19 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(SecurityHeaders::class);
         // SF-08: the consent cookie is set by JavaScript, so it is not encrypted.
         $middleware->encryptCookies(except: ['cookie_consent']);
+        // D-057: only the host of APP_URL (and its www. alias) is accepted. TrustHosts itself is inactive in the
+        // local environment and in unit tests; the list is resolved per request, so a cached config works.
+        $middleware->trustHosts(at: function (): array {
+            $host = parse_url((string) config('app.url'), PHP_URL_HOST);
+
+            if (! is_string($host) || $host === '') {
+                return [];
+            }
+
+            $host = preg_replace('/^www\./i', '', $host) ?? $host;
+
+            return ['^'.preg_quote($host).'$', '^www\.'.preg_quote($host).'$'];
+        }, subdomains: false);
         // SF-05: closed mode for the storefront.
         $middleware->web(append: [StorefrontOpen::class]);
     })
