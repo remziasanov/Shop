@@ -4,12 +4,17 @@
 @source '../views/**/*.blade.php';
 @source '../../app/**/*.php';
 
-/* --color-primary / --color-accent are set at runtime from AppearanceSettings (SF-04). */
+/* --shop-primary / --shop-accent are overridden at runtime by the layout from AppearanceSettings (SF-04). */
+:root {
+    --shop-primary: #2563eb;
+    --shop-accent: #f59e0b;
+}
+
 @theme inline {
     --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
-    --color-primary: var(--color-primary);
-    --color-accent: var(--color-accent);
+    --color-primary: var(--shop-primary);
+    --color-accent: var(--shop-accent);
 }
 
 /* Alpine: hide elements until the component is initialized. */

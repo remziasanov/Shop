@@ -1,15 +1,5 @@
 @extends('storefront.layouts.app')
 
-@section('title', $category->meta_title ?: $category->name)
-
-@if ($category->meta_description)
-    @section('meta_description', $category->meta_description)
-@endif
-
-@push('head')
-    <link rel="canonical" href="{{ $canonical }}">
-@endpush
-
 @section('content')
     @include('storefront.partials.breadcrumbs')
 

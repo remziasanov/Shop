@@ -1,6 +1,6 @@
 @if ($tiles !== [])
     <section aria-labelledby="{{ $headingId ?? 'tiles-heading' }}" class="mb-8">
-        <h2 id="{{ $headingId ?? 'tiles-heading' }}" class="sr-only">{{ __('storefront.catalog.categories') }}</h2>
+        <h2 id="{{ $headingId ?? 'tiles-heading' }}" class="{{ ($title ?? null) ? 'mb-3 text-xl font-bold md:text-2xl' : 'sr-only' }}">{{ ($title ?? null) ?: __('storefront.catalog.categories') }}</h2>
         <ul class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             @foreach ($tiles as $tile)
                 <li>

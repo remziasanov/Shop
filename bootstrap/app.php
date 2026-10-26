@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\StorefrontOpen;
 use App\Services\Catalog\RedirectService;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
+        // SF-08: the consent cookie is set by JavaScript, so it is not encrypted.
+        $middleware->encryptCookies(except: ['cookie_consent']);
+        // SF-05: closed mode for the storefront.
+        $middleware->web(append: [StorefrontOpen::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

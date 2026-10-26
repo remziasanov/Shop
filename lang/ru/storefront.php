@@ -31,6 +31,10 @@ return [
     'footer' => [
         'contacts' => 'Контакты',
         'working_hours' => 'Режим работы',
+        'menu' => 'Меню подвала',
+        'requisites' => 'Реквизиты продавца',
+        'socials' => 'Мы в соцсетях',
+        'legal' => 'Правовая информация',
         'copyright' => '© :year :name',
     ],
 

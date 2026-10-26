@@ -1,11 +1,5 @@
 @extends('storefront.layouts.app')
 
-@section('title', $term !== '' ? __('storefront.search.results_for', ['term' => $term]) : __('storefront.search.title'))
-
-@push('head')
-    <meta name="robots" content="noindex,follow">
-@endpush
-
 @section('content')
     @include('storefront.partials.breadcrumbs', ['breadcrumbs' => [
         ['name' => __('storefront.breadcrumbs.home'), 'url' => route('home')],

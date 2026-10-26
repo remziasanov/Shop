@@ -220,6 +220,8 @@ return [
                 'consent_text' => 'Текст чекбокса согласия',
                 'cookie_banner_enabled' => 'Показывать cookie-баннер',
                 'cookie_banner_text' => 'Текст cookie-баннера',
+                'privacy_page_id' => 'Страница политики обработки персональных данных',
+                'consent_page_id' => 'Страница согласия на обработку персональных данных',
             ],
             'hints' => [
                 'check_with_lawyer' => 'Шаблонный текст: проверьте у юриста.',

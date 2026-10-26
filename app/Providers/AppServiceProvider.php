@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
+use App\Services\Content\MenuService;
 use App\Services\Import\DnsHostResolver;
 use App\Services\Import\HostResolver;
 use App\Services\Media\ImageProcessor;
@@ -81,6 +82,13 @@ class AppServiceProvider extends ServiceProvider
         $forget = fn () => $this->app->make(CartAvailability::class)->forget();
 
         Event::listen(SettingsSaved::class, $forget);
+
+        // Cached storefront menus (NF-04) depend on categories and on the legal/general settings.
+        $forgetMenus = fn () => $this->app->make(MenuService::class)->flush();
+
+        Event::listen(SettingsSaved::class, $forgetMenus);
+        Category::saved($forgetMenus);
+        Category::deleted($forgetMenus);
         Category::saved($forget);
         Category::deleted($forget);
         Product::saved(function (Product $product) use ($forget): void {

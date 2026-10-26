@@ -7,7 +7,9 @@
                @if ($errors->has('consent')) aria-invalid="true" aria-describedby="{{ $id }}-error" @endif>
         <label for="{{ $id }}" class="text-sm">
             {{ $link['text'] }} <span class="text-red-700" aria-hidden="true">*</span>
-            <a href="{{ $link['url'] }}" target="_blank" rel="noopener" class="whitespace-nowrap text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.checkout.consent_link') }}</a>
+            @if (! empty($link['url']))
+                <a href="{{ $link['url'] }}" target="_blank" rel="noopener" class="whitespace-nowrap text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.checkout.consent_link') }}</a>
+            @endif
         </label>
     </div>
     @error('consent')

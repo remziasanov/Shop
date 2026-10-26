@@ -41,6 +41,11 @@ final class ImageProcessor
     /** Longest side of a category image, px (tiles and banners). */
     public const CATEGORY_SIZE = 800;
 
+    /** Width of the large / small banner variants of the home page, px. */
+    public const BANNER_LARGE = 1600;
+
+    public const BANNER_SMALL = 800;
+
     public const WEBP_QUALITY = 80;
 
     public const JPEG_QUALITY = 85;
@@ -166,6 +171,62 @@ final class ImageProcessor
         }
 
         return $path;
+    }
+
+    /**
+     * Create the two variants of a home page banner (width 1600 / 800 px, never upscaled) in
+     * `home/{uuid}-{size}.webp` on the "public" disk (JPEG without WebP in GD). The source is not stored
+     * and not touched.
+     *
+     * @return array{large: string, small: string, width: int, height: int} width / height of the large variant
+     *
+     * @throws ImageProcessingException
+     */
+    public function processBannerImage(string $sourceAbsolutePath): array
+    {
+        $this->assertReadable($sourceAbsolutePath);
+
+        $extension = $this->outputExtension();
+        $base = 'home/'.Str::uuid()->toString();
+        $disk = $this->disk();
+        $written = [];
+
+        try {
+            try {
+                $image = $this->manager()->read($sourceAbsolutePath);
+            } catch (Throwable $e) {
+                throw ImageProcessingException::corrupt($e);
+            }
+
+            $result = ['large' => '', 'small' => '', 'width' => 0, 'height' => 0];
+
+            foreach (['large' => self::BANNER_LARGE, 'small' => self::BANNER_SMALL] as $key => $size) {
+                $variant = $image->scaleDown(width: $size);
+                $path = "{$base}-{$size}.{$extension}";
+
+                if (! $disk->put($path, $this->encode($variant, $extension))) {
+                    throw ImageProcessingException::storageFailed();
+                }
+
+                $written[] = $path;
+                $result[$key] = $path;
+
+                if ($key === 'large') {
+                    $result['width'] = $variant->width();
+                    $result['height'] = $variant->height();
+                }
+            }
+
+            return $result;
+        } catch (ImageProcessingException $e) {
+            $disk->delete($written);
+
+            throw $e;
+        } catch (Throwable $e) {
+            $disk->delete($written);
+
+            throw ImageProcessingException::corrupt($e);
+        }
     }
 
     /**

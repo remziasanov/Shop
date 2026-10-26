@@ -1,11 +1,5 @@
 @extends('storefront.layouts.app')
 
-@section('title', __('storefront.catalog.title'))
-
-@push('head')
-    <link rel="canonical" href="{{ $canonical }}">
-@endpush
-
 @section('content')
     @include('storefront.partials.breadcrumbs')
 

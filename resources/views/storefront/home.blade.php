@@ -3,5 +3,7 @@
 @section('title', __('storefront.home.title'))
 
 @section('content')
-    <h1 class="text-2xl font-bold md:text-3xl">{{ __('storefront.home.welcome', ['name' => $shopName]) }}</h1>
+    <h1 class="sr-only">{{ $shopName }}</h1>
+    {{-- Rendered and cached by HomePageRenderer (D-054); content comes from the builder, HTML blocks are admin-authored. --}}
+    {!! $blocksHtml !!}
 @endsection

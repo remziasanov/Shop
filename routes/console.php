@@ -18,3 +18,6 @@ Schedule::command('shop:recalc-prices --all')->dailyAt('03:10')->withoutOverlapp
 
 // SF-53: expire overdue reservations and return their stock (TZ section 8).
 Schedule::command('shop:expire-reservations')->everyFiveMinutes()->withoutOverlapping(10);
+
+// SF-82: the sitemap is rebuilt daily (and after an import by a queued job).
+Schedule::command('shop:sitemap')->dailyAt('04:20')->withoutOverlapping(10);

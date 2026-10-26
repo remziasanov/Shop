@@ -198,6 +198,76 @@ document.addEventListener('alpine:init', () => {
     }));
 
     /**
+     * Home page slider (5.2): a scroll-snap track (native swipe), autoplay with an interval, pause on
+     * hover / focus / hidden tab, a pause button and arrow keys. Autoplay is off for reduced motion.
+     */
+    Alpine.data('homeSlider', (options = {}) => ({
+        index: 0,
+        count: 0,
+        playing: false,
+        hover: false,
+        focus: false,
+        timer: null,
+        frame: null,
+        reduced: false,
+
+        init() {
+            this.count = this.$refs.track.children.length;
+            this.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            this.playing = Boolean(options.autoplay) && this.count > 1 && !this.reduced;
+
+            if (this.playing) {
+                this.start();
+            }
+        },
+
+        destroy() {
+            this.stop();
+        },
+
+        start() {
+            this.stop();
+            this.timer = setInterval(() => {
+                if (!this.hover && !this.focus && !document.hidden) {
+                    this.next();
+                }
+            }, options.interval || 5000);
+        },
+
+        stop() {
+            clearInterval(this.timer);
+            this.timer = null;
+        },
+
+        toggle() {
+            this.playing = !this.playing;
+            this.playing ? this.start() : this.stop();
+        },
+
+        go(i) {
+            const track = this.$refs.track;
+            this.index = (i + this.count) % this.count;
+            track.scrollTo({ left: this.index * track.clientWidth, behavior: this.reduced ? 'auto' : 'smooth' });
+        },
+
+        next() {
+            this.go(this.index + 1);
+        },
+
+        prev() {
+            this.go(this.index - 1);
+        },
+
+        onScroll() {
+            cancelAnimationFrame(this.frame);
+            this.frame = requestAnimationFrame(() => {
+                const track = this.$refs.track;
+                this.index = Math.round(track.scrollLeft / (track.clientWidth || 1));
+            });
+        },
+    }));
+
+    /**
      * Product card «В корзину»: a plain POST form (works without JavaScript) sent in the background; the toast and
      * the mini cart are updated from the JSON answer (NF-02: no Livewire component per listing card).
      */

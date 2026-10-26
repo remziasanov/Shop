@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\BuildsListing;
 use App\Http\Requests\CatalogFilterRequest;
 use App\Services\Search\SearchNormalizer;
+use App\Services\Seo\SeoBuilder;
 use Illuminate\Contracts\View\View;
 
 class SearchController extends Controller
@@ -17,14 +18,15 @@ class SearchController extends Controller
     /**
      * SF-22: results with the same sorting and filters as the catalog; not indexed.
      */
-    public function __invoke(CatalogFilterRequest $request, SearchNormalizer $normalizer): View
+    public function __invoke(CatalogFilterRequest $request, SearchNormalizer $normalizer, SeoBuilder $seo): View
     {
         $term = $request->searchTerm();
+        $meta = $seo->search($term);
 
         if ($normalizer->words($term) === []) {
-            return view('storefront.search.index', ['term' => $term, 'cards' => null]);
+            return view('storefront.search.index', ['term' => $term, 'cards' => null, 'seo' => $meta]);
         }
 
-        return view('storefront.search.index', $this->listing($request, null, $term, ['q' => $term]) + ['term' => $term]);
+        return view('storefront.search.index', $this->listing($request, null, $term, ['q' => $term]) + ['term' => $term, 'seo' => $meta]);
     }
 }
