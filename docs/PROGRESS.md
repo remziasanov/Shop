@@ -4,7 +4,7 @@
 
 ## Этап 0. Каркас и инфраструктура
 
-Статус: выполнен (PR на ревью)
+Статус: выполнен (PR #1)
 
 - [x] Laravel 13 + Filament 5, русская локализация, роли admin/manager, `shop:create-admin`
 - [x] Группы настроек (6.3) со страницами в админке и значениями по умолчанию
@@ -18,7 +18,8 @@
 - [x] CLAUDE.md, docs/PROGRESS.md, docs/DECISIONS.md, docs/DEV_ENV.md
 - [x] TZ.html перенесён в docs/
 
-_Требований с ID на этапе 0 нет._
+- [x] AD-01, AD-02, AD-03 (каркас панели, вход, группы меню)
+- [x] NF-12, NF-13, NF-14, NF-21, NF-32, NF-40, NF-41
 
 ## Этап 1. Каталог
 
@@ -255,12 +256,25 @@ _SF-17 (фильтры по произвольным характеристик�
 
 ## Техдолг
 
-_Пока пусто._
-
 | Этап | Источник | Описание |
 |---|---|---|
+| 0 | Ревью PR #1 | app/Filament/Resources/Users/UserResource.php:63-71 — администратор может снять себе роль `admin` или флаг «Активен» (и тем самым заблокировать единственного администратора; восстановление только через SSH + `shop:create-admin`). — Запретить менять `role`/`is_active` у собственной записи (`->disabled(fn ($record) => $record?->is(auth()->user()))`) и/или не давать понизить/деактивировать последнего активного администратора; добавить тест. |
+| 0 | Ревью PR #1 | app/Filament/Pages/Settings/ManageNotificationSettings.php:50-55 — расшифрованный токен Telegram попадает в состояние Livewire (снимок уходит в браузер), поле `revealable()`. Доступ только у администратора, но секрет лишний раз покидает сервер. — Не заполнять поле значением (показывать «токен задан»), сохранять только если введено новое значение; отдельное действие «Удалить токен». |
+| 0 | Ревью PR #1 | config/session.php:23, config/cache.php:20 — значения по умолчанию `database` (а `config/database.php:22` — `sqlite`). В `.env.example` всё верно (`file`), но при отсутствии переменной сессии уйдут в БД вопреки разделу 2. — Сменить fallback на `file` (сессия и кэш) и `mysql` (БД). |
+| 0 | Ревью PR #1 | app/Services/System/EnvironmentChecker.php:208-211 — лимиты PHP (`upload_max_filesize`, `post_max_size`, `max_execution_time`) всегда «ОК» без оценки; на песочнице `upload_max_filesize=2M` показан как ОК, хотя фото до 10 МБ (AD-50). 12.4 требует статус «ОК / Внимание / Ошибка» с подсказкой для каждого пункта. — Добавить пороги (например, upload/post < 10M → «Внимание», `max_execution_time` < 30 → «Внимание») и подсказки. |
+| 0 | Ревью PR #1 | app/Services/System/EnvironmentChecker.php:241-257 — подсчёт места фотографиями обходит весь каталог при каждом рендере страницы «Система» и каждом нажатии «Обновить»; при ~12 000+ файлах на Beget это заметно медленно. — Кэшировать результат (например, 10 минут) или считать в задаче планировщика. |
+| 0 | Ревью PR #1 | app/Services/System/EnvironmentChecker.php:261 — единицы `Б/КБ/МБ/ГБ` захардкожены в PHP (NF-32). — Вынести в `lang/ru/system.php`. |
+| 0 | Ревью PR #1 | app/Services/System/EnvironmentChecker.php:168 — `ucfirst($driver)` даёт «Mysql». — Выводить «MySQL»/«MariaDB» по результату `version()`. |
+| 0 | Ревью PR #1 | resources/css/app.css:8-11 — `@theme inline { --color-primary: var(--color-primary); }` порождает в `@layer theme` циклическую переменную `--color-primary: var(--color-primary)`. Сейчас работает только потому, что неслойный `<style>` в макете перекрывает слой. — Задать в `:root` макета `--shop-primary`/`--shop-accent`, а в `@theme inline` — `--color-primary: var(--shop-primary)`; заодно задать дефолт в CSS. |
+| 0 | Ревью PR #1 | app/Filament/Pages/Settings/ManageAppearanceSettings.php:33-38 — `ColorPicker` без серверной проверки формата; невалидное значение сохраняется и молча подменяется дефолтом на витрине. — Добавить `->regex('/^#(?:[0-9a-fA-F]{3}/[0-9a-fA-F]{6})$/')`. |
+| 0 | Ревью PR #1 | app/Filament/Pages/Settings/ManageGeneralSettings.php:43-57 (а также логотип/заглушка/OG) — при замене файла старый не удаляется из `storage/app/public/settings`. — Удалять прежний файл при сохранении (сравнение старого и нового пути), важно для бюджета диска Blog. |
+| 0 | Ревью PR #1 | app/Filament/Pages/Settings/ManageLegalSettings.php:30 — нет выбора страниц политики и согласия (поля `privacy_page_id`/`consent_page_id` есть, формы нет). Обоснованно отложено до этапа 5, но не отражено в PROGRESS. — Добавить пункт в PROGRESS этапа 5. |
+| 0 | Ревью PR #1 | tests/Feature/Admin/PanelAccessTest.php — приёмка «вход в админку работает» проверена только через `actingAs`; нет теста формы входа (`Livewire::test(Filament\Auth\Pages\Login::class)` с верным/неверным паролем, неактивный пользователь, ограничение попыток — AD-02/NF-12). — Добавить 2–3 теста. |
+| 0 | Ревью PR #1 | tests/Feature/Admin/SystemTest.php:14-20 — тесты удаляют реальный файл `storage/app/heartbeat` (локальное окружение разработчика теряет отметку). — Подменять путь `Heartbeat` в тестах (bind с временным каталогом). |
+| 0 | Ревью PR #1 | composer.json:3,21-22; package.json:11,17 — остатки скелета: имя `laravel/laravel`, dev-пакеты `laravel/pail`, `laravel/pao`, npm `concurrently`, `@laravel/multiplex` не упомянуты в DECISIONS (CLAUDE.md: любой пакет вне раздела 3 — с обоснованием). — Переименовать проект и либо удалить пакеты, либо записать в DECISIONS как dev-инструменты скелета. |
 
 ## Журнал PR
 
 | PR | Этап | Итог ревью |
 |---|---|---|
+| #1 | 0 | APPROVE (1 раунд, 14 minor → техдолг) |
