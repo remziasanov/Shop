@@ -6,7 +6,6 @@ use App\Filament\Pages\ManageHomePage;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\User;
-use App\Settings\HomePageSettings;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -269,4 +268,31 @@ it('stores the visibility toggle and the order of blocks', function () {
     expect($blocks[0]['data']['title'])->toBe('B')
         ->and($blocks[0]['data']['visible'])->toBeFalse()
         ->and($blocks[1]['data']['visible'])->toBeTrue();
+});
+
+it('never upscales small banner images', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test(ManageHomePage::class)
+        ->fillForm(['blocks' => [homeBlock('banner', ['image_upload' => [UploadedFile::fake()->image('small.png', 500, 200)]])]])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect(savedHomeBlocks()[0]['data']['image'])->toMatchArray(['width' => 500, 'height' => 200]);
+});
+
+it('can be saved twice in a row without losing processed images', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    $page = Livewire::test(ManageHomePage::class)
+        ->fillForm(['blocks' => [homeBlock('banner', ['image_upload' => [UploadedFile::fake()->image('a.jpg', 1700, 600)]])]])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $image = savedHomeBlocks()[0]['data']['image'];
+
+    $page->call('save')->assertHasNoFormErrors();
+
+    expect(savedHomeBlocks()[0]['data']['image'])->toBe($image);
+    Storage::disk('public')->assertExists([$image['large'], $image['small']]);
 });

@@ -27,7 +27,6 @@ Route::get('/', HomeController::class)->name('home');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 
-
 Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
 Route::get('/catalog/{slug}', [CatalogController::class, 'category'])->name('catalog.category');
 Route::get('/product/{slug}', [ProductController::class, 'show'])->name('product.show');

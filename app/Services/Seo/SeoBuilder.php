@@ -265,7 +265,7 @@ final class SeoBuilder
 
         $items = [];
 
-        foreach (array_values($breadcrumbs) as $i => $crumb) {
+        foreach ($breadcrumbs as $i => $crumb) {
             $items[] = [
                 '@type' => 'ListItem',
                 'position' => $i + 1,
@@ -285,7 +285,7 @@ final class SeoBuilder
         $values['shop'] = $this->shop();
 
         $text = preg_replace_callback('/\{(\w+)\}/', fn (array $m): string => $values[$m[1]] ?? '', $template) ?? '';
-        $text = preg_replace('/\s+/u', ' ', $text) ?? '';
+        $text = preg_replace('/[ \t\r\n]+/', ' ', $text) ?? '';
 
         return trim($text, " \t\n\r—–-,:;|");
     }

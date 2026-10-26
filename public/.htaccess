@@ -13,6 +13,15 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
+    # NF-04: flag static assets for long cache headers (applied by mod_headers below).
+    RewriteRule ^build/ - [E=SHOP_CACHE_IMMUTABLE:1]
+    RewriteRule ^storage/ - [E=SHOP_CACHE_MONTH:1]
+
+    # Optional: force HTTPS (uncomment if the hosting panel does not redirect to HTTPS itself).
+    # RewriteCond %{HTTPS} off
+    # RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
@@ -22,4 +31,20 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+</IfModule>
+
+# NF-04: Vite assets are content-hashed (a year, immutable); uploaded media change rarely (30 days).
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=31536000, immutable" env=SHOP_CACHE_IMMUTABLE
+    Header set Cache-Control "public, max-age=2592000" env=SHOP_CACHE_MONTH
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/webp "access plus 30 days"
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/svg+xml "access plus 30 days"
+    ExpiresByType image/x-icon "access plus 30 days"
+    ExpiresByType font/woff2 "access plus 1 year"
 </IfModule>

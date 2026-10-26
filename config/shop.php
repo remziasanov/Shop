@@ -14,6 +14,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Sitemap directory (SF-82)
+    |--------------------------------------------------------------------------
+    | Where sitemap.xml is written, relative to the project root; null = public/.
+    */
+    'sitemap_dir' => env('SITEMAP_DIR') ? base_path((string) env('SITEMAP_DIR')) : null,
+
+    /*
+    |--------------------------------------------------------------------------
     | Bulk price change limit
     |--------------------------------------------------------------------------
     | Largest selection of products one bulk price change accepts (AD-42, D-032).

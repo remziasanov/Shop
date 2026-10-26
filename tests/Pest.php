@@ -7,6 +7,7 @@ use Tests\TestCase;
 
 require_once __DIR__.'/Support/sales.php';
 require_once __DIR__.'/Support/storefront_sales.php';
+require_once __DIR__.'/Support/seo.php';
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)

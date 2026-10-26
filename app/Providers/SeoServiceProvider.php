@@ -7,8 +7,6 @@ namespace App\Providers;
 use App\Enums\ImportStatus;
 use App\Events\ImportFinished;
 use App\Jobs\GenerateSitemap;
-use App\Services\Seo\SeoBuilder;
-use App\Services\Seo\SeoCounters;
 use App\View\Composers\CookieBannerComposer;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
@@ -19,12 +17,6 @@ use Illuminate\Support\ServiceProvider;
  */
 class SeoServiceProvider extends ServiceProvider
 {
-    public function register(): void
-    {
-        $this->app->singleton(SeoBuilder::class);
-        $this->app->singleton(SeoCounters::class);
-    }
-
     public function boot(): void
     {
         View::composer('storefront.partials.cookie-banner', CookieBannerComposer::class);

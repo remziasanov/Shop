@@ -84,7 +84,7 @@ final class HomeImages
             $this->filesystems->disk(self::TEMP_DISK)->delete($temporary);
         }
 
-        return array_values($submitted);
+        return $submitted;
     }
 
     /**

@@ -51,7 +51,8 @@ it('falls back to root categories and the 12 latest products when there are no b
 
     $response = $this->get(route('home'))->assertOk();
 
-    $response->assertSee('Корневая')->assertDontSee('Дочерняя')->assertDontSee('Выключенная');
+    $main = homeMain($response);
+    expect($main)->toContain('Корневая')->not->toContain('Дочерняя')->not->toContain('Выключенная');
     $response->assertSee('Товар №14')->assertSee('Товар №03')->assertDontSee('Товар №02')->assertDontSee('Товар №01');
     expect(substr_count($response->getContent(), '<article'))->toBe(12);
 });
@@ -149,11 +150,13 @@ it('renders category tiles in auto and selected modes', function () {
     $child = Category::factory()->childOf($a)->create(['name' => 'Вложенная']);
 
     storeHomeBlocks([homeBlock('categories', ['title' => 'Все', 'mode' => 'auto', 'max_count' => 1])]);
-    $this->get(route('home'))->assertSee('Авто А')->assertDontSee('Авто Б');
+    expect(homeMain($this->get(route('home'))))->toContain('Авто А')->not->toContain('Авто Б');
 
     Cache::flush();
     storeHomeBlocks([homeBlock('categories', ['mode' => 'selected', 'categories' => [$child->id, $b->id], 'max_count' => 5])]);
-    $this->get(route('home'))->assertSeeInOrder(['Вложенная', 'Авто Б'])->assertDontSee('Авто А');
+    $main = homeMain($this->get(route('home')));
+    expect($main)->toContain('Вложенная')->toContain('Авто Б')->not->toContain('Авто А')
+        ->and(strpos($main, 'Вложенная'))->toBeLessThan(strpos($main, 'Авто Б'));
 });
 
 describe('products block', function () {
@@ -237,15 +240,17 @@ describe('products block', function () {
     it('follows the appearance grid columns', function () {
         $category = Category::factory()->create();
         Product::factory()->inCategory($category)->featured()->create();
+        $appearance = app(AppearanceSettings::class);
+        $appearance->grid_columns = 4;
+        $appearance->save();
         productsBlock(['source' => 'hits']);
 
-        $this->get(route('home'))->assertSee('lg:grid-cols-4', false);
+        expect(homeMain($this->get(route('home'))))->toContain('md:gap-4 lg:grid-cols-4');
 
-        $appearance = app(AppearanceSettings::class);
         $appearance->grid_columns = 3;
         $appearance->save();
 
-        $this->get(route('home'))->assertDontSee('lg:grid-cols-4', false)->assertSee('lg:grid-cols-3', false);
+        expect(homeMain($this->get(route('home'))))->toContain('md:gap-4 lg:grid-cols-3');
     });
 });
 

@@ -15,7 +15,7 @@ class SitemapController extends Controller
      */
     public function __invoke(SitemapGenerator $generator): BinaryFileResponse
     {
-        $file = public_path('sitemap.xml');
+        $file = SitemapGenerator::directory().'/sitemap.xml';
 
         if (! is_file($file)) {
             $generator->generate();

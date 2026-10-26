@@ -8,7 +8,6 @@ use App\Settings\GeneralSettings;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Throwable;
 
 /**
  * Closed mode (SF-05): while "shop open" is off, storefront pages answer 503 with the message from the settings.
@@ -40,20 +39,12 @@ class StorefrontOpen
 
     private function isOpen(): bool
     {
-        try {
-            return $this->general->shop_open;
-        } catch (Throwable) {
-            return true;
-        }
+        return $this->general->shop_open;
     }
 
     private function message(): string
     {
-        try {
-            return trim((string) $this->general->closed_message);
-        } catch (Throwable) {
-            return '';
-        }
+        return trim((string) $this->general->closed_message);
     }
 
     private function isExempt(Request $request): bool

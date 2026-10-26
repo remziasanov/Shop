@@ -29,12 +29,23 @@ final class SitemapGenerator
 
     public function __construct(private readonly CategoryTree $tree) {}
 
+    public static function directory(): string
+    {
+        $dir = config('shop.sitemap_dir');
+
+        return is_string($dir) && $dir !== '' ? $dir : public_path();
+    }
+
     /**
      * @return int number of URLs written
      */
     public function generate(?string $directory = null, int $maxUrls = self::MAX_URLS): int
     {
-        $directory = rtrim($directory ?? public_path(), '/\\');
+        $directory = rtrim($directory ?? self::directory(), '/\\');
+
+        if (! is_dir($directory)) {
+            @mkdir($directory, 0755, true);
+        }
 
         if (! is_dir($directory) || ! is_writable($directory)) {
             throw new RuntimeException('Sitemap directory is not writable: '.$directory);

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Settings\HomePageSettings;
+use Illuminate\Testing\TestResponse;
 
 /**
  * @param  list<array<string, mixed>>  $blocks
@@ -32,7 +33,7 @@ function bannerImage(string $name = 'a'): array
 /**
  * The page content between <main> tags (the header and footer menus list categories too).
  */
-function homeMain(\Illuminate\Testing\TestResponse $response): string
+function homeMain(TestResponse $response): string
 {
     preg_match('~<main[^>]*>(.*?)</main>~s', $response->getContent(), $match);
 
