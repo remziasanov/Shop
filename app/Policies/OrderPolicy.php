@@ -52,14 +52,15 @@ class OrderPolicy
         return $this->admin($user);
     }
 
+    // Deleting settles stock (D-051), so a restored request would no longer hold it: restore is not supported.
     public function restore(User $user, Order $order): bool
     {
-        return $this->admin($user);
+        return false;
     }
 
     public function restoreAny(User $user): bool
     {
-        return $this->admin($user);
+        return false;
     }
 
     public function forceDelete(User $user, Order $order): bool

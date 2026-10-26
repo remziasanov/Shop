@@ -225,3 +225,4 @@
 - Количество одной позиции ограничено `App\Support\QtyLimit::MAX = 999` везде: `CartService::add/update` (обрезка), `AddToCart`/`CartPage` (сообщение/обрезка), правила `ReservationForm`/`InquiryForm`, `OrderService::createReservation/createInquiry` (исключение). Переполнение `qty` и сумм невозможно, поэтому `QueryException` с привязками (имя, телефон, email) не возникает; наш код персональные данные не логирует.
 - `$productId` в `AddToCart`, `ReservationForm`, `InquiryForm` — `#[Locked]`. `ReservationForm::product()` запоминает товар на время запроса.
 - Все записи расписания (`shop:heartbeat`, `shop:recalc-prices`, `shop:expire-reservations`) — `withoutOverlapping(10)`: mutex истекает через 10 минут, а не через 24 часа, если процесс cron на хостинге был убит.
+- Восстановление удалённых обращений не поддерживается (политика запрещает `restore`): при удалении остатки уже возвращены (дополнение к D-051).

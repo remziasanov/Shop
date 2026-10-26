@@ -8,6 +8,7 @@ use App\Exceptions\SalesException;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Services\Cart\CartService;
+use App\Support\QtyLimit;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -32,7 +33,7 @@ class CartController extends Controller
     {
         $data = $request->validate([
             'product_id' => ['required', 'integer'],
-            'qty' => ['nullable', 'integer', 'min:1', 'max:999'],
+            'qty' => ['nullable', 'integer', 'min:1', 'max:'.QtyLimit::MAX],
         ]);
 
         try {
