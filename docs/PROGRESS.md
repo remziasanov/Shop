@@ -294,3 +294,4 @@ _SF-17 (фильтры по произвольным характеристик�
 |---|---|---|
 | #1 | 0 | APPROVE (1 раунд, 14 minor → техдолг) |
 | #2 | 1 | APPROVE (3 раунда: r1 — 3 major, r2 — 2 major, r3 — approve) |
+| #3 | 2 | APPROVE (3 раунда: r1 — 3 major, r2 — 1 major, r3 — approve) |
