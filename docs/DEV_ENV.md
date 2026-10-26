@@ -87,3 +87,13 @@ COMPOSER_ALLOW_SUPERUSER=1 composer install
 ## Итог
 
 Окружение готово к разработке: версии PHP, Composer и Node соответствуют ТЗ, все обязательные расширения присутствуют, GD поддерживает WebP, MySQL 8.0 доступен через `service mysql start`.
+
+## Обход 403 для dist-only пакетов (phpstan/phpstan)
+`phpstan/phpstan` публикуется только zip-архивом с GitHub (без source), прокси песочницы отдаёт 403 → Composer пишет «Could not authenticate against github.com». Обход: клонировать тег и положить zip в кэш Composer под ключом `sha1(dist-url)`:
+```bash
+git clone --depth 1 --branch <tag> https://github.com/phpstan/phpstan /tmp/x/phpstan-src && rm -rf /tmp/x/phpstan-src/.git
+(cd /tmp/x && zip -qr phpstan.zip phpstan-src)
+URL=$(composer show -a phpstan/phpstan <tag> | awk '/^dist/{print $3}')
+mkdir -p ~/.cache/composer/files/phpstan/phpstan && cp /tmp/x/phpstan.zip ~/.cache/composer/files/phpstan/phpstan/$(php -r "echo sha1('$URL');").zip
+```
+Также помогает `composer config -g use-github-api false`. В GitHub Actions этих проблем нет.
