@@ -20,4 +20,20 @@ return [
     */
     'bulk_price_max_selection' => 20_000,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Exports (EX-01, EX-03)
+    |--------------------------------------------------------------------------
+    | Up to `export_sync_limit` rows a file is built in the request, larger exports run in the queue.
+    | Export files are kept for `export_retention_days` days.
+    */
+    'export_sync_limit' => 2_000,
+
+    'export_retention_days' => 7,
+
+    /*
+    | Largest selection of products "Export to Excel" accepts (AD-42).
+    */
+    'export_max_selection' => 20_000,
+
 ];
