@@ -8,11 +8,12 @@ use App\Models\Product;
 use App\Services\Catalog\RedirectService;
 use App\Services\Catalog\SlugService;
 use App\Services\Media\ImageProcessor;
+use App\Services\Pricing\PriceHistoryRecorder;
 use App\Services\Pricing\ProductPriceUpdater;
 use App\Services\Search\SearchNormalizer;
 
 /**
- * Thin glue: slug, redirects, search text, price columns and photo files.
+ * Thin glue: slug, redirects, search text, price columns, price history and photo files.
  */
 final class ProductObserver
 {
@@ -21,6 +22,7 @@ final class ProductObserver
         private readonly RedirectService $redirects,
         private readonly SearchNormalizer $search,
         private readonly ProductPriceUpdater $prices,
+        private readonly PriceHistoryRecorder $history,
         private readonly ImageProcessor $images,
     ) {}
 
@@ -41,6 +43,8 @@ final class ProductObserver
 
     public function updated(Product $product): void
     {
+        $this->history->recordUpdate($product);
+
         if ($product->wasChanged('slug')) {
             $this->redirects->record('/product/'.$product->getOriginal('slug'), '/product/'.$product->slug);
         }

@@ -106,6 +106,22 @@ final class CategoryTree
     }
 
     /**
+     * Id of the category followed by the ids of all its ancestors, nearest first. Unknown ids yield just [$id].
+     *
+     * @return list<int>
+     */
+    public function selfAndAncestorIds(int $id): array
+    {
+        $ids = [];
+
+        foreach (array_reverse($this->breadcrumbs($id)) as $node) {
+            $ids[] = $node->id;
+        }
+
+        return $ids === [] ? [$id] : $ids;
+    }
+
+    /**
      * Ids of categories shown on the storefront: active, with every ancestor active too (SF-16).
      *
      * @return list<int>

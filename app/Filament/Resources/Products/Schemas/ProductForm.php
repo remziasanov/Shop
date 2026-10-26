@@ -326,7 +326,16 @@ final class ProductForm
         $value = static fn (string $key): ?string => filled($get($key)) ? (string) $get($key) : null;
 
         try {
-            return app(ProductPriceUpdater::class)->calculate($value('base_price'), $value('fixed_price'), $value('compare_at_price'));
+            return app(ProductPriceUpdater::class)->calculate(
+                $value('base_price'),
+                $value('fixed_price'),
+                $value('compare_at_price'),
+                filled($get('category_id')) ? (int) $get('category_id') : null,
+                $value('brand'),
+                (bool) $get('is_featured'),
+                (bool) $get('is_new'),
+                $value('cost_price'),
+            );
         } catch (InvalidArgumentException) {
             return null;
         }
