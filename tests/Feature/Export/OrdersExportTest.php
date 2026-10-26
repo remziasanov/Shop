@@ -107,7 +107,7 @@ it('exports by the current tab, filters and search of the list', function (): vo
         ->and($export->status)->toBe(ExportStatus::Completed)
         ->and($export->rows)->toBe(2)
         ->and($export->user_id)->toBe($user->id)
-        ->and($export->params)->toBe(['tab' => 'order', 'status' => 'confirmed', 'search' => '900 123']);
+        ->and($export->params)->toEqual(['tab' => 'order', 'status' => 'confirmed', 'search' => '900 123']);
 });
 
 it('queues a big export and shows it in the journal', function (): void {

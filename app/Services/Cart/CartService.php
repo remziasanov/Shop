@@ -164,6 +164,23 @@ final class CartService
     }
 
     /**
+     * Header counter for the visitor's cart (one query; 0 without a cart cookie).
+     */
+    public function countForRequest(Request $request): int
+    {
+        $token = $request->cookie(self::COOKIE);
+
+        if (! is_string($token) || ! Str::isUuid($token)) {
+            return 0;
+        }
+
+        return (int) CartItem::query()
+            ->join('carts', 'carts.id', '=', 'cart_items.cart_id')
+            ->where('carts.token', $token)
+            ->sum('cart_items.qty');
+    }
+
+    /**
      * "Understood" on the price-change notice: current prices become the reference prices (PR-07).
      */
     public function acknowledgePrices(Cart $cart): void

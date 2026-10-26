@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 require_once __DIR__.'/Support/sales.php';
+require_once __DIR__.'/Support/storefront_sales.php';
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)

@@ -31,6 +31,9 @@
 
     @include('storefront.partials.footer')
     @include('storefront.partials.bottom-bar')
+    @if ($cartEnabled)
+        @include('storefront.partials.cart-toast')
+    @endif
 
     @livewireScripts
 </body>

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Models\Category;
+use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Import\DnsHostResolver;
@@ -11,15 +13,18 @@ use App\Services\Import\HostResolver;
 use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Pricing\PriceRuleRepository;
+use App\Services\Sales\CartAvailability;
 use App\View\Composers\StorefrontComposer;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Spatie\LaravelSettings\Events\SettingsSaved;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -61,8 +66,29 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('storefront.*', StorefrontComposer::class);
 
+        $this->forgetCartFlagOnChanges();
+
         // NF-12: passwords of at least 10 characters everywhere (user form, password reset).
         Password::defaults(fn () => Password::min(10));
+    }
+
+    /**
+     * The "cart exists in the shop" flag of the header (SF-01) depends on sales settings, categories and the
+     * sales mode of products; drop the cached value when one of them changes.
+     */
+    private function forgetCartFlagOnChanges(): void
+    {
+        $forget = fn () => $this->app->make(CartAvailability::class)->forget();
+
+        Event::listen(SettingsSaved::class, $forget);
+        Category::saved($forget);
+        Category::deleted($forget);
+        Product::saved(function (Product $product) use ($forget): void {
+            if ($product->wasRecentlyCreated || $product->wasChanged(['sales_mode', 'is_active'])) {
+                $forget();
+            }
+        });
+        Product::deleted($forget);
     }
 
     /**
