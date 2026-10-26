@@ -166,3 +166,27 @@ it('does not generate in parallel: the locked job and command skip, the route an
     // The lock is released after a run.
     expect(Cache::lock(SitemapGenerator::LOCK, 5)->get())->toBeTrue();
 });
+
+it('releases the queued job back when the lock is busy, so it runs again later (SF-82)', function () {
+    $lock = Cache::lock(SitemapGenerator::LOCK, 60);
+    expect($lock->get())->toBeTrue();
+
+    $job = new class extends GenerateSitemap
+    {
+        public ?int $releasedFor = null;
+
+        public function release($delay = 0)
+        {
+            $this->releasedFor = (int) $delay;
+        }
+    };
+
+    $job->handle(app(SitemapGenerator::class));
+    expect($job->releasedFor)->toBe(120);
+
+    $lock->release();
+    $job->releasedFor = null;
+    $job->handle(app(SitemapGenerator::class));
+
+    expect($job->releasedFor)->toBeNull()->and(file_exists($this->dir.'/sitemap.xml'))->toBeTrue();
+});

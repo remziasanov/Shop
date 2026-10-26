@@ -16,13 +16,16 @@ class GenerateSitemap implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 1;
+    public int $tries = 5;
 
     public int $uniqueFor = 300;
 
     public function handle(SitemapGenerator $generator): void
     {
-        // Skipped while another process (cron, a crawler request) is generating the same file.
-        $generator->generateLocked();
+        // Another process (cron, a crawler request) is generating the file right now and may have read the data
+        // before the import: try again later instead of dropping the run.
+        if ($generator->generateLocked() === null) {
+            $this->release(120);
+        }
     }
 }

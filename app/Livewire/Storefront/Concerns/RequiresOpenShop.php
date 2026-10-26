@@ -6,6 +6,7 @@ namespace App\Livewire\Storefront\Concerns;
 
 use App\Http\Middleware\StorefrontOpen;
 use App\Settings\GeneralSettings;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
  * Closed mode (SF-05, D-057) for storefront Livewire components. The Livewire update endpoint is exempt from the
@@ -20,6 +21,6 @@ trait RequiresOpenShop
             return;
         }
 
-        abort(503);
+        throw new HttpResponseException(StorefrontOpen::closedResponse());
     }
 }

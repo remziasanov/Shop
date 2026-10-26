@@ -29,12 +29,12 @@ it('does not let a guest add to the cart through a Livewire snapshot taken befor
     $snapshot = collect($matches[1])->map(fn (string $s) => html_entity_decode($s, ENT_QUOTES))->first(fn (string $s) => str_contains($s, 'productId'));
     expect($snapshot)->not->toBeNull();
 
-    generalSettings(['shop_open' => false]);
+    generalSettings(['shop_open' => false, 'closed_message' => 'Вернёмся в понедельник']);
     $this->get('/')->assertStatus(503);
 
     $this->postJson(app('livewire')->getUpdateUri(), [
         'components' => [['snapshot' => $snapshot, 'updates' => new stdClass, 'calls' => [['method' => 'add', 'params' => [], 'metadata' => new stdClass]]]],
-    ], ['X-Livewire' => '1'])->assertStatus(503);
+    ], ['X-Livewire' => '1'])->assertStatus(503)->assertSee('Вернёмся в понедельник');
 
     expect(DB::table('cart_items')->count())->toBe(0);
 });

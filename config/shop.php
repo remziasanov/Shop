@@ -14,6 +14,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Hosts (D-057)
+    |--------------------------------------------------------------------------
+    | canonical_host_redirect: in production the www./bare twin of the APP_URL host is redirected to APP_URL.
+    | extra_hosts: additional trusted hosts (SHOP_EXTRA_HOSTS, comma separated), e.g. the Beget technical domain.
+    */
+    'canonical_host_redirect' => true,
+    'extra_hosts' => array_values(array_filter(array_map('trim', explode(',', (string) env('SHOP_EXTRA_HOSTS', ''))))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Sitemap directory (SF-82)
     |--------------------------------------------------------------------------
     | Where sitemap.xml is written, relative to the project root; null = public/.

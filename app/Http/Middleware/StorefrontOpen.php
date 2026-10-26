@@ -30,8 +30,18 @@ class StorefrontOpen
             return $next($request);
         }
 
+        return self::closedResponse($this->message());
+    }
+
+    /**
+     * The 503 "shop closed" response; also thrown by storefront Livewire components ({@see RequiresOpenShop}).
+     */
+    public static function closedResponse(?string $message = null): Response
+    {
+        $message ??= trim((string) app(GeneralSettings::class)->closed_message);
+
         return response()
-            ->view('errors.shop-closed', ['message' => $this->message()], 503)
+            ->view('errors.shop-closed', ['message' => $message], 503)
             ->header('Retry-After', '3600')
             ->header('Cache-Control', 'no-store, private');
     }
