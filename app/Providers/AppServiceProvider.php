@@ -11,6 +11,7 @@ use App\View\Composers\StorefrontComposer;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -31,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CategoryTree::class);
         $this->app->singleton(HtmlSanitizer::class);
         $this->app->singleton(ImageProcessor::class);
+        $this->app->singleton(StorefrontComposer::class);
     }
 
     /**
@@ -38,6 +40,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // NF-02: N+1 problems fail loudly in development and tests, never in production.
+        Model::preventLazyLoading(! $this->app->isProduction());
+
         $this->configureFilamentFormats();
 
         View::composer('storefront.*', StorefrontComposer::class);

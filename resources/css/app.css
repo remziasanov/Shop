@@ -11,3 +11,8 @@
     --color-primary: var(--color-primary);
     --color-accent: var(--color-accent);
 }
+
+/* Alpine: hide elements until the component is initialized. */
+[x-cloak] {
+    display: none !important;
+}
