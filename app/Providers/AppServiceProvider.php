@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\View\Composers\StorefrontComposer;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -32,6 +34,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureFilamentFormats();
+
+        View::composer('storefront.*', StorefrontComposer::class);
 
         // NF-12: passwords of at least 10 characters everywhere (user form, password reset).
         Password::defaults(fn () => Password::min(10));

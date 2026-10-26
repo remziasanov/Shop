@@ -77,7 +77,7 @@ class UserResource extends Resource
                 ->rule(Password::min(10))
                 ->confirmed()
                 ->dehydrated(fn (?string $state): bool => filled($state))
-                ->helperText(fn (string $operation): ?string => $operation === 'edit'
+                ->helperText(fn (string $operation): string => $operation === 'edit'
                     ? __('shop.users.password_hint_edit')
                     : __('shop.users.password_hint')),
             TextInput::make('password_confirmation')

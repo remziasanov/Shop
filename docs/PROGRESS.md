@@ -4,19 +4,19 @@
 
 ## Этап 0. Каркас и инфраструктура
 
-Статус: не начат
+Статус: выполнен (PR на ревью)
 
-- [ ] Laravel 13 + Filament 5, русская локализация, роли admin/manager, `shop:create-admin`
-- [ ] Группы настроек (6.3) со страницами в админке и значениями по умолчанию
-- [ ] Базовый макет витрины (Tailwind, шапка/подвал-заглушки), Vite
-- [ ] Pest, Pint, Larastan, `ci.yml`; CLAUDE.md, docs/PROGRESS.md, docs/DECISIONS.md, `.env.example`
-- [ ] `shop:doctor`, страница «Система», `shop:heartbeat`
-- [ ] Вход в админку работает, менеджер не видит настроек
-- [ ] Настройки сохраняются и читаются на витрине (название магазина в шапке)
-- [ ] `shop:doctor` выводит отчёт
-- [ ] .claude/agents (implementer/helper/reviewer)
-- [ ] CLAUDE.md, docs/PROGRESS.md, docs/DECISIONS.md, docs/DEV_ENV.md
-- [ ] TZ.html перенесён в docs/
+- [x] Laravel 13 + Filament 5, русская локализация, роли admin/manager, `shop:create-admin`
+- [x] Группы настроек (6.3) со страницами в админке и значениями по умолчанию
+- [x] Базовый макет витрины (Tailwind, шапка/подвал-заглушки), Vite
+- [x] Pest, Pint, Larastan, `ci.yml`; CLAUDE.md, docs/PROGRESS.md, docs/DECISIONS.md, `.env.example`
+- [x] `shop:doctor`, страница «Система», `shop:heartbeat`
+- [x] Вход в админку работает, менеджер не видит настроек
+- [x] Настройки сохраняются и читаются на витрине (название магазина в шапке)
+- [x] `shop:doctor` выводит отчёт
+- [x] .claude/agents (implementer/helper/reviewer)
+- [x] CLAUDE.md, docs/PROGRESS.md, docs/DECISIONS.md, docs/DEV_ENV.md
+- [x] TZ.html перенесён в docs/
 
 _Требований с ID на этапе 0 нет._
 

@@ -18,14 +18,14 @@ enum RoundingStep: int
     }
 
     /**
-     * @return array<string, string>
+     * @return array<int, string>
      */
     public static function options(): array
     {
         $options = [];
 
         foreach (self::cases() as $case) {
-            $options[(string) $case->value] = $case->label();
+            $options[$case->value] = $case->label();
         }
 
         return $options;
