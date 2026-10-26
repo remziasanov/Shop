@@ -13,7 +13,7 @@ return new class extends Migration
         Schema::create('imports', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('status', 16)->index();
+            $table->string('status', 24)->index();
             $table->string('mode', 24);
             $table->string('original_name');
             $table->string('file_path');

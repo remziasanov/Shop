@@ -47,7 +47,7 @@ it('starts a catalog export from the form with category and activity filters', f
     expect($export->status)->toBe(ExportStatus::Completed)
         ->and($export->rows)->toBe(1)
         ->and($export->user_id)->toBe($user->id)
-        ->and($export->params)->toBe(['category_id' => $root->id, 'active' => 'active']);
+        ->and($export->params)->toEqual(['category_id' => $root->id, 'active' => 'active']);
 });
 
 it('shows managers only their own exports and administrators all of them', function (): void {

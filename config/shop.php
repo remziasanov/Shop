@@ -36,4 +36,9 @@ return [
     */
     'export_max_selection' => 20_000,
 
+    /*
+    | Total uncompressed size (MB) of photos an import ZIP may contain (IM-02, zip bomb guard).
+    */
+    'import_media_max_total_mb' => 512,
+
 ];

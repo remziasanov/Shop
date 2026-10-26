@@ -1,0 +1,668 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Import;
+
+use App\Enums\ImportMode;
+use App\Enums\ImportStatus;
+use App\Events\ImportFinished;
+use App\Exceptions\ImportFileException;
+use App\Jobs\ProcessImportChunk;
+use App\Models\Import;
+use App\Models\Product;
+use App\Models\User;
+use App\Services\Catalog\CategoryTree;
+use App\Services\Pricing\PriceRuleRecalculator;
+use Carbon\CarbonImmutable;
+use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use LogicException;
+use Throwable;
+
+/**
+ * Drives an import through its stages (D-033): categories sheet, product chunks, photos, finish.
+ *
+ * Entry points for the UI and the queue:
+ *  - {@see start()}: analyzed → queued, dispatches the {@see ProcessImportChunk} chain;
+ *  - {@see processNext()} / {@see step()}: one unit of work (the categories sheet, one chunk of 200 rows with its
+ *    photos, one file of pending photos, or the final step). The queue job and the browser fallback (IM-10) both
+ *    call it; a chunk is claimed with a conditional UPDATE ({@see claimNextChunk()}) and the data step runs under
+ *    a short cache lock, so concurrent callers can never apply a chunk twice and chunks are applied in order.
+ *    Photos are processed after the lock is released, within the time budget; what does not fit is stored in
+ *    `imports/{id}/photos-pending-*.json` and continued by later calls;
+ *  - {@see finish()}: runs once when all chunks and photos are done — full-sync deactivation, price recalculation
+ *    of touched products (IM-14), cache flush, {@see ImportFinished}, final status, bell notification (section 9);
+ *  - {@see fail()}: marks the import failed with a safe message;
+ *  - {@see fullSyncAffectedCount()}: how many active products a full sync would deactivate (IM-04 confirmation).
+ *
+ * Files (private `local` disk, `imports/{id}/`): `touched.txt` ids of created/updated products,
+ * `photos-pending-*.json`, `downloads/`, `media/` (the last two are removed on finish).
+ */
+final class ImportRunner
+{
+    /** Seconds a processing lock lives; a crashed worker blocks the import at most this long. */
+    public const LOCK_TTL = 60;
+
+    /** A claimed chunk without progress for this long is considered lost and is claimed again. */
+    public const STALE_CLAIM_SECONDS = 120;
+
+    /** A photo file being processed for longer than this is returned to the pending list. */
+    public const STALE_PHOTO_SECONDS = 300;
+
+    private const FINISHED = ['completed', 'completed_with_errors', 'failed', 'cancelled'];
+
+    public function __construct(
+        private readonly RowImporter $rows,
+        private readonly CategorySheetImporter $categorySheet,
+        private readonly ImportPhotoProcessor $photos,
+        private readonly PriceRuleRecalculator $prices,
+        private readonly CategoryTree $tree,
+    ) {}
+
+    /**
+     * Queue an analyzed import: status `queued`, progress counters reset, first job dispatched.
+     *
+     * @throws LogicException when the import is not in the `analyzed` state
+     */
+    public function start(Import $import): Import
+    {
+        $started = DB::table('imports')
+            ->where('id', $import->id)
+            ->where('status', ImportStatus::Analyzed->value)
+            ->update([
+                'status' => ImportStatus::Queued->value,
+                'started_at' => now(),
+                'finished_at' => null,
+                'failure_message' => null,
+                'next_chunk' => 0,
+                'chunks_done' => 0,
+                'rows_processed' => 0,
+                'created_count' => 0,
+                'updated_count' => 0,
+                'skipped_count' => 0,
+                'error_count' => 0,
+                'warning_count' => 0,
+                'last_activity_at' => now(),
+            ]);
+
+        if ($started === 0) {
+            throw new LogicException('Only an analyzed import can be started.');
+        }
+
+        $this->deleteWorkFiles($import);
+
+        ProcessImportChunk::dispatch($import->id);
+
+        return $import->refresh();
+    }
+
+    /**
+     * Atomically take the next unprocessed chunk (D-033): `UPDATE imports SET next_chunk = n + 1 WHERE next_chunk = n`.
+     *
+     * @return int|null chunk index, null when every chunk is claimed (or the import is finished)
+     */
+    public function claimNextChunk(Import $import): ?int
+    {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $row = DB::table('imports')->where('id', $import->id)->first(['next_chunk', 'chunks_total']);
+
+            if ($row === null || (int) $row->next_chunk >= (int) $row->chunks_total) {
+                return null;
+            }
+
+            $claimed = DB::table('imports')
+                ->where('id', $import->id)
+                ->where('next_chunk', $row->next_chunk)
+                ->whereNotIn('status', self::FINISHED)
+                ->update(['next_chunk' => DB::raw('next_chunk + 1'), 'last_activity_at' => now()]);
+
+            if ($claimed === 1) {
+                return (int) $row->next_chunk;
+            }
+
+            if (DB::table('imports')->where('id', $import->id)->whereIn('status', self::FINISHED)->exists()) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Do one unit of work within roughly $timeBudgetSeconds (no new photo download starts after it).
+     * Exceptions of the data step propagate (the chunk is rolled back and can be claimed again); callers decide
+     * whether to retry or call {@see fail()}.
+     *
+     * @return bool true while the import has more work (call again, possibly after a short wait); false when it is
+     *              finished or not running
+     */
+    public function processNext(Import $import, float $timeBudgetSeconds = 20.0): bool
+    {
+        $step = $this->step($import, $timeBudgetSeconds);
+
+        return $step !== ImportStep::Finished && $step !== ImportStep::Stopped;
+    }
+
+    public function step(Import $import, float $timeBudgetSeconds = 20.0): ImportStep
+    {
+        $deadline = microtime(true) + $timeBudgetSeconds;
+        $import->refresh();
+
+        if ($import->status->isFinished()) {
+            return ImportStep::Finished;
+        }
+
+        if ($import->status !== ImportStatus::Queued && $import->status !== ImportStatus::Processing) {
+            return ImportStep::Stopped;
+        }
+
+        $lock = Cache::lock($this->lockKey($import, 'run'), self::LOCK_TTL);
+
+        if (! $lock->get()) {
+            return ImportStep::Busy;
+        }
+
+        $step = null;
+        $tasks = [];
+        $label = '';
+
+        try {
+            $import->refresh();
+
+            if ($import->status->isFinished()) {
+                return ImportStep::Finished;
+            }
+
+            if ($import->status === ImportStatus::Queued) {
+                DB::table('imports')->where('id', $import->id)->where('status', ImportStatus::Queued->value)
+                    ->update(['status' => ImportStatus::Processing->value, 'last_activity_at' => now()]);
+                $import->refresh();
+            }
+
+            $this->recoverStaleClaim($import);
+
+            if ($this->categoriesPending($import)) {
+                $tasks = $this->runCategories($import);
+                $step = ImportStep::Categories;
+                $label = 'categories';
+            } elseif (($index = $this->claimNextChunk($import)) !== null) {
+                try {
+                    $result = $this->rows->importChunk($import, $index);
+                } catch (Throwable $e) {
+                    $this->releaseClaim($import, $index);
+
+                    throw $e;
+                }
+
+                $this->appendTouched($import, $result->touchedIds);
+                $tasks = $result->photoTasks;
+                $step = ImportStep::Chunk;
+                $label = 'chunk-'.$index;
+            }
+        } finally {
+            $lock->release();
+        }
+
+        if ($step !== null) {
+            $this->runPhotos($import, $tasks, $deadline, $label);
+
+            return $step;
+        }
+
+        $import->refresh();
+
+        if ($import->chunks_done < $import->chunks_total) {
+            return ImportStep::Waiting;
+        }
+
+        if ($this->processPendingPhotos($import, $deadline)) {
+            return ImportStep::Photos;
+        }
+
+        if ($this->hasPhotoFiles($import)) {
+            return ImportStep::Waiting;
+        }
+
+        return $this->finish($import) ? ImportStep::Finished : ImportStep::Waiting;
+    }
+
+    /**
+     * Whether product chunks (or the categories sheet) still wait to be claimed.
+     */
+    public function hasUnclaimedWork(Import $import): bool
+    {
+        $import->refresh();
+
+        return $this->categoriesPending($import) || $import->next_chunk < $import->chunks_total;
+    }
+
+    /**
+     * Final step: full-sync deactivation, price recalculation of touched products, cache flush, event, status and
+     * notification. Safe to call from several workers; does nothing until all chunks and photos are done.
+     *
+     * @return bool true when the import is finished (by this call or earlier)
+     */
+    public function finish(Import $import): bool
+    {
+        $lock = Cache::lock($this->lockKey($import, 'finish'), 300);
+
+        if (! $lock->get()) {
+            return false;
+        }
+
+        try {
+            $import->refresh();
+
+            if ($import->status->isFinished()) {
+                return true;
+            }
+
+            if ($import->chunks_done < $import->chunks_total || $this->hasPhotoFiles($import)) {
+                return false;
+            }
+
+            $analysis = $import->analysis ?? [];
+            $result = is_array($analysis['result'] ?? null) ? $analysis['result'] : [];
+
+            if (! $import->importOptions()->dryRun) {
+                if ($import->mode === ImportMode::FullSync) {
+                    $result['deactivated'] = $this->deactivateMissing($import);
+                }
+
+                $this->prices->dispatch($this->touchedIds($import));
+                $this->tree->flush();
+            }
+
+            $analysis['result'] = $result;
+            $status = $import->error_count > 0 ? ImportStatus::CompletedWithErrors : ImportStatus::Completed;
+
+            $done = DB::table('imports')
+                ->where('id', $import->id)
+                ->whereNotIn('status', self::FINISHED)
+                ->update([
+                    'status' => $status->value,
+                    'finished_at' => now(),
+                    'last_activity_at' => now(),
+                    'analysis' => json_encode($analysis, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ]);
+
+            if ($done === 0) {
+                return true;
+            }
+
+            $import->refresh();
+            $this->deleteWorkFiles($import);
+            event(new ImportFinished($import));
+            $this->notify($import);
+
+            return true;
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Mark the import failed with a message that is safe to show; the details go to the log.
+     */
+    public function fail(Import $import, Throwable $exception): void
+    {
+        report($exception);
+
+        $message = $exception instanceof ImportFileException ? $exception->getMessage() : __('import_process.errors.failed');
+
+        $done = DB::table('imports')
+            ->where('id', $import->id)
+            ->whereNotIn('status', self::FINISHED)
+            ->update([
+                'status' => ImportStatus::Failed->value,
+                'failure_message' => $message,
+                'finished_at' => now(),
+                'last_activity_at' => now(),
+            ]);
+
+        if ($done === 0) {
+            return;
+        }
+
+        $import->refresh();
+        $this->deleteWorkFiles($import);
+        event(new ImportFinished($import));
+        $this->notify($import);
+    }
+
+    /**
+     * Active, non-deleted products whose SKU is not in the file: what a full sync would deactivate (IM-04).
+     * Available after the analysis (reads the staged rows).
+     */
+    public function fullSyncAffectedCount(Import $import): int
+    {
+        $skus = $this->fileSkus($import);
+
+        if ($skus === []) {
+            return 0;
+        }
+
+        $count = 0;
+
+        Product::query()->where('is_active', true)->select(['id', 'sku'])->chunkById(1000, function ($products) use ($skus, &$count): void {
+            foreach ($products as $product) {
+                if (! isset($skus[mb_strtolower($product->sku, 'UTF-8')])) {
+                    $count++;
+                }
+            }
+        });
+
+        return $count;
+    }
+
+    // ------------------------------------------------------------------
+
+    private function lockKey(Import $import, string $name): string
+    {
+        return 'import:'.$import->id.':'.$name;
+    }
+
+    private function categoriesPending(Import $import): bool
+    {
+        return $import->categories_staging_path !== null && ! (bool) ($import->analysis['categories_done'] ?? false);
+    }
+
+    /**
+     * Apply the categories sheet (own transaction) and remember it is done.
+     *
+     * @return list<array<string, mixed>> photo tasks
+     */
+    private function runCategories(Import $import): array
+    {
+        $resolver = new CategoryPathResolver;
+        $result = $this->categorySheet->import($import, $resolver);
+
+        $analysis = $import->analysis ?? [];
+        $analysis['categories_done'] = true;
+        $analysis['result'] = array_merge(is_array($analysis['result'] ?? null) ? $analysis['result'] : [], [
+            'categories_created' => $resolver->createdCount(),
+            'categories_updated' => $result->updated,
+        ]);
+
+        DB::table('imports')->where('id', $import->id)->update([
+            'error_count' => DB::raw('error_count + '.$result->errors),
+            'warning_count' => DB::raw('warning_count + '.$result->warnings),
+            'analysis' => json_encode($analysis, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'last_activity_at' => now(),
+        ]);
+
+        return $result->photoTasks;
+    }
+
+    /**
+     * A worker that died holding a claim leaves `next_chunk > chunks_done` with no activity: claim that chunk again.
+     * Chunks run strictly one after another (the lock), so the lost chunk is the one at index `chunks_done`.
+     */
+    private function recoverStaleClaim(Import $import): void
+    {
+        $row = DB::table('imports')->where('id', $import->id)->first(['next_chunk', 'chunks_done', 'last_activity_at']);
+
+        if ($row === null || (int) $row->next_chunk <= (int) $row->chunks_done || $row->last_activity_at === null) {
+            return;
+        }
+
+        if (CarbonImmutable::parse((string) $row->last_activity_at)->addSeconds(self::STALE_CLAIM_SECONDS)->isFuture()) {
+            return;
+        }
+
+        DB::table('imports')
+            ->where('id', $import->id)
+            ->where('next_chunk', $row->next_chunk)
+            ->update(['next_chunk' => $row->chunks_done, 'last_activity_at' => now()]);
+    }
+
+    private function releaseClaim(Import $import, int $index): void
+    {
+        DB::table('imports')->where('id', $import->id)->where('next_chunk', $index + 1)->update(['next_chunk' => $index]);
+    }
+
+    // ------------------------------------------------------------------ photos
+
+    /**
+     * @param  list<array<string, mixed>>  $tasks
+     */
+    private function runPhotos(Import $import, array $tasks, float $deadline, string $label): void
+    {
+        if ($tasks === []) {
+            return;
+        }
+
+        $pending = $this->photos->run($import, $tasks, $deadline);
+
+        if ($pending !== []) {
+            Storage::disk('local')->put($this->importDir($import).'/photos-pending-'.$label.'.json', json_encode($pending, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        }
+    }
+
+    /**
+     * Process one file of pending photo tasks. The file is claimed by renaming it, so two workers never take the same one.
+     *
+     * @return bool true when a file was taken and processed
+     */
+    private function processPendingPhotos(Import $import, float $deadline): bool
+    {
+        if (microtime(true) >= $deadline) {
+            return false;
+        }
+
+        $directory = Storage::disk('local')->path($this->importDir($import));
+
+        // Return files abandoned by a dead worker.
+        foreach (glob($directory.'/photos-working-*.json') ?: [] as $working) {
+            if (filemtime($working) !== false && filemtime($working) < time() - self::STALE_PHOTO_SECONDS) {
+                @rename($working, $directory.'/photos-pending-'.substr(basename($working), strlen('photos-working-')));
+            }
+        }
+
+        foreach (glob($directory.'/photos-pending-*.json') ?: [] as $pendingFile) {
+            $name = substr(basename($pendingFile), strlen('photos-pending-'));
+            $working = $directory.'/photos-working-'.$name;
+
+            if (! @rename($pendingFile, $working)) {
+                continue;
+            }
+
+            $tasks = json_decode((string) file_get_contents($working), true);
+            $tasks = is_array($tasks) ? array_values(array_filter($tasks, 'is_array')) : [];
+
+            try {
+                $left = $this->photos->run($import, $tasks, $deadline);
+            } catch (Throwable $e) {
+                @rename($working, $pendingFile);
+
+                throw $e;
+            }
+
+            if ($left !== []) {
+                file_put_contents($pendingFile, json_encode($left, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            }
+
+            @unlink($working);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function hasPhotoFiles(Import $import): bool
+    {
+        $directory = Storage::disk('local')->path($this->importDir($import));
+
+        return (glob($directory.'/photos-pending-*.json') ?: []) !== [] || (glob($directory.'/photos-working-*.json') ?: []) !== [];
+    }
+
+    // ------------------------------------------------------------------ files
+
+    private function importDir(Import $import): string
+    {
+        return 'imports/'.$import->id;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     */
+    private function appendTouched(Import $import, array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        $disk = Storage::disk('local');
+        $disk->makeDirectory($this->importDir($import));
+        file_put_contents($disk->path($this->importDir($import).'/touched.txt'), implode("\n", $ids)."\n", FILE_APPEND | LOCK_EX);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function touchedIds(Import $import): array
+    {
+        $path = Storage::disk('local')->path($this->importDir($import).'/touched.txt');
+
+        if (! is_file($path)) {
+            return [];
+        }
+
+        $ids = [];
+
+        foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $ids[(int) $line] = (int) $line;
+        }
+
+        return array_values($ids);
+    }
+
+    private function deleteWorkFiles(Import $import): void
+    {
+        MediaResolver::cleanup($import);
+
+        $directory = Storage::disk('local')->path($this->importDir($import));
+
+        foreach (['photos-pending-*.json', 'photos-working-*.json'] as $pattern) {
+            foreach (glob($directory.'/'.$pattern) ?: [] as $file) {
+                @unlink($file);
+            }
+        }
+
+        Storage::disk('local')->delete($this->importDir($import).'/touched.txt');
+    }
+
+    // ------------------------------------------------------------------ full sync
+
+    /**
+     * Lower-cased SKUs of every staged row (rows with errors included: their products stay active).
+     *
+     * @return array<string, true>
+     */
+    private function fileSkus(Import $import): array
+    {
+        if ($import->staging_path === null) {
+            return [];
+        }
+
+        $path = Storage::disk('local')->path($import->staging_path);
+        $handle = is_file($path) ? fopen($path, 'rb') : false;
+
+        if ($handle === false) {
+            return [];
+        }
+
+        $skus = [];
+
+        try {
+            while (($line = fgets($handle)) !== false) {
+                $decoded = json_decode($line, true);
+                $sku = is_array($decoded) ? ($decoded['values']['sku'] ?? null) : null;
+
+                if (is_string($sku) && $sku !== '') {
+                    $skus[mb_strtolower($sku, 'UTF-8')] = true;
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        return $skus;
+    }
+
+    private function deactivateMissing(Import $import): int
+    {
+        $skus = $this->fileSkus($import);
+
+        // An empty file must never switch the whole catalog off.
+        if ($skus === []) {
+            return 0;
+        }
+
+        $count = 0;
+
+        Product::query()->where('is_active', true)->select(['id', 'sku'])->chunkById(1000, function ($products) use ($skus, &$count): void {
+            $ids = [];
+
+            foreach ($products as $product) {
+                if (! isset($skus[mb_strtolower($product->sku, 'UTF-8')])) {
+                    $ids[] = $product->id;
+                }
+            }
+
+            if ($ids !== []) {
+                DB::table('products')->whereIn('id', $ids)->update(['is_active' => false, 'updated_at' => now()]);
+                $count += count($ids);
+            }
+        });
+
+        return $count;
+    }
+
+    // ------------------------------------------------------------------ notification
+
+    private function notify(Import $import): void
+    {
+        try {
+            $user = $import->user_id !== null ? User::query()->find($import->user_id) : null;
+
+            if ($user === null) {
+                return;
+            }
+
+            $suffix = $import->dry_run ? __('import_process.notification.dry_run_suffix') : '';
+
+            if ($import->status === ImportStatus::Failed) {
+                $notification = Notification::make()
+                    ->title(__('import_process.notification.failed').$suffix)
+                    ->body(__('import_process.notification.failed_body', ['file' => $import->original_name, 'message' => (string) $import->failure_message]))
+                    ->danger();
+            } else {
+                $notification = Notification::make()
+                    ->title(__('import_process.notification.'.$import->status->value).$suffix)
+                    ->body(__('import_process.notification.summary', [
+                        'file' => $import->original_name,
+                        'created' => $import->created_count,
+                        'updated' => $import->updated_count,
+                        'skipped' => $import->skipped_count,
+                        'errors' => $import->error_count,
+                        'warnings' => $import->warning_count,
+                    ]));
+
+                if ($import->status === ImportStatus::Completed) {
+                    $notification->success();
+                } else {
+                    $notification->warning();
+                }
+            }
+
+            $notification->sendToDatabase($user);
+        } catch (Throwable $e) {
+            report($e);
+        }
+    }
+}
