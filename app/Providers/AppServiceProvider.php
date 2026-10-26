@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Services\Catalog\CategoryTree;
+use App\Services\Content\HtmlSanitizer;
+use App\Services\Media\ImageProcessor;
 use App\View\Composers\StorefrontComposer;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
@@ -25,7 +28,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(CategoryTree::class);
+        $this->app->singleton(HtmlSanitizer::class);
+        $this->app->singleton(ImageProcessor::class);
     }
 
     /**
