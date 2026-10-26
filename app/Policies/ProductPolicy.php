@@ -9,8 +9,7 @@ use App\Models\Product;
 use App\Models\User;
 
 /**
- * Administrators and managers manage the catalog (TZ 6.13). The bulk price change (stage 2) will
- * add its own administrator-only check.
+ * Administrators and managers manage the catalog (TZ 6.13). The bulk price change is administrator-only.
  */
 class ProductPolicy
 {
@@ -62,6 +61,14 @@ class ProductPolicy
     public function forceDeleteAny(User $user): bool
     {
         return $this->manages($user);
+    }
+
+    /**
+     * Bulk change of base prices (AD-42, TZ 6.13): administrators only.
+     */
+    public function changePrices(User $user): bool
+    {
+        return $user->is_active && $user->role === UserRole::Admin;
     }
 
     private function manages(User $user): bool

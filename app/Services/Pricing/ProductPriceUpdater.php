@@ -95,7 +95,29 @@ final class ProductPriceUpdater
         ?string $costPrice = null,
         ?int $productId = null,
     ): array {
-        $result = $this->explain(new PriceInput(
+        $result = $this->explainValues($basePrice, $fixedPrice, $compareAtPrice, $categoryId, $brand, $isFeatured, $isNew, $costPrice, $productId);
+
+        return ['final_price' => $result->finalRubles(), 'display_old_price' => $result->oldRubles()];
+    }
+
+    /**
+     * Same inputs as {@see calculate()}, but returns the full result with the explanation (PR-03).
+     * Pass `$productId` so that rules limited to specific products match.
+     *
+     * @throws InvalidArgumentException when an amount is not valid
+     */
+    public function explainValues(
+        ?string $basePrice,
+        ?string $fixedPrice,
+        ?string $compareAtPrice,
+        ?int $categoryId = null,
+        ?string $brand = null,
+        bool $isFeatured = false,
+        bool $isNew = false,
+        ?string $costPrice = null,
+        ?int $productId = null,
+    ): PriceResult {
+        return $this->explain(new PriceInput(
             productId: $productId,
             categoryId: $categoryId,
             brand: $brand !== null && trim($brand) !== '' ? $brand : null,
@@ -107,8 +129,6 @@ final class ProductPriceUpdater
             fixedPrice: $fixedPrice !== null && $fixedPrice !== '' ? Money::fromRubles($fixedPrice) : null,
             categoryPathIds: $categoryId !== null ? $this->categories->selfAndAncestorIds($categoryId) : [],
         ));
-
-        return ['final_price' => $result->finalRubles(), 'display_old_price' => $result->oldRubles()];
     }
 
     /**

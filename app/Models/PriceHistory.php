@@ -56,7 +56,8 @@ class PriceHistory extends Model
      */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        // The history of a soft-deleted product stays readable.
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Filament\Resources\Products\Tables;
 
 use App\Enums\SalesMode;
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\Products\Support\BulkPriceChangeAction;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\ProductDuplicator;
@@ -320,6 +321,7 @@ final class ProductsTable
                     self::flagChoice('new', __('admin_products.actions.flag_new')),
                 ],
             ),
+            BulkPriceChangeAction::make(),
             DeleteBulkAction::make()->chunkSelectedRecords(self::CHUNK),
             RestoreBulkAction::make()->chunkSelectedRecords(self::CHUNK),
             // Force deletion fires the model event that removes the photo files (AD-44).
