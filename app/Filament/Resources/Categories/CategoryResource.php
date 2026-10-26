@@ -9,10 +9,12 @@ use App\Exceptions\CategoryTreeException;
 use App\Filament\Resources\Categories\Pages\CreateCategory;
 use App\Filament\Resources\Categories\Pages\EditCategory;
 use App\Filament\Resources\Categories\Pages\ListCategories;
+use App\Filament\Resources\Products\Support\PhotoUpload;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
+use App\Services\Media\CategoryImageImporter;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -24,6 +26,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
@@ -96,23 +99,32 @@ class CategoryResource extends Resource
                     ->helperText(__('admin_categories.fields.sort_order_hint'))
                     ->numeric()
                     ->integer()
-                    ->minValue(0)
-                    ->maxValue(65535)
+                    ->minValue(-1_000_000)
+                    ->maxValue(1_000_000)
                     ->default(0)
                     ->required(),
                 RichEditor::make('description')
                     ->label(__('admin_categories.fields.description'))
                     ->dehydrateStateUsing(fn (mixed $state): ?string => self::sanitize($state))
                     ->columnSpanFull(),
-                FileUpload::make('image_path')
+                // Current image (edit page only): the upload below is processed on save (AD-31).
+                ImageEntry::make('image_path')
+                    ->label(__('admin_categories.fields.image_current'))
+                    ->disk('public')
+                    ->visible(fn (?Category $record): bool => filled($record?->image_path)),
+                Toggle::make('remove_image')
+                    ->label(__('admin_categories.fields.image_remove'))
+                    ->default(false)
+                    ->visible(fn (?Category $record): bool => filled($record?->image_path)),
+                FileUpload::make('new_image')
                     ->label(__('admin_categories.fields.image'))
                     ->helperText(__('admin_categories.fields.image_hint'))
                     ->image()
-                    ->disk('public')
-                    ->directory('categories')
-                    ->visibility('public')
+                    ->disk(CategoryImageImporter::TEMP_DISK)
+                    ->directory(CategoryImageImporter::TEMP_DIRECTORY)
+                    ->visibility('private')
                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-                    ->maxSize(10240)
+                    ->maxSize(intdiv(PhotoUpload::effectiveMaxBytes(), 1024))
                     ->columnSpanFull(),
             ])->columns(2),
             Section::make(__('admin_categories.sections.seo'))->schema([
@@ -122,7 +134,7 @@ class CategoryResource extends Resource
                 Textarea::make('meta_description')
                     ->label(__('admin_categories.fields.meta_description'))
                     ->rows(3)
-                    ->maxLength(500),
+                    ->maxLength(255),
             ])->columns(1)->collapsible(),
         ]);
     }

@@ -70,6 +70,7 @@ return [
     ],
 
     'photos' => [
+        'megabytes' => ':size МБ',
         'upload' => 'Загрузить фото',
         'title' => 'Фото',
         'alt' => 'Alt-текст',

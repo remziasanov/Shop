@@ -8,6 +8,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -47,6 +48,6 @@ return Application::configure(basePath: dirname(__DIR__))
             // Raw query string: Request::getQueryString() would re-sort the parameters.
             $query = $request->server->get('QUERY_STRING');
 
-            return redirect()->to($request->getSchemeAndHttpHost().$target.(is_string($query) && $query !== '' ? '?'.$query : ''), 301);
+            return new RedirectResponse($target.(is_string($query) && $query !== '' ? '?'.$query : ''), 301);
         });
     })->create();

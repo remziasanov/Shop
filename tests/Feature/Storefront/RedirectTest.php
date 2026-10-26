@@ -57,3 +57,12 @@ it('does not redirect to external or protocol-relative targets', function () {
 
     $this->get('/product/evil')->assertNotFound();
 });
+
+it('answers with a relative Location regardless of the Host header', function () {
+    app(RedirectService::class)->record('/product/old', '/product/new');
+
+    $response = $this->call('GET', 'http://evil.example/product/old', ['a' => '1']);
+
+    $response->assertStatus(301);
+    expect($response->headers->get('Location'))->toStartWith('/')->toBe('/product/new?a=1');
+});

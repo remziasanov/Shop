@@ -14,6 +14,14 @@ use InvalidArgumentException;
  */
 class RublesAmount implements ValidationRule
 {
+    /** Largest value of a decimal(12,2) column, in kopecks. */
+    public const DEFAULT_MAX_KOPECKS = 999_999_999_999;
+
+    /**
+     * @param  int  $maxKopecks  upper bound, in kopecks (default: decimal(12,2) maximum, 9 999 999 999.99 ₽)
+     */
+    public function __construct(private readonly int $maxKopecks = self::DEFAULT_MAX_KOPECKS) {}
+
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         try {
@@ -26,6 +34,12 @@ class RublesAmount implements ValidationRule
 
         if ($kopecks < 0) {
             $fail('shop.validation.rubles_amount')->translate();
+
+            return;
+        }
+
+        if ($kopecks > $this->maxKopecks) {
+            $fail('shop.validation.rubles_amount_max')->translate(['max' => Money::format($this->maxKopecks)]);
         }
     }
 }

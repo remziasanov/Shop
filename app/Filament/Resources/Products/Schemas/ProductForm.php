@@ -88,6 +88,8 @@ final class ProductForm
                         ->label(__('admin_products.fields.sort_order'))
                         ->numeric()
                         ->integer()
+                        ->minValue(-1_000_000)
+                        ->maxValue(1_000_000)
                         ->default(0),
                     Toggle::make('is_active')
                         ->label(__('admin_products.fields.is_active'))

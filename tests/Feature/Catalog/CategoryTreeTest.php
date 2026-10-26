@@ -6,6 +6,7 @@ use App\Exceptions\CategoryTreeException;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
+use Illuminate\Queue\Events\Looping;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -259,4 +260,30 @@ it('reorders siblings', function (): void {
 
     expect(array_map(fn ($n) => $n->id, $this->tree->node($root->id)->children))->toBe([$c->id, $a->id, $b->id])
         ->and($root->children()->pluck('id')->all())->toBe([$c->id, $a->id, $b->id]);
+});
+
+it('reloads from the cache after the in-memory copy is forgotten', function (): void {
+    $root = Category::factory()->create(['name' => 'Корень']);
+    expect($this->tree->node($root->id)->name)->toBe('Корень');
+
+    // A change made by another process: the cache is rebuilt there, this instance keeps its memo.
+    DB::table('categories')->where('id', $root->id)->update(['name' => 'Другое']);
+    Cache::forget(CategoryTree::CACHE_KEY);
+    expect($this->tree->node($root->id)->name)->toBe('Корень');
+
+    $this->tree->forgetMemo();
+    expect($this->tree->node($root->id)->name)->toBe('Другое');
+});
+
+it('forgets the memo when a queue worker loops', function (): void {
+    $root = Category::factory()->create(['name' => 'Корень']);
+    $tree = app(CategoryTree::class);
+    $tree->node($root->id);
+
+    DB::table('categories')->where('id', $root->id)->update(['name' => 'Новое']);
+    Cache::forget(CategoryTree::CACHE_KEY);
+
+    event(new Looping('database', 'default'));
+
+    expect($tree->node($root->id)->name)->toBe('Новое');
 });

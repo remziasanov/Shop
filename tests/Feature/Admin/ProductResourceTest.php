@@ -456,3 +456,32 @@ it('reports the effective upload limit in the helper text', function (): void {
         ->toBeLessThanOrEqual(10 * 1024 * 1024)
         ->toBeGreaterThan(0);
 });
+
+it('keeps text, money and sort order inputs within the database column sizes', function (): void {
+    actingAs(User::factory()->admin()->create());
+    $category = Category::factory()->create();
+
+    Livewire::test(CreateProduct::class)
+        ->fillForm(validProductForm($category, [
+            'name' => str_repeat('н', 501),
+            'sku' => str_repeat('a', 101),
+            'slug' => str_repeat('s', 256),
+            'brand' => str_repeat('b', 256),
+            'unit' => str_repeat('u', 21),
+            'meta_title' => str_repeat('м', 256),
+            'meta_description' => str_repeat('м', 256),
+            'base_price' => '10 000 000 000',
+            'sort_order' => 1_000_001,
+        ]))
+        ->call('create')
+        ->assertHasFormErrors(['name', 'sku', 'slug', 'brand', 'unit', 'meta_title', 'meta_description', 'base_price', 'sort_order']);
+
+    Livewire::test(CreateProduct::class)
+        ->fillForm(validProductForm($category, [
+            'meta_description' => str_repeat('м', 255),
+            'base_price' => '9 999 999 999,99',
+            'sort_order' => -1_000_000,
+        ]))
+        ->call('create')
+        ->assertHasNoFormErrors();
+});

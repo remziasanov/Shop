@@ -9,7 +9,10 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Media\ImageProcessor;
 use Filament\Actions\Testing\TestAction;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 dataset('staff', [
@@ -182,4 +185,83 @@ it('sanitizes the description on save', function () {
     $description = (string) Category::where('name', 'Свет')->value('description');
 
     expect($description)->toContain('Текст')->not->toContain('script')->not->toContain('alert');
+});
+
+it('rejects meta fields longer than the database columns and out-of-range sort orders', function (): void {
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test(CreateCategory::class)
+        ->fillForm(['name' => 'Длинная', 'meta_description' => str_repeat('а', 256), 'meta_title' => str_repeat('б', 256), 'sort_order' => 2_000_000_000])
+        ->call('create')
+        ->assertHasFormErrors(['meta_description', 'meta_title', 'sort_order']);
+
+    Livewire::test(CreateCategory::class)
+        ->fillForm(['name' => 'Нормальная', 'meta_description' => str_repeat('а', 255), 'sort_order' => 1_000_000])
+        ->call('create')
+        ->assertHasNoFormErrors();
+});
+
+describe('category image', function (): void {
+    beforeEach(function (): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $this->actingAs(User::factory()->admin()->create());
+    });
+
+    it('processes the upload to a WebP of at most 800 px and removes the temporary original', function (): void {
+        Livewire::test(CreateCategory::class)
+            ->fillForm(['name' => 'С картинкой', 'new_image' => UploadedFile::fake()->image('big.jpg', 2400, 1200)])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $category = Category::where('name', 'С картинкой')->firstOrFail();
+        $ext = app(ImageProcessor::class)->outputExtension();
+
+        expect($category->image_path)->toMatch('#^categories/'.$category->id.'/[0-9a-f-]{36}-800\.'.$ext.'$#');
+        Storage::disk('public')->assertExists($category->image_path);
+        [$w, $h] = getimagesizefromstring(Storage::disk('public')->get($category->image_path));
+        expect($w)->toBe(800)->and($h)->toBe(400)
+            ->and(Storage::disk('public')->allFiles())->toHaveCount(1)
+            ->and(Storage::disk('local')->allFiles())->toBe([]);
+    });
+
+    it('deletes the previous image on replace and on removal', function (): void {
+        $category = Category::factory()->create(['name' => 'Заменяемая']);
+
+        Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()])
+            ->fillForm(['new_image' => UploadedFile::fake()->image('a.png', 900, 900)])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $first = $category->fresh()->image_path;
+        Storage::disk('public')->assertExists($first);
+
+        Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()])
+            ->fillForm(['new_image' => UploadedFile::fake()->image('b.jpg', 500, 300)])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $second = $category->fresh()->image_path;
+
+        expect($second)->not->toBe($first);
+        Storage::disk('public')->assertMissing($first);
+        Storage::disk('public')->assertExists($second);
+        expect(Storage::disk('local')->allFiles())->toBe([]);
+
+        Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()])
+            ->fillForm(['remove_image' => true])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        expect($category->fresh()->image_path)->toBeNull()
+            ->and(Storage::disk('public')->allFiles())->toBe([]);
+    });
+
+    it('reports a corrupt image as a validation error and does not create the category', function (): void {
+        Livewire::test(CreateCategory::class)
+            ->fillForm(['name' => 'Битая', 'new_image' => UploadedFile::fake()->createWithContent('broken.jpg', 'not an image')])
+            ->call('create')
+            ->assertHasFormErrors(['new_image']);
+
+        expect(Category::where('name', 'Битая')->exists())->toBeFalse()
+            ->and(Storage::disk('local')->allFiles())->toBe([]);
+    });
 });

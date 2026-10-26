@@ -68,7 +68,9 @@
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
                     @foreach ($gallery as $i => $image)
-                        <img x-show="index === {{ $i }}" @if ($i > 0) x-cloak @endif src="{{ $image['full'] }}" alt="{{ $image['alt'] }}" class="max-h-full max-w-full object-contain p-4">
+                        {{-- NF-03: the 1600 px variant is requested only while this slide is shown in the open fullscreen view. --}}
+                        <img x-show="index === {{ $i }}" @if ($i > 0) x-cloak @endif :src="fullscreen && index === {{ $i }} ? @js($image['full']) : null"
+                             width="{{ $image['width'] }}" height="{{ $image['height'] }}" alt="{{ $image['alt'] }}" class="max-h-full max-w-full object-contain p-4">
                     @endforeach
                     @if (count($gallery) > 1)
                         <button type="button" @click="prev()" class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="{{ __('storefront.gallery.prev') }}">
@@ -106,6 +108,14 @@
 
             @if ($product->short_description)
                 <p class="mt-4 whitespace-pre-line text-slate-700">{{ $product->short_description }}</p>
+            @endif
+
+            @if ($view->mode === \App\Enums\SalesMode::Showcase && ! empty($shopPhones))
+                {{-- Showcase mode (5.6): the shop phone instead of buttons. --}}
+                <p class="mt-6 text-slate-700" data-showcase-phone>
+                    {{ __('storefront.product.showcase_call') }}
+                    <a href="tel:{{ preg_replace('/[^\d+]/', '', $shopPhones[0]) }}" class="font-semibold text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ $shopPhones[0] }}</a>
+                </p>
             @endif
 
             @if ($view->actions !== [])
@@ -166,7 +176,7 @@
             <h2 id="similar-heading" class="mb-4 text-xl font-semibold">{{ __('storefront.product.similar') }}</h2>
             <ul class="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
                 @foreach ($similar as $card)
-                    <li>@include('storefront.partials.product-card', ['view' => $card])</li>
+                    <li>@include('storefront.partials.product-card', ['view' => $card, 'eager' => false])</li>
                 @endforeach
             </ul>
         </section>

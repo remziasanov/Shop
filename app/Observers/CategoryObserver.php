@@ -44,6 +44,15 @@ final class CategoryObserver
             $this->tree->cascadeToDescendants($category);
         }
 
+        // The replaced (or removed) image file is not kept.
+        if ($category->wasChanged('image_path')) {
+            $old = $category->getOriginal('image_path');
+
+            if (is_string($old) && $old !== '') {
+                Storage::disk('public')->delete($old);
+            }
+        }
+
         if ($category->wasChanged('slug')) {
             $this->redirects->record('/catalog/'.$category->getOriginal('slug'), '/catalog/'.$category->slug);
         }

@@ -6,6 +6,7 @@ use App\Enums\SalesMode;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Settings\GeneralSettings;
 use App\Settings\SalesSettings;
 use Illuminate\Support\Facades\DB;
 
@@ -146,4 +147,52 @@ it('stays within 30 queries on a product page (NF-02)', function () {
     $count = count(DB::getQueryLog());
 
     expect($count)->toBeLessThanOrEqual(30);
+});
+
+it('requests the 1600 px gallery variants only inside the open fullscreen view (NF-03)', function () {
+    $product = Product::factory()->create();
+    ProductImage::factory()->count(3)->sequence(['sort_order' => 0], ['sort_order' => 1], ['sort_order' => 2])->create(['product_id' => $product->id]);
+
+    $html = $this->get(route('product.show', $product->slug))->assertOk()->getContent();
+
+    // No plain src attribute (the browser would download it) points to a 1600 px variant ...
+    expect(preg_match('/\ssrc="[^"]*-1600\./', $html))->toBe(0)
+        // ... they are bound by Alpine, and only while the fullscreen view is open.
+        ->and(substr_count($html, ':src="fullscreen && index =='))->toBe(3)
+        ->and($html)->toContain('fetchpriority="high"');
+});
+
+it('shows the shop phone instead of buttons in showcase mode', function () {
+    $settings = app(GeneralSettings::class);
+    $settings->phones = ['+7 (900) 123-45-67'];
+    $settings->save();
+    $showcase = Product::factory()->salesMode(SalesMode::Showcase)->create();
+    $cart = Product::factory()->salesMode(SalesMode::Cart)->create();
+
+    $this->get(route('product.show', $showcase->slug))
+        ->assertOk()
+        ->assertSee('href="tel:+79001234567"', false)
+        ->assertSee('data-showcase-phone', false)
+        ->assertDontSeeText('В корзину');
+    $this->get(route('product.show', $cart->slug))->assertDontSee('data-showcase-phone', false);
+});
+
+it('renders the first four listing cards eagerly and the rest lazily', function () {
+    $category = Category::factory()->create();
+    $products = Product::factory()->count(6)->inCategory($category)->create();
+    foreach ($products as $product) {
+        ProductImage::factory()->create(['product_id' => $product->id]);
+    }
+
+    $html = $this->get(route('catalog.category', $category->slug))->assertOk()->getContent();
+    preg_match_all('/<article.*?<\/article>/s', $html, $cards);
+
+    expect($cards[0])->toHaveCount(6);
+    foreach ($cards[0] as $i => $card) {
+        expect(str_contains($card, 'loading="lazy"'))->toBe($i >= 4);
+    }
+});
+
+it('survives an array search query in the header', function () {
+    $this->get('/?q[]=x')->assertOk()->assertSee('searchSuggest(', false);
 });

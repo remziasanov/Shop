@@ -12,6 +12,7 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -44,6 +45,9 @@ class AppServiceProvider extends ServiceProvider
         Model::preventLazyLoading(! $this->app->isProduction());
 
         $this->configureFilamentFormats();
+
+        // A queue worker lives longer than a request: re-read the category tree from the cache per job.
+        Queue::looping(fn () => $this->app->make(CategoryTree::class)->forgetMemo());
 
         View::composer('storefront.*', StorefrontComposer::class);
 

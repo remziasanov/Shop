@@ -72,6 +72,15 @@ final class CategoryTree
     public function flush(): void
     {
         $this->cache->forget(self::CACHE_KEY);
+        $this->forgetMemo();
+    }
+
+    /**
+     * Drop only the in-memory copy, so the next read goes to the cache again. Long-running queue
+     * workers call this before each job, otherwise they would keep a stale tree.
+     */
+    public function forgetMemo(): void
+    {
         $this->nodes = null;
         $this->roots = [];
         $this->visibleIds = null;

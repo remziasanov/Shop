@@ -63,6 +63,7 @@ class StorefrontComposer
             'shopFooterText' => $this->general->footer_text,
             'primaryColor' => $this->safeColor($this->appearance->primary_color, self::DEFAULT_PRIMARY),
             'accentColor' => $this->safeColor($this->appearance->accent_color, self::DEFAULT_ACCENT),
+            'searchQuery' => is_string(request()->query('q')) ? request()->query('q') : '',
             'menuCategories' => $this->menuCategories(),
         ];
     }

@@ -82,7 +82,7 @@
         @else
             <ul class="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-3 {{ $gridColumns === 3 ? '' : 'xl:grid-cols-4' }}">
                 @foreach ($cards as $card)
-                    <li>@include('storefront.partials.product-card', ['view' => $card])</li>
+                    <li>@include('storefront.partials.product-card', ['view' => $card, 'eager' => $loop->index < 4])</li>
                 @endforeach
             </ul>
         @endif

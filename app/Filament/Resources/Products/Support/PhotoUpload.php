@@ -39,7 +39,7 @@ final class PhotoUpload
         $bytes = self::effectiveMaxBytes();
         $mb = $bytes / (1024 * 1024);
 
-        return rtrim(rtrim(number_format($mb, 1, ',', ''), '0'), ',').' МБ';
+        return __('admin_products.photos.megabytes', ['size' => rtrim(rtrim(number_format($mb, 1, ',', ''), '0'), ',')]);
     }
 
     public static function make(string $name = 'new_photos', ?int $maxFiles = null): FileUpload

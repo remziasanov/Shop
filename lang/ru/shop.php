@@ -49,6 +49,7 @@ return [
     ],
 
     'validation' => [
+        'rubles_amount_max' => 'Сумма не может превышать :max.',
         'rubles_amount' => 'Укажите сумму в рублях, например 1 290,50.',
     ],
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Media;
 
 use App\Exceptions\ImageProcessingException;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
@@ -36,6 +37,9 @@ final class ImageProcessor
     public const MAX_PIXELS = 25_000_000;
 
     public const MAX_PER_PRODUCT = 15;
+
+    /** Longest side of a category image, px (tiles and banners). */
+    public const CATEGORY_SIZE = 800;
 
     public const WEBP_QUALITY = 80;
 
@@ -121,6 +125,47 @@ final class ImageProcessor
 
             throw ImageProcessingException::corrupt($e);
         }
+    }
+
+    /**
+     * Create the single variant of a category image (long side 800 px, never upscaled) and return its
+     * path on the "public" disk: `categories/{category_id}/{uuid}-800.webp` (JPEG without WebP in GD).
+     * The source file is not stored and not touched.
+     *
+     * @throws ImageProcessingException
+     */
+    public function processCategoryImage(string $sourceAbsolutePath, Category $category): string
+    {
+        $this->assertReadable($sourceAbsolutePath);
+
+        if (! $category->exists) {
+            throw new \LogicException('The category must be saved before its image is processed.');
+        }
+
+        $extension = $this->outputExtension();
+        $size = self::CATEGORY_SIZE;
+        $path = 'categories/'.$category->id.'/'.Str::uuid()->toString()."-{$size}.{$extension}";
+        $disk = $this->disk();
+
+        try {
+            $image = $this->manager()->read($sourceAbsolutePath);
+        } catch (Throwable $e) {
+            throw ImageProcessingException::corrupt($e);
+        }
+
+        try {
+            $stored = $disk->put($path, $this->encode($image->scaleDown($size, $size), $extension));
+        } catch (Throwable $e) {
+            $disk->delete($path);
+
+            throw ImageProcessingException::corrupt($e);
+        }
+
+        if (! $stored) {
+            throw ImageProcessingException::storageFailed();
+        }
+
+        return $path;
     }
 
     /**
