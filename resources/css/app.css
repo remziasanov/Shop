@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../views/**/*.blade.php';
+@source '../../app/**/*.php';
+
+/* --color-primary / --color-accent are set at runtime from AppearanceSettings (SF-04). */
+@theme inline {
+    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+    --color-primary: var(--color-primary);
+    --color-accent: var(--color-accent);
+}
