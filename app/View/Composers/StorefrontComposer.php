@@ -6,6 +6,7 @@ namespace App\View\Composers;
 
 use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Sales\CartAvailability;
 use App\Settings\AppearanceSettings;
 use App\Settings\GeneralSettings;
 use Illuminate\Contracts\View\View;
@@ -25,6 +26,7 @@ class StorefrontComposer
         private readonly GeneralSettings $general,
         private readonly AppearanceSettings $appearance,
         private readonly CategoryTree $tree,
+        private readonly CartAvailability $cartAvailability,
     ) {}
 
     /** @var array<string, mixed>|null Data built once per request (the composer runs for every storefront view and partial). */
@@ -65,6 +67,7 @@ class StorefrontComposer
             'accentColor' => $this->safeColor($this->appearance->accent_color, self::DEFAULT_ACCENT),
             'searchQuery' => is_string(request()->query('q')) ? request()->query('q') : '',
             'menuCategories' => $this->menuCategories(),
+            'cartEnabled' => $this->cartAvailability->enabled(),
         ];
     }
 

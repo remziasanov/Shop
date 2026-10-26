@@ -85,7 +85,7 @@
             @endif
         </section>
 
-        {{-- SF-31, SF-32, SF-34 (short description), SF-33 (actions, placeholder until stage 4). --}}
+        {{-- SF-31, SF-32, SF-34 (short description), SF-33 (actions). --}}
         <div>
             @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mb-2'])
             <h1 class="text-2xl font-bold md:text-3xl">{{ $product->name }}</h1>
@@ -118,10 +118,19 @@
                 </p>
             @endif
 
+            {{-- SF-33: actions by sales mode and stock (ProductActions); Livewire components handle cart, reservation and inquiry. --}}
             @if ($view->actions !== [])
-                <div class="mt-6 flex flex-col gap-2 sm:flex-row">
+                <div class="mt-6 flex flex-wrap items-end gap-2">
                     @foreach ($view->actions as $action)
-                        <button type="button" class="rounded px-6 py-3 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}" data-action="{{ $action['key'] }}">{{ $action['label'] }}</button>
+                        @if ($action['disabled'])
+                            <button type="button" disabled class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="{{ $action['key'] }}">{{ $action['label'] }}</button>
+                        @elseif ($action['key'] === 'cart')
+                            <livewire:storefront.add-to-cart :product-id="$product->id" :show-qty="true" :key="'cart-'.$product->id" />
+                        @elseif ($action['key'] === 'reservation')
+                            <livewire:storefront.reservation-form :product-id="$product->id" :open="request()->boolean('reserve')" :key="'reserve-'.$product->id" />
+                        @elseif ($action['key'] === 'inquiry')
+                            <livewire:storefront.inquiry-form :product-id="$product->id" :open="request()->boolean('inquiry')" :key="'inquiry-'.$product->id" />
+                        @endif
                     @endforeach
                 </div>
             @endif

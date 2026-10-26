@@ -10,8 +10,11 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('shop:heartbeat')->everyMinute()->withoutOverlapping();
+Schedule::command('shop:heartbeat')->everyMinute()->withoutOverlapping(10);
 
 // PR-02: promo start/end passes within 15 minutes; nightly full rebuild as a safety net (TZ section 8).
-Schedule::command('shop:recalc-prices --boundaries')->everyFifteenMinutes()->withoutOverlapping();
-Schedule::command('shop:recalc-prices --all')->dailyAt('03:10')->withoutOverlapping();
+Schedule::command('shop:recalc-prices --boundaries')->everyFifteenMinutes()->withoutOverlapping(10);
+Schedule::command('shop:recalc-prices --all')->dailyAt('03:10')->withoutOverlapping(10);
+
+// SF-53: expire overdue reservations and return their stock (TZ section 8).
+Schedule::command('shop:expire-reservations')->everyFiveMinutes()->withoutOverlapping(10);

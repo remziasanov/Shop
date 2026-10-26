@@ -35,6 +35,9 @@ class CreateProduct extends CreateRecord
         /** @var Product $product */
         $product = $this->getRecord();
 
+        // D-052: the initial stock goes through StockService (the field itself is not dehydrated).
+        $this->applyStockField($product);
+
         // D-020: uploads are processed after the product exists; a failing file does not block the others (AD-53).
         PhotoUpload::process($product, $this->newPhotos, $this->newPhotoNames);
     }

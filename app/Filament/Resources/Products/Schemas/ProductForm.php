@@ -161,6 +161,8 @@ final class ProductForm
                         ->integer()
                         ->minValue(0)
                         ->maxValue(2_000_000_000)
+                        // D-052: written by the page hooks via StockService::setStock() only when changed.
+                        ->dehydrated(false)
                         ->live(onBlur: true),
                     TextInput::make('unit')
                         ->label(__('admin_products.fields.unit'))

@@ -55,9 +55,9 @@
             @if ($shopPhones !== [])
                 <a href="tel:{{ preg_replace('/[^\d+]/', '', $shopPhones[0]) }}" class="hidden text-sm font-medium md:inline" aria-label="{{ __('storefront.header.phone') }}">{{ $shopPhones[0] }}</a>
             @endif
-            <a href="#" class="rounded p-2 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.header.cart') }}">
-                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l3-8H5.4M7 13L5.4 5M7 13l-2 4h13M9 21a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
-            </a>
+            @if ($cartEnabled)
+                <livewire:storefront.mini-cart variant="header" />
+            @endif
         </div>
     </div>
 
