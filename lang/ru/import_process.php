@@ -50,7 +50,7 @@ return [
         'completed_with_errors' => 'Импорт завершён с ошибками',
         'failed' => 'Импорт не удался',
         'dry_run_suffix' => ' (пробный прогон)',
-        'summary' => 'Файл «:file»: создано :created, обновлено :updated, пропущено :skipped, ошибок :errors, предупреждений :warnings.',
+        'summary' => 'Файл «:file»: создано :created, обновлено :updated, без изменений :unchanged, пропущено :skipped, ошибок :errors, предупреждений :warnings.',
         'failed_body' => 'Файл «:file»: :message',
     ],
 ];

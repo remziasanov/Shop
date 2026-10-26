@@ -9,7 +9,10 @@ use App\Jobs\ProcessImportPhotos;
 use App\Models\Category;
 use App\Models\PriceHistory;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Services\Export\CatalogExporter;
+use App\Services\Media\ImageProcessor;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\ImportFiles;
@@ -110,7 +113,8 @@ it('imports its own export without changing a single product field', function ()
     expect($import->status)->toBe(ImportStatus::Completed)
         ->and($import->error_count)->toBe(0)
         ->and($import->created_count)->toBe(0)
-        ->and($import->updated_count)->toBe(count($products));
+        ->and($import->updated_count)->toBe(0)
+        ->and($import->unchanged_count)->toBe(count($products));
 
     expect(catalogSnapshot())->toEqual($productsBefore)
         ->and(categorySnapshot())->toEqual($categoriesBefore)
@@ -132,4 +136,116 @@ it('keeps the catalog unchanged on a second round trip as well (idempotency)', f
     }
 
     expect(catalogSnapshot())->toEqual($before)->and(PriceHistory::query()->count())->toBe(0);
+});
+
+/**
+ * @return array<int, array<string, mixed>>
+ */
+function imageSnapshot(): array
+{
+    return ProductImage::query()->orderBy('id')->get()
+        ->mapWithKeys(fn (ProductImage $i): array => [$i->id => $i->only(['product_id', 'path_large', 'path_medium', 'path_small', 'alt', 'sort_order', 'source_hash', 'width', 'height'])])
+        ->all();
+}
+
+it('does not download, replace or reorder photos on an export → import round trip (EX-01, own storage URLs)', function (): void {
+    Http::fake();
+    $processor = app(ImageProcessor::class);
+
+    $category = Category::factory()->create(['name' => 'Мебель']);
+    $category->update(['image_path' => $processor->processCategoryImage(ImportFiles::tempJpeg(), $category)]);
+    $sub = Category::factory()->childOf($category)->create(['name' => 'Столы']);
+
+    $one = Product::factory()->inCategory($sub)->create(['sku' => 'PH-1']);
+    $two = Product::factory()->inCategory($category)->create(['sku' => 'PH-2']);
+
+    // One image with a source hash (imported earlier), two uploaded by hand (no hash).
+    $processor->attachToProduct($one, ImportFiles::tempJpeg(300, 200, 10), null, sha1('https://old.example/1.jpg'));
+    $processor->attachToProduct($one, ImportFiles::tempJpeg(300, 200, 120));
+    $processor->attachToProduct($two, ImportFiles::tempJpeg(200, 200, 220));
+
+    $imagesBefore = imageSnapshot();
+    $productsBefore = catalogSnapshot();
+    $imagePath = $category->fresh()->image_path;
+    $categoryImagesBefore = Category::query()->orderBy('id')->pluck('image_path', 'id')->all();
+
+    expect($imagesBefore)->toHaveCount(3);
+
+    foreach ([1, 2] as $_) {
+        $path = ImportFiles::tempPath('xlsx');
+        app(CatalogExporter::class)->export([], $path);
+
+        $import = ImportHarness::run(ImportHarness::analyzed($path));
+
+        expect($import->status)->toBe(ImportStatus::Completed)
+            ->and($import->error_count)->toBe(0)
+            ->and($import->warning_count)->toBe(0)
+            ->and($import->created_count)->toBe(0)
+            ->and($import->updated_count)->toBe(0)
+            ->and($import->unchanged_count)->toBe(2);
+    }
+
+    Http::assertNothingSent();
+
+    expect(imageSnapshot())->toEqual($imagesBefore)
+        ->and(catalogSnapshot())->toEqual($productsBefore)
+        ->and($category->fresh()->image_path)->toBe($imagePath)
+        ->and(Category::query()->orderBy('id')->pluck('image_path', 'id')->all())->toEqual($categoryImagesBefore);
+});
+
+it('applies the photo order of the file to own images and keeps them in replace mode', function (): void {
+    Http::fake();
+    $processor = app(ImageProcessor::class);
+    $product = Product::factory()->create(['sku' => 'PH-ORD']);
+    $first = $processor->attachToProduct($product, ImportFiles::tempJpeg(100, 100, 10));
+    $second = $processor->attachToProduct($product, ImportFiles::tempJpeg(100, 100, 120));
+    $third = $processor->attachToProduct($product, ImportFiles::tempJpeg(100, 100, 230));
+
+    // Cell: second, first (the third one is not listed → replaced away), relative and absolute forms.
+    $cell = '/storage/'.$second->path_large.'; '.$first->urlMedium();
+    $import = ImportHarness::run(ImportHarness::analyzed(ImportFiles::csv([
+        ['Артикул', 'Название', 'Категория', 'Цена', 'Фото'],
+        ['PH-ORD', $product->name, $product->category->name, '10', $cell],
+    ])));
+
+    Http::assertNothingSent();
+
+    expect($import->error_count)->toBe(0)
+        ->and($import->warning_count)->toBe(0)
+        ->and($product->images()->orderBy('sort_order')->pluck('id')->all())->toBe([$second->id, $first->id])
+        ->and(ProductImage::query()->whereKey($third->id)->exists())->toBeFalse()
+        ->and(Storage::disk('public')->exists($third->path_large))->toBeFalse()
+        ->and(Storage::disk('public')->exists($first->path_large))->toBeTrue();
+});
+
+it('copies an image of another product locally instead of downloading it', function (): void {
+    Http::fake();
+    $processor = app(ImageProcessor::class);
+    $donor = Product::factory()->create(['sku' => 'PH-DONOR']);
+    $source = $processor->attachToProduct($donor, ImportFiles::tempJpeg(160, 120, 40));
+    $target = Product::factory()->create(['sku' => 'PH-TARGET']);
+
+    $import = ImportHarness::run(ImportHarness::analyzed(ImportFiles::csv([
+        ['Артикул', 'Название', 'Категория', 'Цена', 'Фото'],
+        ['PH-TARGET', $target->name, $target->category->name, '10', $source->urlLarge()],
+    ])));
+
+    Http::assertNothingSent();
+
+    $copy = $target->images()->firstOrFail();
+
+    expect($import->warning_count)->toBe(0)
+        ->and($donor->images()->count())->toBe(1)
+        ->and($copy->path_large)->not->toBe($source->path_large)
+        ->and($copy->path_large)->toStartWith('products/'.$target->id.'/')
+        ->and(Storage::disk('public')->exists($copy->path_large))->toBeTrue()
+        ->and(Storage::disk('public')->exists($source->path_large))->toBeTrue();
+
+    // Second run: the copy is recognized by its hash and nothing else is created.
+    ImportHarness::run(ImportHarness::analyzed(ImportFiles::csv([
+        ['Артикул', 'Название', 'Категория', 'Цена', 'Фото'],
+        ['PH-TARGET', $target->name, $target->category->name, '10', $source->urlLarge()],
+    ])));
+
+    expect($target->images()->count())->toBe(1)->and($target->images()->value('id'))->toBe($copy->id);
 });

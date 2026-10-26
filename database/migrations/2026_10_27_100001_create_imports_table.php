@@ -27,6 +27,7 @@ return new class extends Migration
             $table->unsignedInteger('rows_processed')->default(0);
             $table->unsignedInteger('created_count')->default(0);
             $table->unsignedInteger('updated_count')->default(0);
+            $table->unsignedInteger('unchanged_count')->default(0);
             $table->unsignedInteger('skipped_count')->default(0);
             $table->unsignedInteger('error_count')->default(0);
             $table->unsignedInteger('warning_count')->default(0);

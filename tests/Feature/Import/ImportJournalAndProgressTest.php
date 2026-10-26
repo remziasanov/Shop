@@ -185,7 +185,7 @@ it('processes the import chunk by chunk through the fallback endpoint', function
     $this->postJson($url)->assertOk()->assertJson(['more' => false]);
 });
 
-it('stops the import with a safe message when the fallback step throws', function (): void {
+it('retries a failing fallback step twice (503) and stops the import with a safe message on the third failure', function (): void {
     $import = analyzedImport([['Артикул', 'Название'], ['E-1', 'Стол']]);
     app(ImportRunner::class)->start($import);
     actingAs(User::factory()->admin()->create());
@@ -193,7 +193,14 @@ it('stops the import with a safe message when the fallback step throws', functio
     // The staged rows disappear: the chunk cannot be read.
     Storage::disk('local')->delete((string) $import->refresh()->staging_path);
 
-    $response = $this->postJson(route('admin.imports.process-next', $import))->assertStatus(500)->assertJson(['more' => false]);
+    $url = route('admin.imports.process-next', $import);
+
+    foreach ([1, 2] as $_) {
+        $this->postJson($url)->assertStatus(503)->assertJson(['more' => true, 'retry' => true]);
+        expect($import->refresh()->status)->not->toBe(ImportStatus::Failed);
+    }
+
+    $response = $this->postJson($url)->assertStatus(500)->assertJson(['more' => false]);
 
     expect($response->json('error'))->not->toContain('secret')
         ->and($import->refresh()->status)->toBe(ImportStatus::Failed)

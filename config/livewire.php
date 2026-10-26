@@ -10,7 +10,7 @@ return [
     |--------------------------------------------------------------------------
     | Livewire's own limit for any upload is 12 MB by default; import files (IM-01) may be up to 50 MB.
     | Each upload field still enforces its own, smaller limit (photos: 10 MB, import: ImportWizard::maxUploadBytes()).
-    | Files go to the default (private) disk.
+    | The rule is global (Livewire cannot set it per component), see D-044. Files go to the default (private) disk.
     */
     'temporary_file_upload' => [
         'disk' => env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK'),

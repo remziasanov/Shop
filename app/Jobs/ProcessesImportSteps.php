@@ -17,7 +17,8 @@ use Throwable;
  * Shared body of the import queue jobs (TZ section 8: a job takes at most 40 s).
  *
  * Calls {@see ImportRunner::step()} while it makes progress and the {@see BUDGET} lasts (a chunk is ~1–3 s,
- * photo downloads start only before the budget ends and take at most 20 s each, so the job stays under 40 s),
+ * photo downloads and image attachments are bound by the same deadline, so the job ends at about 30 s + one image
+ * and stays under 40 s),
  * then re-dispatches itself while work remains — a delayed one when the runner is busy elsewhere. With the sync
  * queue driver (tests) a waiting import is not re-dispatched, to avoid endless recursion.
  */
@@ -25,8 +26,8 @@ abstract class ProcessesImportSteps implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
 
-    /** Seconds after which no new unit of work is started. */
-    public const BUDGET = 15.0;
+    /** Seconds after which no new unit of work is started and no photo download or attachment begins (D-040). */
+    public const BUDGET = 30.0;
 
     public int $tries = 3;
 

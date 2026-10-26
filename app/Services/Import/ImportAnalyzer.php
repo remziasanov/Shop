@@ -9,6 +9,8 @@ use App\Enums\ImportStatus;
 use App\Exceptions\ImportFileException;
 use App\Models\Import;
 use App\Models\Product;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -38,6 +40,9 @@ final class ImportAnalyzer
 {
     public const PREVIEW_ROWS = 20;
 
+    /** Lifetime of the analysis lock; a crashed analysis blocks a new one at most this long. */
+    public const LOCK_SECONDS = 120;
+
     public const LOOKUP_BATCH = 500;
 
     /** Longest stored raw value in an issue, in characters. */
@@ -55,16 +60,42 @@ final class ImportAnalyzer
      * Analyze the import. On failure the import is marked `failed` (user-facing message) and the exception is
      * rethrown so the caller can log it.
      *
+     * Only one analysis runs at a time (the queue job and «Проверить сейчас» can start together, D-043): it is
+     * claimed with an atomic cache lock and a status check under it (`uploaded|analyzing` → `analyzing`; a conditional
+     * UPDATE would report 0 affected rows on MySQL when nothing changes). A caller that loses the lock, or finds the
+     * import already analyzed or started, does nothing and gets the import back.
+     *
      * @throws Throwable
      */
     public function analyze(Import $import): Import
     {
-        $import->forceFill([
-            'status' => ImportStatus::Analyzing,
-            'failure_message' => null,
-            'last_activity_at' => now(),
-        ])->save();
+        $lock = Cache::lock('import:'.$import->id.':analyze', self::LOCK_SECONDS);
 
+        if (! $lock->get()) {
+            return $import->refresh();
+        }
+
+        try {
+            // Read under the lock: an analysis that finished (or an import that already started) a moment ago is final.
+            $current = DB::table('imports')->where('id', $import->id)->value('status');
+
+            if (! in_array($current, [ImportStatus::Uploaded->value, ImportStatus::Analyzing->value], true)) {
+                return $import->refresh();
+            }
+
+            DB::table('imports')->where('id', $import->id)
+                ->update(['status' => ImportStatus::Analyzing->value, 'failure_message' => null, 'last_activity_at' => now()]);
+
+            $import->refresh();
+
+            return $this->analyzeClaimed($import);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function analyzeClaimed(Import $import): Import
+    {
         try {
             $this->run($import);
         } catch (Throwable $e) {

@@ -40,6 +40,7 @@ use Illuminate\Support\Facades\Storage;
  * @property int $rows_processed
  * @property int $created_count
  * @property int $updated_count
+ * @property int $unchanged_count
  * @property int $skipped_count
  * @property int $error_count
  * @property int $warning_count
@@ -78,6 +79,7 @@ class Import extends Model
         'rows_processed',
         'created_count',
         'updated_count',
+        'unchanged_count',
         'skipped_count',
         'error_count',
         'warning_count',

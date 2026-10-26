@@ -104,8 +104,24 @@ it('updates by SKU and a second run of the same file changes nothing', function 
         ->and(Category::count())->toBe($categories)
         ->and(Product::orderBy('id')->get(['id', 'sku', 'updated_at', 'base_price', 'stock_qty'])->toArray())->toBe($before)
         ->and(PriceHistory::count())->toBe($history)
-        ->and($second->updated_count)->toBe(2)
+        ->and($second->updated_count)->toBe(0)
+        ->and($second->unchanged_count)->toBe(2)
+        ->and($second->analysis['result']['unchanged'])->toBe(2)
         ->and($second->created_count)->toBe(0);
+});
+
+it('counts a row as updated only when something changed', function () {
+    $rows = [
+        ['Артикул', 'Название', 'Категория', 'Цена'],
+        ['A-1', 'Смартфон X', 'Электроника', '12990'],
+        ['A-2', 'Смартфон Y', 'Электроника', '9990'],
+    ];
+
+    runCsv($rows);
+    $rows[2][3] = '9991';
+    $second = runCsv($rows);
+
+    expect($second->updated_count)->toBe(1)->and($second->unchanged_count)->toBe(1)->and($second->created_count)->toBe(0);
 });
 
 it('writes price history with the import source for changed prices', function () {

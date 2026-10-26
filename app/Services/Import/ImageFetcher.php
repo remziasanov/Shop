@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use App\Exceptions\ImageFetchDeadlineException;
 use App\Exceptions\ImageFetchException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -22,8 +23,14 @@ use Throwable;
  * file size), `Content-Type: image/*` plus a `getimagesize()` check, one retry after a connection error or a
  * 5xx answer (only when the first attempt failed quickly).
  *
+ * With an external deadline ({@see fetch()}) the request timeout is `min(15 s, remaining - RESERVE)`; a download is not
+ * started when less than {@see MIN_WINDOW} seconds remain ({@see ImageFetchDeadlineException}), so a step that
+ * respects the deadline ends in time (IM-10: ≤ 20 s per browser request).
+ *
+ * Proxies from the environment (HTTP_PROXY/HTTPS_PROXY) are explicitly disabled: the connection is pinned to the
+ * checked IP with CURLOPT_RESOLVE, which a proxy would bypass (it would resolve the host itself).
+ *
  * The body is streamed into the target file (`sink`), never held in memory. Works with `Http::fake()`.
- * Note: when an HTTP proxy is configured in the environment, curl lets the proxy resolve the host.
  */
 final class ImageFetcher
 {
@@ -36,6 +43,12 @@ final class ImageFetcher
     public const CONNECT_TIMEOUT = 5.0;
 
     public const TOTAL_TIMEOUT = 20.0;
+
+    /** Seconds kept free before the external deadline (processing the downloaded image, response). */
+    public const DEADLINE_RESERVE = 2.0;
+
+    /** A download needs at least this many seconds until the deadline (reserve + a usable timeout). */
+    public const MIN_WINDOW = 4.0;
 
     /** A failed first attempt is retried only when it failed within this many seconds. */
     private const RETRY_WITHIN = 5.0;
@@ -57,14 +70,21 @@ final class ImageFetcher
     /**
      * Download an image into $targetPath.
      *
+     * @param  float|null  $deadline  microtime(true) by which the whole step must be finished
+     *
      * @throws ImageFetchException with a translated message; the target file is removed on failure
+     * @throws ImageFetchDeadlineException when the deadline leaves no time for a download
      */
-    public function fetch(string $url, string $targetPath): void
+    public function fetch(string $url, string $targetPath, ?float $deadline = null): void
     {
         try {
-            $this->download(trim($url), $targetPath);
+            $this->download(trim($url), $targetPath, $deadline);
         } catch (Throwable $e) {
             @unlink($targetPath);
+
+            if ($e instanceof ImageFetchDeadlineException) {
+                throw $e;
+            }
 
             throw $e instanceof ImageFetchException ? $e : new ImageFetchException(__('import_process.fetch.connection'), 0, $e);
         }
@@ -137,14 +157,24 @@ final class ImageFetcher
         return true;
     }
 
-    private function download(string $url, string $targetPath): void
+    private function download(string $url, string $targetPath, ?float $external): void
     {
         $deadline = microtime(true) + self::TOTAL_TIMEOUT;
+
+        if ($external !== null) {
+            if ($external - microtime(true) < self::MIN_WINDOW) {
+                throw new ImageFetchDeadlineException;
+            }
+
+            $deadline = min($deadline, $external - self::DEADLINE_RESERVE);
+        }
+
+        $bound = $external !== null;
         $current = $url;
 
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
             $target = $this->prepare($current);
-            $response = $this->request($target, $targetPath, $deadline);
+            $response = $this->request($target, $targetPath, $deadline, $bound);
 
             if (in_array($response->status(), [301, 302, 303, 307, 308], true)) {
                 $location = trim($response->header('Location'));
@@ -235,7 +265,7 @@ final class ImageFetcher
      *
      * @throws ImageFetchException
      */
-    private function request(array $target, string $sink, float $deadline): Response
+    private function request(array $target, string $sink, float $deadline, bool $bound): Response
     {
         $started = microtime(true);
 
@@ -246,7 +276,7 @@ final class ImageFetcher
             $remaining = $deadline - microtime(true);
 
             if ($remaining < 1.0) {
-                throw new ImageFetchException(__('import_process.fetch.connection'));
+                throw $bound ? new ImageFetchDeadlineException : new ImageFetchException(__('import_process.fetch.connection'));
             }
 
             $aborted = false;
@@ -254,6 +284,8 @@ final class ImageFetcher
             try {
                 $response = Http::withOptions([
                     'sink' => $sink,
+                    // Never use a proxy from the environment: the IP pin (CURLOPT_RESOLVE) must always apply.
+                    'proxy' => '',
                     'curl' => $this->curlOptions($target),
                     // Truthy return aborts the transfer: the body is capped even without Content-Length.
                     'progress' => static function (int $downloadTotal, int $downloaded) use (&$aborted): bool {
@@ -297,7 +329,7 @@ final class ImageFetcher
      */
     private function curlOptions(array $target): array
     {
-        $options = [];
+        $options = [CURLOPT_PROXY => ''];
 
         if (! $target['literal'] && $target['ip'] !== null) {
             $ip = str_contains($target['ip'], ':') ? '['.$target['ip'].']' : $target['ip'];

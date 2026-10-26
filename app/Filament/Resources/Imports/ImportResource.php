@@ -98,6 +98,7 @@ class ImportResource extends Resource
                     ->tooltip(fn (Import $record): ?string => $record->failure_message),
                 TextColumn::make('created_count')->label(__('import_ui.table.created'))->numeric(),
                 TextColumn::make('updated_count')->label(__('import_ui.table.updated'))->numeric(),
+                TextColumn::make('unchanged_count')->label(__('import_ui.table.unchanged'))->numeric(),
                 TextColumn::make('skipped_count')->label(__('import_ui.table.skipped'))->numeric(),
                 TextColumn::make('error_count')
                     ->label(__('import_ui.table.errors'))

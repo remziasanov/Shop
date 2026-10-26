@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Import;
 
 use App\Enums\MediaSource;
+use App\Exceptions\ImageFetchDeadlineException;
 use App\Exceptions\ImageFetchException;
 use App\Models\Import;
 use Illuminate\Support\Facades\Storage;
@@ -78,13 +79,16 @@ final class MediaResolver
     /**
      * Absolute path of a readable local file for the reference.
      *
+     * @param  float|null  $deadline  microtime(true) by which the step must be finished (limits the download)
+     *
      * @throws ImageFetchException with a translated message
+     * @throws ImageFetchDeadlineException when the deadline leaves no time for the download
      */
-    public function resolve(string $reference): string
+    public function resolve(string $reference, ?float $deadline = null): string
     {
         $reference = trim($reference);
 
-        return self::isUrl($reference) ? $this->download($reference) : $this->locate($reference);
+        return self::isUrl($reference) ? $this->download($reference, $deadline) : $this->locate($reference);
     }
 
     /**
@@ -97,7 +101,7 @@ final class MediaResolver
         $disk->deleteDirectory('imports/'.$import->id.'/media');
     }
 
-    private function download(string $url): string
+    private function download(string $url, ?float $deadline): string
     {
         $disk = Storage::disk('local');
         $directory = 'imports/'.$this->import->id.'/downloads';
@@ -118,7 +122,7 @@ final class MediaResolver
         $partial = $file.'.'.bin2hex(random_bytes(4)).'.part';
 
         try {
-            $this->fetcher->fetch($url, $partial);
+            $this->fetcher->fetch($url, $partial, $deadline);
         } catch (ImageFetchException $e) {
             @file_put_contents($failure, $e->getMessage());
 

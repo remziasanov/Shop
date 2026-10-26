@@ -71,26 +71,41 @@
                             const root = this.$root.dataset;
                             this.running = true;
                             this.error = null;
-                            try {
-                                while (true) {
+                            let failures = 0;
+                            while (true) {
+                                let delay = 400;
+                                try {
                                     const response = await fetch(root.url, {
                                         method: 'POST',
                                         credentials: 'same-origin',
                                         headers: { 'X-CSRF-TOKEN': root.token, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                                     });
                                     const body = await response.json().catch(() => ({}));
-                                    if (! response.ok) {
+                                    if (response.status === 503 && body.retry && failures < 3) {
+                                        // Temporary server error: the import is still running, try again with a growing pause.
+                                        failures++;
+                                        this.error = body.error || root.error;
+                                        delay = 2000 * Math.pow(2, failures - 1);
+                                    } else if (! response.ok) {
                                         this.error = body.error || root.error;
                                         break;
+                                    } else {
+                                        failures = 0;
+                                        this.error = null;
+                                        $wire.$refresh();
+                                        if (! body.more) {
+                                            break;
+                                        }
                                     }
-                                    $wire.$refresh();
-                                    if (! body.more) {
+                                } catch (e) {
+                                    failures++;
+                                    this.error = root.network;
+                                    if (failures >= 3) {
                                         break;
                                     }
-                                    await new Promise((resolve) => setTimeout(resolve, 400));
+                                    delay = 2000 * Math.pow(2, failures - 1);
                                 }
-                            } catch (e) {
-                                this.error = root.network;
+                                await new Promise((resolve) => setTimeout(resolve, delay));
                             }
                             this.running = false;
                             $wire.$refresh();
@@ -115,6 +130,7 @@
                     <div class="imp-grid">
                         <div class="imp-stat"><div class="imp-stat-value">{{ $import->created_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.created') }}</div></div>
                         <div class="imp-stat"><div class="imp-stat-value">{{ $import->updated_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.updated') }}</div></div>
+                        <div class="imp-stat"><div class="imp-stat-value">{{ $import->unchanged_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.unchanged') }}</div></div>
                         <div class="imp-stat"><div class="imp-stat-value">{{ $import->skipped_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.skipped') }}</div></div>
                         <div class="imp-stat imp-stat-danger"><div class="imp-stat-value">{{ $import->error_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.errors') }}</div></div>
                         <div class="imp-stat imp-stat-warning"><div class="imp-stat-value">{{ $import->warning_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.warnings') }}</div></div>
@@ -154,6 +170,7 @@
                     <div class="imp-grid">
                         <div class="imp-stat"><div class="imp-stat-value">{{ $import->created_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.created') }}</div></div>
                         <div class="imp-stat"><div class="imp-stat-value">{{ $import->updated_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.updated') }}</div></div>
+                        <div class="imp-stat"><div class="imp-stat-value">{{ $import->unchanged_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.unchanged') }}</div></div>
                         <div class="imp-stat"><div class="imp-stat-value">{{ $import->skipped_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.skipped') }}</div></div>
                         <div class="imp-stat imp-stat-danger"><div class="imp-stat-value">{{ $import->error_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.errors') }}</div></div>
                         <div class="imp-stat imp-stat-warning"><div class="imp-stat-value">{{ $import->warning_count }}</div><div class="imp-stat-label">{{ __('import_ui.report.warnings') }}</div></div>

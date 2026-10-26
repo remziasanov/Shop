@@ -31,26 +31,32 @@ use Throwable;
  *    photos, one file of pending photos, or the final step). The queue job and the browser fallback (IM-10) both
  *    call it; a chunk is claimed with a conditional UPDATE ({@see claimNextChunk()}) and the data step runs under
  *    a short cache lock, so concurrent callers can never apply a chunk twice and chunks are applied in order.
- *    Photos are processed after the lock is released, within the time budget; what does not fit is stored in
- *    `imports/{id}/photos-pending-*.json` and continued by later calls;
+ *    The photo tasks of a chunk are written to `imports/{id}/photos-working-{label}.json` BEFORE the lock is
+ *    released (D-040), so a concurrent caller always sees that work is in progress and never finishes the import
+ *    under it; the file is touched (and `last_activity_at` updated) after every photo, deleted when the tasks are
+ *    done and renamed to `photos-pending-{label}.json` when the time budget ends first. A working file untouched
+ *    for {@see STALE_CLAIM_SECONDS} belongs to a dead worker and goes back to pending;
  *  - {@see finish()}: runs once when all chunks and photos are done — full-sync deactivation, price recalculation
  *    of touched products (IM-14), cache flush, {@see ImportFinished}, final status, bell notification (section 9);
  *  - {@see fail()}: marks the import failed with a safe message;
  *  - {@see fullSyncAffectedCount()}: how many active products a full sync would deactivate (IM-04 confirmation).
  *
  * Files (private `local` disk, `imports/{id}/`): `touched.txt` ids of created/updated products,
- * `photos-pending-*.json`, `downloads/`, `media/` (the last two are removed on finish).
+ * `photos-pending-*.json`, `photos-working-*.json`, `downloads/`, `media/` (the last two are removed on finish).
  */
 final class ImportRunner
 {
     /** Seconds a processing lock lives; a crashed worker blocks the import at most this long. */
     public const LOCK_TTL = 60;
 
-    /** A claimed chunk without progress for this long is considered lost and is claimed again. */
+    /**
+     * A claimed chunk without progress for this long is considered lost and is claimed again; a photo working file
+     * that was not touched for this long belongs to a dead worker and is returned to the pending list.
+     */
     public const STALE_CLAIM_SECONDS = 120;
 
-    /** A photo file being processed for longer than this is returned to the pending list. */
-    public const STALE_PHOTO_SECONDS = 300;
+    /** Time budget of one browser fallback request (IM-10: ≤ 20 s per request, the rest is the safety margin). */
+    public const BROWSER_BUDGET = 18.0;
 
     private const FINISHED = ['completed', 'completed_with_errors', 'failed', 'cancelled'];
 
@@ -82,6 +88,7 @@ final class ImportRunner
                 'rows_processed' => 0,
                 'created_count' => 0,
                 'updated_count' => 0,
+                'unchanged_count' => 0,
                 'skipped_count' => 0,
                 'error_count' => 0,
                 'warning_count' => 0,
@@ -168,6 +175,7 @@ final class ImportRunner
         $step = null;
         $tasks = [];
         $label = '';
+        $working = null;
 
         try {
             $import->refresh();
@@ -202,12 +210,17 @@ final class ImportRunner
                 $step = ImportStep::Chunk;
                 $label = 'chunk-'.$index;
             }
+
+            // Still under the lock: from here on the work is visible on disk to every other caller.
+            $working = $this->persistTasks($import, $tasks, $label);
         } finally {
             $lock->release();
         }
 
         if ($step !== null) {
-            $this->runPhotos($import, $tasks, $deadline, $label);
+            if ($working !== null) {
+                $this->processWorkingFile($import, $working, $deadline);
+            }
 
             return $step;
         }
@@ -247,9 +260,19 @@ final class ImportRunner
      */
     public function finish(Import $import): bool
     {
+        // The run lock is held by a worker between claiming a chunk and writing its photo tasks to disk: finishing
+        // is only safe when nobody is in that window.
+        $run = Cache::lock($this->lockKey($import, 'run'), self::LOCK_TTL);
+
+        if (! $run->get()) {
+            return false;
+        }
+
         $lock = Cache::lock($this->lockKey($import, 'finish'), 300);
 
         if (! $lock->get()) {
+            $run->release();
+
             return false;
         }
 
@@ -276,6 +299,7 @@ final class ImportRunner
                 $this->tree->flush();
             }
 
+            $result['unchanged'] = $import->unchanged_count;
             $analysis['result'] = $result;
             $status = $import->error_count > 0 ? ImportStatus::CompletedWithErrors : ImportStatus::Completed;
 
@@ -301,6 +325,7 @@ final class ImportRunner
             return true;
         } finally {
             $lock->release();
+            $run->release();
         }
     }
 
@@ -427,19 +452,63 @@ final class ImportRunner
     // ------------------------------------------------------------------ photos
 
     /**
+     * Write the photo tasks of a unit of work to `photos-working-{label}.json` (called under the run lock).
+     *
      * @param  list<array<string, mixed>>  $tasks
+     * @return string|null absolute path of the working file, null when there is nothing to do
      */
-    private function runPhotos(Import $import, array $tasks, float $deadline, string $label): void
+    private function persistTasks(Import $import, array $tasks, string $label): ?string
     {
         if ($tasks === []) {
+            return null;
+        }
+
+        $disk = Storage::disk('local');
+        $disk->makeDirectory($this->importDir($import));
+        $path = $disk->path($this->importDir($import).'/photos-working-'.$label.'.json');
+
+        file_put_contents($path, json_encode($tasks, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), LOCK_EX);
+
+        return $path;
+    }
+
+    /**
+     * Run the tasks of a claimed working file. What does not fit into the time budget (or a crash with an exception)
+     * goes back to `photos-pending-*.json`; a file that was taken over as stale in the meantime is left alone.
+     */
+    private function processWorkingFile(Import $import, string $working, float $deadline): void
+    {
+        $pendingFile = dirname($working).'/photos-pending-'.substr(basename($working), strlen('photos-working-'));
+        $decoded = json_decode((string) file_get_contents($working), true);
+        $tasks = is_array($decoded) ? array_values(array_filter($decoded, 'is_array')) : [];
+
+        $heartbeat = function () use ($import, $working): void {
+            @touch($working);
+            DB::table('imports')->where('id', $import->id)->update(['last_activity_at' => now()]);
+        };
+
+        try {
+            $left = $this->photos->run($import, $tasks, $deadline, $heartbeat);
+        } catch (Throwable $e) {
+            if (is_file($working)) {
+                @rename($working, $pendingFile);
+            }
+
+            throw $e;
+        }
+
+        if (! is_file($working)) {
             return;
         }
 
-        $pending = $this->photos->run($import, $tasks, $deadline);
+        if ($left === []) {
+            @unlink($working);
 
-        if ($pending !== []) {
-            Storage::disk('local')->put($this->importDir($import).'/photos-pending-'.$label.'.json', json_encode($pending, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            return;
         }
+
+        file_put_contents($working, json_encode($left, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), LOCK_EX);
+        @rename($working, $pendingFile);
     }
 
     /**
@@ -449,43 +518,30 @@ final class ImportRunner
      */
     private function processPendingPhotos(Import $import, float $deadline): bool
     {
-        if (microtime(true) >= $deadline) {
-            return false;
-        }
-
         $directory = Storage::disk('local')->path($this->importDir($import));
 
-        // Return files abandoned by a dead worker.
+        // Return files abandoned by a dead worker (also when the budget is spent: finish() depends on it).
+        clearstatcache();
         foreach (glob($directory.'/photos-working-*.json') ?: [] as $working) {
-            if (filemtime($working) !== false && filemtime($working) < time() - self::STALE_PHOTO_SECONDS) {
+            if (filemtime($working) !== false && filemtime($working) < time() - self::STALE_CLAIM_SECONDS) {
                 @rename($working, $directory.'/photos-pending-'.substr(basename($working), strlen('photos-working-')));
             }
         }
 
-        foreach (glob($directory.'/photos-pending-*.json') ?: [] as $pendingFile) {
-            $name = substr(basename($pendingFile), strlen('photos-pending-'));
-            $working = $directory.'/photos-working-'.$name;
+        if (microtime(true) >= $deadline) {
+            return false;
+        }
 
-            if (! @rename($pendingFile, $working)) {
+        foreach (glob($directory.'/photos-pending-*.json') ?: [] as $pendingFile) {
+            $working = $directory.'/photos-working-'.substr(basename($pendingFile), strlen('photos-pending-'));
+
+            if (is_file($working) || ! @rename($pendingFile, $working)) {
                 continue;
             }
 
-            $tasks = json_decode((string) file_get_contents($working), true);
-            $tasks = is_array($tasks) ? array_values(array_filter($tasks, 'is_array')) : [];
-
-            try {
-                $left = $this->photos->run($import, $tasks, $deadline);
-            } catch (Throwable $e) {
-                @rename($working, $pendingFile);
-
-                throw $e;
-            }
-
-            if ($left !== []) {
-                file_put_contents($pendingFile, json_encode($left, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-            }
-
-            @unlink($working);
+            // The rename keeps the old modification time: without this a fresh claim would look stale.
+            @touch($working);
+            $this->processWorkingFile($import, $working, $deadline);
 
             return true;
         }
@@ -648,6 +704,7 @@ final class ImportRunner
                         'file' => $import->original_name,
                         'created' => $import->created_count,
                         'updated' => $import->updated_count,
+                        'unchanged' => $import->unchanged_count,
                         'skipped' => $import->skipped_count,
                         'errors' => $import->error_count,
                         'warnings' => $import->warning_count,

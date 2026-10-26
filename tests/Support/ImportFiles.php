@@ -23,6 +23,17 @@ final class ImportFiles
     }
 
     /**
+     * A small JPEG file on disk (for the image processor).
+     */
+    public static function tempJpeg(int $width = 120, int $height = 80, int $red = 200): string
+    {
+        $path = self::tempPath('jpg');
+        file_put_contents($path, ImportHarness::jpeg($width, $height, $red));
+
+        return $path;
+    }
+
+    /**
      * @param  list<list<string|int|float|null>>  $rows
      */
     public static function csv(array $rows, string $delimiter = ';', string $encoding = 'UTF-8', bool $bom = false): string

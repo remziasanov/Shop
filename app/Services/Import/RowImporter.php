@@ -95,7 +95,7 @@ final class RowImporter
         }
 
         return $options->dryRun
-            ? new ChunkResult($result->chunk, $result->rows, $result->created, $result->updated, $result->skipped, $result->errors, $result->warnings, $result->categoriesCreated, [], [])
+            ? new ChunkResult($result->chunk, $result->rows, $result->created, $result->updated, $result->unchanged + count($result->photoTasks), $result->skipped, $result->errors, $result->warnings, $result->categoriesCreated, [], [])
             : $result;
     }
 
@@ -104,7 +104,7 @@ final class RowImporter
      */
     private function apply(Import $import, ImportOptions $options, int $chunkIndex, array $lines, CategoryPathResolver $resolver, IssueBatch $issues): ChunkResult
     {
-        $created = $updated = $skipped = $errors = $warnings = 0;
+        $created = $updated = $unchanged = $skipped = $errors = $warnings = 0;
         $touched = [];
         $tasks = [];
 
@@ -146,9 +146,10 @@ final class RowImporter
 
             try {
                 DB::beginTransaction();
+                $changed = true;
                 $saved = $product === null
                     ? $this->create($values, $fileAttributes, $options, $resolver)
-                    : $this->update($product, $values, $fileAttributes, $attributeColumns, $options, $resolver);
+                    : $this->update($product, $values, $fileAttributes, $attributeColumns, $options, $resolver, $changed);
                 DB::commit();
             } catch (ImportRowException|CategoryTreeException|UniqueConstraintViolationException|InvalidArgumentException $e) {
                 DB::rollBack();
@@ -163,22 +164,31 @@ final class RowImporter
                 throw $e;
             }
 
-            if ($product === null) {
-                $created++;
-            } else {
-                $updated++;
-            }
-
             $touched[] = $saved->id;
 
             $photos = $values['photos'] ?? [];
+            $hasPhotos = $options->photoMode !== PhotoMode::Skip && $options->mode !== ImportMode::PricesStock && is_array($photos) && $photos !== [];
+            $task = $hasPhotos
+                ? ['type' => 'product', 'id' => $saved->id, 'refs' => array_values(array_map('strval', (array) $photos)), 'mode' => $options->photoMode->value, 'row' => $row]
+                : null;
 
-            if ($options->photoMode !== PhotoMode::Skip && $options->mode !== ImportMode::PricesStock && is_array($photos) && $photos !== []) {
-                $tasks[] = ['type' => 'product', 'id' => $saved->id, 'refs' => array_values(array_map('strval', $photos)), 'mode' => $options->photoMode->value, 'row' => $row];
+            if ($product === null) {
+                $created++;
+            } elseif ($changed) {
+                $updated++;
+            } elseif ($task !== null) {
+                // Data is unchanged: the photo step decides whether the row counts as updated or unchanged (7).
+                $task['unchanged'] = true;
+            } else {
+                $unchanged++;
+            }
+
+            if ($task !== null) {
+                $tasks[] = $task;
             }
         }
 
-        return new ChunkResult($chunkIndex, count($lines), $created, $updated, $skipped, $errors, $warnings, $resolver->createdCount(), $touched, $tasks);
+        return new ChunkResult($chunkIndex, count($lines), $created, $updated, $unchanged, $skipped, $errors, $warnings, $resolver->createdCount(), $touched, $tasks);
     }
 
     /**
@@ -204,6 +214,7 @@ final class RowImporter
             'rows_processed' => DB::raw('rows_processed + '.$result->rows),
             'created_count' => DB::raw('created_count + '.$result->created),
             'updated_count' => DB::raw('updated_count + '.$result->updated),
+            'unchanged_count' => DB::raw('unchanged_count + '.$result->unchanged),
             'skipped_count' => DB::raw('skipped_count + '.$result->skipped),
             'error_count' => DB::raw('error_count + '.$result->errors),
             'warning_count' => DB::raw('warning_count + '.$result->warnings),
@@ -295,7 +306,7 @@ final class RowImporter
      *
      * @throws ImportRowException
      */
-    private function update(Product $product, array $values, array $fileAttributes, array $attributeColumns, ImportOptions $options, CategoryPathResolver $resolver): Product
+    private function update(Product $product, array $values, array $fileAttributes, array $attributeColumns, ImportOptions $options, CategoryPathResolver $resolver, bool &$changed = true): Product
     {
         $clear = $options->emptyCellPolicy === EmptyCellPolicy::Clear;
         $changes = [];
@@ -391,6 +402,7 @@ final class RowImporter
             $product->deleted_at = null;
         }
 
+        $changed = $product->isDirty();
         $product->save();
 
         return $product;

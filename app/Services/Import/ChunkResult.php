@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Import;
 
 /**
- * Outcome of {@see RowImporter::importChunk()}. Counts are rows: `errors` is the number of rows with errors,
+ * Outcome of {@see RowImporter::importChunk()}. Counts are rows: `updated` only when something changed, `unchanged` for existing products whose data is identical (rows with photos are classified later by the photo step), `errors` is the number of rows with errors,
  * `warnings` the number of warnings of all rows.
  */
 final readonly class ChunkResult
@@ -19,6 +19,7 @@ final readonly class ChunkResult
         public int $rows,
         public int $created,
         public int $updated,
+        public int $unchanged,
         public int $skipped,
         public int $errors,
         public int $warnings,
