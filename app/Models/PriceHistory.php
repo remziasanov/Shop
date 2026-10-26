@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Change of a price input of a product (PR-06): base_price, cost_price, fixed_price, compare_at_price.
- * Rows are append-only; `import_id` references the imports table that appears in stage 3 (no FK yet).
+ * Rows are append-only; `import_id` references `imports` (FK on MySQL; plain indexed column on SQLite).
  *
  * @property int $id
  * @property int $product_id

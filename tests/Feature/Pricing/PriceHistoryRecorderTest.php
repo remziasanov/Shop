@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\PriceChangeSource;
+use App\Models\Import;
 use App\Models\PriceHistory;
 use App\Models\PriceRule;
 use App\Models\Product;
@@ -78,15 +79,16 @@ it('uses the source and import id of the running context', function (): void {
     $user = User::factory()->create();
     $this->actingAs($user);
     $context = app(PriceChangeContext::class);
+    $importId = Import::factory()->create()->id;
 
     $context->run(PriceChangeSource::Bulk, null, fn () => $product->update(['base_price' => '1100.00']));
-    $context->run(PriceChangeSource::Import, 77, fn () => $product->update(['base_price' => '1200.00']), userId: null);
+    $context->run(PriceChangeSource::Import, $importId, fn () => $product->update(['base_price' => '1200.00']), userId: null);
     $product->update(['base_price' => '1300.00']);
 
     $rows = PriceHistory::query()->orderBy('id')->get();
 
     expect($rows->pluck('source')->all())->toBe([PriceChangeSource::Bulk, PriceChangeSource::Import, PriceChangeSource::Manual])
-        ->and($rows->pluck('import_id')->all())->toBe([null, 77, null])
+        ->and($rows->pluck('import_id')->all())->toBe([null, $importId, null])
         ->and($rows->pluck('user_id')->all())->toBe([$user->id, $user->id, $user->id]);
 });
 
