@@ -57,4 +57,12 @@ return [
         'fixed' => 'Фиксированная цена :price, правила не применяются',
         'floor' => 'Цена не ниже нуля → :price',
     ],
+
+    // shop:recalc-prices output and admin banner (PR-02, PR-05).
+    'recalc_command' => [
+        'choose_one' => 'Укажите ровно одну опцию: --all или --boundaries.',
+        'queued' => 'Поставлено в очередь товаров: :products, задач: :jobs.',
+        'done_sync' => 'Пересчитано товаров: :products.',
+    ],
+    'recalc_banner' => 'Пересчёт цен: :done из :total',
 ];
