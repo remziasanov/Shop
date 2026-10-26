@@ -121,7 +121,11 @@
             @if ($view->actions !== [])
                 <div class="mt-6 flex flex-col gap-2 sm:flex-row">
                     @foreach ($view->actions as $action)
-                        <button type="button" class="rounded px-6 py-3 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}" data-action="{{ $action['key'] }}">{{ $action['label'] }}</button>
+                        @if ($action['disabled'])
+                            <button type="button" disabled class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="{{ $action['key'] }}">{{ $action['label'] }}</button>
+                        @else
+                            <button type="button" class="rounded px-6 py-3 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}" data-action="{{ $action['key'] }}">{{ $action['label'] }}</button>
+                        @endif
                     @endforeach
                 </div>
             @endif

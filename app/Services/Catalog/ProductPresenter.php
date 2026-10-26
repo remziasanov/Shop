@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services\Catalog;
 
-use App\Enums\SalesMode;
 use App\Enums\StockDisplay;
 use App\Models\Product;
 use App\Models\ProductImage;
-use App\Services\Sales\SalesModeResolver;
+use App\Services\Sales\AvailabilityService;
+use App\Services\Sales\ProductActions;
 use App\Settings\AppearanceSettings;
 use App\Settings\SalesSettings;
 use App\Support\Money;
@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Storage;
 final class ProductPresenter
 {
     public function __construct(
-        private readonly SalesModeResolver $resolver,
+        private readonly AvailabilityService $availability,
         private readonly SalesSettings $sales,
         private readonly AppearanceSettings $appearance,
     ) {}
@@ -49,7 +49,7 @@ final class ProductPresenter
             ? Money::format(Money::fromRubles($product->display_old_price))
             : null;
 
-        $mode = $this->resolver->resolve($product)->mode;
+        $productActions = $this->availability->actionsFor($product);
         $image = $product->relationLoaded('mainImage') ? $product->mainImage : null;
 
         return new ProductView(
@@ -61,8 +61,9 @@ final class ProductPresenter
             discount: $discount,
             labels: $this->labels($product, $oldPrice !== null),
             availability: $this->availability($product),
-            mode: $mode,
-            actions: $this->actions($mode),
+            mode: $productActions->mode,
+            actions: $this->actions($productActions),
+            productActions: $productActions,
             image: $image !== null ? $this->image($image, $product) : null,
             placeholderUrl: $this->placeholderUrl(),
         );
@@ -150,20 +151,37 @@ final class ProductPresenter
     }
 
     /**
-     * @return list<array{key: string, label: string, primary: bool}>
+     * Buttons by the effective mode adjusted by stock (5.6). A disabled button is shown but not clickable.
+     *
+     * @return list<array{key: string, label: string, primary: bool, disabled: bool}>
      */
-    private function actions(SalesMode $mode): array
+    private function actions(ProductActions $actions): array
     {
-        return match ($mode) {
-            SalesMode::Cart => [['key' => 'cart', 'label' => __('storefront.actions.cart'), 'primary' => true]],
-            SalesMode::Reservation => [['key' => 'reservation', 'label' => __('storefront.actions.reservation'), 'primary' => true]],
-            SalesMode::Both => [
-                ['key' => 'cart', 'label' => __('storefront.actions.cart'), 'primary' => true],
-                ['key' => 'reservation', 'label' => __('storefront.actions.reservation'), 'primary' => false],
-            ],
-            SalesMode::Inquiry => [['key' => 'inquiry', 'label' => __('storefront.actions.inquiry'), 'primary' => true]],
-            SalesMode::Showcase => [],
-        };
+        $buttons = [];
+
+        if ($actions->outOfStock) {
+            // Cart / reservation buttons are inactive with the «Нет в наличии» caption (one is enough).
+            $buttons[] = ['key' => 'unavailable', 'label' => __('sales.actions.out_of_stock'), 'primary' => true, 'disabled' => true];
+        } else {
+            if ($actions->hasCartButton() && $actions->canAddToCart) {
+                $buttons[] = [
+                    'key' => 'cart',
+                    'label' => $actions->backorder ? __('sales.actions.backorder') : __('storefront.actions.cart'),
+                    'primary' => true,
+                    'disabled' => false,
+                ];
+            }
+
+            if ($actions->hasReservationButton() && $actions->canReserve) {
+                $buttons[] = ['key' => 'reservation', 'label' => __('storefront.actions.reservation'), 'primary' => $buttons === [], 'disabled' => false];
+            }
+        }
+
+        if ($actions->canInquire) {
+            $buttons[] = ['key' => 'inquiry', 'label' => __('storefront.actions.inquiry'), 'primary' => $buttons === [], 'disabled' => false];
+        }
+
+        return $buttons;
     }
 
     /**

@@ -22,7 +22,11 @@
     @if ($view->actions !== [])
         <div class="mt-3 flex flex-col gap-2">
             @foreach ($view->actions as $action)
-                <a href="{{ $view->url }}" class="rounded px-3 py-2 text-center text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
+                @if ($action['disabled'])
+                    <span aria-disabled="true" class="cursor-not-allowed rounded bg-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-500">{{ $action['label'] }}</span>
+                @else
+                    <a href="{{ $view->url }}" class="rounded px-3 py-2 text-center text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
+                @endif
             @endforeach
         </div>
     @endif

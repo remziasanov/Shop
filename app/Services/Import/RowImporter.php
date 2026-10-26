@@ -18,6 +18,7 @@ use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Pricing\PriceChangeContext;
+use App\Services\Stock\StockService;
 use App\Support\Money;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +57,7 @@ final class RowImporter
         private readonly PriceChangeContext $context,
         private readonly HtmlSanitizer $sanitizer,
         private readonly CategoryTree $tree,
+        private readonly StockService $stock,
     ) {}
 
     public function importChunk(Import $import, int $chunkIndex): ChunkResult
@@ -259,10 +261,6 @@ final class RowImporter
             }
         }
 
-        if (isset($values['stock']) && is_int($values['stock'])) {
-            $data['stock_qty'] = $values['stock'];
-        }
-
         foreach (['unit', 'brand', 'short_description', 'meta_title', 'meta_description'] as $key) {
             if (isset($values[$key]) && is_string($values[$key])) {
                 $data[$key] = $values[$key];
@@ -296,7 +294,14 @@ final class RowImporter
             $data['attributes'] = $attributes;
         }
 
-        return Product::query()->create($data);
+        $product = Product::query()->create($data);
+
+        // Stock is written only by StockService (D-046).
+        if (isset($values['stock']) && is_int($values['stock'])) {
+            $this->stock->setStock($product, $values['stock']);
+        }
+
+        return $product;
     }
 
     /**
@@ -316,13 +321,16 @@ final class RowImporter
         $this->money($product, $values, 'cost_price', 'cost_price', true, $clear, $changes);
         $this->money($product, $values, 'old_price', 'compare_at_price', true, $clear, $changes);
 
+        // Stock goes through StockService after the product is saved (D-046); `false` = leave as is.
+        $newStock = false;
+
         if (array_key_exists('stock', $values)) {
             $stock = $values['stock'];
 
             if (is_int($stock)) {
-                $changes['stock_qty'] = $stock;
+                $newStock = max($stock, 0);
             } elseif ($clear) {
-                $changes['stock_qty'] = null;
+                $newStock = null;
             }
         }
 
@@ -402,8 +410,13 @@ final class RowImporter
             $product->deleted_at = null;
         }
 
-        $changed = $product->isDirty();
+        $stockChanged = $newStock !== false && $newStock !== $product->stock_qty;
+        $changed = $product->isDirty() || $stockChanged;
         $product->save();
+
+        if ($stockChanged) {
+            $this->stock->setStock($product, $newStock);
+        }
 
         return $product;
     }
