@@ -107,3 +107,15 @@ it('rejects a malformed money amount', function () {
         ->call('save')
         ->assertHasFormErrors(['min_order_amount']);
 });
+
+it('caps money settings at the decimal(12,2) maximum', function () {
+    Livewire::test(ManageSalesSettings::class)
+        ->fillForm(['min_order_amount' => '10 000 000 000'])
+        ->call('save')
+        ->assertHasFormErrors(['min_order_amount']);
+
+    Livewire::test(ManageSalesSettings::class)
+        ->fillForm(['min_order_amount' => '9 999 999 999,99'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+});

@@ -63,7 +63,11 @@ jobs:
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
       - name: Tests (SQLite in-memory, see phpunit.xml)
-        run: php artisan test
+        run: php artisan test --log-junit=junit.xml
+
+      - name: Report failed tests as annotations
+        if: failure()
+        run: php .github/scripts/junit-annotations.php junit.xml
 
   mysql:
     name: tests (MySQL 8.0)
@@ -125,4 +129,8 @@ jobs:
         run: php artisan migrate:fresh --seed --force
 
       - name: Tests on MySQL
-        run: php artisan test
+        run: php artisan test --log-junit=junit.xml
+
+      - name: Report failed tests as annotations
+        if: failure()
+        run: php .github/scripts/junit-annotations.php junit.xml

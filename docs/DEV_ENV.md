@@ -97,3 +97,6 @@ URL=$(composer show -a phpstan/phpstan <tag> | awk '/^dist/{print $3}')
 mkdir -p ~/.cache/composer/files/phpstan/phpstan && cp /tmp/x/phpstan.zip ~/.cache/composer/files/phpstan/phpstan/$(php -r "echo sha1('$URL');").zip
 ```
 Также помогает `composer config -g use-github-api false`. В GitHub Actions этих проблем нет.
+
+## Демо-данные
+Демо-данные: `php artisan shop:demo` (флаги: `--fresh` — сначала удалить демо-данные, `--no-images` — без фото, `--limit=N` — только первые N товаров, `--force` — разрешить в production). В `DatabaseSeeder` не вызывается.

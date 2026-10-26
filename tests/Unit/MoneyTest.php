@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Rules\RublesAmount;
 use App\Support\Money;
+use Illuminate\Support\Facades\Validator;
 
 it('parses rubles input into kopecks', function (string|int|float $input, int $expected) {
     expect(Money::fromRubles($input))->toBe($expected);
@@ -37,4 +39,15 @@ it('formats kopecks for display', function () {
         ->and(Money::format(0))->toBe("0\u{00A0}₽")
         ->and(Money::format(5))->toBe("0,05\u{00A0}₽")
         ->and(Money::format(123456700))->toBe("1\u{202F}234\u{202F}567\u{00A0}₽");
+});
+
+it('RublesAmount rejects more than the decimal(12,2) maximum', function (): void {
+    $errors = fn (string $value): array => Validator::make(['v' => $value], ['v' => [new RublesAmount]])->errors()->get('v');
+
+    expect($errors('9 999 999 999,99'))->toBe([])
+        ->and($errors('9999999999.99'))->toBe([])
+        ->and($errors('10000000000'))->toBe([__('shop.validation.rubles_amount_max', ['max' => Money::format(RublesAmount::DEFAULT_MAX_KOPECKS)])])
+        ->and($errors('99999999999999.99'))->not->toBe([])
+        ->and($errors('abc'))->toBe([__('shop.validation.rubles_amount')])
+        ->and(Validator::make(['v' => '101'], ['v' => [new RublesAmount(10_000)]])->fails())->toBeTrue();
 });

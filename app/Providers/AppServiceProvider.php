@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Services\Catalog\CategoryTree;
+use App\Services\Content\HtmlSanitizer;
+use App\Services\Media\ImageProcessor;
 use App\View\Composers\StorefrontComposer;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -25,7 +30,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(CategoryTree::class);
+        $this->app->singleton(HtmlSanitizer::class);
+        $this->app->singleton(ImageProcessor::class);
+        $this->app->singleton(StorefrontComposer::class);
     }
 
     /**
@@ -33,7 +41,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // NF-02: N+1 problems fail loudly in development and tests, never in production.
+        Model::preventLazyLoading(! $this->app->isProduction());
+
         $this->configureFilamentFormats();
+
+        // A queue worker lives longer than a request: re-read the category tree from the cache per job.
+        Queue::looping(fn () => $this->app->make(CategoryTree::class)->forgetMemo());
 
         View::composer('storefront.*', StorefrontComposer::class);
 
