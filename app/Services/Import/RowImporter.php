@@ -464,34 +464,32 @@ final class RowImporter
             $fromFile[mb_strtolower($attribute['name'], 'UTF-8')] ??= ['name' => $attribute['name'], 'value' => $attribute['value']];
         }
 
-        $old = [];
-
-        foreach ($existing as $attribute) {
-            $old[mb_strtolower($attribute['name'], 'UTF-8')] ??= $attribute;
-        }
-
-        $result = [];
         $mapped = [];
 
         foreach ($columns as $name) {
-            $key = mb_strtolower($name, 'UTF-8');
+            $mapped[mb_strtolower($name, 'UTF-8')] = $name;
+        }
 
-            if (isset($mapped[$key])) {
-                continue;
-            }
+        // Existing characteristics keep their order (export -> import round trip must not reorder them);
+        // values of mapped ones come from the file, new ones are appended in file column order.
+        $result = [];
 
-            $mapped[$key] = true;
+        foreach ($existing as $attribute) {
+            $key = mb_strtolower($attribute['name'], 'UTF-8');
 
-            if (isset($fromFile[$key])) {
+            if (! isset($mapped[$key])) {
+                $result[] = $attribute;
+            } elseif (isset($fromFile[$key])) {
                 $result[] = $fromFile[$key];
-            } elseif (! $clear && isset($old[$key])) {
-                $result[] = $old[$key];
+                unset($fromFile[$key]);
+            } elseif (! $clear) {
+                $result[] = $attribute;
             }
         }
 
-        foreach ($existing as $attribute) {
-            if (! isset($mapped[mb_strtolower($attribute['name'], 'UTF-8')])) {
-                $result[] = $attribute;
+        foreach ($mapped as $key => $name) {
+            if (isset($fromFile[$key])) {
+                $result[] = $fromFile[$key];
             }
         }
 

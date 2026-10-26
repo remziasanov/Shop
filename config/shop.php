@@ -41,4 +41,9 @@ return [
     */
     'import_media_max_total_mb' => 512,
 
+    /*
+    | Days import files (source, ZIP, errors report) are kept (IM-13).
+    */
+    'import_retention_days' => 30,
+
 ];

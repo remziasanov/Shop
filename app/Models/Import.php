@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * One import run (IM-01…IM-15). Files live on the private `local` disk under `imports/{id}/`;
@@ -94,6 +95,14 @@ class Import extends Model
         'dry_run',
         'last_activity_at',
     ];
+
+    protected static function booted(): void
+    {
+        // Deleting an import removes its files (source, staging, errors report, uploaded ZIP).
+        static::deleted(function (Import $import): void {
+            Storage::disk('local')->deleteDirectory('imports/'.$import->id);
+        });
+    }
 
     /**
      * @return array<string, string>

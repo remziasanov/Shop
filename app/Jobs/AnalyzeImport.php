@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Enums\ImportStatus;
 use App\Exceptions\ImportFileException;
 use App\Models\Import;
 use App\Services\Import\ImportAnalyzer;
@@ -34,7 +35,8 @@ class AnalyzeImport implements ShouldQueue
     {
         $import = Import::query()->find($this->importId);
 
-        if ($import === null) {
+        // Already analyzed in the browser (fallback) or started: never re-stage the rows under a running import.
+        if ($import === null || ! in_array($import->status, [ImportStatus::Uploaded, ImportStatus::Analyzing], true)) {
             return;
         }
 

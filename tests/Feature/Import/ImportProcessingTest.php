@@ -209,7 +209,7 @@ it('keeps blank cells with the "keep" policy and clears nullable fields with "cl
         ->and($product->base_price)->toBe('100.00');
 });
 
-it('merges characteristics: file values in column order, unmapped existing ones kept', function () {
+it('merges characteristics: existing order kept, new ones appended in column order', function () {
     $product = Product::factory()->create(['sku' => 'A-1', 'attributes' => [
         ['name' => 'Материал', 'value' => 'Дерево'], ['name' => 'Цвет', 'value' => 'Белый'], ['name' => 'Вес', 'value' => '5 кг'],
     ]]);
@@ -217,15 +217,15 @@ it('merges characteristics: file values in column order, unmapped existing ones 
     runCsv([['Артикул', 'Х: Цвет', 'Х: Размер'], ['A-1', 'Чёрный', '10']]);
 
     expect($product->fresh()->specs())->toBe([
-        ['name' => 'Цвет', 'value' => 'Чёрный'],
-        ['name' => 'Размер', 'value' => '10'],
         ['name' => 'Материал', 'value' => 'Дерево'],
+        ['name' => 'Цвет', 'value' => 'Чёрный'],
         ['name' => 'Вес', 'value' => '5 кг'],
+        ['name' => 'Размер', 'value' => '10'],
     ]);
 
     // Blank cell: kept by default, dropped with the clear policy.
     runCsv([['Артикул', 'Х: Цвет', 'Х: Размер'], ['A-1', '', '']]);
-    expect(collect($product->fresh()->specs())->pluck('name')->all())->toBe(['Цвет', 'Размер', 'Материал', 'Вес']);
+    expect(collect($product->fresh()->specs())->pluck('name')->all())->toBe(['Материал', 'Цвет', 'Вес', 'Размер']);
 
     runCsv([['Артикул', 'Х: Цвет', 'Х: Размер'], ['A-1', '', '']], ['options' => ['empty_cell_policy' => 'clear']]);
     expect(collect($product->fresh()->specs())->pluck('name')->all())->toBe(['Материал', 'Вес']);

@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Admin\ExportDownloadController;
+use App\Http\Controllers\Admin\ImportFileDownloadController;
+use App\Http\Controllers\Admin\ImportProcessNextController;
 use App\Http\Controllers\Admin\ImportTemplateController;
 use App\Http\Controllers\Storefront\CatalogController;
 use App\Http\Controllers\Storefront\HomeController;
@@ -26,4 +28,9 @@ Route::middleware([FilamentAuthenticate::class])
     ->group(function (): void {
         Route::get('/exports/{export}/download', ExportDownloadController::class)->name('admin.exports.download');
         Route::get('/import/template', ImportTemplateController::class)->name('admin.import.template');
+        Route::get('/imports/{import}/download/{kind}', ImportFileDownloadController::class)
+            ->whereIn('kind', ['source', 'errors'])
+            ->name('admin.imports.download');
+        // Browser fallback of the import queue (IM-10); POST: CSRF-protected by the web middleware group.
+        Route::post('/imports/{import}/process-next', ImportProcessNextController::class)->name('admin.imports.process-next');
     });
