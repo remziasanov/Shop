@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Stock;
 
+use App\Enums\OrderType;
 use App\Exceptions\InsufficientStockException;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -209,6 +210,32 @@ final class StockService
             }
 
             $this->markOrder($fresh, false);
+        });
+    }
+
+    /**
+     * Request is being deleted: an active (non-final) request that still holds stock gives it back, so a deleted
+     * reservation / order never keeps `reserved_qty` / `stock_qty` occupied. A request in a final status already
+     * settled its stock (a completed order keeps its deduction). Idempotent.
+     */
+    public function settleForDeletion(Order $order): void
+    {
+        DB::transaction(function () use ($order): void {
+            /** @var Order|null $fresh */
+            $fresh = Order::withTrashed()->whereKey($order->getKey())->lockForUpdate()->first();
+
+            if ($fresh === null || ! $fresh->stock_applied || $fresh->status->isFinal()) {
+                return;
+            }
+
+            match ($fresh->type) {
+                OrderType::Reservation => $this->releaseReservation($fresh),
+                OrderType::Order => $this->returnForOrder($fresh),
+                default => null,
+            };
+
+            $order->stock_applied = $fresh->stock_applied;
+            $order->syncOriginalAttribute('stock_applied');
         });
     }
 

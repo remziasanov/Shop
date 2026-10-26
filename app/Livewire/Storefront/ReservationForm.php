@@ -11,8 +11,10 @@ use App\Services\Orders\OrderService;
 use App\Services\Orders\ReservationData;
 use App\Services\Sales\AvailabilityService;
 use App\Settings\SalesSettings;
+use App\Support\QtyLimit;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Throwable;
 
@@ -23,6 +25,7 @@ class ReservationForm extends Component
 {
     use SalesFormSupport;
 
+    #[Locked]
     public int $productId;
 
     /** Opened on load (?reserve=1 from a product card). */
@@ -47,10 +50,11 @@ class ReservationForm extends Component
      */
     protected function rules(): array
     {
-        $max = $this->product() !== null ? app(AvailabilityService::class)->actionsFor($this->product())->maxReserveQty : null;
+        $product = $this->product();
+        $max = $product !== null ? app(AvailabilityService::class)->actionsFor($product)->maxReserveQty : null;
 
         return $this->contactRules() + [
-            'qty' => ['required', 'integer', 'min:1', 'max:'.($max ?? 9999)],
+            'qty' => ['required', 'integer', 'min:1', 'max:'.min($max ?? QtyLimit::MAX, QtyLimit::MAX)],
             'desiredDate' => ['nullable', 'date_format:Y-m-d'],
         ];
     }
@@ -131,8 +135,18 @@ class ReservationForm extends Component
         ]);
     }
 
+    /** Loaded once per request (rules(), submit() and render() all need it). */
+    private ?Product $loadedProduct = null;
+
+    private bool $productLoaded = false;
+
     private function product(): ?Product
     {
-        return Product::query()->active()->find($this->productId);
+        if (! $this->productLoaded) {
+            $this->loadedProduct = Product::query()->active()->find($this->productId);
+            $this->productLoaded = true;
+        }
+
+        return $this->loadedProduct;
     }
 }

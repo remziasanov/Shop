@@ -66,5 +66,5 @@ it('is scheduled every five minutes without overlapping (section 8)', function (
     $event = collect(app(Schedule::class)->events())
         ->first(fn ($event) => str_contains((string) $event->command, 'shop:expire-reservations'));
 
-    expect($event->expression)->toBe('*/5 * * * *')->and($event->withoutOverlapping)->toBeTrue();
+    expect($event->expression)->toBe('*/5 * * * *')->and($event->withoutOverlapping)->toBeTrue()->and($event->expiresAt)->toBe(10);
 });

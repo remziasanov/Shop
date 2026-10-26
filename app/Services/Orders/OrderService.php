@@ -24,6 +24,7 @@ use App\Services\Stock\StockService;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use App\Support\PhoneNormalizer;
+use App\Support\QtyLimit;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -38,6 +39,9 @@ use Throwable;
  */
 final class OrderService
 {
+    /** Attempts of a creating transaction when the database reports a deadlock (D-053). */
+    private const DEADLOCK_ATTEMPTS = 3;
+
     public function __construct(
         private readonly StockService $stock,
         private readonly OrderNumberGenerator $numbers,
@@ -70,7 +74,14 @@ final class OrderService
             throw new SalesException(__('sales.errors.address_required'));
         }
 
+        // Retried on a deadlock (D-053): the callback only touches the DB and registers afterCommit callbacks,
+        // which a rolled back attempt discards, so a repeat is safe.
         $result = DB::transaction(function () use ($cart, $data, $phone, $delivery, $payment, $address): Order|array {
+            // First lock of the transaction: a second checkout of the same cart waits here and then sees it empty.
+            if (Cart::query()->whereKey($cart->id)->lockForUpdate()->first() === null) {
+                throw new SalesException(__('sales.errors.cart_empty'));
+            }
+
             $items = CartItem::query()->where('cart_id', $cart->id)->orderBy('id')->get();
 
             if ($items->isEmpty()) {
@@ -165,7 +176,7 @@ final class OrderService
             CartItem::query()->where('cart_id', $cart->id)->delete();
 
             return $this->finishCreate($order);
-        });
+        }, self::DEADLOCK_ATTEMPTS);
 
         if (is_array($result)) {
             throw new CartChangedException($result);
@@ -183,7 +194,7 @@ final class OrderService
     {
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
-        if ($data->qty < 1) {
+        if ($data->qty < 1 || $data->qty > QtyLimit::MAX) {
             throw new SalesException(__('sales.errors.qty_invalid'));
         }
 
@@ -226,7 +237,7 @@ final class OrderService
             $this->stock->holdForReservation($order);
 
             return $this->finishCreate($order);
-        });
+        }, self::DEADLOCK_ATTEMPTS);
     }
 
     /**
@@ -238,7 +249,7 @@ final class OrderService
     {
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
-        if ($data->qty < 1) {
+        if ($data->qty < 1 || $data->qty > QtyLimit::MAX) {
             throw new SalesException(__('sales.errors.qty_invalid'));
         }
 
@@ -263,7 +274,7 @@ final class OrderService
             ], $data->ip, $data->userAgent, [['product' => $locked, 'qty' => $data->qty, 'price' => $price]]);
 
             return $this->finishCreate($order);
-        });
+        }, self::DEADLOCK_ATTEMPTS);
     }
 
     /**
@@ -309,6 +320,29 @@ final class OrderService
         });
 
         return $order->refresh();
+    }
+
+    /**
+     * Admin deletion (OR-07, D-051): an active request that still holds stock gives it back (reservation: release,
+     * order: return), a history row is written, then the request is soft deleted - all in one transaction.
+     * Requests in a final status keep their stock effect. Deleting an already deleted request does nothing.
+     */
+    public function delete(Order $order, ?User $user = null): void
+    {
+        DB::transaction(function () use ($order, $user): void {
+            /** @var Order|null $fresh */
+            $fresh = Order::query()->whereKey($order->getKey())->lockForUpdate()->first();
+
+            if ($fresh === null) {
+                return;
+            }
+
+            $this->stock->settleForDeletion($fresh);
+            $this->history($fresh, $fresh->status, $fresh->status, $user, __('sales.history.deleted'));
+            $fresh->delete();
+        });
+
+        $order->refresh();
     }
 
     /**

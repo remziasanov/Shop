@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
+use App\Services\Stock\StockService;
 use App\Support\Money;
 use Carbon\CarbonInterface;
 use Database\Factories\OrderFactory;
@@ -84,6 +85,12 @@ class Order extends Model
             if (empty($order->uuid)) {
                 $order->uuid = (string) Str::uuid();
             }
+        });
+
+        // Safety net (D-051): a raw delete of an active request must not keep its stock held. The normal path
+        // is OrderService::delete(), which also writes the history row; this call is then a no-op.
+        static::deleting(function (Order $order): void {
+            app(StockService::class)->settleForDeletion($order);
         });
     }
 

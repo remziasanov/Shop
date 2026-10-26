@@ -8,7 +8,9 @@ use App\Exceptions\SalesException;
 use App\Models\Product;
 use App\Services\Cart\CartService;
 use App\Services\Sales\AvailabilityService;
+use App\Support\QtyLimit;
 use Illuminate\Contracts\View\View;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -17,6 +19,7 @@ use Livewire\Component;
  */
 class AddToCart extends Component
 {
+    #[Locked]
     public int $productId;
 
     /** Quantity selector (product page only). */
@@ -29,6 +32,13 @@ class AddToCart extends Component
         $this->resetErrorBag();
         $qty = max(1, (int) $this->qty);
         $product = $this->product();
+
+        if ($qty > QtyLimit::MAX) {
+            $this->qty = QtyLimit::MAX;
+            $this->addError('cart', __('storefront_sales.add.max_qty', ['max' => QtyLimit::MAX]));
+
+            return;
+        }
 
         if ($product === null) {
             $this->addError('cart', __('storefront_sales.add.not_found'));

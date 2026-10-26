@@ -10,7 +10,9 @@ use App\Models\Product;
 use App\Services\Orders\InquiryData;
 use App\Services\Orders\OrderService;
 use App\Services\Sales\AvailabilityService;
+use App\Support\QtyLimit;
 use Illuminate\Contracts\View\View;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -21,6 +23,7 @@ class InquiryForm extends Component
 {
     use SalesFormSupport;
 
+    #[Locked]
     public int $productId;
 
     public bool $open = false;
@@ -42,7 +45,7 @@ class InquiryForm extends Component
      */
     protected function rules(): array
     {
-        return $this->contactRules() + ['qty' => ['required', 'integer', 'min:1', 'max:9999']];
+        return $this->contactRules() + ['qty' => ['required', 'integer', 'min:1', 'max:'.QtyLimit::MAX]];
     }
 
     /**

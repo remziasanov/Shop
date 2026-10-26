@@ -7,6 +7,7 @@ namespace App\Livewire\Storefront;
 use App\Exceptions\SalesException;
 use App\Services\Cart\CartService;
 use App\Services\Cart\CartSummary;
+use App\Support\QtyLimit;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Component;
@@ -30,7 +31,7 @@ class CartPage extends Component
         }
 
         try {
-            app(CartService::class)->update($cart, (int) $key, max(1, (int) $value));
+            app(CartService::class)->update($cart, (int) $key, QtyLimit::clamp((int) $value));
         } catch (SalesException $e) {
             $this->addError('cart', $e->getMessage());
         }

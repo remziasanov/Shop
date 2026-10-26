@@ -58,6 +58,7 @@ return [
 
     'history' => [
         'created' => 'Обращение создано',
+        'deleted' => 'Удалено администратором',
         'expired' => 'Срок резерва истёк',
         'extended' => 'Продлён на :hours ч',
         'new_reserved_until' => 'Новый срок резерва: :date',

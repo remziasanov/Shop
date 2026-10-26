@@ -63,6 +63,11 @@ class ViewOrder extends ViewRecord
                 ->openUrlInNewTab(),
             DeleteAction::make()
                 ->label(__('admin_orders.actions.delete'))
+                ->using(function (Order $record): bool {
+                    app(OrderService::class)->delete($record, $this->actor());
+
+                    return true;
+                })
                 ->successRedirectUrl(fn (): string => OrderResource::getUrl('index')),
         ];
     }

@@ -57,8 +57,17 @@ class EditProduct extends EditRecord
     {
         /** @var Product $product */
         $product = $this->getRecord();
+        $this->rememberLoadedStock($product);
 
         return $this->fillSpecs($product, $data);
+    }
+
+    protected function afterSave(): void
+    {
+        /** @var Product $product */
+        $product = $this->getRecord();
+
+        $this->applyStockField($product);
     }
 
     protected function mutateFormDataBeforeSave(array $data): array

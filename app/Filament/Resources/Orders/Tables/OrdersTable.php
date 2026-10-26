@@ -8,7 +8,9 @@ use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\Orders\OrderQuery;
+use App\Services\Orders\OrderService;
 use App\Support\Money;
 use Carbon\Carbon;
 use Filament\Actions\BulkActionGroup;
@@ -20,6 +22,8 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
+use Throwable;
 
 /**
  * Request list (OR-01, OR-02). All conditions go through {@see OrderQuery}, the same code the export uses.
@@ -123,7 +127,25 @@ final class OrdersTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    // D-051: deletion goes through the service so active requests give their stock back.
+                    DeleteBulkAction::make()
+                        ->using(function (DeleteBulkAction $action, iterable $records): void {
+                            $actor = Auth::user();
+                            $isFirst = true;
+
+                            foreach ($records as $record) {
+                                try {
+                                    app(OrderService::class)->delete($record, $actor instanceof User ? $actor : null);
+                                } catch (Throwable $e) {
+                                    $action->reportBulkProcessingFailure();
+
+                                    if ($isFirst) {
+                                        report($e);
+                                        $isFirst = false;
+                                    }
+                                }
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort(fn (Builder $query): Builder => $query->orderByDesc('orders.created_at')->orderByDesc('orders.id'))

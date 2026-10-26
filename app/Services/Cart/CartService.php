@@ -13,6 +13,7 @@ use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
 use App\Settings\SalesSettings;
 use App\Support\Money;
+use App\Support\QtyLimit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
@@ -84,6 +85,8 @@ final class CartService
             throw new SalesException(__('sales.cart.qty_invalid'));
         }
 
+        $qty = min($qty, QtyLimit::MAX);
+
         return DB::transaction(function () use ($cart, $product, $qty): CartItem {
             $locked = Product::query()->whereKey($product->id)->lockForUpdate()->first();
             $actions = $locked !== null && $this->isVisible($locked) ? $this->availability->actionsFor($locked) : null;
@@ -93,7 +96,7 @@ final class CartService
             }
 
             $item = CartItem::query()->where('cart_id', $cart->id)->where('product_id', $locked->id)->first();
-            $total = $qty + ($item->qty ?? 0);
+            $total = min($qty + ($item->qty ?? 0), QtyLimit::MAX);
 
             if ($actions->maxQty !== null) {
                 $total = min($total, $actions->maxQty);
@@ -129,6 +132,8 @@ final class CartService
 
             return null;
         }
+
+        $qty = min($qty, QtyLimit::MAX);
 
         return DB::transaction(function () use ($cart, $productId, $qty): CartItem {
             $item = CartItem::query()->where('cart_id', $cart->id)->where('product_id', $productId)->first()

@@ -238,6 +238,9 @@ describe('schedule', function (): void {
             ->and($all)->not->toBeNull()
             ->and($all->expression)->toBe('10 3 * * *')
             ->and($all->withoutOverlapping)->toBeTrue()
+            ->and($boundaries->expiresAt)->toBe(10)
+            ->and($all->expiresAt)->toBe(10)
+            ->and($find('shop:heartbeat')->expiresAt)->toBe(10)
             ->and($find('shop:heartbeat'))->not->toBeNull();
     });
 });
