@@ -91,7 +91,7 @@ it('applies the EXIF orientation', function (): void {
 
 it('rejects corrupt files', function (): void {
     $path = $this->dir.'/broken.jpg';
-    file_put_contents($path, random_bytes(2000));
+    file_put_contents($path, str_repeat('not an image, just text. ', 80));
     $product = Product::factory()->create();
 
     expect(fn () => $this->processor->process($path, $product))->toThrow(ImageProcessingException::class, __('catalog.errors.image_corrupt'));

@@ -41,7 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
             $path = '/'.trim($request->path(), '/');
             $target = app(RedirectService::class)->find($path);
 
-            if ($target === null || $target === $path || ! str_starts_with($target, '/') || str_starts_with($target, '//')) {
+            if ($target === null || $target === $path || ! RedirectService::isSafeTarget($target)) {
                 return null;
             }
 

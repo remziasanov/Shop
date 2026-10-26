@@ -11,6 +11,7 @@ use App\Services\Media\CategoryImageImporter;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -34,6 +35,8 @@ trait SavesCategoryImage
         $remove = (bool) ($data['remove_image'] ?? false);
         unset($data['new_image'], $data['remove_image']);
 
+        $validTemporaryPath = is_string($temporaryPath) && CategoryImageImporter::isTemporaryPath($temporaryPath);
+
         try {
             return DB::transaction(function () use ($data, $save, $temporaryPath, $remove): Model {
                 $record = $save($data);
@@ -56,6 +59,12 @@ trait SavesCategoryImage
             }
 
             throw $e;
+        } finally {
+            // Idempotent: the importer already removed it on its own path; this covers a failure before it ran.
+            // Only validated paths are ever deleted.
+            if ($validTemporaryPath) {
+                Storage::disk(CategoryImageImporter::TEMP_DISK)->delete($temporaryPath);
+            }
         }
     }
 }

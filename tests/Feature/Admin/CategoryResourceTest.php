@@ -255,6 +255,20 @@ describe('category image', function (): void {
             ->and(Storage::disk('public')->allFiles())->toBe([]);
     });
 
+    it('never deletes a file outside the temporary directory named by the client', function (): void {
+        Storage::disk('local')->put('backups/secret.sql', 'secret');
+        $category = Category::factory()->create();
+
+        foreach (['backups/secret.sql', 'tmp/category-images/../../backups/secret.sql', '/backups/secret.sql', 'tmp\\category-images\\x'] as $path) {
+            Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()])
+                ->set('data.new_image', ['x' => $path])
+                ->call('save')
+                ->assertHasErrors(['data.new_image']);
+
+            Storage::disk('local')->assertExists('backups/secret.sql');
+        }
+    });
+
     it('reports a corrupt image as a validation error and does not create the category', function (): void {
         Livewire::test(CreateCategory::class)
             ->fillForm(['name' => 'Битая', 'new_image' => UploadedFile::fake()->createWithContent('broken.jpg', 'not an image')])

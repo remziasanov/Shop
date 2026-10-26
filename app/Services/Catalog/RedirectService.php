@@ -24,7 +24,7 @@ final class RedirectService
         $old = $this->normalizePath($oldPath);
         $new = $this->normalizePath($newPath);
 
-        if ($old === $new) {
+        if ($old === $new || ! self::isSafeTarget($new) || ! self::isSafeTarget($old)) {
             return;
         }
 
@@ -37,6 +37,17 @@ final class RedirectService
 
             Redirect::query()->updateOrCreate(['from_path' => $old], ['to_path' => $new]);
         });
+    }
+
+    /**
+     * Only a site-local path may be a redirect target: a single leading slash, not followed by `/` or `\\`
+     * (browsers treat `/\\host` like `//host`), and no backslash or control characters.
+     */
+    public static function isSafeTarget(string $path): bool
+    {
+        return preg_match('#^/(?![/\\\\])#', $path) === 1
+            && ! str_contains($path, '\\')
+            && preg_match('/[\x00-\x1f\x7f]/', $path) !== 1;
     }
 
     /**

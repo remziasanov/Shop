@@ -63,6 +63,11 @@ final class ProductPhotoImporter
 
     private function isTemporaryPath(string $path): bool
     {
-        return str_starts_with($path, self::TEMP_DIRECTORY.'/') && ! str_contains($path, '..');
+        return str_starts_with($path, self::TEMP_DIRECTORY.'/')
+            && strlen($path) > strlen(self::TEMP_DIRECTORY) + 1
+            && ! str_contains($path, '..')
+            && ! str_contains($path, '\\')
+            && ! str_contains($path, '//')
+            && preg_match('/[\x00-\x1f\x7f]/', $path) !== 1;
     }
 }

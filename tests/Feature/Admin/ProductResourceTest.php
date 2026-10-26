@@ -397,7 +397,7 @@ it('finds products by sku and name in global search', function (): void {
 it('uploads photos via the relation manager, reporting a corrupt file separately', function (): void {
     actingAs(User::factory()->admin()->create());
     $product = Product::factory()->create(['name' => 'Тумба']);
-    $corrupt = UploadedFile::fake()->createWithContent('broken.jpg', random_bytes(2000));
+    $corrupt = UploadedFile::fake()->createWithContent('broken.jpg', str_repeat('not an image, just text. ', 80));
     $valid = adminProductImage('good.jpg', 2000, 1000);
 
     Livewire::test(ProductImagesRelationManager::class, ['ownerRecord' => $product, 'pageClass' => EditProduct::class])

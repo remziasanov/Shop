@@ -66,3 +66,15 @@ it('answers with a relative Location regardless of the Host header', function ()
     $response->assertStatus(301);
     expect($response->headers->get('Location'))->toStartWith('/')->toBe('/product/new?a=1');
 });
+
+it('never redirects to a non-local target', function (string $target) {
+    Redirect::query()->create(['from_path' => '/product/evil', 'to_path' => $target]);
+
+    $this->get('/product/evil')->assertNotFound();
+})->with(['/\\evil.com', '//evil.com', "/ok\r\nx", '/a\\b', 'https://evil.com']);
+
+it('does not record unsafe redirect targets', function () {
+    app(RedirectService::class)->record('/product/a', '/\\evil.com');
+
+    expect(Redirect::query()->count())->toBe(0);
+});

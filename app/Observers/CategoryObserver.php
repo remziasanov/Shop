@@ -49,7 +49,8 @@ final class CategoryObserver
             $old = $category->getOriginal('image_path');
 
             if (is_string($old) && $old !== '') {
-                Storage::disk('public')->delete($old);
+                // After commit: a rolled-back save must keep pointing at an existing file.
+                DB::afterCommit(fn () => Storage::disk('public')->delete($old));
             }
         }
 

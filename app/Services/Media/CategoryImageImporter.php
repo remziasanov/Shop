@@ -41,14 +41,15 @@ final class CategoryImageImporter
             return;
         }
 
+        // Uploaded state is client-controllable: validate before anything can be read or deleted, so a
+        // foreign path is never touched.
+        if (! self::isTemporaryPath($temporaryPath)) {
+            throw ImageProcessingException::notFound();
+        }
+
         $disk = $this->filesystems->disk(self::TEMP_DISK);
 
         try {
-            // Uploaded state is client-controllable: only our own temporary directory is accepted.
-            if (! str_starts_with($temporaryPath, self::TEMP_DIRECTORY.'/') || str_contains($temporaryPath, '..')) {
-                throw ImageProcessingException::notFound();
-            }
-
             $path = $this->images->processCategoryImage($disk->path($temporaryPath), $category);
 
             try {
@@ -61,5 +62,18 @@ final class CategoryImageImporter
         } finally {
             $disk->delete($temporaryPath);
         }
+    }
+
+    /**
+     * A plain relative path strictly inside the temporary directory (no absolute path, `..` or backslashes).
+     */
+    public static function isTemporaryPath(string $path): bool
+    {
+        return str_starts_with($path, self::TEMP_DIRECTORY.'/')
+            && strlen($path) > strlen(self::TEMP_DIRECTORY) + 1
+            && ! str_contains($path, '..')
+            && ! str_contains($path, '\\')
+            && ! str_contains($path, '//')
+            && preg_match('/[\x00-\x1f\x7f]/', $path) !== 1;
     }
 }
