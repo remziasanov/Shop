@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ТЗ: интернет-магазин на Beget</title>
+<style>
+:root{
+  --bg:#ffffff;--fg:#1d2330;--muted:#5b6475;--line:#e3e7ee;--soft:#f5f7fa;--code:#f1f3f7;
+  --accent:#2457d6;--accent-soft:#eaf0ff;
+  --ok:#127a46;--ok-soft:#e7f6ee;--warn:#8a5300;--warn-soft:#fff4e0;--danger:#b42318;--danger-soft:#fdecea;
+  --violet:#5b3cc4;--violet-soft:#f0ecff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12151b;--fg:#e6e9ef;--muted:#a3abba;--line:#2a303b;--soft:#1a1e26;--code:#1c2029;
+    --accent:#7aa2ff;--accent-soft:#1c2740;
+    --ok:#5fd39a;--ok-soft:#14281e;--warn:#f0b35a;--warn-soft:#2b2214;--danger:#ff8a80;--danger-soft:#2d1716;
+    --violet:#b9a6ff;--violet-soft:#221b3a;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:0 16px;display:grid;grid-template-columns:1fr;gap:32px}
+@media (min-width:1100px){.wrap{grid-template-columns:260px minmax(0,1fr)}}
+nav.toc{font-size:13.5px;line-height:1.45}
+@media (min-width:1100px){nav.toc{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;padding:24px 0}}
+nav.toc ol{list-style:none;margin:0;padding:0}
+nav.toc li{margin:2px 0}
+nav.toc ol ol{padding-left:14px}
+nav.toc a{color:var(--muted);text-decoration:none;display:block;padding:2px 6px;border-radius:6px}
+nav.toc a:hover{background:var(--soft);color:var(--fg)}
+nav.toc .toc-title{font-weight:700;color:var(--fg);margin:0 0 8px 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+main{min-width:0;padding:24px 0 80px}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:8px}
+header.doc h1{font-size:28px;line-height:1.25;margin:0 0 8px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--muted);font-size:13.5px}
+h2{font-size:22px;margin:44px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+header.doc + section > h2{border-top:0;margin-top:28px}
+h3{font-size:17.5px;margin:28px 0 8px}
+h4{font-size:15.5px;margin:20px 0 6px}
+p{margin:8px 0}
+a{color:var(--accent)}
+ul,ol{padding-left:22px;margin:6px 0}
+li{margin:3px 0}
+code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;font-size:13px;line-height:1.5}
+pre code{background:none;padding:0}
+.tbl{overflow-x:auto;margin:10px 0 14px;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{background:var(--soft);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.rid,span.rid{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;white-space:nowrap;color:var(--violet)}
+.badge{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;white-space:nowrap;vertical-align:1px}
+.b-mvp{background:var(--ok-soft);color:var(--ok)}
+.b-later{background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+.b-admin{background:var(--violet-soft);color:var(--violet)}
+.callout{border-left:4px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+.callout.warn{border-color:var(--warn);background:var(--warn-soft)}
+.callout.ok{border-color:var(--ok);background:var(--ok-soft)}
+.callout.exec{border-color:var(--violet);background:var(--violet-soft)}
+.callout b.lbl{display:block;margin-bottom:2px}
+.arch{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin:12px 0}
+.box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--soft);font-size:13.5px}
+.box h5{margin:0 0 4px;font-size:13.5px}
+.box ul{margin:0;padding-left:18px}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0;font-size:13.5px}
+.flow span{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:3px 10px}
+.flow i{font-style:normal;color:var(--muted)}
+.checklist{list-style:none;padding-left:0}
+.checklist li::before{content:"☐ ";color:var(--muted)}
+footer.doc{margin-top:48px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
+@media print{nav.toc{display:none}.wrap{display:block}h2{break-before:page}.tbl{overflow:visible}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc" aria-label="Содержание">
+  <div class="toc-title">Содержание</div>
+  <ol>
+    <li><a href="#s1">1. Общие сведения</a></li>
+    <li><a href="#s2">2. Ограничения среды (Beget)</a></li>
+    <li><a href="#s3">3. Технологический стек</a></li>
+    <li><a href="#s4">4. Архитектура</a></li>
+    <li><a href="#s5">5. Витрина</a>
+      <ol>
+        <li><a href="#s5-1">5.1 Общие элементы</a></li>
+        <li><a href="#s5-2">5.2 Главная страница</a></li>
+        <li><a href="#s5-3">5.3 Каталог</a></li>
+        <li><a href="#s5-4">5.4 Поиск</a></li>
+        <li><a href="#s5-5">5.5 Карточка товара</a></li>
+        <li><a href="#s5-6">5.6 Режимы продаж</a></li>
+        <li><a href="#s5-7">5.7 Корзина и заказ</a></li>
+        <li><a href="#s5-8">5.8 Резервирование</a></li>
+        <li><a href="#s5-9">5.9 Заявка-запрос</a></li>
+        <li><a href="#s5-10">5.10 Страницы и 152-ФЗ</a></li>
+        <li><a href="#s5-11">5.11 SEO</a></li>
+      </ol>
+    </li>
+    <li><a href="#s6">6. Админ-панель</a>
+      <ol>
+        <li><a href="#s6-1">6.1 Общее</a></li>
+        <li><a href="#s6-2">6.2 Дашборд</a></li>
+        <li><a href="#s6-3">6.3 Настройки магазина</a></li>
+        <li><a href="#s6-4">6.4 Конструктор главной</a></li>
+        <li><a href="#s6-5">6.5 Категории</a></li>
+        <li><a href="#s6-6">6.6 Товары</a></li>
+        <li><a href="#s6-7">6.7 Фотографии</a></li>
+        <li><a href="#s6-8">6.8 Ценообразование</a></li>
+        <li><a href="#s6-9">6.9 Заказы и заявки</a></li>
+        <li><a href="#s6-10">6.10 Импорт из Excel</a></li>
+        <li><a href="#s6-11">6.11 Экспорт</a></li>
+        <li><a href="#s6-12">6.12 Страницы и меню</a></li>
+        <li><a href="#s6-13">6.13 Пользователи и роли</a></li>
+      </ol>
+    </li>
+    <li><a href="#s7">7. Модель данных</a></li>
+    <li><a href="#s8">8. Фоновые задачи</a></li>
+    <li><a href="#s9">9. Уведомления</a></li>
+    <li><a href="#s10">10. Нефункциональные требования</a></li>
+    <li><a href="#s11">11. Тестирование</a></li>
+    <li><a href="#s12">12. Развёртывание на Beget</a></li>
+    <li><a href="#s13">13. План работ (этапы)</a></li>
+    <li><a href="#s14">14. Приёмка MVP</a></li>
+    <li><a href="#s15">15. Допущения и вопросы</a></li>
+    <li><a href="#appA">A. Шаблон Excel</a></li>
+    <li><a href="#appB">B. Статусы заказов</a></li>
+    <li><a href="#appC">C. Правила для исполнителя</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="doc">
+  <h1>Техническое задание: универсальный интернет-магазин с админ-панелью и импортом из Excel</h1>
+  <div class="meta">
+    <span>Версия 1.0</span>
+    <span>Дата: 26.10.2026</span>
+    <span>Хостинг: Beget (виртуальный хостинг)</span>
+    <span>Исполнитель: Claude Code (облачная сессия)</span>
+  </div>
+  <div class="callout exec">
+    <b class="lbl">Как читать этот документ исполнителю</b>
+    Каждое требование имеет идентификатор (например, <span class="rid">SF-12</span>, <span class="rid">PR-04</span>) и приоритет:
+    <span class="badge b-mvp">MVP</span> — обязательно в первой версии, <span class="badge b-later">Позже</span> — не реализовывать сейчас, но не закрывать архитектурой.
+    Порядок работ — в <a href="#s13">разделе 13</a>, сквозные правила работы — в <a href="#appC">приложении C</a>.
+    При противоречиях приоритет: раздел 2 (ограничения хостинга) → раздел 3 (стек) → остальные разделы.
+  </div>
+</header>
+
+<!-- ============================================================ 1 -->
+<section id="s1">
+<h2>1. Общие сведения</h2>
+
+<h3>1.1 Назначение</h3>
+<p>Универсальный интернет-магазин для продажи любых товаров. Владелец сам наполняет каталог: загружает категории и товары из Excel, управляет фотографиями, описаниями, ценами, главной страницей и тем, как покупатель приобретает товар — через корзину с оформлением заказа или через заявку на резервирование.</p>
+
+<h3>1.2 Цели</h3>
+<ul>
+  <li>Запуск магазина без программиста: все настройки контента, цен и режимов продаж — в админ-панели.</li>
+  <li>Быстрое наполнение каталога: импорт тысяч товаров из Excel за минуты, повторный импорт обновляет данные по артикулу.</li>
+  <li>Минимальная стоимость владения: работа на самом дешёвом виртуальном хостинге Beget без VPS и платных дополнений.</li>
+  <li>Простая поддержка: стандартный стек, тесты, автоматический деплой из GitHub.</li>
+</ul>
+
+<h3>1.3 Роли пользователей</h3>
+<div class="tbl"><table>
+<tr><th>Роль</th><th>Кто это</th><th>Что делает</th></tr>
+<tr><td>Гость / покупатель</td><td>Любой посетитель сайта, без регистрации</td><td>Смотрит каталог, ищет, кладёт в корзину, оформляет заказ, отправляет заявку на резерв или запрос</td></tr>
+<tr><td>Менеджер</td><td>Сотрудник магазина</td><td>Обрабатывает заказы и заявки, ведёт товары и контент, запускает импорт</td></tr>
+<tr><td>Администратор</td><td>Владелец</td><td>Всё, что менеджер, плюс настройки магазина, правила цен, пользователи админки</td></tr>
+</table></div>
+<p>Точная матрица прав — в <a href="#s6-13">6.13</a>.</p>
+
+<h3>1.4 Термины</h3>
+<div class="tbl"><table>
+<tr><th>Термин</th><th>Значение</th></tr>
+<tr><td>Базовая цена</td><td>Цена товара из Excel или введённая вручную, до применения правил.</td></tr>
+<tr><td>Итоговая цена</td><td>Цена на витрине после правил ценообразования и округления. Хранится денормализованно в <code>products.final_price</code>.</td></tr>
+<tr><td>Режим продаж</td><td>Способ покупки товара: корзина, резерв, оба, заявка-запрос, только витрина (<a href="#s5-6">5.6</a>).</td></tr>
+<tr><td>Резерв</td><td>Заявка покупателя «отложить товар» на заданный срок; товар временно исключается из доступного остатка.</td></tr>
+<tr><td>Заявка-запрос</td><td>Обращение «узнать цену/наличие» без резервирования остатка.</td></tr>
+<tr><td>Обращение</td><td>Общее название для заказа, резерва и заявки-запроса (одна таблица <code>orders</code> с полем <code>type</code>).</td></tr>
+<tr><td>Доступный остаток</td><td><code>stock_qty − reserved_qty</code>.</td></tr>
+</table></div>
+
+<h3>1.5 Границы MVP</h3>
+<div class="tbl"><table>
+<tr><th>Входит в MVP</th><th>Не входит (Позже)</th></tr>
+<tr><td>
+<ul>
+<li>Каталог с вложенными категориями, поиск, фильтры по цене/наличию/бренду/меткам</li>
+<li>Карточка товара с галереей, описанием, характеристиками</li>
+<li>Режимы продаж с наследованием: товар → категория → магазин</li>
+<li>Корзина гостя, оформление заказа, способы доставки и оплаты (без онлайн-оплаты)</li>
+<li>Резервирование с автоматическим снятием по истечении срока</li>
+<li>Заявки-запросы</li>
+<li>Импорт/экспорт Excel (.xlsx, .csv), фото по URL или из ZIP</li>
+<li>Гибкое ценообразование: правила наценок/скидок, приоритеты, сроки, округление</li>
+<li>Конструктор главной страницы, страницы, меню, настройки оформления</li>
+<li>Уведомления: email и Telegram</li>
+<li>SEO: ЧПУ, мета-теги, sitemap, schema.org</li>
+<li>Деплой на Beget через GitHub Actions</li>
+</ul>
+</td><td>
+<ul>
+<li>Онлайн-оплата (ЮKassa и т. п.) и онлайн-касса</li>
+<li>Личный кабинет покупателя, регистрация, история заказов</li>
+<li>Модификации товара (размер/цвет как варианты одной карточки)</li>
+<li>Фильтры по произвольным характеристикам</li>
+<li>Оптовые цены от количества, цены для групп покупателей</li>
+<li>Промокоды</li>
+<li>Резерв нескольких товаров одной заявкой</li>
+<li>Редактирование состава заказа в админке</li>
+<li>Интеграции с 1С, маркетплейсами, службами доставки</li>
+<li>Мультиязычность, мультивалютность</li>
+<li>Картинки, встроенные внутрь Excel-файла</li>
+</ul>
+</td></tr>
+</table></div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section id="s2">
+<h2>2. Ограничения среды: виртуальный хостинг Beget</h2>
+<p>Целевое размещение — самый дешёвый тариф виртуального хостинга Beget (Blog; при большом каталоге с фото — Start). Всё, что не работает на таком хостинге, не используется. Эти ограничения имеют наивысший приоритет.</p>
+<div class="tbl"><table>
+<tr><th>Параметр</th><th>Как на Beget</th><th>Следствие для проекта</th></tr>
+<tr><td>Тип хостинга</td><td>Виртуальный (shared), без root</td><td>Нет демонов, Supervisor, Docker, WebSocket-серверов, Octane.</td></tr>
+<tr><td>PHP</td><td>8.3 (версия выбирается для сайта в панели; CLI: <code>/usr/local/php/cgi/8.3/bin/php</code>)</td><td>Минимум PHP 8.3. Совместимость с 8.4/8.5 желательна.</td></tr>
+<tr><td>СУБД</td><td>MySQL 8.0; на части старых серверов 5.7 (обновляется до 8.0 по кнопке в разделе «MySQL» панели). Пользователь БД = имя БД, хост <code>localhost</code></td><td>Целевая MySQL 8.0. Не использовать CTE и оконные функции, чтобы код работал и на 5.7. Кодировка <code>utf8mb4</code>.</td></tr>
+<tr><td>Корень сайта</td><td>Веб-сервер отдаёт каталог <code>public_html</code> внутри каталога сайта</td><td>Корень Laravel = каталог сайта; <code>public_html</code> — симлинк на <code>public</code>.</td></tr>
+<tr><td>Фоновые процессы</td><td>Только CronTab из панели, шаг 1 минута</td><td>Очередь — драйвер <code>database</code>, обработка через <code>schedule:run</code>. Каждая задача короткая (≤ 50 c), тяжёлое — пачками.</td></tr>
+<tr><td>Redis / Memcached</td><td>Только платно</td><td>Не используем. <code>CACHE_STORE=file</code> (или database), <code>SESSION_DRIVER=file</code>, <code>QUEUE_CONNECTION=database</code>.</td></tr>
+<tr><td>Node.js</td><td>Не используем на сервере</td><td>Vite-сборка фронтенда в GitHub Actions, готовые файлы <code>public/build</code> едут в релиз.</td></tr>
+<tr><td>Composer</td><td>Ставится локально в аккаунт (<code>~/.local/bin/composer</code>)</td><td><code>vendor/</code> собирается в CI; на сервере composer не обязателен.</td></tr>
+<tr><td>Диск</td><td>Blog — 12 ГБ NVMe, Start — 35 ГБ</td><td>Фото пережимаются в WebP ≤ 1600 px, исходники не хранятся. Бюджет: ~3 000 товаров × 4 фото на Blog.</td></tr>
+<tr><td>Ограничения загрузки</td><td><code>upload_max_filesize</code>/<code>post_max_size</code> хостинга</td><td>Предусмотреть загрузку больших ZIP с фото по SFTP в служебный каталог (<a href="#s6-10">6.10</a>).</td></tr>
+<tr><td>SSL</td><td>Let's Encrypt бесплатно из панели</td><td>Принудительный HTTPS, <code>APP_URL=https://…</code>.</td></tr>
+<tr><td>Почта</td><td>Почтовый сервер включён в тариф</td><td>Уведомления через SMTP ящика на домене.</td></tr>
+<tr><td>SSH / SFTP</td><td>Есть на всех тарифах</td><td>Деплой из GitHub Actions по SSH-ключу.</td></tr>
+</table></div>
+<div class="callout warn"><b class="lbl">Запрещено</b>
+Redis, Horizon, Octane, Reverb/Pusher/WebSockets, Docker в продакшене, Node.js-процессы на сервере, SPA/Inertia для витрины, Elasticsearch/Meilisearch/Typesense, платные SaaS-зависимости, пакеты без поддержки PHP 8.3.
+</div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section id="s3">
+<h2>3. Технологический стек</h2>
+<div class="tbl"><table>
+<tr><th>Слой</th><th>Выбор</th><th>Почему</th></tr>
+<tr><td>Язык</td><td>PHP 8.3</td><td>Нативная среда Beget, без VPS. Этот же PHP 8.3 с Composer есть в облачной среде Claude Code.</td></tr>
+<tr><td>Фреймворк</td><td>Laravel 13.x</td><td>Зрелая экосистема, очереди на БД, планировщик через cron. <b>Резерв:</b> если ключевой пакет не поддерживает 13.x — Laravel 12.x, решение записать в <code>docs/DECISIONS.md</code>.</td></tr>
+<tr><td>Админ-панель</td><td>Filament 5.x (Livewire 4)</td><td>Готовые CRUD, формы, таблицы, фильтры, массовые действия, конструктор блоков, русская локализация. <b>Резерв:</b> Filament 4.x.</td></tr>
+<tr><td>Витрина</td><td>Blade + Tailwind CSS 4 + Alpine.js, Livewire 4 для корзины и форм</td><td>Серверный рендеринг — SEO и скорость на shared-хостинге, без SPA.</td></tr>
+<tr><td>Сборка фронтенда</td><td>Vite (в CI)</td><td>Стандарт Laravel.</td></tr>
+<tr><td>БД</td><td>MySQL 8.0 (прод), SQLite in-memory (тесты)</td><td>Миграции должны проходить на обеих.</td></tr>
+<tr><td>Excel</td><td><code>spatie/simple-excel</code> (OpenSpout)</td><td>Потоковое чтение и запись .xlsx/.csv с малым расходом памяти.</td></tr>
+<tr><td>Изображения</td><td><code>intervention/image</code> 3.x, драйвер GD</td><td>Ресайз и WebP без Imagick. Если GD без WebP — сохранять JPEG.</td></tr>
+<tr><td>Настройки</td><td><code>spatie/laravel-settings</code> + <code>filament/spatie-laravel-settings-plugin</code></td><td>Типизированные группы настроек со страницами в админке.</td></tr>
+<tr><td>Тесты</td><td>Pest</td><td>Короткие читаемые тесты, поддержка тестов Livewire/Filament.</td></tr>
+<tr><td>Качество кода</td><td>Laravel Pint, Larastan (уровень 5)</td><td>Единый стиль и статический анализ в CI.</td></tr>
+<tr><td>CI/CD</td><td>GitHub Actions</td><td>Тесты на каждый push, деплой на Beget по кнопке.</td></tr>
+</table></div>
+<p>Добавлять другие пакеты можно, только если без них задача не решается разумно; каждое добавление — с обоснованием в <code>docs/DECISIONS.md</code>.</p>
+
+<h3>3.1 Структура проекта</h3>
+<pre><code>app/
+  Enums/            SalesMode, OrderType, OrderStatus, PriceRuleAction, PriceRuleScope, RoundingStep …
+  Models/
+  Services/
+    Pricing/        PriceCalculator, PriceExplanation, Rounding
+    Sales/          SalesModeResolver, AvailabilityService
+    Cart/           CartService
+    Orders/         OrderService, OrderNumberGenerator, StatusTransitions
+    Stock/          StockService
+    Import/         ImportReader, ColumnMapper, RowValidator, RowImporter, ImageFetcher
+    Export/         CatalogExporter, OrdersExporter
+    Media/          ImageProcessor
+    Notifications/  TelegramNotifier
+  Jobs/             ProcessImportChunk, RecalculatePrices, ExpireReservations, SendOrderNotifications
+  Settings/         GeneralSettings, AppearanceSettings, SalesSettings, PricingSettings,
+                    NotificationSettings, SeoSettings, LegalSettings, HomePageSettings
+  Filament/         Resources/, Pages/, Widgets/
+  Http/Controllers/Storefront/
+  Livewire/         AddToCart, MiniCart, CartPage, CheckoutForm, ReservationForm, InquiryForm
+  Console/Commands/
+resources/views/storefront/
+docs/               TZ.html, PROGRESS.md, DECISIONS.md, DEPLOY_BEGET.md
+examples/           import-template.xlsx, import-demo.xlsx
+.github/workflows/  ci.yml, deploy.yml</code></pre>
+</section>
+
+<!-- ============================================================ 4 -->
+<section id="s4">
+<h2>4. Архитектура</h2>
+<div class="arch">
+  <div class="box"><h5>Браузер</h5><ul><li>Витрина (Blade + Alpine/Livewire)</li><li>Админка <code>/admin</code> (Filament)</li></ul></div>
+  <div class="box"><h5>Laravel-приложение</h5><ul><li>Контроллеры витрины</li><li>Filament-ресурсы</li><li>Доменные сервисы (цены, режимы, остатки, заказы, импорт)</li></ul></div>
+  <div class="box"><h5>Хранилище</h5><ul><li>MySQL: каталог, обращения, настройки, очередь, кэш при необходимости</li><li>Диск: <code>storage/app/public</code> — фото</li></ul></div>
+  <div class="box"><h5>Фон (cron, раз в минуту)</h5><ul><li><code>schedule:run</code></li><li>→ <code>queue:work --stop-when-empty --max-time=50</code></li><li>Импорт, пересчёт цен, уведомления, снятие резервов</li></ul></div>
+  <div class="box"><h5>Внешние сервисы</h5><ul><li>SMTP (почта Beget)</li><li>Telegram Bot API</li><li>URL фотографий при импорте</li></ul></div>
+</div>
+<h4>Ключевые принципы</h4>
+<ul>
+  <li><b>Бизнес-логика — в сервисах</b>, а не в Filament-ресурсах и контроллерах: <code>PriceCalculator</code>, <code>SalesModeResolver</code>, <code>StockService</code>, <code>OrderService</code>, <code>RowImporter</code>. Это нужно для тестов и повторного использования (витрина, админка, импорт).</li>
+  <li><b>Итоговая цена денормализована</b> в <code>products.final_price</code> и <code>products.display_old_price</code> — сортировка и фильтры по цене без вычислений в запросе.</li>
+  <li><b>Все длительные операции — пачками</b> через очередь, с резервным запуском из браузера, если cron не настроен (<a href="#s6-10">6.10</a>).</li>
+  <li><b>Изменение остатков — только через <code>StockService</code></b> в транзакции с блокировкой строки (<code>lockForUpdate</code>).</li>
+  <li><b>Цены в заказе фиксируются снимком</b> (название, артикул, цена) — изменение товара не меняет старые заказы.</li>
+  <li><b>Деньги</b> — <code>DECIMAL(12,2)</code>, расчёты через целые копейки или <code>bcmath</code>, без float.</li>
+</ul>
+</section>
+
+<!-- ============================================================ 5 -->
+<section id="s5">
+<h2>5. Функциональные требования: витрина</h2>
+
+<h3 id="s5-1">5.1 Общие элементы</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">SF-01</td><td>Шапка: логотип, название магазина (из настроек), строка поиска, телефон, иконка корзины со счётчиком (если в магазине включён хотя бы один товар/категория/режим с корзиной), меню категорий (выпадающее, 2 уровня).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-02</td><td>Подвал: меню подвала, контакты, режим работы, соцсети, реквизиты продавца, ссылки на политику и согласие на обработку ПДн.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-03</td><td>Мобильная версия (mobile-first): бургер-меню, нижняя панель «Каталог / Поиск / Корзина», галерея со свайпом.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-04</td><td>Оформление из настроек: основной и акцентный цвет (CSS-переменные), логотип, фавикон, число колонок в сетке товаров (3/4).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-05</td><td>Режим «Магазин закрыт»: при выключении в настройках витрина показывает сообщение (HTTP 503), админка работает. Администратор, вошедший в админку, видит витрину как обычно.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-06</td><td>Хлебные крошки на страницах каталога, товара, страниц.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-07</td><td>Страницы ошибок 404/500/503 на русском в стиле магазина.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-08</td><td>Баннер согласия на cookie (текст из настроек), запоминается в cookie на 1 год.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+</table></div>
+
+<h3 id="s5-2">5.2 Главная страница</h3>
+<p>Главная собирается из блоков, которые администратор добавляет, скрывает и переставляет в конструкторе (<a href="#s6-4">6.4</a>). Если блоков нет — показываются корневые категории и 12 последних товаров.</p>
+<div class="tbl"><table>
+<tr><th>Тип блока</th><th>Поля</th></tr>
+<tr><td>Баннер</td><td>Заголовок, подзаголовок, изображение для ПК, изображение для мобильных (необязательно), текст и ссылка кнопки</td></tr>
+<tr><td>Слайдер</td><td>Список слайдов с полями баннера, автопрокрутка вкл/выкл, интервал</td></tr>
+<tr><td>Категории</td><td>Заголовок, режим «корневые автоматически» или выбор категорий, максимум штук</td></tr>
+<tr><td>Подборка товаров</td><td>Заголовок, источник: хиты / новинки / со скидкой / из категории / выбранные вручную; лимит; сортировка; ссылка «Смотреть все»</td></tr>
+<tr><td>Текст</td><td>Заголовок, форматированный текст</td></tr>
+<tr><td>Преимущества</td><td>Список пунктов: иконка из встроенного набора (10–15 штук), заголовок, текст</td></tr>
+<tr><td>HTML</td><td>Произвольный HTML (например, карта). Редактирует только роль «Администратор».</td></tr>
+</table></div>
+<p>У каждого блока — переключатель «Показывать». Главная кэшируется на 10 минут, кэш сбрасывается при сохранении конструктора, товаров и категорий.</p>
+
+<h3 id="s5-3">5.3 Каталог и категории</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">SF-10</td><td>Страница <code>/catalog</code> — плитка корневых категорий и все товары с пагинацией.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-11</td><td>Страница категории <code>/catalog/{slug}</code>: название, описание, плитка подкатегорий, товары категории <b>и всех её подкатегорий</b>.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-12</td><td>Сортировка: по умолчанию (ручной порядок, затем новые), цена ↑, цена ↓, название, новинки.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-13</td><td>Фильтры через GET-параметры (страница остаётся индексируемой и шарится ссылкой): цена от/до, «в наличии», бренд (мультивыбор из присутствующих в выборке), метки (хит/новинка/скидка).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-14</td><td>Пагинация, размер страницы из настроек (по умолчанию 24). Канонический URL без параметров сортировки.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-15</td><td>Карточка товара в списке: главное фото (lazy-load), название, итоговая цена, старая цена и процент скидки, метки, индикатор наличия, кнопка действия согласно режиму продаж (<a href="#s5-6">5.6</a>).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-16</td><td>Неактивные товары и категории не видны на витрине и в поиске; прямой URL неактивного товара отдаёт 404.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-17</td><td>Фильтры по произвольным характеристикам.</td><td><span class="badge b-later">Позже</span></td></tr>
+</table></div>
+
+<h3 id="s5-4">5.4 Поиск</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">SF-20</td><td>Поиск по названию и артикулу: запрос нормализуется (нижний регистр, ё→е, лишние пробелы), разбивается на слова, все слова должны встречаться (<code>LIKE</code> по каждому слову). Точное совпадение артикула — первым.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-21</td><td>Подсказки при вводе (от 2 символов, до 8 товаров с фото и ценой), задержка 300 мс.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-22</td><td>Страница результатов <code>/search?q=</code> с теми же сортировками и фильтрами, что каталог; <code>noindex</code>.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+</table></div>
+
+<h3 id="s5-5">5.5 Карточка товара</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">SF-30</td><td>URL <code>/product/{slug}</code>. Галерея: главное фото, миниатюры, просмотр во весь экран, свайп на мобильных. Без фото — заглушка.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-31</td><td>Название, артикул, бренд, метки, итоговая цена, старая цена и % скидки (если есть), единица измерения.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-32</td><td>Наличие по настройке: точное количество / «В наличии» и «Нет в наличии» / «Мало» при остатке ниже порога. При выключенном учёте остатков наличие не показывается.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-33</td><td>Блок действий по режиму продаж (<a href="#s5-6">5.6</a>): выбор количества, кнопки «В корзину» / «Зарезервировать» / «Оставить заявку».</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-34</td><td>Краткое описание рядом с ценой; полное описание (HTML из редактора) и таблица характеристик во вкладках.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-35</td><td>Блок «Похожие товары» — до 8 активных товаров той же категории.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-36</td><td>Флаг «Цена по запросу»: цена скрыта, доступна только заявка-запрос, независимо от режима.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+</table></div>
+
+<h3 id="s5-6">5.6 Режимы продаж</h3>
+<p>Ключевая настраиваемая механика: администратор решает, как покупатель получает товар.</p>
+<div class="tbl"><table>
+<tr><th>Режим (<code>SalesMode</code>)</th><th>Что видит покупатель</th><th>Что создаётся</th></tr>
+<tr><td><code>cart</code> — Корзина</td><td>Кнопка «В корзину»</td><td>Заказ (<code>type=order</code>) после оформления корзины</td></tr>
+<tr><td><code>reservation</code> — Резерв</td><td>Кнопка «Зарезервировать» → форма</td><td>Резерв (<code>type=reservation</code>) на один товар</td></tr>
+<tr><td><code>both</code> — Корзина и резерв</td><td>Обе кнопки</td><td>Заказ или резерв</td></tr>
+<tr><td><code>inquiry</code> — Заявка</td><td>Кнопка «Оставить заявку» (узнать цену/наличие)</td><td>Заявка-запрос (<code>type=inquiry</code>), остаток не трогается</td></tr>
+<tr><td><code>showcase</code> — Только витрина</td><td>Цена и описание без кнопок покупки, телефон магазина</td><td>Ничего</td></tr>
+</table></div>
+
+<h4>Определение действующего режима (<code>SalesModeResolver</code>)</h4>
+<ol>
+  <li>Если у товара включён «Цена по запросу» → <code>inquiry</code>.</li>
+  <li>Если у товара задан режим (не «наследовать») → он.</li>
+  <li>Иначе ближайшая по иерархии категория (сама категория товара, затем её родители) с заданным режимом.</li>
+  <li>Иначе режим по умолчанию из настроек магазина.</li>
+</ol>
+<h4>Поправки на наличие (если учёт остатков включён)</h4>
+<ul>
+  <li>Доступный остаток &gt; 0 — режим работает как есть; количество в корзине/резерве ограничено доступным остатком.</li>
+  <li>Доступный остаток ≤ 0 и в настройках разрешено «Под заказ» — корзина работает, кнопка «Заказать (под заказ)», резерв недоступен.</li>
+  <li>Доступный остаток ≤ 0 и «Под заказ» запрещён — кнопки корзины и резерва неактивны с подписью «Нет в наличии», дополнительно доступна кнопка «Оставить заявку».</li>
+</ul>
+<p>Действующий режим вычисляется одним сервисом и используется витриной, корзиной, оформлением и админкой (колонка «Режим» в таблице товаров показывает действующий режим и источник: товар/категория/магазин).</p>
+
+<h3 id="s5-7">5.7 Корзина и оформление заказа</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">SF-40</td><td>Корзина гостя: таблицы <code>carts</code>/<code>cart_items</code>, идентификатор в cookie на 30 дней. Добавление без перезагрузки страницы, всплывающее подтверждение, обновление счётчика в шапке.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-41</td><td>В корзину попадают только товары с действующим режимом <code>cart</code> или <code>both</code> — проверка на сервере.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-42</td><td>Страница <code>/cart</code>: изменение количества, удаление, цены по текущей <code>final_price</code>. Если цена или доступность изменились с момента добавления — заметное уведомление над списком.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-43</td><td>Минимальная сумма заказа из настроек: при недоборе кнопка «Оформить» неактивна с пояснением.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-44</td><td>Оформление <code>/checkout</code>: имя*, телефон* (маска +7, нормализация к <code>+7XXXXXXXXXX</code>), email, способ получения* (из настроек), адрес* (если способ требует адрес), способ оплаты* (из настроек, информационно), комментарий, чекбокс согласия на обработку ПДн* (не отмечен по умолчанию, ссылка на документ).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-45</td><td>Стоимость доставки: фиксированная сумма способа, бесплатно от суммы «бесплатно от». Итог = товары + доставка.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-46</td><td>При отправке в одной транзакции: повторная проверка режима, цены и остатка каждой позиции; списание остатка через <code>StockService</code> (если учёт включён); создание заказа со снимком позиций; очистка корзины. Если что-то изменилось — заказ не создаётся, покупатель возвращается в корзину с объяснением.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-47</td><td>Страница «Спасибо» по адресу с UUID заказа: номер, состав, сумма, текст из настроек. Письмо покупателю, если указан email.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-48</td><td>Защита форм: honeypot-поле, минимальное время заполнения 3 c, ограничение 5 отправок в минуту с IP.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-49</td><td>Онлайн-оплата.</td><td><span class="badge b-later">Позже</span></td></tr>
+</table></div>
+
+<h3 id="s5-8">5.8 Резервирование</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">SF-50</td><td>Кнопка «Зарезервировать» открывает форму: количество (≤ доступного остатка), имя*, телефон*, email, желаемая дата забора (необязательно, не позже срока резерва), комментарий, согласие*.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-51</td><td>При отправке: резерв со статусом <code>new</code>, <code>reserved_until = now + срок резерва</code> (часы из настроек); если учёт остатков включён — <code>reserved_qty</code> товара увеличивается (товар «держится» сразу).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-52</td><td>Покупатель видит номер резерва и срок «Резерв действует до ДД.ММ ЧЧ:ММ».</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-53</td><td>Жизненный цикл и влияние на остаток — <a href="#appB">приложение B</a>. Просроченные резервы снимаются автоматически (<a href="#s8">раздел 8</a>), остаток возвращается.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-54</td><td>Резерв нескольких товаров одной заявкой.</td><td><span class="badge b-later">Позже</span></td></tr>
+</table></div>
+
+<h3 id="s5-9">5.9 Заявка-запрос</h3>
+<p><span class="rid">SF-60</span> <span class="badge b-mvp">MVP</span> Кнопка «Оставить заявку» открывает форму: имя*, телефон*, email, количество, комментарий, согласие*. Создаётся обращение <code>type=inquiry</code> с позицией товара (цена в позиции — текущая итоговая или пусто, если «Цена по запросу»). Остаток не меняется.</p>
+
+<h3 id="s5-10">5.10 Страницы, юридические требования</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">SF-70</td><td>Статические страницы <code>/page/{slug}</code>, контент из админки. При первом запуске создаются черновики: «О компании», «Доставка и оплата», «Контакты», «Политика обработки персональных данных», «Согласие на обработку персональных данных».</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-71</td><td>Согласие на обработку ПДн — отдельный документ (отдельная страница), не часть политики; ссылка на него у каждого чекбокса согласия. В каждом обращении сохраняются факт согласия, время и IP. Тексты документов готовит владелец (шаблоны — с пометкой «проверить у юриста»).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-72</td><td>Реквизиты продавца в подвале (ИП/ООО, ИНН, ОГРН) из настроек.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+</table></div>
+
+<h3 id="s5-11">5.11 SEO</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">SF-80</td><td>ЧПУ: slug из названия с транслитерацией кириллицы (<code>Str::slug($name, '-', 'ru')</code>), уникальность с суффиксом <code>-2</code>, <code>-3</code>. Slug можно править вручную. При смене slug старый адрес отдаёт 301 на новый (таблица <code>redirects</code>).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-81</td><td>Мета title/description: ручные значения или шаблоны из настроек с подстановками <code>{name}</code>, <code>{price}</code>, <code>{category}</code>, <code>{shop}</code>.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-82</td><td><code>/sitemap.xml</code> (главная, категории, товары, страницы), генерируется раз в сутки и после импорта; <code>/robots.txt</code> из настроек со ссылкой на sitemap.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-83</td><td>Open Graph и canonical на всех страницах; микроразметка schema.org <code>Product</code>/<code>Offer</code> (цена, наличие) и <code>BreadcrumbList</code> в JSON-LD.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">SF-84</td><td>Вставка кодов счётчиков (Яндекс Метрика и др.) в <code>&lt;head&gt;</code> и перед <code>&lt;/body&gt;</code>, мета-теги верификации — из настроек.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+</table></div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section id="s6">
+<h2>6. Функциональные требования: админ-панель</h2>
+
+<h3 id="s6-1">6.1 Общее</h3>
+<ul>
+  <li><span class="rid">AD-01</span> Filament-панель по адресу из <code>ADMIN_PATH</code> (по умолчанию <code>/admin</code>), интерфейс полностью на русском, формат дат <code>ДД.ММ.ГГГГ ЧЧ:ММ</code>, деньги <code>1 290 ₽</code>, часовой пояс из <code>APP_TIMEZONE</code> (по умолчанию <code>Europe/Moscow</code>).</li>
+  <li><span class="rid">AD-02</span> Вход по email и паролю, ограничение попыток входа, сброс пароля по email. Первый администратор создаётся командой <code>php artisan shop:create-admin</code>.</li>
+  <li><span class="rid">AD-03</span> Группы меню: «Продажи» (Обращения), «Каталог» (Товары, Категории, Импорт, Экспорт), «Цены» (Правила цен, История цен), «Контент» (Главная, Страницы, Меню), «Настройки» (группы настроек, Пользователи), «Система» (Состояние).</li>
+  <li><span class="rid">AD-04</span> Счётчик новых обращений на пункте меню; глобальный поиск по товарам (название, артикул) и обращениям (номер, телефон).</li>
+  <li><span class="rid">AD-05</span> Ссылка «Открыть на сайте» у товаров, категорий, страниц.</li>
+</ul>
+
+<h3 id="s6-2">6.2 Дашборд</h3>
+<ul>
+  <li><span class="rid">AD-10</span> Виджеты: новые обращения сегодня/за 7 дней по типам; резервы, истекающие в ближайшие 24 ч; товары активные / без фото / нет в наличии; график обращений по дням (30 дней); последний импорт и его статус.</li>
+  <li><span class="rid">AD-11</span> Предупреждение «Планировщик не запускался более 5 минут — проверьте cron» на основе отметки, которую каждую минуту пишет задача планировщика. Ссылка на инструкцию.</li>
+</ul>
+
+<h3 id="s6-3">6.3 Настройки магазина</h3>
+<p>Каждая группа — отдельная страница настроек (spatie/laravel-settings). Изменения применяются сразу, кэш настроек сбрасывается.</p>
+<div class="tbl"><table>
+<tr><th>Группа</th><th>Поля</th></tr>
+<tr><td>Общие</td><td>Название магазина, слоган, логотип, фавикон, телефоны, email, адрес, режим работы, ссылки на соцсети и мессенджеры, текст подвала, «Магазин открыт» + сообщение для закрытого режима</td></tr>
+<tr><td>Оформление</td><td>Основной цвет, акцентный цвет, колонок в сетке (3/4), товаров на странице, изображение-заглушка товара</td></tr>
+<tr><td>Продажи</td><td>Режим по умолчанию; учёт остатков вкл/выкл; разрешить «Под заказ»; как показывать наличие (число / есть-нет / «мало»), порог «мало»; срок резерва в часах (по умолчанию 48); минимальная сумма заказа; способы получения (повторитель: название, описание, стоимость, бесплатно от, нужен адрес, активен); способы оплаты (повторитель: название, описание, активен); префиксы номеров обращений (по умолчанию <code>Z</code>, <code>R</code>, <code>Q</code>); текст страницы «Спасибо» для каждого типа</td></tr>
+<tr><td>Цены</td><td>Шаг округления (нет / 1 / 10 / 50 / 100 ₽), направление (вверх / к ближайшему / вниз), «психологическая цена» (−1 ₽ от округлённой), применять округление: только к ценам, изменённым правилами / ко всем; показывать старую цену и % скидки</td></tr>
+<tr><td>Уведомления</td><td>Email-адреса для уведомлений; Telegram: токен бота, chat_id, кнопка «Отправить тестовое сообщение»; переключатели событий (<a href="#s9">раздел 9</a>)</td></tr>
+<tr><td>SEO и счётчики</td><td>Шаблоны title/description для товаров и категорий, title и description главной, robots.txt, код в head, код перед &lt;/body&gt;, мета-теги верификации, OG-картинка по умолчанию</td></tr>
+<tr><td>Юридическое</td><td>Реквизиты продавца, текст чекбокса согласия, текст cookie-баннера, страницы политики и согласия (выбор из страниц)</td></tr>
+</table></div>
+
+<h3 id="s6-4">6.4 Конструктор главной страницы</h3>
+<p><span class="rid">AD-20</span> <span class="badge b-mvp">MVP</span> Отдельная страница «Главная» с полем Filament <code>Builder</code>: добавление блоков из <a href="#s5-2">5.2</a>, перетаскивание, сворачивание, переключатель видимости, кнопка «Предпросмотр» (открывает главную в новой вкладке). Данные хранятся в группе настроек <code>HomePageSettings</code> (JSON).</p>
+
+<h3 id="s6-5">6.5 Категории</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">AD-30</td><td>Список в виде дерева (отступ по глубине, путь «Родитель / Дочерняя»), число товаров (с учётом подкатегорий), фильтр по родителю, изменение порядка перетаскиванием внутри одного родителя. Глубина — до 4 уровней.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">AD-31</td><td>Поля: название, slug, родитель, описание (редактор), изображение, активна, режим продаж (наследовать / один из режимов), SEO title/description, порядок.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">AD-32</td><td>Нельзя выбрать родителем саму категорию или её потомка. При смене родителя пересчитывается материализованный путь у всех потомков.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">AD-33</td><td>Удаление: если есть товары или подкатегории — диалог «перенести в родительскую категорию и удалить» или отмена.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+</table></div>
+
+<h3 id="s6-6">6.6 Товары</h3>
+<h4>Форма товара (вкладки)</h4>
+<div class="tbl"><table>
+<tr><th>Вкладка</th><th>Поля</th></tr>
+<tr><td>Основное</td><td>Название*, артикул* (уникален), slug, категория*, бренд, активен, метки «Хит» и «Новинка», порядок сортировки</td></tr>
+<tr><td>Цена</td><td>Базовая цена*, закупочная цена, старая цена (вручную), фиксированная цена (если задана — правила не применяются), «Цена по запросу». Справа — блок <b>«Итоговая цена»</b>: итог, старая цена для показа и список применённых правил с промежуточными значениями (<a href="#s6-8">6.8</a>)</td></tr>
+<tr><td>Склад</td><td>Остаток (пусто = не учитывать для этого товара), зарезервировано (только чтение), доступно (только чтение), единица измерения (шт по умолчанию)</td></tr>
+<tr><td>Продажа</td><td>Режим продаж (наследовать / …) и подсказка «Действует: Резерв (из категории “Мебель”)»</td></tr>
+<tr><td>Описание</td><td>Краткое описание (текст до 500 символов), полное описание (RichEditor)</td></tr>
+<tr><td>Характеристики</td><td>Пары «название — значение» (KeyValue), порядок сохраняется</td></tr>
+<tr><td>Фото</td><td>Множественная загрузка, перетаскивание порядка, первое — главное, alt-текст (<a href="#s6-7">6.7</a>)</td></tr>
+<tr><td>SEO</td><td>Meta title, meta description, предпросмотр сниппета</td></tr>
+</table></div>
+<h4>Таблица товаров</h4>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">AD-40</td><td>Колонки: миниатюра, название, артикул, категория, итоговая цена (под ней — базовая, если отличается), доступно/остаток, действующий режим, активен (переключатель прямо в таблице), обновлён. Поиск по названию и артикулу.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">AD-41</td><td>Фильтры: категория (включая подкатегории), активность, наличие (есть / нет / не учитывается), режим, метки, без фото, есть скидка, цена от/до, бренд.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">AD-42</td><td>Массовые действия: активировать / скрыть; перенести в категорию; задать режим продаж; задать/снять метки; <b>изменить базовую цену</b> на ±X % или ±N ₽ с предпросмотром «было/станет» по первым 20 товарам и подтверждением; экспорт выбранных в Excel; удалить (мягкое удаление).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">AD-43</td><td>Действие «Дублировать» (копия с артикулом <code>{sku}-copy</code>, неактивна, фото копируются).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">AD-44</td><td>Корзина удалённых: просмотр и восстановление мягко удалённых товаров; окончательное удаление удаляет файлы фото.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+</table></div>
+
+<h3 id="s6-7">6.7 Фотографии товаров</h3>
+<ul>
+  <li><span class="rid">AD-50</span> Форматы JPG, PNG, WEBP, GIF (без анимации); SVG запрещён. До 15 фото на товар, до 10 МБ каждое (не больше лимита хостинга — показывать фактический лимит в подсказке).</li>
+  <li><span class="rid">AD-51</span> Обработка при сохранении: поворот по EXIF, уменьшение до 1600 px по длинной стороне, WebP качества 80 (JPEG 85, если GD без WebP); варианты 800 px и 400 px. Исходник не хранится. Пути: <code>products/{product_id}/{uuid}-{1600|800|400}.webp</code> на диске <code>public</code>.</li>
+  <li><span class="rid">AD-52</span> Alt по умолчанию = название товара. Удаление фото удаляет все его файлы.</li>
+  <li><span class="rid">AD-53</span> Если обработка падает (битый файл, нехватка памяти) — понятная ошибка у конкретного файла, остальные фото сохраняются.</li>
+</ul>
+
+<h3 id="s6-8">6.8 Ценообразование</h3>
+<p>Цель — гибко управлять ценами без правки каждого товара: наценки от закупки, наценки и скидки на категории, бренды, отдельные товары, временные акции, округление.</p>
+
+<h4>Правило цены (<code>price_rules</code>)</h4>
+<div class="tbl"><table>
+<tr><th>Поле</th><th>Значение</th></tr>
+<tr><td>Название, активно</td><td>Для списка и объяснения цены</td></tr>
+<tr><td>Действие</td><td><code>markup_percent</code> — наценка %; <code>markup_fixed</code> — наценка ₽; <code>cost_markup_percent</code> — цена = закупочная × (1 + X %) (товары без закупочной цены пропускаются); <code>discount_percent</code> — скидка %; <code>discount_fixed</code> — скидка ₽</td></tr>
+<tr><td>Значение</td><td>Число &gt; 0</td></tr>
+<tr><td>Область</td><td><code>all</code> — все товары; <code>categories</code> — выбранные категории (флаг «включая подкатегории», по умолчанию вкл); <code>products</code> — выбранные товары; <code>brands</code> — выбранные бренды; <code>flags</code> — товары с метками (хит/новинка)</td></tr>
+<tr><td>Приоритет</td><td>Целое число, больше — раньше</td></tr>
+<tr><td>Период</td><td>Действует с / по (дата и время), необязательно</td></tr>
+<tr><td>Показывать как скидку</td><td>Только для скидок: показывать зачёркнутую старую цену</td></tr>
+<tr><td>Остановить обработку</td><td>После этого правила другие правила той же фазы не применяются</td></tr>
+</table></div>
+
+<h4>Алгоритм расчёта (<code>PriceCalculator</code>)</h4>
+<pre><code>if product.fixed_price is not null:
+    final = fixed_price
+    old   = compare_at_price if compare_at_price > final else null
+    return
+
+price = base_price
+rules = active rules matching product and current datetime
+
+# Фаза 1 — наценки (markup_percent, markup_fixed, cost_markup_percent)
+for rule in rules where phase = markup, order by priority desc, id asc:
+    price = apply(rule, price)          # cost_markup_percent: price = cost_price * (1 + v/100)
+    if rule.stop_processing: break
+price_before_discounts = price
+
+# Фаза 2 — скидки (discount_percent, discount_fixed)
+for rule in rules where phase = discount, order by priority desc, id asc:
+    price = apply(rule, price)
+    if rule.stop_processing: break
+
+price = max(price, 0)
+if rounding applies (any rule applied, or setting "ко всем"):
+    price = round(price, step, direction); if psychological and step >= 10: price -= 1
+
+final = price
+old   = max(compare_at_price, price_before_discounts if a "show as discount" rule applied)
+old   = old if old > final else null</code></pre>
+<ul>
+  <li><span class="rid">PR-01</span> <span class="badge b-mvp">MVP</span> Расчёт — чистая функция без обращений к БД внутри цикла (правила загружаются один раз и кэшируются), покрыта модульными тестами на все ветки.</li>
+  <li><span class="rid">PR-02</span> <span class="badge b-mvp">MVP</span> Результат сохраняется в <code>final_price</code> и <code>display_old_price</code>. Пересчёт: при сохранении товара; после импорта по затронутым товарам; при сохранении/удалении/включении правила — фоновой задачей по затронутым товарам пачками по 500; каждые 15 минут — по товарам правил, у которых наступило начало или конец периода; ночью — полный пересчёт.</li>
+  <li><span class="rid">PR-03</span> <span class="badge b-mvp">MVP</span> Объяснение цены (<code>PriceExplanation</code>): список шагов «База 1 000 ₽ → Наценка “Электроника +20 %” → 1 200 ₽ → Акция “Чёрная пятница −10 %” → 1 080 ₽ → Округление до 10 вверх → 1 080 ₽». Показывается в форме товара.</li>
+  <li><span class="rid">PR-04</span> <span class="badge b-mvp">MVP</span> В форме правила — «Предпросмотр»: число затронутых товаров и таблица первых 20 с ценой до/после.</li>
+  <li><span class="rid">PR-05</span> <span class="badge b-mvp">MVP</span> Пока идёт пересчёт после изменения правила — баннер в админке «Пересчёт цен: N из M».</li>
+  <li><span class="rid">PR-06</span> <span class="badge b-mvp">MVP</span> История цен: изменения базовой, закупочной, фиксированной и старой цены (источник: вручную / импорт / массовое действие, пользователь, время). Изменения итоговой цены от правил в историю не пишутся.</li>
+  <li><span class="rid">PR-07</span> <span class="badge b-mvp">MVP</span> Цена в корзине и заказе всегда берётся из <code>final_price</code> на момент действия; при оформлении сравнивается с ценой в корзине (<a href="#s5-7">SF-46</a>).</li>
+  <li><span class="rid">PR-08</span> <span class="badge b-later">Позже</span> Цены от количества, цены для групп покупателей, промокоды.</li>
+</ul>
+
+<h3 id="s6-9">6.9 Обращения: заказы, резервы, заявки</h3>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">OR-01</td><td>Один ресурс «Обращения» с вкладками: Все / Заказы / Резервы / Заявки, на вкладках — счётчики новых. Колонки: номер, тип, статус (цветной бейдж), клиент, телефон, сумма, позиций, создано, «резерв до» (для резервов, красным если &lt; 6 ч).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">OR-02</td><td>Фильтры: тип, статус, период, способ получения; поиск по номеру, телефону, имени, email.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">OR-03</td><td>Карточка: данные клиента (телефон — ссылка <code>tel:</code>, ссылки на WhatsApp/Telegram по номеру), позиции со снимком цены и ссылкой на товар, доставка, итог, комментарий клиента, внутренний комментарий менеджера, история статусов, отметка о согласии на ПДн.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">OR-04</td><td>Смена статуса только по разрешённым переходам (<a href="#appB">приложение B</a>), с необязательным комментарием; влияние на остатки — через <code>StockService</code>.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">OR-05</td><td>Резерв: действие «Продлить» на N часов (по умолчанию — срок из настроек).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">OR-06</td><td>Версия для печати (бланк заказа), экспорт в Excel по текущим фильтрам.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">OR-07</td><td>Удалять обращения может только Администратор; менеджер может только отменять.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">OR-08</td><td>Редактирование состава заказа.</td><td><span class="badge b-later">Позже</span></td></tr>
+</table></div>
+
+<h3 id="s6-10">6.10 Импорт из Excel</h3>
+<p>Главный способ наполнения каталога. Формат файла — <a href="#appA">приложение A</a>.</p>
+<h4>Сценарий</h4>
+<div class="flow"><span>1. Загрузка файла (+ ZIP с фото)</span><i>→</i><span>2. Сопоставление колонок</span><i>→</i><span>3. Проверка и предпросмотр</span><i>→</i><span>4. Обработка пачками</span><i>→</i><span>5. Отчёт</span></div>
+<div class="tbl"><table>
+<tr><th>ID</th><th>Требование</th><th>Приоритет</th></tr>
+<tr><td class="rid">IM-01</td><td>Загрузка .xlsx или .csv (UTF-8 и Windows-1251 с автоопределением, разделитель <code>;</code> или <code>,</code>). Выбор листа, если листов несколько. Кнопка «Скачать шаблон» (генерируется кодом, лежит также в <code>examples/import-template.xlsx</code>).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-02</td><td>Фото к импорту: (а) ссылки http/https в колонке «Фото»; (б) имена файлов в колонке «Фото» + ZIP-архив, загруженный в форме; (в) имена файлов + архив или папка, заранее загруженные по SFTP в <code>storage/app/import-media/</code> — выбор из списка. Вариант (в) нужен для больших архивов, которые не проходят по лимиту загрузки хостинга.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-03</td><td>Автосопоставление колонок по заголовкам без учёта регистра и пробелов, по синонимам (<a href="#appA">приложение A</a>). Колонки вида <code>Х: Цвет</code> или <code>Характеристика: Цвет</code> становятся характеристиками. Пользователь может переназначить или игнорировать любую колонку. Последнее сопоставление запоминается.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-04</td><td>Режим импорта: <b>Создать и обновить</b> (по артикулу); <b>Только обновить цены и остатки</b> (новые артикулы пропускаются); <b>Полная синхронизация</b> (как первый + товары, которых нет в файле, становятся неактивными — с явным подтверждением и числом затрагиваемых товаров).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-05</td><td>Опции: создавать отсутствующие категории (вкл); разделитель пути категорий (по умолчанию <code>/</code>, варианты <code>&gt;</code>, <code>|</code>); пустая ячейка у существующего товара — «не менять» (по умолчанию) или «очистить»; фото — «заменить, если в ячейке есть фото» (по умолчанию) / «добавить к существующим» / «не трогать»; «пробный прогон» без записи.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-06</td><td>Предпросмотр: первые 20 строк в виде таблицы после сопоставления, ошибки подсвечены; сводка «будет создано / обновлено / пропущено / с ошибками» по всему файлу (проверка без записи).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-07</td><td>Проверки строки: артикул обязателен; название обязательно для новых; цена — число ≥ 0 (понимать «1 290,50», «1290.5», «1 290 ₽»); остаток — целое ≥ 0; булевы — да/нет/1/0/true/false/+/−; повтор артикула в файле — ошибка для второй и следующих строк; длины полей. Ошибочная строка пропускается, остальные импортируются.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-08</td><td>Категории: путь «Электроника / Телефоны / Смартфоны» создаёт недостающие уровни; сопоставление по названию внутри родителя без учёта регистра. Необязательный лист «Категории» (путь, описание, порядок, активна, режим продаж, фото) обрабатывается первым.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-09</td><td>Обработка пачками по 200 строк задачами очереди; каждая пачка — отдельная транзакция; прогресс на странице (опрос раз в 2 с). Повторный запуск того же файла безопасен (идемпотентность по артикулу).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-10</td><td><b>Резервный режим без cron:</b> если очередь не обработала первую пачку за 60 с, на странице появляется кнопка «Обработать из браузера» — страница последовательно вызывает обработку пачек AJAX-запросами (каждый ≤ 20 с), пока вкладка открыта.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-11</td><td>Загрузка фото по URL: таймаут 15 с, до 10 МБ, только <code>image/*</code>, запрет приватных и локальных IP (защита от SSRF), одна повторная попытка. Ошибка фото — предупреждение в отчёте, товар всё равно импортируется. Одинаковый URL у нескольких товаров скачивается один раз за импорт.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-12</td><td>Отчёт: создано / обновлено / пропущено / ошибок / предупреждений, время; таблица ошибок (строка, колонка, сообщение, значение); скачивание исходного файла с добавленной колонкой «Ошибка» для исправления и повторной загрузки.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-13</td><td>Журнал импортов: дата, пользователь, файл, режим, статус, итоги; файлы импорта хранятся 30 дней.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-14</td><td>После импорта — пересчёт цен затронутых товаров, сброс кэшей витрины, перегенерация sitemap.</td><td><span class="badge b-mvp">MVP</span></td></tr>
+<tr><td class="rid">IM-15</td><td>Производительность: 10 000 строк без фото — не дольше 10 минут на Beget; память процесса ≤ 128 МБ (потоковое чтение).</td><td><span class="badge b-mvp">MVP</span></td></tr>
+</table></div>
+
+<h3 id="s6-11">6.11 Экспорт</h3>
+<ul>
+  <li><span class="rid">EX-01</span> <span class="badge b-mvp">MVP</span> Экспорт каталога в .xlsx <b>в формате шаблона импорта</b> (с фильтром по категории и активности) — чтобы владелец мог выгрузить, поправить в Excel и загрузить обратно. Фото выгружаются полными URL.</li>
+  <li><span class="rid">EX-02</span> <span class="badge b-mvp">MVP</span> Экспорт обращений по текущим фильтрам (одна строка на позицию).</li>
+  <li><span class="rid">EX-03</span> <span class="badge b-mvp">MVP</span> Большие экспорты (&gt; 2 000 строк) формируются фоном, файл доступен для скачивания в журнале 7 дней.</li>
+</ul>
+
+<h3 id="s6-12">6.12 Страницы и меню</h3>
+<ul>
+  <li><span class="rid">AD-60</span> <span class="badge b-mvp">MVP</span> Страницы: заголовок, slug, содержимое (RichEditor), активна, SEO.</li>
+  <li><span class="rid">AD-61</span> <span class="badge b-mvp">MVP</span> Меню шапки и подвала: пункты с типом ссылки (категория / страница / произвольный URL), подпись, порядок перетаскиванием, активность. Если меню шапки пусто — показываются корневые категории.</li>
+</ul>
+
+<h3 id="s6-13">6.13 Пользователи и роли</h3>
+<p>Роль — поле <code>users.role</code> (<code>admin</code>, <code>manager</code>), права через политики Laravel. Без отдельного пакета ролей.</p>
+<div class="tbl"><table>
+<tr><th>Раздел</th><th>Администратор</th><th>Менеджер</th></tr>
+<tr><td>Обращения: просмотр, смена статуса, продление, экспорт</td><td>✓</td><td>✓</td></tr>
+<tr><td>Обращения: удаление</td><td>✓</td><td>—</td></tr>
+<tr><td>Товары, категории, фото, массовые действия (кроме цен)</td><td>✓</td><td>✓</td></tr>
+<tr><td>Массовое изменение цен</td><td>✓</td><td>—</td></tr>
+<tr><td>Правила цен</td><td>✓</td><td>просмотр</td></tr>
+<tr><td>Импорт и экспорт</td><td>✓</td><td>✓ (без «полной синхронизации»)</td></tr>
+<tr><td>Главная, страницы, меню</td><td>✓</td><td>✓ (без блока HTML)</td></tr>
+<tr><td>Настройки магазина, пользователи, «Система»</td><td>✓</td><td>—</td></tr>
+</table></div>
+</section>
+
+<!-- ============================================================ 7 -->
+<section id="s7">
+<h2>7. Модель данных</h2>
+<p>Все таблицы — <code>utf8mb4</code>. Денежные поля — <code>decimal(12,2)</code>. Перечисления хранятся строками (<code>varchar</code>) и описаны PHP-enum. Внешние ключи обязательны. Поля ниже — минимальный состав; исполнитель может добавлять технические поля.</p>
+
+<h4>categories</h4>
+<div class="tbl"><table>
+<tr><th>Поле</th><th>Тип</th><th>Примечание</th></tr>
+<tr><td>parent_id</td><td>FK categories, null</td><td>restrict on delete</td></tr>
+<tr><td>name, slug</td><td>varchar</td><td>slug уникален</td></tr>
+<tr><td>description</td><td>text null</td><td>HTML</td></tr>
+<tr><td>image_path</td><td>varchar null</td><td></td></tr>
+<tr><td>is_active</td><td>bool</td><td>индекс</td></tr>
+<tr><td>sales_mode</td><td>varchar(16) null</td><td>null = наследовать</td></tr>
+<tr><td>sort_order, depth</td><td>int, tinyint</td><td></td></tr>
+<tr><td>path</td><td>varchar(255)</td><td>материализованный путь id: <code>1/5/12/</code>; выбор потомков — <code>path LIKE '1/5/%'</code>; индекс</td></tr>
+<tr><td>meta_title, meta_description</td><td>varchar null</td><td></td></tr>
+</table></div>
+
+<h4>products</h4>
+<div class="tbl"><table>
+<tr><th>Поле</th><th>Тип</th><th>Примечание</th></tr>
+<tr><td>category_id</td><td>FK categories</td><td>restrict on delete</td></tr>
+<tr><td>sku</td><td>varchar(100)</td><td>уникален, ключ импорта</td></tr>
+<tr><td>name, slug</td><td>varchar(500), varchar(255)</td><td>slug уникален</td></tr>
+<tr><td>brand</td><td>varchar(255) null</td><td>индекс; фильтр и область правил цен</td></tr>
+<tr><td>short_description, description</td><td>text null, longtext null</td><td></td></tr>
+<tr><td>attributes</td><td>json null</td><td>массив <code>[{name, value}]</code></td></tr>
+<tr><td>base_price, cost_price, compare_at_price, fixed_price</td><td>decimal(12,2)</td><td>кроме base_price — null допустим</td></tr>
+<tr><td>price_on_request</td><td>bool</td><td></td></tr>
+<tr><td>final_price, display_old_price</td><td>decimal(12,2)</td><td>результат <code>PriceCalculator</code>; индекс по final_price</td></tr>
+<tr><td>price_calculated_at</td><td>timestamp null</td><td></td></tr>
+<tr><td>stock_qty</td><td>int null</td><td>null = остаток не учитывается для товара</td></tr>
+<tr><td>reserved_qty</td><td>int, default 0</td><td>меняется только <code>StockService</code></td></tr>
+<tr><td>unit</td><td>varchar(20)</td><td>«шт» по умолчанию</td></tr>
+<tr><td>sales_mode</td><td>varchar(16) null</td><td>null = наследовать</td></tr>
+<tr><td>is_active, is_featured, is_new</td><td>bool</td><td>индексы</td></tr>
+<tr><td>search_text</td><td>varchar(1000)</td><td>нормализованные название + артикул + бренд для поиска</td></tr>
+<tr><td>sort_order, meta_title, meta_description</td><td></td><td></td></tr>
+<tr><td>deleted_at</td><td>timestamp null</td><td>мягкое удаление</td></tr>
+</table></div>
+<p>Составные индексы: <code>(category_id, is_active, sort_order)</code>, <code>(is_active, final_price)</code>.</p>
+
+<h4>Остальные таблицы</h4>
+<div class="tbl"><table>
+<tr><th>Таблица</th><th>Основные поля</th></tr>
+<tr><td>product_images</td><td>product_id (cascade), path_large, path_medium, path_small, alt, sort_order, width, height, source_hash (sha1 URL или имени файла — чтобы повторный импорт не скачивал фото заново)</td></tr>
+<tr><td>price_rules</td><td>name, is_active, action, value decimal(12,4), scope, include_subcategories, priority, starts_at, ends_at, show_as_discount, stop_processing</td></tr>
+<tr><td>price_rule_targets</td><td>price_rule_id (cascade), target_type (category / product / brand / flag), target_id null, target_value null</td></tr>
+<tr><td>price_history</td><td>product_id, field, old_value, new_value, source (manual / import / bulk), user_id null, import_id null, created_at</td></tr>
+<tr><td>carts, cart_items</td><td>carts: token (uuid, уникален), timestamps. cart_items: cart_id, product_id, qty, price_at_add; уникальность (cart_id, product_id)</td></tr>
+<tr><td>orders</td><td>uuid, number (уникален), type, status, customer_name, customer_phone (индекс), customer_email, delivery_method, delivery_address, delivery_price, payment_method, items_total, total, customer_comment, manager_comment, reserved_until (индекс), desired_date, consent_at, consent_ip, user_agent, stock_applied (bool — были ли изменены остатки), timestamps, deleted_at</td></tr>
+<tr><td>order_items</td><td>order_id (cascade), product_id (null on delete), sku, name, unit, price null, qty, total null</td></tr>
+<tr><td>order_status_history</td><td>order_id, from_status, to_status, user_id null (null — система или покупатель), comment, created_at</td></tr>
+<tr><td>order_sequences</td><td>type, last_number — нумерация по типам с блокировкой строки</td></tr>
+<tr><td>pages</td><td>title, slug, content, is_active, meta_title, meta_description</td></tr>
+<tr><td>menu_items</td><td>location (header / footer), label, link_type (category / page / url), category_id, page_id, url, sort_order, is_active</td></tr>
+<tr><td>redirects</td><td>from_path (уникален), to_path, created_at</td></tr>
+<tr><td>imports</td><td>user_id, status, mode, original_name, file_path, sheet, media_source (none / zip / server_dir), media_path, mapping json, options json, rows_total, rows_processed, created_count, updated_count, skipped_count, error_count, warning_count, started_at, finished_at, failure_message</td></tr>
+<tr><td>import_issues</td><td>import_id (cascade), row_number, column, level (error / warning), message, value</td></tr>
+<tr><td>exports</td><td>user_id, type, status, params json, file_path, rows, timestamps</td></tr>
+<tr><td>settings</td><td>таблица spatie/laravel-settings</td></tr>
+<tr><td>users</td><td>name, email, password, role (admin / manager), is_active</td></tr>
+<tr><td>Служебные</td><td>jobs, job_batches, failed_jobs, cache, cache_locks, password_reset_tokens, notifications (уведомления Filament в админке)</td></tr>
+</table></div>
+</section>
+
+<!-- ============================================================ 8 -->
+<section id="s8">
+<h2>8. Фоновые задачи и планировщик</h2>
+<p>На Beget в панели «CronTab» создаются <b>две</b> задачи, обе — каждую минуту (пути — из <code>docs/DEPLOY_BEGET.md</code>):</p>
+<pre><code>* * * * *  /usr/local/php/cgi/8.3/bin/php /home/X/LOGIN/SITE/artisan schedule:run &gt;&gt; /dev/null 2&gt;&amp;1
+* * * * *  /usr/local/php/cgi/8.3/bin/php /home/X/LOGIN/SITE/artisan queue:work --stop-when-empty --max-time=50 --tries=3 &gt;&gt; /dev/null 2&gt;&amp;1</code></pre>
+<p>Обработка очереди вынесена в отдельную строку cron, чтобы длинная пачка импорта не задерживала задачи планировщика.</p>
+<div class="tbl"><table>
+<tr><th>Команда</th><th>Расписание</th><th>Назначение</th></tr>
+<tr><td><code>shop:heartbeat</code></td><td>каждую минуту</td><td>Отметка времени для проверки cron (<a href="#s6-2">AD-11</a>)</td></tr>
+<tr><td><code>shop:expire-reservations</code></td><td>каждые 5 минут</td><td>Резервы с <code>reserved_until &lt; now</code> в статусах <code>new</code>/<code>reserved</code> → <code>expired</code>, возврат <code>reserved_qty</code>, уведомление</td></tr>
+<tr><td><code>shop:notify-expiring-reservations</code></td><td>каждый час</td><td>Уведомление о резервах, истекающих в ближайшие 6 ч (один раз на резерв)</td></tr>
+<tr><td><code>shop:recalc-prices --boundaries</code></td><td>каждые 15 минут</td><td>Пересчёт по правилам, у которых начался или закончился период</td></tr>
+<tr><td><code>shop:recalc-prices --all</code></td><td>ежедневно 03:10</td><td>Полный пересчёт итоговых цен</td></tr>
+<tr><td><code>shop:sitemap</code></td><td>ежедневно 04:20</td><td>Генерация <code>public/sitemap.xml</code></td></tr>
+<tr><td><code>shop:cleanup</code></td><td>ежедневно 04:40</td><td>Корзины старше 30 дней, файлы импортов старше 30 дней, экспорты старше 7 дней, временные загрузки Livewire, старые отметки</td></tr>
+<tr><td><code>queue:prune-failed --hours=168</code></td><td>ежедневно</td><td>Чистка упавших задач</td></tr>
+</table></div>
+<p>Все задачи идемпотентны, используют <code>withoutOverlapping()</code> и укладываются в 50 с (большие объёмы — пачками через очередь). Каждая задача очереди должна завершаться за ≤ 40 с.</p>
+<p>Дополнительные служебные команды: <code>shop:create-admin</code>, <code>shop:doctor</code> (<a href="#s12">12.4</a>), <code>shop:make-template</code> (шаблон импорта), <code>shop:demo</code> (демо-данные, только не в production без флага <code>--force</code>).</p>
+</section>
+
+<!-- ============================================================ 9 -->
+<section id="s9">
+<h2>9. Уведомления</h2>
+<div class="tbl"><table>
+<tr><th>Событие</th><th>Кому</th><th>Канал</th></tr>
+<tr><td>Новый заказ / резерв / заявка</td><td>Магазин</td><td>Email на адреса из настроек + Telegram</td></tr>
+<tr><td>Новый заказ / резерв / заявка</td><td>Покупатель, если указал email</td><td>Email с номером, составом, суммой, сроком резерва</td></tr>
+<tr><td>Статус изменён на «Подтверждён», «Готов к выдаче», «Отменён», «Резерв подтверждён»</td><td>Покупатель (переключатель в настройках)</td><td>Email</td></tr>
+<tr><td>Резерв истекает в течение 6 ч</td><td>Магазин</td><td>Telegram</td></tr>
+<tr><td>Резерв истёк автоматически</td><td>Магазин</td><td>Telegram</td></tr>
+<tr><td>Импорт завершён / завершён с ошибками / упал</td><td>Пользователь, запустивший импорт</td><td>Уведомление в админке (колокольчик Filament)</td></tr>
+</table></div>
+<ul>
+  <li><span class="rid">NT-01</span> Все уведомления отправляются через очередь (3 попытки); сбой отправки никогда не мешает созданию обращения.</li>
+  <li><span class="rid">NT-02</span> Telegram: Bot API, <code>parse_mode=HTML</code> с экранированием; сообщение — тип и номер, клиент, телефон, позиции, сумма, ссылка на обращение в админке.</li>
+  <li><span class="rid">NT-03</span> Письма — Markdown-шаблоны Laravel на русском с логотипом и названием магазина. SMTP-доступы — только в <code>.env</code>.</li>
+  <li><span class="rid">NT-04</span> Кнопка «Отправить тест» для email и Telegram на странице настроек уведомлений.</li>
+</ul>
+</section>
+
+<!-- ============================================================ 10 -->
+<section id="s10">
+<h2>10. Нефункциональные требования</h2>
+<h4>Производительность и объёмы</h4>
+<ul>
+  <li><span class="rid">NF-01</span> Расчётные объёмы: до 20 000 товаров, 300 категорий, 100 обращений в день, 50 одновременных посетителей.</li>
+  <li><span class="rid">NF-02</span> Время ответа сервера для каталога, карточки и главной при прогретом кэше — до 600 мс на Beget; не более 30 SQL-запросов на страницу; <code>Model::preventLazyLoading()</code> вне production.</li>
+  <li><span class="rid">NF-03</span> CSS + JS витрины ≤ 150 КБ в gzip; изображения с <code>width</code>/<code>height</code>, <code>loading="lazy"</code> (кроме первого экрана), <code>srcset</code> из вариантов 400/800/1600.</li>
+  <li><span class="rid">NF-04</span> Кэшируются: настройки, дерево категорий, меню, главная (10 мин), sitemap. В production — <code>php artisan optimize</code>. Заголовки долгого кэширования для <code>/build</code> и <code>/storage</code> через <code>.htaccess</code>.</li>
+  <li><span class="rid">NF-05</span> Lighthouse (мобильный) для карточки товара — Performance ≥ 80, SEO ≥ 90, Accessibility ≥ 85.</li>
+</ul>
+<h4>Безопасность</h4>
+<ul>
+  <li><span class="rid">NF-10</span> CSRF, валидация через Form Request/правила Filament, защита от массового присвоения, экранирование вывода. HTML из редактора выводится через санитайзер (<code>symfony/html-sanitizer</code> — использовать, если уже есть в зависимостях Filament, иначе добавить), кроме блока «HTML» главной, доступного только Администратору.</li>
+  <li><span class="rid">NF-11</span> Загрузки: проверка MIME и расширения, случайные имена файлов, SVG запрещён, файлы импорта — на приватном диске.</li>
+  <li><span class="rid">NF-12</span> Админка: ограничение попыток входа, пароль от 10 символов, сессия 8 ч, <code>SESSION_SECURE_COOKIE=true</code>; путь админки настраивается.</li>
+  <li><span class="rid">NF-13</span> Заголовки безопасности (middleware): <code>X-Frame-Options: SAMEORIGIN</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>.</li>
+  <li><span class="rid">NF-14</span> Секреты — только в <code>.env</code> на сервере и в GitHub Secrets. В репозитории — <code>.env.example</code> с плейсхолдерами. <code>APP_DEBUG=false</code> в production.</li>
+  <li><span class="rid">NF-15</span> Персональные данные покупателей хранятся в БД на хостинге в РФ; в логи не пишутся телефоны и email целиком.</li>
+</ul>
+<h4>Надёжность и сопровождение</h4>
+<ul>
+  <li><span class="rid">NF-20</span> Резервные копии — штатные бэкапы Beget (файлы и MySQL) + экспорт каталога в Excel. В <code>DEPLOY_BEGET.md</code> — как восстановить.</li>
+  <li><span class="rid">NF-21</span> Логи: канал <code>daily</code>, хранение 14 дней, уровень <code>warning</code> в production.</li>
+  <li><span class="rid">NF-22</span> Деплой в режиме обслуживания, миграции обратимы, задачи очереди идемпотентны.</li>
+  <li><span class="rid">NF-23</span> <span class="badge b-later">Позже</span> Отправка критических ошибок в Telegram с ограничением частоты.</li>
+</ul>
+<h4>Совместимость, доступность, язык</h4>
+<ul>
+  <li><span class="rid">NF-30</span> Браузеры: последние 2 версии Chrome, Яндекс Браузера, Safari (macOS и iOS), Firefox, Edge. Ширина экрана 360–1920 px.</li>
+  <li><span class="rid">NF-31</span> Семантическая вёрстка, alt у изображений, видимый фокус, подписи у полей форм, контраст не ниже WCAG AA, работа с клавиатуры.</li>
+  <li><span class="rid">NF-32</span> Все тексты интерфейса — через файлы перевода <code>lang/ru</code>. Код, комментарии, сообщения коммитов — на английском.</li>
+</ul>
+<h4>Качество кода</h4>
+<ul>
+  <li><span class="rid">NF-40</span> <code>declare(strict_types=1)</code>, PHP-enum для перечислений, Form Requests, сервисы с внедрением зависимостей, никакой бизнес-логики в Blade и Filament-ресурсах.</li>
+  <li><span class="rid">NF-41</span> Pint без замечаний, Larastan уровня 5 без ошибок, все тесты зелёные — обязательное условие завершения каждого этапа.</li>
+</ul>
+</section>
+
+<!-- ============================================================ 11 -->
+<section id="s11">
+<h2>11. Тестирование</h2>
+<p>Pest. Тесты — на SQLite in-memory; дополнительно в CI — прогон миграций и тестов на MySQL 8.0 (service-контейнер GitHub Actions). Обязательные наборы:</p>
+<div class="tbl"><table>
+<tr><th>Набор</th><th>Что проверить</th></tr>
+<tr><td>PriceCalculator (unit)</td><td>Без правил; каждое действие; закупочная наценка с закупочной ценой и без; порядок фаз и приоритетов; <code>stop_processing</code> внутри фазы; периоды действия; области (категории с подкатегориями и без, товары, бренды, метки); фиксированная цена отключает правила; округление по шагам и направлениям; «психологическая» цена; логика старой цены; цена не уходит ниже нуля</td></tr>
+<tr><td>SalesModeResolver</td><td>Переопределение у товара, наследование через несколько уровней категорий, значение по умолчанию, «Цена по запросу», поправки на наличие и «под заказ»</td></tr>
+<tr><td>StockService</td><td>Списание при заказе, возврат при отмене, удержание резерва, выдача резерва, истечение, запрет ухода в минус, два заказа на последнюю единицу — второй отклоняется</td></tr>
+<tr><td>Импорт</td><td>Синонимы заголовков, разбор чисел и булевых, создание дерева категорий, обновление по артикулу, режим «только цены и остатки», полная синхронизация, политика пустых ячеек, дубли артикулов, ошибки не останавливают импорт, фото из ZIP (картинки генерируются в тесте), фото по URL (<code>Http::fake</code>), блокировка SSRF, CSV в Windows-1251, резервный режим обработки из браузера</td></tr>
+<tr><td>Корзина и оформление</td><td>Только товары с режимом корзины, минимальная сумма, изменение цены между корзиной и оформлением, бесплатная доставка от суммы, обязательное согласие, honeypot, ограничение частоты</td></tr>
+<tr><td>Резерв и заявка</td><td>Создание, срок, автоматическое истечение, продление, заявка не трогает остаток</td></tr>
+<tr><td>Права</td><td>Менеджер не открывает настройки и пользователей, не удаляет обращения, не меняет цены массово, не запускает полную синхронизацию</td></tr>
+<tr><td>Админка (smoke)</td><td>Страницы списков, создания и редактирования всех ресурсов открываются; сохранение товара пересчитывает цену</td></tr>
+<tr><td>Витрина (smoke)</td><td>Главная, каталог, категория, товар, поиск, страница, <code>sitemap.xml</code>, <code>robots.txt</code> отдают 200; неактивный товар — 404; старый slug — 301</td></tr>
+<tr><td>Экспорт ↔ импорт</td><td>Экспорт каталога и повторный импорт того же файла не меняют данные</td></tr>
+</table></div>
+</section>
+
+<!-- ============================================================ 12 -->
+<section id="s12">
+<h2>12. Развёртывание на Beget</h2>
+
+<h3>12.1 Раскладка на сервере</h3>
+<pre><code>/home/X/LOGIN/
+  shop/                    ← каталог сайта = корень Laravel (имя задаётся при создании сайта)
+    app/ bootstrap/ config/ database/ lang/ public/ resources/ routes/ storage/ vendor/ artisan
+    public_html -&gt; public  ← симлинк, его отдаёт веб-сервер
+    .env                   ← только на сервере</code></pre>
+
+<h3>12.2 CI (<code>.github/workflows/ci.yml</code>)</h3>
+<p>На каждый push и pull request: PHP 8.3, <code>composer install</code>, <code>npm ci &amp;&amp; npm run build</code>, <code>pint --test</code>, Larastan, Pest на SQLite; отдельная задача — миграции и тесты на MySQL 8.0.</p>
+
+<h3>12.3 Деплой (<code>.github/workflows/deploy.yml</code>)</h3>
+<p>Запуск вручную (<code>workflow_dispatch</code>) с выбором ветки, по умолчанию <code>main</code>. Шаги:</p>
+<ol>
+  <li>Сборка: <code>composer install --no-dev --prefer-dist --optimize-autoloader</code>, Node 22, <code>npm ci &amp;&amp; npm run build</code>.</li>
+  <li>Подключение по SSH-ключу (секреты ниже), <code>ssh-keyscan</code> хоста.</li>
+  <li>Если приложение уже установлено — <code>php artisan down --retry=30</code>.</li>
+  <li>Загрузка файлов: <code>rsync -az --delete</code> с исключениями <code>.env</code>, <code>storage/</code>, <code>public_html</code>, <code>public/storage</code>, <code>.git</code>, <code>node_modules</code>, <code>tests</code>. Если на сервере нет rsync — архив <code>tar.gz</code> по scp и распаковка.</li>
+  <li>Если <code>public_html</code> — обычная папка, а не симлинк: переименовать в <code>public_html.bak-ДАТА</code> и создать симлинк <code>ln -s public public_html</code>.</li>
+  <li>Создать структуру <code>storage/</code>, если её нет; <code>php artisan storage:link</code> (без ошибки, если ссылка есть).</li>
+  <li><code>php artisan migrate --force</code>, <code>php artisan optimize:clear</code>, <code>php artisan optimize</code>, кэш компонентов Filament (если команда доступна), <code>php artisan queue:restart</code>, <code>php artisan up</code>.</li>
+  <li>Проверка: HTTP 200 на <code>/up</code>; при ошибке — <code>php artisan up</code> и падение workflow с понятным сообщением.</li>
+</ol>
+<div class="tbl"><table>
+<tr><th>GitHub Secret</th><th>Значение</th></tr>
+<tr><td><code>BEGET_HOST</code></td><td>SSH-хост из панели Beget</td></tr>
+<tr><td><code>BEGET_USER</code></td><td>Логин аккаунта Beget</td></tr>
+<tr><td><code>BEGET_SSH_KEY</code></td><td>Приватный ключ (публичный — в <code>~/.ssh/authorized_keys</code> на хостинге)</td></tr>
+<tr><td><code>BEGET_PATH</code></td><td>Абсолютный путь к каталогу сайта, например <code>/home/X/LOGIN/shop</code></td></tr>
+<tr><td><code>BEGET_PHP</code></td><td>Путь к PHP CLI, по умолчанию <code>/usr/local/php/cgi/8.3/bin/php</code></td></tr>
+</table></div>
+
+<h3>12.4 Проверка окружения: <code>shop:doctor</code> и страница «Система»</h3>
+<p>Команда и страница в админке показывают: версию PHP (≥ 8.3), расширения (pdo_mysql, mbstring, intl, gd с WebP, zip, fileinfo, bcmath, openssl, curl, xml, ctype, tokenizer), права на запись в <code>storage</code> и <code>bootstrap/cache</code>, наличие <code>public/storage</code>, <code>APP_KEY</code>, <code>APP_DEBUG</code>, подключение и версию MySQL, очередь (ожидающие и упавшие задачи), последний запуск планировщика, лимиты PHP (<code>upload_max_filesize</code>, <code>post_max_size</code>, <code>memory_limit</code>, <code>max_execution_time</code>), занятое место фотографиями. Каждый пункт — «ОК / Внимание / Ошибка» с подсказкой, что сделать.</p>
+
+<h3>12.5 Переменные окружения (<code>.env.example</code>)</h3>
+<pre><code>APP_NAME="Магазин"
+APP_ENV=production
+APP_KEY=
+APP_DEBUG=false
+APP_URL=https://example.ru
+APP_TIMEZONE=Europe/Moscow
+APP_LOCALE=ru
+ADMIN_PATH=admin
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=login_shop
+DB_USERNAME=login_shop      # на Beget совпадает с именем БД
+DB_PASSWORD=
+
+CACHE_STORE=file
+SESSION_DRIVER=file
+SESSION_SECURE_COOKIE=true
+QUEUE_CONNECTION=database
+LOG_CHANNEL=daily
+LOG_LEVEL=warning
+
+MAIL_MAILER=smtp
+MAIL_HOST=
+MAIL_PORT=
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_FROM_ADDRESS=
+MAIL_FROM_NAME="${APP_NAME}"</code></pre>
+
+<h3>12.6 Документ <code>docs/DEPLOY_BEGET.md</code></h3>
+<p>Исполнитель пишет пошаговую инструкцию для владельца без опыта администрирования, со всеми командами:</p>
+<ol>
+  <li>Регистрация на Beget (тестовый период), выбор тарифа (Blog; Start — для каталога &gt; 3 000 товаров с фото).</li>
+  <li>Создание сайта в разделе «Сайты», привязка домена (или технического домена), выбор PHP 8.3 для домена.</li>
+  <li>Создание базы MySQL, проверка версии, при 5.7 — запрос обновления до 8.0.</li>
+  <li>SSH: как войти, как создать ключ для GitHub Actions и добавить публичную часть в <code>~/.ssh/authorized_keys</code>.</li>
+  <li>Заполнение GitHub Secrets и первый запуск деплоя.</li>
+  <li>Создание <code>.env</code> на сервере, <code>php artisan key:generate</code>, <code>php artisan migrate --force --seed</code> (базовые данные: страницы, настройки по умолчанию), <code>php artisan shop:create-admin</code>.</li>
+  <li>Две задачи CronTab (<a href="#s8">раздел 8</a>) с подставленными путями.</li>
+  <li>SSL Let's Encrypt, почтовый ящик для уведомлений и настройки SMTP.</li>
+  <li>Проверка страницы «Система» в админке, первый импорт, тестовый заказ.</li>
+  <li>Как обновлять сайт, как откатиться на прошлую версию (повторный деплой предыдущего коммита), как восстановить бэкап.</li>
+</ol>
+</section>
+
+<!-- ============================================================ 13 -->
+<section id="s13">
+<h2>13. План работ (этапы)</h2>
+<p>Этапы выполняются по порядку. Этап считается завершённым, когда выполнены его критерии, тесты/Pint/Larastan зелёные, <code>docs/PROGRESS.md</code> обновлён и изменения запушены.</p>
+
+<h3>Этап 0. Каркас и инфраструктура</h3>
+<ul>
+  <li>Laravel 13 + Filament 5, русская локализация, роли <code>admin</code>/<code>manager</code>, <code>shop:create-admin</code>.</li>
+  <li>Группы настроек (<a href="#s6-3">6.3</a>) со страницами в админке и значениями по умолчанию.</li>
+  <li>Базовый макет витрины (Tailwind, шапка/подвал-заглушки), Vite.</li>
+  <li>Pest, Pint, Larastan, <code>ci.yml</code>; <code>CLAUDE.md</code>, <code>docs/PROGRESS.md</code>, <code>docs/DECISIONS.md</code>, <code>.env.example</code>.</li>
+  <li><code>shop:doctor</code>, страница «Система», <code>shop:heartbeat</code>.</li>
+</ul>
+<ul class="checklist">
+  <li>Вход в админку работает, менеджер не видит настроек</li>
+  <li>Настройки сохраняются и читаются на витрине (название магазина в шапке)</li>
+  <li><code>shop:doctor</code> выводит отчёт</li>
+</ul>
+
+<h3>Этап 1. Каталог</h3>
+<ul>
+  <li>Категории, товары, фото, redirects: миграции, модели, фабрики.</li>
+  <li>Filament: Категории (<a href="#s6-5">6.5</a>), Товары (<a href="#s6-6">6.6</a>), обработка фото (<a href="#s6-7">6.7</a>).</li>
+  <li>Витрина: каталог, категория, карточка, поиск с подсказками, хлебные крошки, ЧПУ и 301-редиректы.</li>
+  <li><code>shop:demo</code>: 3 уровня категорий, ~50 товаров, фото генерируются через GD (без сети).</li>
+</ul>
+<ul class="checklist">
+  <li>Требования SF-10…16, SF-20…22, SF-30…32, SF-34…36, AD-30…33, AD-40…44, AD-50…53</li>
+  <li>Миграции проходят на MySQL 8.0</li>
+</ul>
+
+<h3>Этап 2. Ценообразование</h3>
+<ul>
+  <li>Правила цен, цели правил, <code>PriceCalculator</code>, объяснение, пересчёты, массовое изменение цен, история цен, настройки округления.</li>
+</ul>
+<ul class="checklist">
+  <li>Требования PR-01…07; полный набор unit-тестов калькулятора</li>
+</ul>
+
+<h3>Этап 3. Импорт и экспорт</h3>
+<ul>
+  <li>Импорт по <a href="#s6-10">6.10</a>, экспорт по <a href="#s6-11">6.11</a>, <code>shop:make-template</code>.</li>
+  <li><code>examples/import-template.xlsx</code> (пустой шаблон с подсказками) и <code>examples/import-demo.xlsx</code> (~50 товаров, 3 уровня категорий, характеристики) + <code>examples/import-demo-photos.zip</code>.</li>
+</ul>
+<ul class="checklist">
+  <li>Требования IM-01…15, EX-01…03</li>
+  <li>Демо-файл импортируется; повторный импорт не создаёт дублей и не меняет данные</li>
+</ul>
+
+<h3>Этап 4. Продажи</h3>
+<ul>
+  <li><code>SalesModeResolver</code>, <code>StockService</code>, корзина, оформление, резерв, заявка, нумерация, статусы и переходы, ресурс «Обращения».</li>
+</ul>
+<ul class="checklist">
+  <li>Требования SF-33, SF-40…48, SF-50…53, SF-60, OR-01…07</li>
+</ul>
+
+<h3>Этап 5. Контент и SEO</h3>
+<ul>
+  <li>Конструктор главной, страницы, меню, оформление, юридические страницы, cookie-баннер, закрытый режим, страницы ошибок, sitemap, robots, OG, schema.org.</li>
+</ul>
+<ul class="checklist">
+  <li>Требования SF-01…08, SF-70…72, SF-80…84, AD-20, AD-60…61</li>
+</ul>
+
+<h3>Этап 6. Уведомления и фоновые задачи</h3>
+<ul>
+  <li>Email и Telegram, все команды планировщика, виджеты дашборда, предупреждение о cron.</li>
+</ul>
+<ul class="checklist">
+  <li>Разделы 8 и 9, AD-10, AD-11</li>
+</ul>
+
+<h3>Этап 7. Деплой и финальная проверка</h3>
+<ul>
+  <li><code>deploy.yml</code>, <code>docs/DEPLOY_BEGET.md</code>, <code>README.md</code>.</li>
+  <li>Проход по производительности и безопасности (NF-02…05, NF-10…15).</li>
+  <li>Прогон сценариев приёмки (<a href="#s14">раздел 14</a>) — что можно проверить автоматически, оформить тестами; остальное — чек-листом в <code>docs/PROGRESS.md</code>.</li>
+</ul>
+</section>
+
+<!-- ============================================================ 14 -->
+<section id="s14">
+<h2>14. Сценарии приёмки MVP</h2>
+<ol>
+  <li><b>Наполнение.</b> Владелец загружает <code>import-demo.xlsx</code> с архивом фото → в каталоге товары в трёхуровневых категориях с фото и характеристиками. Повторная загрузка того же файла не создаёт дублей.</li>
+  <li><b>Цены.</b> Правило «Электроника +20 %» и акция «Смартфоны −10 %, показывать как скидку, до завтра» → на витрине верные итоговые цены, зачёркнутая старая цена и процент; в карточке товара в админке — объяснение расчёта. После окончания акции цена возвращается не позже чем через 15 минут.</li>
+  <li><b>Режимы.</b> Магазин по умолчанию — «Корзина», категория «Мебель» — «Резерв», один товар — «Цена по запросу» → в «Мебели» только кнопка «Зарезервировать», у товара по запросу — только «Оставить заявку», в остальных — «В корзину».</li>
+  <li><b>Заказ.</b> Покупатель кладёт два товара в корзину, выбирает доставку и оформляет → обращение в админке, остатки уменьшены, письмо покупателю и сообщение в Telegram отправлены.</li>
+  <li><b>Резерв.</b> Покупатель резервирует товар → доступный остаток уменьшился; без действий менеджера по истечении срока резерв получает статус «Истёк», остаток возвращается.</li>
+  <li><b>Права.</b> Менеджер обрабатывает обращения и товары, но не видит настроек и пользователей и не может удалить обращение.</li>
+  <li><b>Внешний вид.</b> Администратор меняет название, логотип, цвета и собирает главную из четырёх блоков → изменения сразу видны на витрине.</li>
+  <li><b>Цикл Excel.</b> Экспорт каталога → правка цен в Excel → импорт «Только цены и остатки» → цены обновились, записи в истории цен есть.</li>
+  <li><b>Хостинг.</b> Сайт развёрнут на Beget по <code>DEPLOY_BEGET.md</code>: HTTPS, страница «Система» без ошибок, предупреждения о cron нет, деплой из GitHub Actions проходит повторно без ручных действий.</li>
+  <li><b>Качество.</b> Lighthouse карточки товара соответствует NF-05, все тесты зелёные.</li>
+</ol>
+</section>
+
+<!-- ============================================================ 15 -->
+<section id="s15">
+<h2>15. Допущения и открытые вопросы</h2>
+<h4>Допущения</h4>
+<ul>
+  <li>Одна валюта (₽), один склад, количество — целое число.</li>
+  <li>Нет вариантов товара: разные размеры/цвета — отдельные товары.</li>
+  <li>Покупатели не регистрируются.</li>
+  <li>Онлайн-оплаты нет; при её подключении потребуется отдельная проработка (платёжный сервис, онлайн-касса).</li>
+  <li>Тексты юридических документов предоставляет владелец; в коде — шаблоны с пометкой «проверить у юриста».</li>
+  <li>Доставка — фиксированная стоимость способа, без расчёта по адресу.</li>
+  <li>Метка «Скидка» на витрине вычисляется автоматически по наличию старой цены.</li>
+</ul>
+<h4>Открытые вопросы (не блокируют работу — используются значения по умолчанию)</h4>
+<div class="tbl"><table>
+<tr><th>Вопрос</th><th>По умолчанию</th></tr>
+<tr><td>Нужны ли весовые товары с дробным количеством?</td><td>Нет</td></tr>
+<tr><td>Учитывать остатки с первого дня?</td><td>Да</td></tr>
+<tr><td>Срок резерва?</td><td>48 часов</td></tr>
+<tr><td>Режим продаж по умолчанию?</td><td>Корзина</td></tr>
+<tr><td>Разрешать заказ при нулевом остатке («под заказ»)?</td><td>Нет</td></tr>
+</table></div>
+</section>
+
+<!-- ============================================================ A -->
+<section id="appA">
+<h2>Приложение A. Формат Excel-файла импорта</h2>
+<p>Первая строка — заголовки. Порядок колонок любой. Заголовки сравниваются без учёта регистра, пробелов и знаков препинания.</p>
+<div class="tbl"><table>
+<tr><th>Колонка</th><th>Обязательна</th><th>Синонимы заголовка</th><th>Формат и пример</th></tr>
+<tr><td>Артикул</td><td>да</td><td>sku, код, код товара, артикул товара</td><td><code>ABC-123</code></td></tr>
+<tr><td>Название</td><td>для новых</td><td>наименование, name, товар</td><td>Смартфон X 128 ГБ</td></tr>
+<tr><td>Категория</td><td>для новых</td><td>раздел, путь категории, category</td><td>Электроника / Телефоны / Смартфоны</td></tr>
+<tr><td>Цена</td><td>для новых</td><td>базовая цена, розничная цена, price</td><td>12 990 или 12990,00</td></tr>
+<tr><td>Закупочная цена</td><td>нет</td><td>закупка, себестоимость, cost</td><td>9 500</td></tr>
+<tr><td>Старая цена</td><td>нет</td><td>цена до скидки, old price</td><td>14 990</td></tr>
+<tr><td>Остаток</td><td>нет</td><td>количество, кол-во, наличие, stock, qty</td><td>15 (у нового товара пусто = остаток не учитывается)</td></tr>
+<tr><td>Единица</td><td>нет</td><td>ед., ед. изм., unit</td><td>шт</td></tr>
+<tr><td>Бренд</td><td>нет</td><td>производитель, марка, brand</td><td>Acme</td></tr>
+<tr><td>Краткое описание</td><td>нет</td><td>анонс, short description</td><td>Текст до 500 символов</td></tr>
+<tr><td>Описание</td><td>нет</td><td>полное описание, description</td><td>Текст или HTML (после санитайзера)</td></tr>
+<tr><td>Фото</td><td>нет</td><td>изображения, картинки, photo, images</td><td><code>a1.jpg; a2.jpg</code> или <code>https://site.ru/a1.jpg; https://…</code> (разделители <code>;</code>, <code>,</code>, перенос строки; первое — главное)</td></tr>
+<tr><td>Активен</td><td>нет</td><td>показывать, опубликован, active</td><td>да / нет (новые — «да» по умолчанию)</td></tr>
+<tr><td>Хит</td><td>нет</td><td>хит продаж, featured</td><td>да / нет</td></tr>
+<tr><td>Новинка</td><td>нет</td><td>new</td><td>да / нет</td></tr>
+<tr><td>Режим продажи</td><td>нет</td><td>режим, sales mode</td><td>корзина / резерв / корзина и резерв / заявка / витрина / по умолчанию</td></tr>
+<tr><td>Цена по запросу</td><td>нет</td><td>price on request</td><td>да / нет</td></tr>
+<tr><td>Порядок</td><td>нет</td><td>сортировка, sort</td><td>10</td></tr>
+<tr><td>Meta title, Meta description</td><td>нет</td><td>seo title, seo description</td><td>Текст</td></tr>
+<tr><td>Х: &lt;название&gt;</td><td>нет</td><td>Характеристика: &lt;название&gt;</td><td>Колонка <code>Х: Цвет</code> со значением «чёрный» → характеристика «Цвет: чёрный»</td></tr>
+</table></div>
+<h4>Необязательный лист «Категории»</h4>
+<p>Колонки: Путь* · Описание · Порядок · Активна · Режим продажи · Фото (URL или имя файла) · Meta title · Meta description. Обрабатывается до листа товаров.</p>
+<div class="callout"><b class="lbl">Шаблон</b>
+Генерируемый шаблон содержит все колонки, строку-пример, лист «Справка» с описанием колонок и допустимых значений, лист «Категории» с примером.
+</div>
+</section>
+
+<!-- ============================================================ B -->
+<section id="appB">
+<h2>Приложение B. Статусы обращений и влияние на остатки</h2>
+<p>Все изменения остатков выполняются только при включённом учёте и для товаров с <code>stock_qty IS NOT NULL</code>. Каждое изменение статуса пишется в <code>order_status_history</code>. Операции с остатками идемпотентны (флаг <code>stock_applied</code>).</p>
+<h4>Заказ (<code>order</code>)</h4>
+<div class="tbl"><table>
+<tr><th>Статус</th><th>Код</th><th>Можно перевести в</th><th>Остаток</th></tr>
+<tr><td>Новый</td><td><code>new</code></td><td>confirmed, cancelled</td><td>При создании <code>stock_qty −= qty</code></td></tr>
+<tr><td>Подтверждён</td><td><code>confirmed</code></td><td>ready, shipped, cancelled</td><td>—</td></tr>
+<tr><td>Готов к выдаче</td><td><code>ready</code></td><td>completed, cancelled</td><td>—</td></tr>
+<tr><td>Отправлен</td><td><code>shipped</code></td><td>completed, cancelled</td><td>—</td></tr>
+<tr><td>Выполнен</td><td><code>completed</code></td><td>—</td><td>—</td></tr>
+<tr><td>Отменён</td><td><code>cancelled</code></td><td>—</td><td><code>stock_qty += qty</code></td></tr>
+</table></div>
+<h4>Резерв (<code>reservation</code>)</h4>
+<div class="tbl"><table>
+<tr><th>Статус</th><th>Код</th><th>Можно перевести в</th><th>Остаток</th></tr>
+<tr><td>Новый</td><td><code>new</code></td><td>reserved, completed, cancelled; expired — автоматически</td><td>При создании <code>reserved_qty += qty</code></td></tr>
+<tr><td>Зарезервирован (подтверждён)</td><td><code>reserved</code></td><td>completed, cancelled; expired — автоматически</td><td>— (при подтверждении можно задать новый срок)</td></tr>
+<tr><td>Выкуплен</td><td><code>completed</code></td><td>—</td><td><code>reserved_qty −= qty</code>, <code>stock_qty −= qty</code></td></tr>
+<tr><td>Отменён</td><td><code>cancelled</code></td><td>—</td><td><code>reserved_qty −= qty</code></td></tr>
+<tr><td>Истёк</td><td><code>expired</code></td><td>—</td><td><code>reserved_qty −= qty</code></td></tr>
+</table></div>
+<h4>Заявка-запрос (<code>inquiry</code>)</h4>
+<div class="tbl"><table>
+<tr><th>Статус</th><th>Код</th><th>Можно перевести в</th><th>Остаток</th></tr>
+<tr><td>Новая</td><td><code>new</code></td><td>in_progress, closed</td><td>—</td></tr>
+<tr><td>В работе</td><td><code>in_progress</code></td><td>closed</td><td>—</td></tr>
+<tr><td>Закрыта</td><td><code>closed</code></td><td>—</td><td>—</td></tr>
+</table></div>
+</section>
+
+<!-- ============================================================ C -->
+<section id="appC">
+<h2>Приложение C. Правила работы для исполнителя (Claude Code)</h2>
+<ol>
+  <li><b>Источник требований</b> — этот документ (<code>docs/TZ.html</code>). Идентификаторы требований указываются в <code>docs/PROGRESS.md</code> и в описаниях коммитов, где уместно.</li>
+  <li><b>Перед кодом:</b> прочитать документ целиком; проверить окружение (<code>php -v</code>, <code>php -m</code>, <code>composer -V</code>, <code>node -v</code>); недостающие расширения PHP (pdo_sqlite, pdo_mysql, intl, gd, zip, bcmath) доустановить; итог записать в <code>docs/DEV_ENV.md</code>.</li>
+  <li><b>Создать <code>CLAUDE.md</code></b>: стек, команды (тесты, линтеры, сборка, демо-данные), структура, соглашения, ограничения из <a href="#s2">раздела 2</a>.</li>
+  <li><b><code>docs/PROGRESS.md</code></b> — чек-лист этапов и ID требований с отметками. Обновлять после каждого этапа. По этому файлу новая сессия продолжает работу с места остановки.</li>
+  <li><b><code>docs/DECISIONS.md</code></b> — каждое существенное решение: контекст, выбор, отвергнутые варианты.</li>
+  <li><b>Работа по этапам</b> (<a href="#s13">раздел 13</a>). После каждого этапа: тесты, Pint, Larastan зелёные → обновить PROGRESS → коммит(ы) в стиле Conventional Commits на английском → push.</li>
+  <li><b>Неясность</b> — выбрать самый простой вариант, совместимый с Beget, записать в DECISIONS и продолжать. Останавливаться и спрашивать — только если решение необратимо и блокирует работу.</li>
+  <li><b>MySQL:</b> в облачной сессии запустить MySQL (<code>service mysql start</code>; если не установлен — <code>apt-get install -y mysql-server</code>) и прогонять <code>php artisan migrate:fresh --seed</code> на MySQL минимум в конце этапов 1, 4 и 7. В миграциях — только переносимый синтаксис.</li>
+  <li><b>Проверка витрины</b> — тестами и запросами к <code>php artisan serve</code> (curl), включая проверку кодов ответа и наличия ключевых элементов.</li>
+  <li><b>Безопасность:</b> никаких секретов и реальных персональных данных в репозитории, сидерах и логах.</li>
+  <li><b>Пакеты</b> — только из <a href="#s3">раздела 3</a>; любое добавление — с записью в DECISIONS.</li>
+  <li><b>Финал:</b> <code>README.md</code> (что это, как запустить локально, как деплоить → <code>docs/DEPLOY_BEGET.md</code>); тестовые учётные данные — только для локальных демо-данных.</li>
+</ol>
+</section>
+
+<footer class="doc">Конец документа. ТЗ v1.0 от 26.10.2026.</footer>
+</main>
+</div>
+</body>
+</html>
