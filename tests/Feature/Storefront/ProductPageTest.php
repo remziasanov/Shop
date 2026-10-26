@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Settings\GeneralSettings;
 use App\Settings\SalesSettings;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
@@ -80,14 +81,16 @@ it('hides the price for price-on-request products (SF-36)', function () {
         ->assertOk()
         ->assertSeeText('Цена по запросу')
         ->assertSeeText('Оставить заявку')
-        ->assertDontSeeText('77')
+        ->assertDontSee(Money::format(7777700))
+        ->assertDontSeeText('77777')
         ->assertDontSeeText('В корзину');
 
     $category = Category::factory()->create();
     Product::factory()->inCategory($category)->priceOnRequest()->create(['base_price' => '88888.00']);
     $this->get(route('catalog.category', $category->slug))
         ->assertSeeText('Цена по запросу')
-        ->assertDontSeeText('88');
+        ->assertDontSee(Money::format(8888800))
+        ->assertDontSeeText('88888');
 });
 
 it('shows availability by stock settings (SF-32)', function () {
