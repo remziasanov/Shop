@@ -7,6 +7,7 @@ Progress tracker: `docs/PROGRESS.md` (continue from the first unchecked stage). 
 - PHP 8.3 (must also run on 8.4/8.5), Laravel 13, Filament 5 (Livewire 4), Blade + Tailwind CSS 4 + Alpine.js for the storefront.
 - MySQL 8.0 in production (code must also work on MySQL 5.7: no CTE, no window functions), SQLite in-memory for tests.
 - spatie/laravel-settings (+ Filament plugin), spatie/simple-excel, intervention/image 3 (GD), Pest, Pint, Larastan level 5.
+- Version 2.0 (stage 15, PDF export): `barryvdh/laravel-dompdf` is an allowed package (D-079); if the wrapper does not support Laravel 13, use `dompdf/dompdf` directly.
 - Packages only from TZ section 3. Any new package requires a justified entry in `docs/DECISIONS.md`.
 
 ## Hard constraints (TZ section 2)
@@ -37,7 +38,7 @@ php artisan shop:demo               # demo catalog (stage 1+)
 - Validation via Form Requests / Filament rules; no mass-assignment holes (`$fillable` explicit).
 - All UI texts via `lang/ru` translation files (`__('shop.…')`). Code, comments, commits — English.
 - Migrations: portable syntax only (SQLite + MySQL 5.7/8.0), utf8mb4, explicit foreign keys, reversible `down()`.
-- Roles: `users.role` (`admin`, `manager`) + Laravel policies; no role packages. Access matrix — TZ 6.13.
+- Roles: until stage 8 `users.role` (`admin`, `manager`) + Laravel policies; no role packages. From stage 8 (TZ v2.0, D-074) staff roles are configurable: `roles` / `role_permissions` tables, checks only via `PermissionService`, `users.role` is deprecated and removed by the stage 8 migration. Default Manager matrix — TZ 6.13 / 25.4. Customers live in a separate `customers` table with the `customer` guard (D-071), never in `users`.
 - Settings: `app/Settings/*` (spatie/laravel-settings), defaults in settings migrations.
 - Tests: Pest, `RefreshDatabase`, factories for every model. Each requirement ID gets at least one test where testable.
 - Commits: Conventional Commits in English, mention requirement IDs where relevant (e.g. `feat(catalog): category tree (AD-30)`).
