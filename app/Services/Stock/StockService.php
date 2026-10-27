@@ -9,6 +9,7 @@ use App\Exceptions\InsufficientStockException;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Services\Home\HomePageRenderer;
 use App\Settings\SalesSettings;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,8 @@ final class StockService
 
             $product->stock_qty = $qty;
             $product->syncOriginalAttribute('stock_qty');
+
+            $this->forgetHomePage();
         });
     }
 
@@ -268,6 +271,8 @@ final class StockService
 
             $work($fresh, $items, $products);
 
+            $this->forgetHomePage();
+
             // Keep the caller's instances in sync.
             $order->stock_applied = $fresh->stock_applied;
 
@@ -302,6 +307,15 @@ final class StockService
             ->lockForUpdate()
             ->get()
             ->keyBy('id');
+    }
+
+    /**
+     * Stock is written with `saveQuietly()` (no model events), but the cached home page shows availability:
+     * drop it once the transaction commits.
+     */
+    private function forgetHomePage(): void
+    {
+        DB::afterCommit(static fn () => HomePageRenderer::forget());
     }
 
     private function markApplied(OrderItem $item, int $qty): void

@@ -9,6 +9,7 @@ use App\Filament\Resources\Users\Pages\CreateUser;
 use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Resources\Users\Pages\ListUsers;
 use App\Models\User;
+use App\Services\Users\AdminGuard;
 use BackedEnum;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -65,10 +66,15 @@ class UserResource extends Resource
                 ->options(UserRole::options())
                 ->default(UserRole::Manager->value)
                 ->required()
-                ->native(false),
+                ->native(false)
+                ->disabled(fn (?User $record): bool => static::isLocked($record))
+                ->dehydrated(fn (?User $record): bool => ! static::isLocked($record))
+                ->helperText(fn (?User $record): ?string => static::isLocked($record) ? __('shop.users.locked_hint') : null),
             Toggle::make('is_active')
                 ->label(__('shop.users.fields.is_active'))
-                ->default(true),
+                ->default(true)
+                ->disabled(fn (?User $record): bool => static::isLocked($record))
+                ->dehydrated(fn (?User $record): bool => ! static::isLocked($record)),
             TextInput::make('password')
                 ->label(__('shop.users.fields.password'))
                 ->password()
@@ -87,6 +93,14 @@ class UserResource extends Resource
                 ->required(fn (string $operation): bool => $operation === 'create')
                 ->dehydrated(false),
         ])->columns(2);
+    }
+
+    public static function isLocked(?User $record): bool
+    {
+        $actor = auth()->user();
+
+        return $record !== null && $record->exists
+            && app(AdminGuard::class)->isLocked($record, $actor instanceof User ? $actor : null);
     }
 
     public static function table(Table $table): Table

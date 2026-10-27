@@ -12,10 +12,14 @@ use App\Filament\Pages\Settings\ManagePricingSettings;
 use App\Filament\Pages\Settings\ManageSalesSettings;
 use App\Filament\Pages\Settings\ManageSeoSettings;
 use App\Models\User;
+use App\Settings\AppearanceSettings;
 use App\Settings\GeneralSettings;
 use App\Settings\NotificationSettings;
 use App\Settings\PricingSettings;
 use App\Settings\SalesSettings;
+use App\Settings\SeoSettings;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -118,4 +122,96 @@ it('caps money settings at the decimal(12,2) maximum', function () {
         ->fillForm(['min_order_amount' => '9 999 999 999,99'])
         ->call('save')
         ->assertHasNoFormErrors();
+});
+
+it('rejects invalid hex colors on the appearance page', function (string $field, string $value) {
+    Livewire::test(ManageAppearanceSettings::class)
+        ->fillForm([$field => $value])
+        ->call('save')
+        ->assertHasFormErrors([$field])
+        ->assertSee('Укажите цвет в формате');
+})->with([
+    ['primary_color', 'red'],
+    ['primary_color', '#12345'],
+    ['accent_color', '#gggggg'],
+    ['accent_color', 'rgb(1,2,3)'],
+]);
+
+it('accepts short and long hex colors', function () {
+    Livewire::test(ManageAppearanceSettings::class)
+        ->fillForm(['primary_color' => '#abc', 'accent_color' => '#A1B2C3'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect(app(AppearanceSettings::class)->primary_color)->toBe('#abc');
+});
+
+it('deletes the old logo from the public disk when it is replaced', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('settings/old.png', 'old');
+    $settings = app(GeneralSettings::class);
+    $settings->logo = 'settings/old.png';
+    $settings->save();
+
+    Livewire::test(ManageGeneralSettings::class)
+        ->set('data.logo', []) // the user removes the old file first, then uploads a new one
+        ->fillForm(['logo' => UploadedFile::fake()->image('logo.png', 40, 40)])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $new = app(GeneralSettings::class)->logo;
+
+    expect($new)->toStartWith('settings/')->not->toBe('settings/old.png');
+    Storage::disk('public')->assertMissing('settings/old.png');
+    Storage::disk('public')->assertExists($new);
+});
+
+it('deletes the old file when a settings image is cleared', function (string $page, string $settingsClass, string $field) {
+    Storage::fake('public');
+    Storage::disk('public')->put('settings/to-clear.png', 'x');
+    $settings = app($settingsClass);
+    $settings->{$field} = 'settings/to-clear.png';
+    $settings->save();
+
+    Livewire::test($page)
+        ->fillForm([$field => null])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect(app($settingsClass)->{$field})->toBeNull();
+    Storage::disk('public')->assertMissing('settings/to-clear.png');
+})->with([
+    'logo' => [ManageGeneralSettings::class, GeneralSettings::class, 'logo'],
+    'favicon' => [ManageGeneralSettings::class, GeneralSettings::class, 'favicon'],
+    'placeholder' => [ManageAppearanceSettings::class, AppearanceSettings::class, 'placeholder_image'],
+    'og image' => [ManageSeoSettings::class, SeoSettings::class, 'og_image'],
+]);
+
+it('keeps the file when a settings page is saved without touching it', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('settings/keep.png', 'x');
+    $settings = app(GeneralSettings::class);
+    $settings->logo = 'settings/keep.png';
+    $settings->save();
+
+    Livewire::test(ManageGeneralSettings::class)
+        ->fillForm(['shop_name' => 'Другое имя'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    Storage::disk('public')->assertExists('settings/keep.png');
+});
+
+it('never deletes replaced files outside the settings directory', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('products/photo.png', 'x');
+    $settings = app(GeneralSettings::class);
+    $settings->logo = 'products/photo.png';
+    $settings->save();
+
+    Livewire::test(ManageGeneralSettings::class)
+        ->fillForm(['logo' => null])
+        ->call('save');
+
+    Storage::disk('public')->assertExists('products/photo.png');
 });

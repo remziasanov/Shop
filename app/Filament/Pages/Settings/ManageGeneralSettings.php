@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Pages\Settings;
 
 use App\Filament\Concerns\AdminOnlySettingsPage;
+use App\Filament\Concerns\DeletesReplacedSettingFiles;
 use App\Settings\GeneralSettings;
 use BackedEnum;
 use Filament\Forms\Components\FileUpload;
@@ -20,6 +21,7 @@ use Filament\Support\Icons\Heroicon;
 class ManageGeneralSettings extends SettingsPage
 {
     use AdminOnlySettingsPage;
+    use DeletesReplacedSettingFiles;
 
     protected static string $settings = GeneralSettings::class;
 
@@ -28,6 +30,14 @@ class ManageGeneralSettings extends SettingsPage
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingStorefront;
 
     protected static ?int $navigationSort = 10;
+
+    /**
+     * @return list<string>
+     */
+    protected function settingsFileFields(): array
+    {
+        return ['logo', 'favicon'];
+    }
 
     public function form(Schema $schema): Schema
     {
