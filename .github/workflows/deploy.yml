@@ -159,6 +159,7 @@ jobs:
           # installed  = the application files are on the server (artisan exists).
           # configured = installed AND .env exists with a non-empty APP_KEY and DB_DATABASE.
           # Anything else is a first installation: files only, no artisan (docs/DEPLOY_BEGET.md, step 5.3).
+          # live_key_lost = a LIVE site (cached config present) whose .env lost its APP_KEY: never deploy over it.
           cat > "$RUNNER_TEMP/check.sh" <<'CHECK'
           cd "$1" 2>/dev/null || { echo "installed=false"; echo "configured=false"; exit 0; }
           if [ ! -f artisan ]; then echo "installed=false"; echo "configured=false"; exit 0; fi
@@ -167,9 +168,16 @@ jobs:
             echo "configured=true"
           else
             echo "configured=false"
+            if [ -f .env ] && [ -f bootstrap/cache/config.php ] && ! grep -Eq "^APP_KEY=[\"']?[^\"'[:space:]]" .env; then
+              echo "live_key_lost=true"
+            fi
           fi
           CHECK
           state="$(ssh beget bash -s -- "'$BEGET_PATH'" < "$RUNNER_TEMP/check.sh")"
+          if printf '%s\n' "$state" | grep -q '^live_key_lost=true$'; then
+            echo "::error::APP_KEY пуст на работающем сайте: восстановите ключ из резервной копии .env (новый ключ сделает зашифрованные данные нечитаемыми). Ничего не загружено."
+            exit 1
+          fi
           printf '%s\n' "$state" | grep -E '^(installed|configured)=(true|false)$' >> "$GITHUB_OUTPUT"
           if printf '%s\n' "$state" | grep -q '^configured=true$'; then
             echo "The application is installed and configured: full deployment."
@@ -300,13 +308,7 @@ jobs:
             "$PHP" artisan storage:link
           fi
 
-          # 5. Database, caches, queue.
-          # An empty APP_KEY must be generated with the config cache cleared first: with a cached config,
-          # key:generate would append a second key to .env (docs/DEPLOY_BEGET.md, step 6.2).
-          if ! grep -Eq "^APP_KEY=[\"']?[^\"'[:space:]]" .env; then
-            "$PHP" artisan optimize:clear
-            "$PHP" artisan key:generate --force
-          fi
+          # 5. Database, caches, queue. MODE=full means check.sh found a non-empty APP_KEY, so no key is generated here.
           "$PHP" artisan migrate --force
           "$PHP" artisan optimize:clear
           "$PHP" artisan view:clear

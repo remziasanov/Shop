@@ -12,6 +12,7 @@ use App\Services\Notifications\TelegramNotifier;
 use App\Settings\NotificationSettings;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Throwable;
 
 class NotifyExpiringReservationsCommand extends Command
@@ -68,7 +69,11 @@ class NotifyExpiringReservationsCommand extends Command
                             return false;
                         }
 
-                        JobFanOut::dispatch([new SendTelegramNotification((int) $id, SendTelegramNotification::EXPIRING)]);
+                        // Nothing queued (dispatch failed or the unique job is already held): do not keep the claim,
+                        // otherwise the warning would be marked as sent and never go out.
+                        if (JobFanOut::dispatch([new SendTelegramNotification((int) $id, SendTelegramNotification::EXPIRING)]) < 1) {
+                            throw new RuntimeException('Expiring-reservation notification was not queued for order '.$id);
+                        }
 
                         return true;
                     });

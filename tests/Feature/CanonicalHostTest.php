@@ -33,6 +33,21 @@ it('uses 308 for non-GET requests so the method is kept', function () {
         ->assertRedirect('https://shop.example/cart/add');
 });
 
+it('redirects SHOP_EXTRA_HOSTS hosts to the canonical host (D-057)', function () {
+    config(['shop.extra_hosts' => ['shop.beget.tech']]);
+
+    $this->get('https://shop.beget.tech/catalog?x=1')->assertStatus(301)->assertRedirect('https://shop.example/catalog?x=1');
+    $this->post('https://shop.beget.tech/cart/add', ['a' => 1])->assertStatus(308)->assertRedirect('https://shop.example/cart/add');
+    $this->get('https://shop.example/up')->assertOk();
+});
+
+it('does not redirect extra hosts outside production', function () {
+    config(['shop.extra_hosts' => ['shop.beget.tech']]);
+    app()->detectEnvironment(fn () => 'local');
+
+    $this->get('https://shop.beget.tech/up')->assertOk();
+});
+
 it('lets the canonical host through', function () {
     $this->get('https://shop.example/up')->assertOk();
 });

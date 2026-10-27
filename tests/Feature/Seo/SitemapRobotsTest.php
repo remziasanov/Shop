@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Services\Seo\SitemapGenerator;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 
@@ -189,4 +190,69 @@ it('releases the queued job back when the lock is busy, so it runs again later (
     $job->handle(app(SitemapGenerator::class));
 
     expect($job->releasedFor)->toBeNull()->and(file_exists($this->dir.'/sitemap.xml'))->toBeTrue();
+});
+
+it('retries the sitemap job with a growing backoff after an exception (SF-82)', function () {
+    expect((new GenerateSitemap)->backoff)->toBe([60, 120, 300, 600])
+        ->and((new GenerateSitemap)->tries)->toBe(5);
+});
+
+it('holds the sitemap cache lock for sitemap_lock_seconds (D-056)', function () {
+    expect(config('shop.sitemap_lock_seconds'))->toBe(300);
+
+    config(['shop.sitemap_lock_seconds' => 60]);
+    $busyAt59 = $busyAt61 = null;
+    Product::factory()->create();
+    $probed = false;
+    DB::listen(function () use (&$busyAt59, &$busyAt61, &$probed): void {
+        if ($probed) {
+            return;
+        }
+
+        $probed = true;
+        $this->travel(59)->seconds();
+        $busyAt59 = ! Cache::lock(SitemapGenerator::LOCK, 5)->get();
+        $this->travel(2)->seconds();
+        $busyAt61 = ! Cache::lock(SitemapGenerator::LOCK, 5)->get();
+    });
+    expect(app(SitemapGenerator::class)->generateLocked())->toBeInt()
+        ->and($busyAt59)->toBeTrue()
+        ->and($busyAt61)->toBeFalse();
+});
+
+it('skips generation when the file guard is held even though the cache lock was dropped (D-056)', function () {
+    $path = storage_path('framework/sitemap.lock');
+    $other = fopen($path, 'c');
+    expect(flock($other, LOCK_EX | LOCK_NB))->toBeTrue();
+
+    expect(app(SitemapGenerator::class)->generateLocked())->toBeNull()
+        ->and(file_exists($this->dir.'/sitemap.xml'))->toBeFalse();
+    // The cache lock is released again.
+    expect(Cache::lock(SitemapGenerator::LOCK, 5)->get())->toBeTrue();
+    Cache::lock(SitemapGenerator::LOCK)->forceRelease();
+
+    flock($other, LOCK_UN);
+    fclose($other);
+
+    expect(app(SitemapGenerator::class)->generateLocked())->toBeInt();
+});
+
+it('uses a unique temporary file per generation, so concurrent runs cannot corrupt the result (D-056)', function () {
+    Product::factory()->count(3)->create();
+    $generator = app(SitemapGenerator::class);
+
+    // Two unlocked runs back to back (the worst case of a dropped lock) leave one valid file and no temp leftovers.
+    $generator->generate();
+    $generator->generate();
+
+    expect(simplexml_load_file($this->dir.'/sitemap.xml'))->not->toBeFalse()
+        ->and(glob($this->dir.'/.sitemap-*'))->toBe([]);
+
+    // tempnam never returns the same name twice, even for the same directory.
+    $method = new ReflectionMethod($generator, 'tmpPath');
+    $first = $method->invoke($generator, $this->dir);
+    $second = $method->invoke($generator, $this->dir);
+    expect($first)->not->toBe($second);
+    @unlink($first);
+    @unlink($second);
 });

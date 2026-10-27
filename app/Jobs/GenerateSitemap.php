@@ -18,6 +18,14 @@ class GenerateSitemap implements ShouldBeUnique, ShouldQueue
 
     public int $tries = 5;
 
+    /**
+     * Seconds to wait before the next attempt after an exception (the generator failing must not retry at once).
+     * A busy lock is released with its own 120 s delay in handle().
+     *
+     * @var list<int>
+     */
+    public array $backoff = [60, 120, 300, 600];
+
     public int $uniqueFor = 300;
 
     public function handle(SitemapGenerator $generator): void

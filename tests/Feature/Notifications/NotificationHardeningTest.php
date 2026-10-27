@@ -20,6 +20,8 @@ use App\Services\Orders\OrderService;
 use App\Settings\NotificationSettings;
 use App\Support\MarkdownEscaper;
 use App\Support\PiiMask;
+use Illuminate\Bus\UniqueLock;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Queue\Events\JobQueueing;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -238,6 +240,21 @@ it('rolls back the expiring claim when queueing fails and retries on the next ru
 
     expect($order->fresh()->expiring_notified_at)->not->toBeNull()
         ->and(DB::table('jobs')->count())->toBe(1);
+});
+
+it('rolls back the expiring claim when the fan-out queued no job', function (): void {
+    config(['queue.default' => 'database']);
+    notif();
+    $order = Order::factory()->reservation()->reservedUntil(now()->addHours(2))->create();
+    // The unique lock of the job is held, so JobFanOut skips it and reports 0 queued jobs.
+    expect((new UniqueLock(app(CacheRepository::class)))->acquire(new SendTelegramNotification($order->id, SendTelegramNotification::EXPIRING)))->toBeTrue();
+    Exceptions::fake();
+
+    $this->artisan('shop:notify-expiring-reservations')->assertSuccessful();
+
+    expect($order->fresh()->expiring_notified_at)->toBeNull()
+        ->and(DB::table('jobs')->count())->toBe(0);
+    Exceptions::assertReported(fn (RuntimeException $e) => str_contains($e->getMessage(), 'was not queued'));
 });
 
 it('makes child jobs unique per order, channel, recipient and event', function (): void {

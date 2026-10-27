@@ -49,4 +49,22 @@ final class TrustedHosts
     {
         return str_starts_with($host, 'www.') ? substr($host, 4) : 'www.'.$host;
     }
+
+    /**
+     * Hosts that are accepted but must be redirected to the canonical one: its twin and SHOP_EXTRA_HOSTS.
+     *
+     * @return list<string>
+     */
+    public static function redirectedHosts(string $canonical): array
+    {
+        $hosts = [self::twin($canonical)];
+
+        foreach ((array) config('shop.extra_hosts', []) as $extra) {
+            if (is_string($extra) && trim($extra) !== '') {
+                $hosts[] = strtolower(trim($extra));
+            }
+        }
+
+        return array_values(array_unique($hosts));
+    }
 }
