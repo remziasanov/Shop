@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\CronHelpController;
 use App\Http\Controllers\Admin\ExportDownloadController;
 use App\Http\Controllers\Admin\ImportFileDownloadController;
 use App\Http\Controllers\Admin\ImportProcessNextController;
@@ -60,4 +61,11 @@ Route::middleware([FilamentAuthenticate::class])
     ->prefix((string) config('shop.admin_path'))
     ->group(function (): void {
         Route::get('/orders/{order}/print', OrderPrintController::class)->name('admin.orders.print');
+    });
+
+// AD-11: cron setup instructions linked from the scheduler warning; administrators and managers.
+Route::middleware([FilamentAuthenticate::class])
+    ->prefix((string) config('shop.admin_path'))
+    ->group(function (): void {
+        Route::get('/help/cron', CronHelpController::class)->name('admin.help.cron');
     });

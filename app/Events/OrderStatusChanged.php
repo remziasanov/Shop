@@ -10,7 +10,7 @@ use App\Models\User;
 use Illuminate\Foundation\Events\Dispatchable;
 
 /**
- * The status of a request changed (`$user` null = system, e.g. reservation expiry). Dispatched after commit.
+ * The status of a request changed (`$bySystem` = made by the system, e.g. reservation expiry, and then `$user` is null). Dispatched after commit.
  */
 final class OrderStatusChanged
 {
@@ -21,5 +21,6 @@ final class OrderStatusChanged
         public readonly OrderStatus $from,
         public readonly OrderStatus $to,
         public readonly ?User $user = null,
+        public readonly bool $bySystem = false,
     ) {}
 }

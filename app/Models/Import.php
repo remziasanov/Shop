@@ -57,6 +57,7 @@ use Illuminate\Support\Facades\Storage;
  * @property array<string, mixed>|null $analysis
  * @property bool $dry_run
  * @property CarbonInterface|null $last_activity_at
+ * @property CarbonInterface|null $files_purged_at
  * @property-read User|null $user
  */
 class Import extends Model
@@ -96,6 +97,7 @@ class Import extends Model
         'analysis',
         'dry_run',
         'last_activity_at',
+        'files_purged_at',
     ];
 
     protected static function booted(): void
@@ -123,6 +125,7 @@ class Import extends Model
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'last_activity_at' => 'datetime',
+            'files_purged_at' => 'datetime',
         ];
     }
 

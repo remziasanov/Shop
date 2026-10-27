@@ -253,9 +253,25 @@ final class CartService
     /**
      * Deletes carts untouched for N days (their items go with them); returns the number of carts removed.
      */
-    public function clearOld(int $days = 30): int
+    /**
+     * @param  ?float  $deadline  `microtime(true)` limit: deletes in chunks and stops when it is reached (the next run continues)
+     */
+    public function clearOld(int $days = 30, ?float $deadline = null): int
     {
-        return Cart::query()->where('updated_at', '<', now()->subDays($days))->delete();
+        $threshold = now()->subDays($days);
+        $deleted = 0;
+
+        do {
+            $ids = Cart::query()->where('updated_at', '<', $threshold)->orderBy('id')->limit(1000)->pluck('id');
+
+            if ($ids->isEmpty()) {
+                break;
+            }
+
+            $deleted += Cart::query()->whereKey($ids->all())->delete();
+        } while ($ids->count() === 1000 && ($deadline === null || microtime(true) < $deadline));
+
+        return $deleted;
     }
 
     private function isVisible(Product $product): bool

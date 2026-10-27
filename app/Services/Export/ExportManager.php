@@ -128,7 +128,7 @@ final class ExportManager
      * Delete files of exports older than the given number of days (default `shop.export_retention_days`);
      * the journal rows stay. Returns the number of purged files.
      */
-    public function purgeOlderThan(?int $days = null): int
+    public function purgeOlderThan(?int $days = null, ?float $deadline = null): int
     {
         $days ??= (int) config('shop.export_retention_days');
         $disk = Storage::disk(self::DISK);
@@ -137,6 +137,9 @@ final class ExportManager
         Export::query()
             ->whereNotNull('file_path')
             ->where('created_at', '<', now()->subDays($days))
+            // lazyById, not each(): offset paging would skip rows because the loop clears file_path.
+            ->lazyById(500)
+            ->takeUntil(fn (): bool => $deadline !== null && microtime(true) >= $deadline)
             ->each(function (Export $export) use ($disk, &$purged): void {
                 $disk->deleteDirectory('exports/'.$export->id);
                 $export->update(['file_path' => null]);

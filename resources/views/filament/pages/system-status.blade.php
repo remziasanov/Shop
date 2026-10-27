@@ -1,4 +1,10 @@
 <x-filament-panels::page>
+    @if (app(\App\Services\System\Heartbeat::class)->isStale(5))
+        <x-filament::section>
+            @include('filament.partials.cron-warning')
+        </x-filament::section>
+    @endif
+
     <x-filament::section>
         <div class="overflow-x-auto">
             <table class="w-full text-start text-sm divide-y divide-gray-200 dark:divide-white/10">

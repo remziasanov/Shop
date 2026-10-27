@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\System;
 
 use App\Enums\CheckStatus;
+use App\Services\Content\LegalPageStatus;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -52,6 +53,7 @@ class EnvironmentChecker
             'memory_limit' => fn () => $this->memoryLimit(),
             'max_execution_time' => fn () => $this->ini('max_execution_time'),
             'photos_size' => fn () => $this->photosSize(),
+            'legal_pages' => fn () => $this->legalPages(),
         ];
 
         $results = [];
@@ -203,6 +205,18 @@ class EnvironmentChecker
         return $this->result('scheduler', $stale ? CheckStatus::Warning : CheckStatus::Ok,
             $last->setTimezone((string) config('app.timezone'))->format('d.m.Y H:i:s'),
             $stale ? __('system.hints.cron') : null);
+    }
+
+    private function legalPages(): CheckResult
+    {
+        $pending = app(LegalPageStatus::class)->pendingTitles();
+
+        if ($pending === []) {
+            return $this->result('legal_pages', CheckStatus::Ok, __('system.values.legal_done'));
+        }
+
+        return $this->result('legal_pages', CheckStatus::Warning, __('system.values.legal_template'),
+            __('system.hints.legal_pages', ['pages' => implode(', ', $pending)]));
     }
 
     private function ini(string $key): CheckResult

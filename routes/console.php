@@ -21,3 +21,14 @@ Schedule::command('shop:expire-reservations')->everyFiveMinutes()->withoutOverla
 
 // SF-82: the sitemap is rebuilt daily (and after an import by a queued job).
 Schedule::command('shop:sitemap')->dailyAt('04:20')->withoutOverlapping(10);
+
+// Stage 6: Telegram warning about reservations expiring within 6 hours, once per reservation (TZ section 8).
+Schedule::command('shop:notify-expiring-reservations')->hourly()->withoutOverlapping(10);
+
+// Nightly housekeeping: old carts, import/export files, abandoned uploads (TZ section 8).
+Schedule::command('shop:cleanup')->dailyAt('04:40')->withoutOverlapping(10);
+
+// Failed queue jobs are kept for a week (TZ section 8).
+// schedule:run executes due tasks one after another within a minute, so the heavy daily tasks are staggered
+// (03:10, 04:20, 04:40, 04:50), each within ~50 s (D-059).
+Schedule::command('queue:prune-failed --hours=168')->dailyAt('04:50')->withoutOverlapping(10);

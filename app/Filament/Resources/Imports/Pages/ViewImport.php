@@ -70,7 +70,7 @@ class ViewImport extends Page
 
     public function sourceFileExists(Import $import): bool
     {
-        return $import->file_path !== '' && Storage::disk('local')->exists($import->file_path);
+        return $import->files_purged_at === null && $import->file_path !== '' && Storage::disk('local')->exists($import->file_path);
     }
 
     /**
