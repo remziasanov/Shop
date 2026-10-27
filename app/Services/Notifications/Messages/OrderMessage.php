@@ -112,11 +112,39 @@ abstract class OrderMessage
     }
 
     /**
-     * Length Telegram counts: the text after tags are removed and entities decoded.
+     * Length Telegram counts: the text after tags are removed and entities decoded, in UTF-16 code units
+     * (a character outside the BMP, such as an emoji, counts as two).
      */
     public static function visibleLength(string $html): int
     {
-        return mb_strlen(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        return self::utf16Length(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+
+    public static function utf16Length(string $text): int
+    {
+        return intdiv(strlen((string) mb_convert_encoding($text, 'UTF-16LE', 'UTF-8')), 2);
+    }
+
+    /**
+     * Cuts plain text to at most $units UTF-16 code units without splitting a character.
+     */
+    public static function cutUtf16(string $text, int $units): string
+    {
+        $result = '';
+        $used = 0;
+
+        foreach (mb_str_split($text) as $char) {
+            $width = self::utf16Length($char);
+
+            if ($used + $width > $units) {
+                break;
+            }
+
+            $result .= $char;
+            $used += $width;
+        }
+
+        return $result;
     }
 
     /**

@@ -55,7 +55,6 @@ class ManageAppearanceSettings extends SettingsPage
                 ->visibility('public')
                 ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
                 ->maxSize(2048)
-                ->image()
                 ->columnSpanFull(),
         ]);
     }

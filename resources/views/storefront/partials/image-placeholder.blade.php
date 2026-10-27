@@ -1,6 +1,6 @@
 {{-- Placeholder for a product without photo. $url: configured placeholder (AppearanceSettings) or null for the inline SVG. --}}
 @if (! empty($url))
-    <img src="{{ $url }}" alt="{{ $alt ?? '' }}" loading="lazy" class="h-full w-full object-contain">
+    <img src="{{ $url }}" alt="{{ $alt ?? '' }}" width="400" height="400" loading="lazy" decoding="async" class="h-full w-full object-contain">
 @else
     <svg class="h-full w-full text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" @if (($alt ?? null) === '') aria-hidden="true" @else role="img" aria-label="{{ $alt ?? __('storefront.product.no_photo') }}" @endif>
         <rect x="3" y="4" width="18" height="16" rx="2"/>

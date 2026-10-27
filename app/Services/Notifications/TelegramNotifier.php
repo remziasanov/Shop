@@ -45,7 +45,7 @@ class TelegramNotifier
         // Messages are built within the limit (see OrderMessage). Last resort: plain text cut on visible characters.
         if (OrderMessage::visibleLength($html) > self::MAX_LENGTH) {
             $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $html = HtmlEscaper::e(mb_substr($text, 0, self::MAX_LENGTH - 1).'…');
+            $html = HtmlEscaper::e(OrderMessage::cutUtf16($text, self::MAX_LENGTH - 1).'…');
         }
 
         try {
