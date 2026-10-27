@@ -63,8 +63,11 @@ final class SitemapGenerator
             $handle = @fopen(storage_path('framework/sitemap.lock'), 'c');
 
             // No lock file (read-only storage) means the cache lock alone has to do.
-            if ($handle !== false && ! flock($handle, LOCK_EX | LOCK_NB)) {
-                return null;
+            if ($handle !== false && ! flock($handle, LOCK_EX | LOCK_NB, $wouldBlock)) {
+                // Busy only when another process holds it; any other flock failure falls back to the cache lock.
+                if ($wouldBlock === 1) {
+                    return null;
+                }
             }
 
             return $this->generate($directory, $maxUrls);

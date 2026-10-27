@@ -168,14 +168,15 @@ jobs:
             echo "configured=true"
           else
             echo "configured=false"
-            if [ -f .env ] && [ -f bootstrap/cache/config.php ] && ! grep -Eq "^APP_KEY=[\"']?[^\"'[:space:]]" .env; then
+            # A missing .env counts too: a live site must never be redeployed in first-install mode.
+            if [ -f bootstrap/cache/config.php ] && ! grep -Eqs "^APP_KEY=[\"']?[^\"'[:space:]]" .env; then
               echo "live_key_lost=true"
             fi
           fi
           CHECK
           state="$(ssh beget bash -s -- "'$BEGET_PATH'" < "$RUNNER_TEMP/check.sh")"
           if printf '%s\n' "$state" | grep -q '^live_key_lost=true$'; then
-            echo "::error::APP_KEY пуст на работающем сайте: восстановите ключ из резервной копии .env (новый ключ сделает зашифрованные данные нечитаемыми). Ничего не загружено."
+            echo "::error::На работающем сайте нет .env или пуст APP_KEY: восстановите .env из резервной копии (новый ключ сделает зашифрованные данные нечитаемыми). Если это первая установка и вы запускали optimize до шага 6.2 — выполните optimize:clear. Ничего не загружено."
             exit 1
           fi
           printf '%s\n' "$state" | grep -E '^(installed|configured)=(true|false)$' >> "$GITHUB_OUTPUT"
