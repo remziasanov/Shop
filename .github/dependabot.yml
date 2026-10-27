@@ -1,0 +1,10 @@
+# Proposes updates of the GitHub Actions used in .github/workflows (tags today; see D-061 for SHA pinning).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci

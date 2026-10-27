@@ -31,6 +31,11 @@ return [
     'sitemap_dir' => env('SITEMAP_DIR') ? base_path((string) env('SITEMAP_DIR')) : null,
 
     /*
+    | TTL in seconds of the cache lock around sitemap generation (D-056); must exceed the longest run on a large catalog.
+    */
+    'sitemap_lock_seconds' => 300,
+
+    /*
     |--------------------------------------------------------------------------
     | Scheduler heartbeat file (AD-11)
     |--------------------------------------------------------------------------

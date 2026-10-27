@@ -12,8 +12,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * D-057: absolute URLs are built from APP_URL, so the www./bare twin of the APP_URL host would load assets and
- * Livewire from another origin. In production the twin is redirected to the canonical host (301 for GET/HEAD,
- * 308 otherwise so the method and body are kept). Any other host is left to TrustHosts.
+ * Livewire from another origin. The same holds for the hosts of SHOP_EXTRA_HOSTS (e.g. the Beget technical domain).
+ * In production the twin and the extra hosts are redirected to the canonical host (301 for GET/HEAD, 308 otherwise
+ * so the method and body are kept). Any other host is left to TrustHosts.
  */
 class CanonicalHost
 {
@@ -26,7 +27,7 @@ class CanonicalHost
         $canonical = TrustedHosts::canonical();
         $host = strtolower($request->getHost());
 
-        if ($canonical === null || $host === $canonical || $host !== TrustedHosts::twin($canonical)) {
+        if ($canonical === null || $host === $canonical || ! in_array($host, TrustedHosts::redirectedHosts($canonical), true)) {
             return $next($request);
         }
 

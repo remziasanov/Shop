@@ -41,21 +41,42 @@ final class SitemapGenerator
 
     /**
      * {@see generate()} under a cache lock, so the cron run, the post-import job and a crawler hitting a missing
-     * file never write the sitemap in parallel (one process could remove the other's parts).
+     * file never write the sitemap in parallel (one process could remove the other's parts). The cache lock can
+     * vanish (`cache:clear`, TTL shorter than a very large run), so a second guard, an flock() on a file in
+     * storage/framework, is held as well; the kernel drops it with the process, it never goes stale. Even with both
+     * gone, concurrent runs are harmless: every run writes its own uniquely named temporary files (tempnam) and
+     * publishes each one with an atomic rename(), so sitemap.xml is always a complete, well-formed file.
      *
      * @return int|null number of URLs written, null when another process is generating right now
      */
     public function generateLocked(?string $directory = null, int $maxUrls = self::MAX_URLS): ?int
     {
-        $lock = Cache::lock(self::LOCK, 120);
+        $lock = Cache::lock(self::LOCK, max(1, (int) config('shop.sitemap_lock_seconds', 300)));
 
         if (! $lock->get()) {
             return null;
         }
 
+        $handle = null;
+
         try {
+            $handle = @fopen(storage_path('framework/sitemap.lock'), 'c');
+
+            // No lock file (read-only storage) means the cache lock alone has to do.
+            if ($handle !== false && ! flock($handle, LOCK_EX | LOCK_NB, $wouldBlock)) {
+                // Busy only when another process holds it; any other flock failure falls back to the cache lock.
+                if ($wouldBlock === 1) {
+                    return null;
+                }
+            }
+
             return $this->generate($directory, $maxUrls);
         } finally {
+            if (is_resource($handle)) {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+            }
+
             $lock->release();
         }
     }
