@@ -235,6 +235,10 @@ _SF-17 (фильтры по произвольным характеристик�
 
 Статус: не начат
 
+- [ ] `shop:doctor`: проверка `MAIL_FROM_ADDRESS` и почтового драйвера в production (из ревью PR #7)
+- [ ] deploy.yml: `php artisan view:clear` / `optimize:clear` перед `optimize` (из ревью PR #7)
+- [ ] DEPLOY_BEGET.md: до привязки домена указывать технический домен в `APP_URL` (из ревью PR #6)
+
 - [ ] `.github/workflows/deploy.yml`
 - [ ] `docs/DEPLOY_BEGET.md`
 - [ ] `README.md`
@@ -309,6 +313,10 @@ _SF-17 (фильтры по произвольным характеристик�
 | 5 | Ревью PR #6 r3 | GenerateSitemap: `tries=5` без `backoff` — ошибки генератора повторяются сразу. |
 | 5 | Ревью PR #6 | TTL блокировки sitemap 120 с может не хватить на большом каталоге; `cache:clear` снимает блокировку. |
 | 5 | Ревью PR #6 | Напоминание о незаменённых шаблонах юридических страниц в `shop:doctor`/дашборде. |
+| 6 | Ревью PR #7 r2 | MarkdownEscaper.php:17,22 — в text/plain версии писем видны экранирующие `\` (`\+7 \(999\)…`); убирать `\` перед ASCII-пунктуацией в текстовой части. |
+| 6 | Ревью PR #7 r2 | NotifyExpiringReservationsCommand.php:71-73 — результат `JobFanOut::dispatch()` не проверяется; при сбое внешнего COMMIT уведомление «резерв истекает» может потеряться. |
+| 6 | Ревью PR #7 r2 | OrderMessage.php:19,117-119 — длина считается в кодовых точках, Telegram, вероятно, считает UTF-16 (эмодзи в названиях). |
+| 6 | Ревью PR #7 r2 | SendMailNotification.php:88-90 — оборачивается любой Throwable без `previous`; оборачивать только ошибки транспорта/адреса. |
 
 ## Журнал PR
 
@@ -320,3 +328,4 @@ _SF-17 (фильтры по произвольным характеристик�
 | #4 | 3 | APPROVE (2 раунда: r1 — 3 major, r2 — approve) |
 | #5 | 4 | APPROVE (2 раунда: r1 — 3 major, r2 — approve) |
 | #6 | 5 | APPROVE (3 раунда: r1 — 2 major, r2 — 1 major, r3 — approve) |
+| #7 | 6 | APPROVE (2 раунда: r1 — 2 major, r2 — approve) |
