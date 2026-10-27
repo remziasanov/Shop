@@ -321,7 +321,7 @@ cd /home/X/LOGIN/shop
 
 ### 6.5. Повторный деплой
 
-Дальше обновления выкладываются запуском **Deploy** (раздел 5.3): `.env` настроен, деплой проходит полностью. Если ключ `APP_KEY` в `.env` вдруг окажется пустым, деплой сам выполнит `optimize:clear` и `key:generate`.
+Дальше обновления выкладываются запуском **Deploy** (раздел 5.3): `.env` настроен, деплой проходит полностью.
 
 ## 7. Cron: две задачи в CronTab
 
@@ -429,10 +429,11 @@ MAIL_FROM_NAME="Название магазина"
 - `MAIL_PORT` — порт и тип шифрования уточните в панели Beget в разделе «Почта». Обычно указывают порт 465 (SSL) или 2525; значение из панели важнее примера.
 - `MAIL_FROM_ADDRESS` — обязателен. Без него письма не уходят. Обычно это тот же ящик, что и `MAIL_USERNAME`.
 
-Сохраните файл (`Ctrl+O`, `Enter`, `Ctrl+X`) и сбросьте кэш конфигурации:
+Сохраните файл (`Ctrl+O`, `Enter`, `Ctrl+X`), сбросьте кэш конфигурации и соберите его заново:
 
 ```bash
 /usr/local/php/cgi/8.3/bin/php /home/X/LOGIN/shop/artisan optimize:clear
+/usr/local/php/cgi/8.3/bin/php /home/X/LOGIN/shop/artisan optimize
 ```
 
 ### 8.5. Тест почты
@@ -605,15 +606,17 @@ tail -n 50 /home/X/LOGIN/shop/storage/logs/ИМЯ_ФАЙЛА_ИЗ_ПРЕДЫДУ
 chmod -R 775 /home/X/LOGIN/shop/storage /home/X/LOGIN/shop/bootstrap/cache
 ```
 
-Если написано про ключ шифрования (`No application encryption key`), выполните `key:generate` один раз (шаг 6.2), только если `APP_KEY` в `.env` пуст. Затем очистите кэш:
+Если написано про ключ шифрования (`No application encryption key`) и `APP_KEY` в `.env` пуст, сначала очистите кэш, затем один раз создайте ключ (как в шаге 6.2) и снова включите кэш:
 
 ```bash
 /usr/local/php/cgi/8.3/bin/php /home/X/LOGIN/shop/artisan optimize:clear
+/usr/local/php/cgi/8.3/bin/php /home/X/LOGIN/shop/artisan key:generate
+/usr/local/php/cgi/8.3/bin/php /home/X/LOGIN/shop/artisan optimize
 ```
 
 ### «400 Bad Request» на техническом домене
 
-Магазин принимает только адреса, указанные в `APP_URL`, и их вариант с `www.`. Технический домен Beget (`*.beget.tech`) пропускается, только если он указан в `APP_URL` или в `SHOP_EXTRA_HOSTS`. Исправьте `.env` (шаг 6.1), затем выполните `optimize:clear`.
+Магазин принимает только адреса, указанные в `APP_URL`, и их вариант с `www.`. Технический домен Beget (`*.beget.tech`) пропускается, только если он указан в `APP_URL` или в `SHOP_EXTRA_HOSTS`. Исправьте `.env` (шаг 6.1), затем выполните `optimize:clear` и `optimize` (или запустите Deploy).
 
 ### `www.` перенаправляет на основной адрес
 
@@ -639,7 +642,7 @@ ls -l /usr/local/php/cgi/8.3/bin/php
 - Пустой `MAIL_FROM_ADDRESS` — заполните его (шаг 8.4).
 - Неверный `MAIL_PORT` или пароль ящика — сверьте с разделом «Почта» в панели Beget.
 - Проверьте журнал (`storage/logs`) — там записывается причина без адресов покупателей.
-- Выполните `optimize:clear` после изменения `.env`.
+- После изменения `.env` выполните `optimize:clear`, затем `optimize` (или запустите Deploy).
 
 ### Большие ZIP с фотографиями
 
@@ -659,7 +662,7 @@ mkdir -p /home/X/LOGIN/shop/storage/app/import-media
 
 ### Админ-панель открывается с ошибкой 404
 
-Проверьте `ADMIN_PATH` в `.env` и адрес в браузере: `https://ваш-адрес/ЗНАЧЕНИЕ_ADMIN_PATH`. После изменения выполните `optimize:clear`.
+Проверьте `ADMIN_PATH` в `.env` и адрес в браузере: `https://ваш-адрес/ЗНАЧЕНИЕ_ADMIN_PATH`. После изменения выполните `optimize:clear`, затем `optimize`.
 
 ### Магазин показывает страницу обслуживания
 
