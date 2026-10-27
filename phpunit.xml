@@ -34,6 +34,7 @@
         <env name="MAIL_FROM_ADDRESS" value="shop@example.test"/>
         <env name="MAIL_FROM_NAME" value="Магазин"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="HEARTBEAT_PATH" value="storage/framework/testing/heartbeat"/>
         <env name="SITEMAP_DIR" value="storage/framework/testing/sitemap"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

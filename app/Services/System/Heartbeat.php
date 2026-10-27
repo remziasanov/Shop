@@ -14,7 +14,9 @@ class Heartbeat
 {
     public function path(): string
     {
-        return storage_path('app/heartbeat');
+        $configured = config('shop.heartbeat_path');
+
+        return is_string($configured) && $configured !== '' ? $configured : storage_path('app/heartbeat');
     }
 
     public function touch(): void

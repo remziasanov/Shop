@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "shop/shop",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Online shop (Laravel + Filament) for Beget shared hosting.",
+    "keywords": ["laravel", "filament", "shop"],
     "license": "MIT",
     "require": {
         "php": "^8.3",
@@ -18,8 +18,6 @@
     "require-dev": {
         "fakerphp/faker": "^1.23",
         "larastan/larastan": "^3",
-        "laravel/pail": "^1.2.5",
-        "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
@@ -50,7 +48,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "@php artisan dev"
+            "@php artisan serve"
         ],
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",

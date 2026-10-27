@@ -8,6 +8,8 @@ use App\Enums\CheckStatus;
 use App\Services\Content\LegalPageStatus;
 use App\Support\TrustedHosts;
 use Closure;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -18,6 +20,16 @@ use Throwable;
  */
 class EnvironmentChecker
 {
+    private const MIN_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+    private const MIN_MEMORY_BYTES = 128 * 1024 * 1024;
+
+    private const MIN_EXECUTION_SECONDS = 30;
+
+    private const PHOTOS_SIZE_CACHE_KEY = 'system.photos_size';
+
+    private const PHOTOS_SIZE_TTL_SECONDS = 600;
+
     private const EXTENSIONS = [
         'pdo_mysql', 'mbstring', 'intl', 'gd', 'zip', 'fileinfo',
         'bcmath', 'openssl', 'curl', 'xml', 'ctype', 'tokenizer',
@@ -58,10 +70,10 @@ class EnvironmentChecker
             'queue_pending' => fn () => $this->queuePending(),
             'queue_failed' => fn () => $this->queueFailed(),
             'scheduler' => fn () => $this->scheduler(),
-            'upload_max_filesize' => fn () => $this->ini('upload_max_filesize'),
-            'post_max_size' => fn () => $this->ini('post_max_size'),
+            'upload_max_filesize' => fn () => $this->uploadLimit('upload_max_filesize'),
+            'post_max_size' => fn () => $this->uploadLimit('post_max_size'),
             'memory_limit' => fn () => $this->memoryLimit(),
-            'max_execution_time' => fn () => $this->ini('max_execution_time'),
+            'max_execution_time' => fn () => $this->maxExecutionTime(),
             'photos_size' => fn () => $this->photosSize(),
             'legal_pages' => fn () => $this->legalPages(),
         ];
@@ -304,12 +316,26 @@ class EnvironmentChecker
 
         $version = (string) $connection->selectOne('select version() as v')->v;
         $isMariaDb = stripos($version, 'mariadb') !== false;
+        $label = self::databaseLabel($driver, $version);
         $number = preg_match('/\d+\.\d+(\.\d+)?/', $version, $m) ? $m[0] : '0';
         $ok = $isMariaDb || version_compare($number, '8.0', '>=');
 
         return $this->result('database', $ok ? CheckStatus::Ok : CheckStatus::Warning,
-            ucfirst($driver).' '.$version,
+            $label.' '.$version,
             $ok ? null : __('system.hints.mysql_version'));
+    }
+
+    /**
+     * Human-readable engine name derived from the driver and `version()` string.
+     */
+    public static function databaseLabel(string $driver, string $version): string
+    {
+        return match (true) {
+            $driver === 'sqlite' => 'SQLite',
+            $driver === 'mariadb', stripos($version, 'mariadb') !== false => 'MariaDB',
+            $driver === 'mysql' => 'MySQL',
+            default => $driver,
+        };
     }
 
     private function queuePending(): CheckResult
@@ -360,19 +386,38 @@ class EnvironmentChecker
             __('system.hints.legal_pages', ['pages' => implode(', ', $pending)]));
     }
 
-    private function ini(string $key): CheckResult
+    private function uploadLimit(string $key): CheckResult
     {
-        return $this->result($key, CheckStatus::Ok, (string) ini_get($key));
+        $raw = $this->iniValue($key);
+        $bytes = $this->toBytes($raw);
+        $low = $bytes !== -1 && $bytes < self::MIN_UPLOAD_BYTES;
+
+        return $this->result($key, $low ? CheckStatus::Warning : CheckStatus::Ok, $raw,
+            $low ? __('system.hints.upload_limit') : null);
+    }
+
+    private function maxExecutionTime(): CheckResult
+    {
+        $seconds = (int) $this->iniValue('max_execution_time');
+        $low = $seconds > 0 && $seconds < self::MIN_EXECUTION_SECONDS;
+
+        return $this->result('max_execution_time', $low ? CheckStatus::Warning : CheckStatus::Ok, (string) $seconds,
+            $low ? __('system.hints.max_execution_time') : null);
     }
 
     private function memoryLimit(): CheckResult
     {
-        $raw = (string) ini_get('memory_limit');
+        $raw = $this->iniValue('memory_limit');
         $bytes = $this->toBytes($raw);
-        $low = $bytes !== -1 && $bytes < 128 * 1024 * 1024;
+        $low = $bytes !== -1 && $bytes < self::MIN_MEMORY_BYTES;
 
         return $this->result('memory_limit', $low ? CheckStatus::Warning : CheckStatus::Ok, $raw,
             $low ? __('system.hints.memory_limit') : null);
+    }
+
+    protected function iniValue(string $key): string
+    {
+        return (string) ini_get($key);
     }
 
     private function toBytes(string $value): int
@@ -395,7 +440,20 @@ class EnvironmentChecker
 
     private function photosSize(): CheckResult
     {
-        $dir = storage_path('app/public/products');
+        /** @var array{bytes: int, at: int} $cached */
+        $cached = Cache::remember(self::PHOTOS_SIZE_CACHE_KEY, self::PHOTOS_SIZE_TTL_SECONDS, fn (): array => [
+            'bytes' => $this->directorySize(storage_path('app/public/products')),
+            'at' => now()->timestamp,
+        ]);
+
+        $time = Carbon::createFromTimestamp($cached['at'])->setTimezone((string) config('app.timezone'))->format('H:i');
+
+        return $this->result('photos_size', CheckStatus::Ok,
+            $this->humanSize($cached['bytes']).' ('.__('system.values.calculated_at', ['time' => $time]).')');
+    }
+
+    private function directorySize(string $dir): int
+    {
         $bytes = 0;
 
         if (is_dir($dir)) {
@@ -408,12 +466,12 @@ class EnvironmentChecker
             }
         }
 
-        return $this->result('photos_size', CheckStatus::Ok, $this->humanSize($bytes));
+        return $bytes;
     }
 
     private function humanSize(int $bytes): string
     {
-        $units = ['Б', 'КБ', 'МБ', 'ГБ'];
+        $units = array_values((array) __('system.units'));
         $i = 0;
         $size = (float) $bytes;
 

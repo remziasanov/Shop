@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Pages\Settings;
 
 use App\Filament\Concerns\AdminOnlySettingsPage;
+use App\Filament\Concerns\DeletesReplacedSettingFiles;
 use App\Settings\AppearanceSettings;
 use BackedEnum;
 use Filament\Forms\Components\ColorPicker;
@@ -18,6 +19,9 @@ use Filament\Support\Icons\Heroicon;
 class ManageAppearanceSettings extends SettingsPage
 {
     use AdminOnlySettingsPage;
+    use DeletesReplacedSettingFiles;
+
+    private const HEX_COLOR_PATTERN = '/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/';
 
     protected static string $settings = AppearanceSettings::class;
 
@@ -27,15 +31,27 @@ class ManageAppearanceSettings extends SettingsPage
 
     protected static ?int $navigationSort = 20;
 
+    /**
+     * @return list<string>
+     */
+    protected function settingsFileFields(): array
+    {
+        return ['placeholder_image'];
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema->components([
             ColorPicker::make('primary_color')
                 ->label(__('shop.settings.appearance.fields.primary_color'))
-                ->required(),
+                ->required()
+                ->regex(self::HEX_COLOR_PATTERN)
+                ->validationMessages(['regex' => __('shop.settings.appearance.errors.color_format')]),
             ColorPicker::make('accent_color')
                 ->label(__('shop.settings.appearance.fields.accent_color'))
-                ->required(),
+                ->required()
+                ->regex(self::HEX_COLOR_PATTERN)
+                ->validationMessages(['regex' => __('shop.settings.appearance.errors.color_format')]),
             Select::make('grid_columns')
                 ->label(__('shop.settings.appearance.fields.grid_columns'))
                 ->options([3 => '3', 4 => '4'])
