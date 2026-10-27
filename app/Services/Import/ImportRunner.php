@@ -8,6 +8,7 @@ use App\Enums\ImportMode;
 use App\Enums\ImportStatus;
 use App\Events\ImportFinished;
 use App\Exceptions\ImportFileException;
+use App\Http\Controllers\Admin\ImportProcessNextController;
 use App\Jobs\ProcessImportChunk;
 use App\Models\Import;
 use App\Models\Product;
@@ -16,6 +17,7 @@ use App\Services\Catalog\CategoryTree;
 use App\Services\Pricing\PriceRuleRecalculator;
 use Carbon\CarbonImmutable;
 use Filament\Notifications\Notification;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -153,7 +155,27 @@ final class ImportRunner
         return $step !== ImportStep::Finished && $step !== ImportStep::Stopped;
     }
 
+    /**
+     * Cache key of the consecutive failures of the browser fallback ({@see ImportProcessNextController}).
+     */
+    public static function browserFailuresKey(Import $import): string
+    {
+        return 'import:'.$import->id.':browser_failures';
+    }
+
     public function step(Import $import, float $timeBudgetSeconds = 20.0): ImportStep
+    {
+        $step = $this->runStep($import, $timeBudgetSeconds);
+
+        // Any step that did work (queue or browser) ends a streak of browser failures: they must be consecutive.
+        if (in_array($step, [ImportStep::Categories, ImportStep::Chunk, ImportStep::Photos, ImportStep::Finished], true)) {
+            Cache::forget(self::browserFailuresKey($import));
+        }
+
+        return $step;
+    }
+
+    private function runStep(Import $import, float $timeBudgetSeconds): ImportStep
     {
         $deadline = microtime(true) + $timeBudgetSeconds;
         $import->refresh();
@@ -487,32 +509,72 @@ final class ImportRunner
             DB::table('imports')->where('id', $import->id)->update(['last_activity_at' => now()]);
         };
 
-        try {
-            $left = $this->photos->run($import, $tasks, $deadline, $heartbeat);
-        } catch (Throwable $e) {
+        // On an exception the tasks that were already finished (counted, warnings written) must not run again on
+        // the retry: the working file is cut down to the task that failed and the ones after it.
+        $onAbort = function (array $remaining) use ($working): void {
             if (is_file($working)) {
-                @rename($working, $pendingFile);
+                file_put_contents($working, json_encode($remaining, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), LOCK_EX);
             }
+        };
+
+        try {
+            $left = $this->photos->run($import, $tasks, $deadline, $heartbeat, $onAbort);
+        } catch (Throwable $e) {
+            $this->withPhotosLock($import, function () use ($working, $pendingFile): void {
+                if (is_file($working)) {
+                    @rename($working, $pendingFile);
+                }
+            }, true);
 
             throw $e;
         }
 
-        if (! is_file($working)) {
-            return;
-        }
+        $this->withPhotosLock($import, function () use ($working, $pendingFile, $left): void {
+            if (! is_file($working)) {
+                return;
+            }
 
-        if ($left === []) {
-            @unlink($working);
+            if ($left === []) {
+                @unlink($working);
 
-            return;
-        }
+                return;
+            }
 
-        file_put_contents($working, json_encode($left, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), LOCK_EX);
-        @rename($working, $pendingFile);
+            file_put_contents($working, json_encode($left, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), LOCK_EX);
+            @rename($working, $pendingFile);
+        }, true);
     }
 
     /**
-     * Process one file of pending photo tasks. The file is claimed by renaming it, so two workers never take the same one.
+     * Run $callback under the per-import photo-file lock (`import:{id}:photos`): claiming a pending file, returning
+     * a stale one and handing a file back must not interleave (D-033, no duplicate photo work).
+     *
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @param  bool  $runAnyway  when the lock cannot be taken within a few seconds: run unlocked (true) or skip (false)
+     * @return T|null null when skipped
+     */
+    private function withPhotosLock(Import $import, callable $callback, bool $runAnyway = false): mixed
+    {
+        $lock = Cache::lock($this->lockKey($import, 'photos'), self::LOCK_TTL);
+
+        try {
+            $lock->block(3);
+        } catch (LockTimeoutException) {
+            return $runAnyway ? $callback() : null;
+        }
+
+        try {
+            return $callback();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Process one file of pending photo tasks. The file is claimed by renaming it under the photo lock, so two
+     * workers never take the same one.
      *
      * @return bool true when a file was taken and processed
      */
@@ -520,33 +582,42 @@ final class ImportRunner
     {
         $directory = Storage::disk('local')->path($this->importDir($import));
 
-        // Return files abandoned by a dead worker (also when the budget is spent: finish() depends on it).
-        clearstatcache();
-        foreach (glob($directory.'/photos-working-*.json') ?: [] as $working) {
-            if (filemtime($working) !== false && filemtime($working) < time() - self::STALE_CLAIM_SECONDS) {
-                @rename($working, $directory.'/photos-pending-'.substr(basename($working), strlen('photos-working-')));
+        $working = $this->withPhotosLock($import, function () use ($directory, $deadline): ?string {
+            // Return files abandoned by a dead worker (also when the budget is spent: finish() depends on it).
+            clearstatcache();
+            foreach (glob($directory.'/photos-working-*.json') ?: [] as $stale) {
+                if (filemtime($stale) !== false && filemtime($stale) < time() - self::STALE_CLAIM_SECONDS) {
+                    @rename($stale, $directory.'/photos-pending-'.substr(basename($stale), strlen('photos-working-')));
+                }
             }
-        }
 
-        if (microtime(true) >= $deadline) {
+            if (microtime(true) >= $deadline) {
+                return null;
+            }
+
+            foreach (glob($directory.'/photos-pending-*.json') ?: [] as $pendingFile) {
+                $claimed = $directory.'/photos-working-'.substr(basename($pendingFile), strlen('photos-pending-'));
+
+                if (is_file($claimed) || ! @rename($pendingFile, $claimed)) {
+                    continue;
+                }
+
+                // The rename keeps the old modification time: without this a fresh claim would look stale.
+                @touch($claimed);
+
+                return $claimed;
+            }
+
+            return null;
+        });
+
+        if ($working === null) {
             return false;
         }
 
-        foreach (glob($directory.'/photos-pending-*.json') ?: [] as $pendingFile) {
-            $working = $directory.'/photos-working-'.substr(basename($pendingFile), strlen('photos-pending-'));
+        $this->processWorkingFile($import, $working, $deadline);
 
-            if (is_file($working) || ! @rename($pendingFile, $working)) {
-                continue;
-            }
-
-            // The rename keeps the old modification time: without this a fresh claim would look stale.
-            @touch($working);
-            $this->processWorkingFile($import, $working, $deadline);
-
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     private function hasPhotoFiles(Import $import): bool

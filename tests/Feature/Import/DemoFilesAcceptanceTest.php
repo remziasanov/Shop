@@ -67,3 +67,24 @@ it('imports the demo file with its photo archive and a second import changes not
 
     Http::assertNothingSent();
 });
+
+it('counts every row exactly once in a dry run of the demo file over an imported catalog', function () {
+    Storage::fake('local');
+    Storage::fake('public');
+    Queue::fake([ProcessImportChunk::class, ProcessImportPhotos::class]);
+    app()->instance(HostResolver::class, new FakeHostResolver);
+    Http::fake();
+
+    runDemoImport();
+    $before = demoSnapshot();
+
+    $import = ImportHarness::analyzed(base_path('examples/import-demo.xlsx'), ['dry_run' => true]);
+    ImportHarness::attachZip($import, base_path('examples/import-demo-photos.zip'));
+    $dry = ImportHarness::run($import->refresh());
+
+    expect($dry->status)->toBe(ImportStatus::Completed)
+        ->and($dry->rows_processed)->toBe(50)
+        ->and($dry->unchanged_count)->toBe(50)
+        ->and($dry->created_count + $dry->updated_count + $dry->unchanged_count + $dry->skipped_count + $dry->error_count)->toBe(50)
+        ->and(demoSnapshot())->toEqual($before);
+});

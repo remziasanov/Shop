@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\DB;
  * @property string $slug
  * @property string|null $description
  * @property string|null $image_path
+ * @property string|null $image_source_hash
  * @property bool $is_active
  * @property SalesMode|null $sales_mode
  * @property int $sort_order
@@ -70,6 +71,7 @@ class Category extends Model
         'slug',
         'description',
         'image_path',
+        'image_source_hash',
         'is_active',
         'sales_mode',
         'sort_order',

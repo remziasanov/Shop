@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\ImageManager;
@@ -238,6 +239,31 @@ final class ImageProcessor
      * @throws ImageProcessingException
      */
     public function attachToProduct(Product $product, string $sourceAbsolutePath, ?string $alt = null, ?string $sourceHash = null, bool $deleteSource = false): ProductImage
+    {
+        // An import image (has a source hash) is attached at most once per product: the check runs under the product
+        // row lock, so two workers processing the same photo task end up with one image.
+        if ($sourceHash !== null && $sourceHash !== '') {
+            return DB::transaction(function () use ($product, $sourceAbsolutePath, $alt, $sourceHash, $deleteSource): ProductImage {
+                Product::withTrashed()->whereKey($product->getKey())->lockForUpdate()->first(['id']);
+
+                $existing = $product->images()->where('source_hash', $sourceHash)->first();
+
+                if ($existing !== null) {
+                    if ($deleteSource) {
+                        @unlink($sourceAbsolutePath);
+                    }
+
+                    return $existing;
+                }
+
+                return $this->attach($product, $sourceAbsolutePath, $alt, $sourceHash, $deleteSource);
+            });
+        }
+
+        return $this->attach($product, $sourceAbsolutePath, $alt, $sourceHash, $deleteSource);
+    }
+
+    private function attach(Product $product, string $sourceAbsolutePath, ?string $alt, ?string $sourceHash, bool $deleteSource): ProductImage
     {
         if ($product->images()->count() >= self::MAX_PER_PRODUCT) {
             throw ImageProcessingException::limitReached(self::MAX_PER_PRODUCT);

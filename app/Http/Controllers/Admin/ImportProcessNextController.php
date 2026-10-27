@@ -20,7 +20,8 @@ use Throwable;
  *
  * An exception does not fail the import at once (the queue gives a job 3 tries as well): the chunk is rolled back and
  * released, the client gets 503 with `retry: true` and calls again with a growing pause; only the
- * {@see MAX_FAILURES}-th failure in a row stops the import.
+ * {@see MAX_FAILURES}-th failure in a row stops the import. A step that makes progress, from the browser or the queue,
+ * ends the streak ({@see ImportRunner::step()}).
  */
 final class ImportProcessNextController
 {
@@ -30,7 +31,7 @@ final class ImportProcessNextController
     {
         Gate::authorize('process', $import);
 
-        $key = 'import:'.$import->id.':browser_failures';
+        $key = ImportRunner::browserFailuresKey($import);
 
         try {
             $more = $runner->processNext($import, ImportRunner::BROWSER_BUDGET);

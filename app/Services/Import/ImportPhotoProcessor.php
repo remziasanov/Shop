@@ -15,6 +15,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Services\Media\ImageProcessor;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
@@ -40,6 +41,12 @@ use Throwable;
  */
 final class ImportPhotoProcessor
 {
+    /**
+     * Seconds that must remain before the deadline for an image to be attached (decode, three variants, write): a
+     * large photo can take several seconds and the browser request has a hard 20 s limit (IM-10).
+     */
+    public const ATTACH_RESERVE_SECONDS = 3.0;
+
     /** @var (callable(): void)|null */
     private $heartbeat = null;
 
@@ -54,9 +61,11 @@ final class ImportPhotoProcessor
      * @param  float  $deadline  microtime(true) by which the step must be finished: no task, download or image
      *                           attachment is started after it, a download never runs past it
      * @param  (callable(): void)|null  $heartbeat  called after every unit of work (keeps the import marked as active)
+     * @param  (callable(list<array<string, mixed>>): void)|null  $onAbort  called with the tasks still to do (the one
+     *                                                                      that failed first) when an exception escapes
      * @return list<array<string, mixed>> tasks that were not (completely) processed
      */
-    public function run(Import $import, array $tasks, float $deadline, ?callable $heartbeat = null): array
+    public function run(Import $import, array $tasks, float $deadline, ?callable $heartbeat = null, ?callable $onAbort = null): array
     {
         if ($tasks === []) {
             return [];
@@ -64,10 +73,11 @@ final class ImportPhotoProcessor
 
         $this->heartbeat = $heartbeat;
         $resolver = new MediaResolver($import, $this->fetcher);
-        $issues = new IssueBatch($import->id);
         $pending = [];
         $updated = 0;
         $unchanged = 0;
+        $warnings = 0;
+        $position = 0;
 
         try {
             foreach ($tasks as $position => $task) {
@@ -77,10 +87,19 @@ final class ImportPhotoProcessor
                     break;
                 }
 
+                // Issues of a task are written only when the task finished or was deferred: when it throws, its
+                // warnings are dropped with it and come back (once) when the task is retried.
+                $issues = new IssueBatch($import->id);
                 $changed = false;
                 $left = ($task['type'] ?? 'product') === 'category'
                     ? $this->category($task, $resolver, $issues, $deadline, $changed)
                     : $this->product($task, $resolver, $issues, $deadline, $changed);
+
+                if (! $issues->isEmpty()) {
+                    $issues->flush();
+                }
+
+                $warnings += $issues->warningCount();
 
                 if ($left !== null) {
                     $pending = [$left, ...array_slice($tasks, $position + 1)];
@@ -94,15 +113,17 @@ final class ImportPhotoProcessor
 
                 $this->beat();
             }
+        } catch (Throwable $e) {
+            if ($onAbort !== null) {
+                $onAbort(array_slice($tasks, $position));
+            }
+
+            throw $e;
         } finally {
             $this->heartbeat = null;
 
-            if (! $issues->isEmpty()) {
-                $issues->flush();
-            }
-
             $counters = array_filter([
-                'warning_count' => $issues->warningCount(),
+                'warning_count' => $warnings,
                 'updated_count' => $updated,
                 'unchanged_count' => $unchanged,
             ]);
@@ -218,7 +239,7 @@ final class ImportPhotoProcessor
                 continue;
             }
 
-            if (microtime(true) >= $deadline) {
+            if (microtime(true) + self::ATTACH_RESERVE_SECONDS >= $deadline) {
                 return $this->deferred($task, $warned, $changed);
             }
 
@@ -316,9 +337,22 @@ final class ImportPhotoProcessor
                 return null;
             }
 
-            $source = $relative !== null ? $this->own->absolutePath($relative) : null;
-            $path = $this->images->processCategoryImage($source ?? $resolver->resolve($ref, $deadline), $category);
-            $category->update(['image_path' => $path]);
+            // Same reference as the one the current image came from (and the file is still there): do not redo it.
+            $hash = $relative !== null ? sha1('own:'.$relative) : MediaResolver::hashFor($ref);
+
+            if ($category->image_source_hash === $hash && $category->image_path !== null
+                && Storage::disk(ImageProcessor::DISK)->exists($category->image_path)) {
+                return null;
+            }
+
+            $source = ($relative !== null ? $this->own->absolutePath($relative) : null) ?? $resolver->resolve($ref, $deadline);
+
+            if (microtime(true) + self::ATTACH_RESERVE_SECONDS >= $deadline) {
+                return $task;
+            }
+
+            $path = $this->images->processCategoryImage($source, $category);
+            $category->update(['image_path' => $path, 'image_source_hash' => $hash]);
             $changed = true;
         } catch (ImageFetchDeadlineException) {
             return $task;

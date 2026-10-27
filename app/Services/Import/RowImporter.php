@@ -78,6 +78,11 @@ final class RowImporter
             );
 
             if ($options->dryRun) {
+                // Photos are not processed in a dry run: rows with unchanged data and photos count as unchanged
+                // (created/updated rows are already counted by apply()), so every row lands in exactly one counter.
+                $unchangedWithPhotos = count(array_filter($result->photoTasks, fn (array $task): bool => ! empty($task['unchanged'])));
+                $result = new ChunkResult($result->chunk, $result->rows, $result->created, $result->updated, $result->unchanged + $unchangedWithPhotos, $result->skipped, $result->errors, $result->warnings, $result->categoriesCreated, [], []);
+
                 DB::rollBack();
                 $this->tree->flush();
                 $this->persistReport($import, $lines, $issues, $result);
@@ -96,9 +101,7 @@ final class RowImporter
             throw $e;
         }
 
-        return $options->dryRun
-            ? new ChunkResult($result->chunk, $result->rows, $result->created, $result->updated, $result->unchanged + count($result->photoTasks), $result->skipped, $result->errors, $result->warnings, $result->categoriesCreated, [], [])
-            : $result;
+        return $result;
     }
 
     /**
