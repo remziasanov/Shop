@@ -99,11 +99,12 @@ final class ImportPhotoProcessor
                 $issues = new IssueBatch($import->id);
                 $changed = false;
                 // Persists the task entry (e.g. the "photos changed" mark) into the working file mid-task.
-                $save = function (array $updatedTask) use (&$tasks, $position, $onTaskSaved): void {
+                $save = function (array $updatedTask) use (&$tasks, $position, $onTaskSaved, &$done): void {
                     $tasks[$position] = $updatedTask;
 
                     if ($onTaskSaved !== null) {
-                        $onTaskSaved($tasks);
+                        // Only unfinished tasks: finished ones are counted and must never run again.
+                        $onTaskSaved(array_slice($tasks, $done));
                     }
                 };
                 $left = ($task['type'] ?? 'product') === 'category'
@@ -134,7 +135,11 @@ final class ImportPhotoProcessor
             $this->heartbeat = null;
 
             if ($onAbort !== null) {
-                $onAbort(array_slice($tasks, $done));
+                try {
+                    $onAbort(array_slice($tasks, $done));
+                } catch (Throwable $abortError) {
+                    report($abortError);
+                }
             }
 
             try {
@@ -311,6 +316,7 @@ final class ImportPhotoProcessor
                 $attached = $this->images->attachToProduct($product, $entry['path'], null, (string) ($entry['hash'] ?? ''));
                 $sequence[$index]['id'] = $attached->id;
                 $changed = true;
+                $persistChanged();
             } catch (ImageProcessingException $e) {
                 $this->warnOnce($issues, $warned, $row, $ref, $e->getMessage());
             } catch (Throwable $e) {
