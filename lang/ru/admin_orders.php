@@ -171,6 +171,7 @@ return [
 
     'command' => [
         'expired' => 'Истекло резервов: :count',
+        'expiring_notified' => 'Предупреждений об истекающих резервах: :count',
     ],
 
 ];

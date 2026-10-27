@@ -27,6 +27,13 @@ class NotificationSettings extends Settings
     /** New order / reservation / inquiry: email to the customer. */
     public bool $notify_customer_new;
 
+    /** New request kinds that notify the shop (email and Telegram). */
+    public bool $notify_event_order;
+
+    public bool $notify_event_reservation;
+
+    public bool $notify_event_inquiry;
+
     /** Status changes (confirmed, ready, cancelled, reservation confirmed): email to the customer. */
     public bool $notify_customer_status;
 
