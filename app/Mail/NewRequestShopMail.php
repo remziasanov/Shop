@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use App\Mail\Concerns\StripsMarkdownEscapes;
 use App\Models\Order;
 use App\Services\Notifications\Messages\OrderMessage;
 use Illuminate\Mail\Mailable;
@@ -15,7 +16,12 @@ use Illuminate\Mail\Mailables\Envelope;
  */
 class NewRequestShopMail extends Mailable
 {
-    public function __construct(public readonly Order $order) {}
+    use StripsMarkdownEscapes;
+
+    public function __construct(public readonly Order $order)
+    {
+        $this->stripMarkdownEscapesFromTextPart();
+    }
 
     public function envelope(): Envelope
     {

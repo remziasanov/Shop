@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Enums\OrderType;
+use App\Mail\Concerns\StripsMarkdownEscapes;
 use App\Models\Order;
 use App\Settings\GeneralSettings;
 use App\Settings\SalesSettings;
@@ -17,7 +18,12 @@ use Illuminate\Mail\Mailables\Envelope;
  */
 class OrderPlacedCustomerMail extends Mailable
 {
-    public function __construct(public readonly Order $order) {}
+    use StripsMarkdownEscapes;
+
+    public function __construct(public readonly Order $order)
+    {
+        $this->stripMarkdownEscapesFromTextPart();
+    }
 
     public function envelope(): Envelope
     {

@@ -158,3 +158,13 @@ it('removes carts that were not touched for 30 days', function () {
         ->and(Cart::query()->whereKey($this->cart->id)->exists())->toBeTrue()
         ->and(CartItem::count())->toBe(0);
 });
+
+it('reports a missing cart instead of a product error when the cart is gone', function () {
+    $product = sellable();
+    $this->carts->add($this->cart, $product, 1);
+    $goneCart = Cart::query()->findOrFail($this->cart->id);
+    Cart::query()->whereKey($goneCart->id)->delete();
+
+    expect(fn () => $this->carts->add($goneCart, $product, 1))->toThrow(SalesException::class, __('sales.cart.gone'))
+        ->and(fn () => $this->carts->update($goneCart, $product->id, 2))->toThrow(SalesException::class, __('sales.cart.gone'));
+});

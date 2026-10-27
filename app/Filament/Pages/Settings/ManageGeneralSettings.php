@@ -46,8 +46,7 @@ class ManageGeneralSettings extends SettingsPage
                     ->directory('settings')
                     ->visibility('public')
                     ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
-                    ->maxSize(2048)
-                    ->image(),
+                    ->maxSize(2048),
                 FileUpload::make('favicon')
                     ->label(__('shop.settings.general.fields.favicon'))
                     ->disk('public')

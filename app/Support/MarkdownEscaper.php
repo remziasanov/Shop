@@ -50,4 +50,13 @@ final class MarkdownEscaper
         // Autolink literals (https://…) are a GFM feature: break the scheme separator ("www." and emails are broken by \. and \@).
         return preg_replace('~:(?=//)~', '\\\\:', $line) ?? $line;
     }
+
+    /**
+     * Reverses {@see escape()} / {@see inline()} for the plain-text mail part: removes the backslash in front of
+     * ASCII punctuation (CommonMark treats `\` + punctuation as the literal character).
+     */
+    public static function unescape(string $value): string
+    {
+        return preg_replace('/\\\\([!-\/:-@\[-`{-~])/', '$1', $value) ?? $value;
+    }
 }

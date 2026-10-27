@@ -212,6 +212,7 @@ final class HomeBlocksSchema
                 ->helperText(__('home.admin.html_hint'))
                 ->required()
                 ->rows(12)
+                ->maxLength(20000)
                 ->extraInputAttributes(['class' => 'font-mono text-sm', 'spellcheck' => 'false'])
                 ->columnSpanFull(),
         ]);

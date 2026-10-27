@@ -66,27 +66,30 @@ class ManageSeoSettings extends SettingsPage
                     ->directory('settings')
                     ->visibility('public')
                     ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
-                    ->maxSize(2048)
-                    ->image(),
+                    ->maxSize(2048),
             ])->columns(2),
             Section::make(__('shop.settings.seo.sections.technical'))->schema([
                 Textarea::make('robots_txt')
                     ->label(__('shop.settings.seo.fields.robots_txt'))
                     ->required()
                     ->rows(6)
+                    ->maxLength(5000)
                     ->extraInputAttributes(['class' => 'font-mono']),
                 Textarea::make('verification_meta')
                     ->label(__('shop.settings.seo.fields.verification_meta'))
                     ->helperText(__('shop.settings.seo.hints.verification_meta'))
                     ->rows(3)
+                    ->maxLength(2000)
                     ->extraInputAttributes(['class' => 'font-mono']),
                 Textarea::make('head_code')
                     ->label(__('shop.settings.seo.fields.head_code'))
                     ->rows(4)
+                    ->maxLength(10000)
                     ->extraInputAttributes(['class' => 'font-mono']),
                 Textarea::make('body_code')
                     ->label(__('shop.settings.seo.fields.body_code'))
                     ->rows(4)
+                    ->maxLength(10000)
                     ->extraInputAttributes(['class' => 'font-mono']),
             ])->columns(2),
         ])->columns(1);

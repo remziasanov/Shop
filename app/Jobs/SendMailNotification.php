@@ -16,6 +16,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mime\Exception\RfcComplianceException;
 use Throwable;
 
 /**
@@ -85,8 +87,8 @@ class SendMailNotification implements ShouldBeUnique, ShouldQueue
         if ($mailable !== null) {
             try {
                 Mail::to($recipient)->send($mailable);
-            } catch (Throwable $e) {
-                // Transport exceptions quote the recipient: rethrow a sanitized one, without `previous` (NF-15).
+            } catch (TransportExceptionInterface|RfcComplianceException $e) {
+                // Only transport and address errors are rewritten (everything else keeps its own exception and trace). Transport exceptions quote the recipient: rethrow a sanitized one, without `previous` (NF-15).
                 throw new MailDeliveryException(PiiMask::scrubEmails(str_replace((string) $recipient, PiiMask::email((string) $recipient), $e::class.': '.$e->getMessage())));
             }
         }

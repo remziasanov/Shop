@@ -18,6 +18,7 @@ use App\Services\Notifications\Messages\OrderMessage;
 use App\Services\Notifications\TelegramNotifier;
 use App\Services\Orders\OrderService;
 use App\Settings\NotificationSettings;
+use App\Support\MarkdownEscaper;
 use App\Support\PiiMask;
 use Illuminate\Queue\Events\JobQueueing;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Symfony\Component\Mailer\Exception\TransportException;
 
 /**
  * @return array{html: string, text: string}
@@ -152,7 +154,7 @@ it('falls back to escaped plain text when a foreign message is too long', functi
 it('rethrows mail transport errors without the recipient address (NF-15)', function (): void {
     notif();
     $order = newOrder(['customer_email' => 'secret.buyer@example.com']);
-    Mail::shouldReceive('to')->andThrow(new RuntimeException('Expected response code "250" but got code "550", with message "550 5.1.1 <secret.buyer@example.com> user unknown".'));
+    Mail::shouldReceive('to')->andThrow(new TransportException('Expected response code "250" but got code "550", with message "550 5.1.1 <secret.buyer@example.com> user unknown".'));
 
     try {
         (new SendMailNotification($order->id, SendMailNotification::CUSTOMER_PLACED))->handle();
@@ -162,6 +164,15 @@ it('rethrows mail transport errors without the recipient address (NF-15)', funct
             ->and($e->getMessage())->toContain('s***@example.com')
             ->and($e->getPrevious())->toBeNull();
     }
+});
+
+it('keeps non-transport errors (a broken template) as they are', function (): void {
+    notif();
+    $order = newOrder(['customer_email' => 'buyer@example.com']);
+    Mail::shouldReceive('to')->andThrow(new LogicException('template broke'));
+
+    expect(fn () => (new SendMailNotification($order->id, SendMailNotification::CUSTOMER_PLACED))->handle())
+        ->toThrow(LogicException::class, 'template broke');
 });
 
 it('logs a failed mail job with masked data only', function (): void {
@@ -258,4 +269,23 @@ it('flags the expiry by the order service as made by the system', function (): v
     app(OrderService::class)->expireReservations();
 
     Event::assertDispatched(OrderStatusChanged::class, fn (OrderStatusChanged $e): bool => $e->bySystem === true && $e->user === null && $e->order->is($order));
+});
+
+it('shows customer text without markdown backslashes in the plain-text part', function (): void {
+    notif();
+    $order = newOrder(['customer_name' => 'Ivan (the *best*)', 'customer_phone' => '+7 (999) 123-45-67']);
+
+    $bodies = sentBodies(new OrderPlacedCustomerMail($order->fresh()));
+
+    expect($bodies['text'])->toContain('Ivan (the *best*)')
+        ->and($bodies['text'])->not->toContain('\\(')
+        ->and($bodies['html'])->toContain('Ivan (the *best*)')
+        ->and(MarkdownEscaper::unescape(MarkdownEscaper::inline('a\\*b [x](y) _z_ \\')))->toBe('a\\*b [x](y) _z_ \\');
+});
+
+it('counts Telegram message length in UTF-16 code units', function (): void {
+    expect(OrderMessage::visibleLength('<b>ab</b>'))->toBe(2)
+        ->and(OrderMessage::visibleLength('😀'))->toBe(2)
+        ->and(OrderMessage::cutUtf16('a😀b', 2))->toBe('a')
+        ->and(OrderMessage::cutUtf16('a😀b', 3))->toBe('a😀');
 });

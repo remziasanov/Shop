@@ -6,6 +6,7 @@ namespace App\Services\System;
 
 use App\Enums\CheckStatus;
 use App\Services\Content\LegalPageStatus;
+use App\Support\TrustedHosts;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -44,6 +45,15 @@ class EnvironmentChecker
             'storage_link' => fn () => $this->storageLink(),
             'app_key' => fn () => $this->appKey(),
             'app_debug' => fn () => $this->appDebug(),
+            'app_url' => fn () => $this->appUrl(),
+            'trusted_hosts' => fn () => $this->trustedHosts(),
+            'session_secure' => fn () => $this->sessionSecure(),
+            'cache_store' => fn () => $this->cacheStore(),
+            'queue_connection' => fn () => $this->queueConnection(),
+            'log_level' => fn () => $this->logLevel(),
+            'mail_mailer' => fn () => $this->mailMailer(),
+            'mail_from' => fn () => $this->mailFrom(),
+            'mail_host' => fn () => $this->mailHost(),
             'database' => fn () => $this->database(),
             'queue_pending' => fn () => $this->queuePending(),
             'queue_failed' => fn () => $this->queueFailed(),
@@ -147,6 +157,137 @@ class EnvironmentChecker
 
         return $this->result('app_debug', $production ? CheckStatus::Error : CheckStatus::Warning,
             __('system.values.on'), __('system.hints.app_debug'));
+    }
+
+    private function appUrl(): CheckResult
+    {
+        $url = (string) config('app.url');
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+
+        if (TrustedHosts::canonical() === null) {
+            return $this->result('app_url', CheckStatus::Error, $url === '' ? __('system.values.not_set') : $url,
+                __('system.hints.app_url_invalid'));
+        }
+
+        if ($this->isProduction() && $scheme !== 'https') {
+            return $this->result('app_url', CheckStatus::Warning, $url, __('system.hints.app_url_https'));
+        }
+
+        return $this->result('app_url', CheckStatus::Ok, $url);
+    }
+
+    private function trustedHosts(): CheckResult
+    {
+        $canonical = TrustedHosts::canonical();
+        $hosts = $canonical === null ? [] : [$canonical, TrustedHosts::twin($canonical)];
+
+        foreach ((array) config('shop.extra_hosts', []) as $extra) {
+            if (is_string($extra) && trim($extra) !== '') {
+                $hosts[] = trim($extra);
+            }
+        }
+
+        return $this->result('trusted_hosts', CheckStatus::Ok,
+            $hosts === [] ? __('system.values.not_set') : implode(', ', $hosts),
+            __('system.hints.trusted_hosts'));
+    }
+
+    private function sessionSecure(): CheckResult
+    {
+        $secure = (bool) config('session.secure');
+
+        if (! $secure && $this->isProduction()) {
+            return $this->result('session_secure', CheckStatus::Warning, __('system.values.off'), __('system.hints.session_secure'));
+        }
+
+        return $this->result('session_secure', CheckStatus::Ok, $secure ? __('system.values.on') : __('system.values.off'));
+    }
+
+    private function cacheStore(): CheckResult
+    {
+        $store = (string) config('cache.default');
+        $driver = (string) config('cache.stores.'.$store.'.driver', $store);
+
+        if (in_array($driver, ['redis', 'memcached'], true)) {
+            return $this->result('cache_store', CheckStatus::Error, $store, __('system.hints.cache_store'));
+        }
+
+        return $this->result('cache_store', CheckStatus::Ok, $store);
+    }
+
+    private function queueConnection(): CheckResult
+    {
+        $connection = (string) config('queue.default');
+
+        if ($connection !== 'database') {
+            return $this->result('queue_connection', CheckStatus::Warning, $connection, __('system.hints.queue_connection'));
+        }
+
+        return $this->result('queue_connection', CheckStatus::Ok, $connection);
+    }
+
+    private function logLevel(): CheckResult
+    {
+        $level = $this->logChannelLevel();
+
+        if ($this->isProduction() && in_array(strtolower($level), ['debug', 'info', 'notice'], true)) {
+            return $this->result('log_level', CheckStatus::Warning, $level, __('system.hints.log_level'));
+        }
+
+        return $this->result('log_level', CheckStatus::Ok, $level);
+    }
+
+    private function logChannelLevel(): string
+    {
+        $default = (string) config('logging.default');
+        $channel = $default === 'stack'
+            ? (string) (config('logging.channels.stack.channels')[0] ?? 'single')
+            : $default;
+
+        return (string) config('logging.channels.'.$channel.'.level', 'debug');
+    }
+
+    private function mailMailer(): CheckResult
+    {
+        $mailer = (string) config('mail.default');
+
+        if ($this->isProduction() && in_array($mailer, ['log', 'array'], true)) {
+            return $this->result('mail_mailer', CheckStatus::Warning, $mailer, __('system.hints.mail_mailer'));
+        }
+
+        return $this->result('mail_mailer', CheckStatus::Ok, $mailer);
+    }
+
+    private function mailFrom(): CheckResult
+    {
+        $from = trim((string) config('mail.from.address'));
+
+        if ($from === '') {
+            return $this->result('mail_from', $this->isProduction() ? CheckStatus::Error : CheckStatus::Warning,
+                __('system.values.not_set'), __('system.hints.mail_from'));
+        }
+
+        return $this->result('mail_from', CheckStatus::Ok, $from);
+    }
+
+    private function mailHost(): CheckResult
+    {
+        if (config('mail.default') !== 'smtp') {
+            return $this->result('mail_host', CheckStatus::Ok, __('system.values.not_required'));
+        }
+
+        $host = trim((string) config('mail.mailers.smtp.host'));
+
+        if ($host === '') {
+            return $this->result('mail_host', CheckStatus::Error, __('system.values.not_set'), __('system.hints.mail_host'));
+        }
+
+        return $this->result('mail_host', CheckStatus::Ok, $host);
+    }
+
+    private function isProduction(): bool
+    {
+        return app()->environment('production');
     }
 
     private function database(): CheckResult

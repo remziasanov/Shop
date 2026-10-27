@@ -5,9 +5,9 @@
             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
 
-        <a href="{{ route('home') }}" class="flex items-center gap-2 rounded text-lg font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.header.home') }}">
+        <a href="{{ route('home') }}" class="flex items-center gap-2 rounded text-lg font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
             @if ($shopLogoUrl)
-                <img src="{{ $shopLogoUrl }}" alt="" class="h-8 w-auto">
+                <img src="{{ $shopLogoUrl }}" alt="" height="32" class="h-8 w-auto">
             @endif
             <span>{{ $shopName }}</span>
         </a>

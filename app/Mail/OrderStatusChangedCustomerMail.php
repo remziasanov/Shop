@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Enums\OrderStatus;
+use App\Mail\Concerns\StripsMarkdownEscapes;
 use App\Models\Order;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -15,10 +16,15 @@ use Illuminate\Mail\Mailables\Envelope;
  */
 class OrderStatusChangedCustomerMail extends Mailable
 {
+    use StripsMarkdownEscapes;
+
     /** @var list<OrderStatus> */
     public const NOTIFIABLE = [OrderStatus::Confirmed, OrderStatus::Ready, OrderStatus::Cancelled, OrderStatus::Reserved];
 
-    public function __construct(public readonly Order $order, public readonly OrderStatus $status) {}
+    public function __construct(public readonly Order $order, public readonly OrderStatus $status)
+    {
+        $this->stripMarkdownEscapesFromTextPart();
+    }
 
     public static function shouldNotify(OrderStatus $status): bool
     {

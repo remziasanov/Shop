@@ -1,0 +1,380 @@
+name: Deploy to Beget
+
+# TZ 12.3. Manual only: pick a branch (default main). Nothing here runs on push.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch (or tag) to deploy'
+        required: false
+        default: main
+        type: string
+
+# Never run two deploys at once and never cancel one that is already running (NF-22).
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PHP_EXTENSIONS: mbstring, intl, gd, zip, bcmath, pdo_sqlite, pdo_mysql, fileinfo
+
+jobs:
+  deploy:
+    name: build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check secrets
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+          BEGET_PATH: ${{ secrets.BEGET_PATH }}
+          BEGET_PHP: ${{ secrets.BEGET_PHP || '/usr/local/php/cgi/8.3/bin/php' }}
+          BEGET_SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+        run: |
+          missing=""
+          for name in BEGET_HOST BEGET_USER BEGET_PATH BEGET_SSH_KEY; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Не заданы секреты GitHub:$missing. См. docs/DEPLOY_BEGET.md, раздел про секреты."
+            exit 1
+          fi
+          # Secrets are masked by GitHub already; mask derived values explicitly as well.
+          echo "::add-mask::$BEGET_HOST"
+          echo "::add-mask::$BEGET_USER"
+          echo "::add-mask::$BEGET_PATH"
+          # Both values are put into remote shell commands: allow only a plain absolute path.
+          safe='^/[A-Za-z0-9._/-]+$'
+          if ! [[ "$BEGET_PATH" =~ $safe ]]; then
+            echo "::error::BEGET_PATH должен быть абсолютным путём из латинских букв, цифр и символов . _ / - без пробелов и кавычек, например /home/X/LOGIN/shop."
+            exit 1
+          fi
+          if ! [[ "$BEGET_PHP" =~ $safe ]]; then
+            echo "::error::BEGET_PHP должен быть абсолютным путём из латинских букв, цифр и символов . _ / - без пробелов и кавычек, например /usr/local/php/cgi/8.3/bin/php."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      # post-autoload-dump runs `filament:upgrade`, which publishes the Filament assets into
+      # public/{css,js,fonts}/filament. They are gitignored, so they exist only in this build (D-022).
+      - name: Install PHP dependencies (production)
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify the build
+        run: |
+          fail=0
+          for path in vendor/autoload.php public/build/manifest.json public/js/filament public/css/filament; do
+            if [ ! -e "$path" ]; then
+              echo "::error::В сборке нет $path — выкладывать нечего."
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: Prepare SSH
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+          BEGET_SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
+          # Optional: pinned host keys (output of `ssh-keyscan HOST`); otherwise the key is fetched on the fly.
+          BEGET_KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          install -d -m 700 ~/.ssh
+          # Strip CR: a key pasted from Windows Notepad would be unreadable for OpenSSH.
+          printf '%s\n' "$BEGET_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          if [ -n "$BEGET_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$BEGET_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "$BEGET_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error::Не получен ключ хоста (ssh-keyscan или секрет BEGET_KNOWN_HOSTS). Проверьте секрет BEGET_HOST."
+            exit 1
+          fi
+          cat > ~/.ssh/config <<SSHCONF
+          Host beget
+            HostName $BEGET_HOST
+            User $BEGET_USER
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+            ServerAliveCountMax 6
+          SSHCONF
+          chmod 600 ~/.ssh/config
+
+      - name: Check connection and server state
+        id: server
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+          BEGET_PATH: ${{ secrets.BEGET_PATH }}
+          # Falls back to the default Beget PHP 8.3 CLI when the secret is empty.
+          BEGET_PHP: ${{ secrets.BEGET_PHP || '/usr/local/php/cgi/8.3/bin/php' }}
+        run: |
+          if ! ssh beget 'echo connected' > /dev/null; then
+            echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге."
+            exit 1
+          fi
+          # installed  = the application files are on the server (artisan exists).
+          # configured = installed AND .env exists with a non-empty APP_KEY and DB_DATABASE.
+          # Anything else is a first installation: files only, no artisan (docs/DEPLOY_BEGET.md, step 5.3).
+          cat > "$RUNNER_TEMP/check.sh" <<'CHECK'
+          cd "$1" 2>/dev/null || { echo "installed=false"; echo "configured=false"; exit 0; }
+          if [ ! -f artisan ]; then echo "installed=false"; echo "configured=false"; exit 0; fi
+          echo "installed=true"
+          if [ -f .env ] && grep -Eq "^APP_KEY=[\"']?[^\"'[:space:]]" .env && grep -Eq "^DB_DATABASE=[\"']?[^\"'[:space:]]" .env; then
+            echo "configured=true"
+          else
+            echo "configured=false"
+          fi
+          CHECK
+          state="$(ssh beget bash -s -- "'$BEGET_PATH'" < "$RUNNER_TEMP/check.sh")"
+          printf '%s\n' "$state" | grep -E '^(installed|configured)=(true|false)$' >> "$GITHUB_OUTPUT"
+          if printf '%s\n' "$state" | grep -q '^configured=true$'; then
+            echo "The application is installed and configured: full deployment."
+          else
+            echo "::notice::Первая установка: будут загружены только файлы, команды artisan не выполняются."
+          fi
+
+      - name: Maintenance mode on
+        if: steps.server.outputs.configured == 'true'
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+          BEGET_PATH: ${{ secrets.BEGET_PATH }}
+          # Falls back to the default Beget PHP 8.3 CLI when the secret is empty.
+          BEGET_PHP: ${{ secrets.BEGET_PHP || '/usr/local/php/cgi/8.3/bin/php' }}
+        run: |
+          # From this point a failure must bring the site back (see the last step).
+          echo "APP_DOWN=1" >> "$GITHUB_ENV"
+          ssh beget "cd '$BEGET_PATH' && '$BEGET_PHP' artisan down --retry=30"
+
+      - name: Upload files
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+          BEGET_PATH: ${{ secrets.BEGET_PATH }}
+          # Falls back to the default Beget PHP 8.3 CLI when the secret is empty.
+          BEGET_PHP: ${{ secrets.BEGET_PHP || '/usr/local/php/cgi/8.3/bin/php' }}
+        run: |
+          # One exclude list for both transports (rsync syntax; the tar copy is derived from it).
+          # Server-side state (.env, storage, symlinks, generated sitemap and caches) is never touched.
+          cat > "$RUNNER_TEMP/excludes.rsync" <<'EXCLUDES'
+          /.env
+          /.env.backup
+          /.env.production
+          /storage/
+          /public_html
+          /public_html.bak-*
+          /public/storage
+          /public/hot
+          /public/sitemap*.xml
+          /bootstrap/cache/*.php
+          /.user.ini
+          /php.ini
+          /.htpasswd
+          /public/.htpasswd
+          /.git/
+          /.github/
+          /.claude/
+          /node_modules/
+          /tests/
+          /junit.xml
+          /.phpunit.cache/
+          EXCLUDES
+
+          ssh beget "mkdir -p '$BEGET_PATH'"
+
+          if ssh beget 'command -v rsync' > /dev/null 2>&1; then
+            echo "Uploading with rsync"
+            rsync -az --delete --exclude-from="$RUNNER_TEMP/excludes.rsync" -e ssh ./ "beget:$BEGET_PATH/"
+          else
+            echo "::warning::На сервере нет rsync: файлы загружаются архивом tar.gz. Удалённые из репозитория файлы на сервере не удаляются."
+            sed -e 's#^/#./#' -e 's#/$##' "$RUNNER_TEMP/excludes.rsync" > "$RUNNER_TEMP/excludes.tar"
+            tar -czf "$RUNNER_TEMP/release.tar.gz" --exclude-from="$RUNNER_TEMP/excludes.tar" .
+            scp -q "$RUNNER_TEMP/release.tar.gz" "beget:$BEGET_PATH/.deploy-release.tar.gz"
+            ssh beget "cd '$BEGET_PATH' && tar -xzf .deploy-release.tar.gz && rm -f .deploy-release.tar.gz"
+          fi
+
+      - name: Prepare and switch release on the server
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+          BEGET_PATH: ${{ secrets.BEGET_PATH }}
+          # Falls back to the default Beget PHP 8.3 CLI when the secret is empty.
+          BEGET_PHP: ${{ secrets.BEGET_PHP || '/usr/local/php/cgi/8.3/bin/php' }}
+          CONFIGURED: ${{ steps.server.outputs.configured }}
+        run: |
+          cat > "$RUNNER_TEMP/remote.sh" <<'REMOTE'
+          set -euo pipefail
+          APP_DIR="$1"
+          PHP="$2"
+          MODE="$3"
+          cd "$APP_DIR"
+
+          # 1. public_html must be a symlink to public (TZ 12.1).
+          if [ -L public_html ]; then
+            if [ "$(readlink public_html)" != "public" ]; then
+              rm public_html
+              ln -s public public_html
+            fi
+          elif [ -e public_html ]; then
+            backup="public_html.bak-$(date +%Y%m%d%H%M%S)"
+            mv public_html "$backup"
+            ln -s public public_html
+            echo "public_html was a regular folder, renamed to $backup"
+          else
+            ln -s public public_html
+          fi
+
+          # 2. Writable structure (storage/ is never shipped). The private disk root is storage/app/private.
+          mkdir -p storage/app/public storage/app/private \
+            storage/framework/cache/data storage/framework/sessions storage/framework/views storage/framework/testing \
+            storage/logs bootstrap/cache
+          chmod -R ug+rwX storage bootstrap/cache 2>/dev/null || true
+
+          # First installation: files, symlink and storage structure only. Create .env from the template
+          # (never overwrite an existing one) and stop before any artisan command.
+          if [ "$MODE" = "files" ]; then
+            if [ ! -e .env ] && [ -f .env.example ]; then
+              cp .env.example .env
+              chmod 600 .env
+              echo ".env created from .env.example"
+            fi
+            echo "First installation: files uploaded, artisan steps skipped"
+            exit 0
+          fi
+
+          # 3. Generated caches may reference packages that no longer exist: start from a clean slate.
+          rm -f bootstrap/cache/*.php
+          "$PHP" artisan package:discover --ansi
+
+          # 4. public/storage link: create it, or repair a dangling one.
+          if [ -L public/storage ] && [ ! -e public/storage ]; then
+            rm public/storage
+          fi
+          if [ -e public/storage ] || [ -L public/storage ]; then
+            echo "public/storage already exists"
+          else
+            "$PHP" artisan storage:link
+          fi
+
+          # 5. Database, caches, queue.
+          # An empty APP_KEY must be generated with the config cache cleared first: with a cached config,
+          # key:generate would append a second key to .env (docs/DEPLOY_BEGET.md, step 6.2).
+          if ! grep -Eq "^APP_KEY=[\"']?[^\"'[:space:]]" .env; then
+            "$PHP" artisan optimize:clear
+            "$PHP" artisan key:generate --force
+          fi
+          "$PHP" artisan migrate --force
+          "$PHP" artisan optimize:clear
+          "$PHP" artisan view:clear
+          "$PHP" artisan optimize
+          commands="$("$PHP" artisan list --raw)"
+          if grep -q '^filament:optimize ' <<<"$commands"; then
+            "$PHP" artisan filament:optimize
+          else
+            echo "filament:optimize is not available, skipped"
+          fi
+          "$PHP" artisan queue:restart
+          "$PHP" artisan up
+          echo "Release is live"
+          REMOTE
+          mode=files
+          if [ "$CONFIGURED" = "true" ]; then mode=full; fi
+          ssh beget bash -s -- "'$BEGET_PATH'" "'$BEGET_PHP'" "$mode" < "$RUNNER_TEMP/remote.sh"
+          echo "APP_DOWN=0" >> "$GITHUB_ENV"
+
+      - name: First installation notice
+        if: steps.server.outputs.configured != 'true'
+        run: |
+          echo "::notice::Первая установка: файлы загружены. Заполните .env на сервере (шаг 6 DEPLOY_BEGET.md) и запустите Deploy ещё раз"
+
+      - name: Health check (/up)
+        if: steps.server.outputs.configured == 'true'
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+          BEGET_PATH: ${{ secrets.BEGET_PATH }}
+          # Falls back to the default Beget PHP 8.3 CLI when the secret is empty.
+          BEGET_PHP: ${{ secrets.BEGET_PHP || '/usr/local/php/cgi/8.3/bin/php' }}
+        run: |
+          raw="$(ssh beget "grep -E '^APP_URL=' '$BEGET_PATH/.env' | head -n 1" || true)"
+          app_url="$(printf '%s' "${raw#APP_URL=}" | tr -d '\r"'"'"'' | sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' -e 's#/*$##')"
+          if [ -z "$app_url" ]; then
+            echo "::error::Проверка /up не прошла: в $BEGET_PATH/.env не найден APP_URL."
+            ssh beget "cd '$BEGET_PATH' && '$BEGET_PHP' artisan up" || true
+            exit 1
+          fi
+
+          code=000
+          for attempt in 1 2 3 4 5; do
+            code="$(curl -sS -L --max-redirs 3 --max-time 20 -o /dev/null -w '%{http_code}' "$app_url/up" || true)"
+            if [ "$code" = "200" ]; then
+              echo "Health check passed (HTTP 200)"
+              exit 0
+            fi
+            echo "Attempt $attempt: HTTP $code"
+            sleep 5
+          done
+
+          ssh beget "cd '$BEGET_PATH' && '$BEGET_PHP' artisan up" || true
+          echo "::error::Проверка /up не прошла: последний ответ HTTP $code. Сайт выведен из режима обслуживания; смотрите storage/logs на сервере и docs/DEPLOY_BEGET.md (раздел про ошибки деплоя)."
+          exit 1
+
+      - name: Bring the site back after a failure
+        if: always() && (failure() || cancelled()) && env.APP_DOWN == '1'
+        env:
+          BEGET_HOST: ${{ secrets.BEGET_HOST }}
+          BEGET_USER: ${{ secrets.BEGET_USER }}
+          BEGET_PATH: ${{ secrets.BEGET_PATH }}
+          # Falls back to the default Beget PHP 8.3 CLI when the secret is empty.
+          BEGET_PHP: ${{ secrets.BEGET_PHP || '/usr/local/php/cgi/8.3/bin/php' }}
+        run: |
+          # The release may be half-installed, but a maintenance page forever is worse (NF-22).
+          if [ -f ~/.ssh/config ]; then
+            ssh beget "cd '$BEGET_PATH' && test -f artisan && '$BEGET_PHP' artisan up" \
+              || echo "::warning::Не удалось выполнить php artisan up. Выполните его вручную на сервере."
+          fi
+          echo "::error::Деплой не завершён, сайт выведен из режима обслуживания. Проверьте журнал шагов выше."
