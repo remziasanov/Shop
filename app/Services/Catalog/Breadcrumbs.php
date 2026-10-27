@@ -50,4 +50,17 @@ final class Breadcrumbs
             ['name' => __('storefront.breadcrumbs.catalog'), 'url' => null],
         ];
     }
+
+    /**
+     * Home > the page (SF-06, SF-70).
+     *
+     * @return list<array{name: string, url: string|null}>
+     */
+    public function forPage(string $title): array
+    {
+        return [
+            ['name' => __('storefront.breadcrumbs.home'), 'url' => route('home')],
+            ['name' => $title, 'url' => null],
+        ];
+    }
 }

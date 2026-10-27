@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Storefront;
 
 use App\Exceptions\SalesException;
+use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Services\Cart\CartService;
 use App\Services\Cart\CartSummary;
 use App\Support\QtyLimit;
@@ -18,6 +19,8 @@ use Livewire\Component;
  */
 class CartPage extends Component
 {
+    use RequiresOpenShop;
+
     /** @var array<int|string, int|string> product id => quantity typed by the visitor */
     public array $qtys = [];
 

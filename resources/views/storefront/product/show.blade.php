@@ -1,15 +1,5 @@
 @extends('storefront.layouts.app')
 
-@section('title', $pageTitle)
-
-@if ($metaDescription !== '')
-    @section('meta_description', $metaDescription)
-@endif
-
-@push('head')
-    <link rel="canonical" href="{{ route('product.show', $product->slug) }}">
-@endpush
-
 @section('content')
     @include('storefront.partials.breadcrumbs')
 

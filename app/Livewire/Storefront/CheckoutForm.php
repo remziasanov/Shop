@@ -6,6 +6,7 @@ namespace App\Livewire\Storefront;
 
 use App\Exceptions\CartChangedException;
 use App\Exceptions\SalesException;
+use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
 use App\Services\Cart\CartService;
 use App\Services\Orders\CheckoutData;
@@ -21,6 +22,7 @@ use Livewire\Component;
  */
 class CheckoutForm extends Component
 {
+    use RequiresOpenShop;
     use SalesFormSupport;
 
     public string $name = '';

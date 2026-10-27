@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\View\Composers;
 
+use App\Models\MenuItem;
 use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Content\MenuService;
 use App\Services\Sales\CartAvailability;
 use App\Settings\AppearanceSettings;
 use App\Settings\GeneralSettings;
@@ -27,6 +29,7 @@ class StorefrontComposer
         private readonly AppearanceSettings $appearance,
         private readonly CategoryTree $tree,
         private readonly CartAvailability $cartAvailability,
+        private readonly MenuService $menus,
     ) {}
 
     /** @var array<string, mixed>|null Data built once per request (the composer runs for every storefront view and partial). */
@@ -53,6 +56,8 @@ class StorefrontComposer
     {
         $phones = array_values(array_filter($this->general->phones, fn ($phone) => trim($phone) !== ''));
 
+        $menus = $this->menus->all();
+
         return [
             'shopName' => $this->general->shop_name,
             'shopTagline' => $this->general->tagline,
@@ -66,9 +71,55 @@ class StorefrontComposer
             'primaryColor' => $this->safeColor($this->appearance->primary_color, self::DEFAULT_PRIMARY),
             'accentColor' => $this->safeColor($this->appearance->accent_color, self::DEFAULT_ACCENT),
             'searchQuery' => is_string(request()->query('q')) ? request()->query('q') : '',
-            'menuCategories' => $this->menuCategories(),
+            'menuCategories' => $this->headerMenu($menus['header']),
+            'footerMenu' => $menus['footer'],
+            'footerPrivacyLink' => $menus['privacy'],
+            'footerConsentLink' => $menus['consent'],
+            'sellerDetails' => $menus['seller'],
+            'socialLinks' => $this->socialLinks(),
             'cartEnabled' => $this->cartAvailability->enabled(),
         ];
+    }
+
+    /**
+     * Header menu (SF-01, AD-61): the configured items (a category item carries its children as the second level);
+     * with no active items - the root categories with their children.
+     *
+     * @param  list<array{label: string, url: string, children: list<array{label: string, url: string}>}>  $items
+     * @return list<array{name: string, url: string, children: list<array{name: string, url: string}>}>
+     */
+    private function headerMenu(array $items): array
+    {
+        if ($items === []) {
+            return $this->menuCategories();
+        }
+
+        return array_map(fn (array $item): array => [
+            'name' => $item['label'],
+            'url' => $item['url'],
+            'children' => array_map(fn (array $child): array => ['name' => $child['label'], 'url' => $child['url']], $item['children']),
+        ], $items);
+    }
+
+    /**
+     * Social and messenger links from the general settings (SF-02); only http(s) URLs.
+     *
+     * @return list<array{title: string, url: string}>
+     */
+    private function socialLinks(): array
+    {
+        $links = [];
+
+        foreach ($this->general->social_links as $link) {
+            $url = trim((string) ($link['url'] ?? ''));
+
+            if (preg_match('#^https?://#i', $url) === 1 && MenuItem::isSafeUrl($url)) {
+                $title = trim((string) ($link['title'] ?? ''));
+                $links[] = ['title' => $title !== '' ? $title : (string) parse_url($url, PHP_URL_HOST), 'url' => $url];
+            }
+        }
+
+        return $links;
     }
 
     /**

@@ -34,8 +34,8 @@ it('exposes configured colors as CSS variables', function () {
 
     $this->get('/')
         ->assertOk()
-        ->assertSee('--color-primary: #112233;', false)
-        ->assertSee('--color-accent: #abcdef;', false);
+        ->assertSee('--shop-primary: #112233;', false)
+        ->assertSee('--shop-accent: #abcdef;', false);
 });
 
 it('rejects non-hex colors', function () {

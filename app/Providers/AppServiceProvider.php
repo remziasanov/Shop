@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
+use App\Services\Content\MenuService;
 use App\Services\Import\DnsHostResolver;
 use App\Services\Import\HostResolver;
 use App\Services\Media\ImageProcessor;
@@ -21,6 +22,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -57,6 +59,7 @@ class AppServiceProvider extends ServiceProvider
         Model::preventLazyLoading(! $this->app->isProduction());
 
         $this->configureFilamentFormats();
+        $this->forceCanonicalUrl();
 
         // A queue worker lives longer than a request: re-read the category tree from the cache per job.
         Queue::looping(function (): void {
@@ -73,6 +76,29 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
+     * D-057: in production every generated absolute URL (canonical, Open Graph, sitemap, cached fragments) is built
+     * from APP_URL, never from the Host header of whichever request happened to come first.
+     */
+    public function forceCanonicalUrl(): void
+    {
+        if (! $this->app->isProduction()) {
+            return;
+        }
+
+        $url = trim((string) config('app.url'));
+
+        if (parse_url($url, PHP_URL_HOST) === null || parse_url($url, PHP_URL_HOST) === false) {
+            return;
+        }
+
+        URL::forceRootUrl($url);
+
+        if (str_starts_with(strtolower($url), 'https://')) {
+            URL::forceScheme('https');
+        }
+    }
+
+    /**
      * The "cart exists in the shop" flag of the header (SF-01) depends on sales settings, categories and the
      * sales mode of products; drop the cached value when one of them changes.
      */
@@ -81,6 +107,13 @@ class AppServiceProvider extends ServiceProvider
         $forget = fn () => $this->app->make(CartAvailability::class)->forget();
 
         Event::listen(SettingsSaved::class, $forget);
+
+        // Cached storefront menus (NF-04) depend on categories and on the legal/general settings.
+        $forgetMenus = fn () => $this->app->make(MenuService::class)->flush();
+
+        Event::listen(SettingsSaved::class, $forgetMenus);
+        Category::saved($forgetMenus);
+        Category::deleted($forgetMenus);
         Category::saved($forget);
         Category::deleted($forget);
         Product::saved(function (Product $product) use ($forget): void {

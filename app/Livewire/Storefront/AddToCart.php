@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Storefront;
 
 use App\Exceptions\SalesException;
+use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Models\Product;
 use App\Services\Cart\CartService;
 use App\Services\Sales\AvailabilityService;
@@ -19,6 +20,8 @@ use Livewire\Component;
  */
 class AddToCart extends Component
 {
+    use RequiresOpenShop;
+
     #[Locked]
     public int $productId;
 

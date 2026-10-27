@@ -3,18 +3,28 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@hasSection('title')@yield('title') — @endif{{ $shopName }}</title>
-    @hasSection('meta_description')
-        <meta name="description" content="@yield('meta_description')">
-    @endif
-    @if ($shopFaviconUrl)
-        <link rel="icon" href="{{ $shopFaviconUrl }}">
-    @endif
-    @stack('head')
+    @php
+        $headStack = $__env->yieldPushContent('head');
+        $seo ??= app(\App\Services\Seo\SeoBuilder::class)->fallback(
+            trim($__env->yieldContent('title')),
+            trim($__env->yieldContent('meta_description')),
+            isset($breadcrumbs) && is_array($breadcrumbs) ? $breadcrumbs : null,
+        );
+        // Views that still push their own canonical / robots tags keep them (no duplicates).
+        if (str_contains($headStack, 'rel="canonical"')) {
+            $seo = $seo->withoutCanonical();
+        }
+        if (str_contains($headStack, 'name="robots"')) {
+            $seo = $seo->withoutRobots();
+        }
+    @endphp
+    @include('storefront.partials.seo-head', ['seo' => $seo])
+    <link rel="icon" href="{{ $shopFaviconUrl ?: asset('favicon.ico') }}">
+    {!! $headStack !!}
     <style>
         :root {
-            --color-primary: {{ $primaryColor }};
-            --color-accent: {{ $accentColor }};
+            --shop-primary: {{ $primaryColor }};
+            --shop-accent: {{ $accentColor }};
         }
     </style>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -35,6 +45,9 @@
         @include('storefront.partials.cart-toast')
     @endif
 
+    @include('storefront.partials.cookie-banner')
+
     @livewireScripts
+    {!! app(\App\Services\Seo\SeoCounters::class)->bodyCode() !!}
 </body>
 </html>

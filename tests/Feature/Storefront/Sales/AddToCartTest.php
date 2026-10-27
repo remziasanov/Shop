@@ -109,7 +109,7 @@ it('renders the card button as a form and the product page with the Livewire com
     $product = sellable(['sales_mode' => SalesMode::Cart, 'name' => 'Лампа настольная']);
 
     $this->get(route('catalog.index'))->assertOk()
-        ->assertSee('action="'.route('cart.add').'"', false)
+        ->assertSee('action="'.route('cart.add', [], false).'"', false)
         ->assertDontSee('storefront.add-to-cart', false);
 
     $this->get(route('product.show', $product->slug))->assertOk()

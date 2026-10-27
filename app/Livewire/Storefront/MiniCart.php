@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Livewire\Storefront;
 
+use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Services\Cart\CartService;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
@@ -15,6 +16,8 @@ use Livewire\Component;
  */
 class MiniCart extends Component
 {
+    use RequiresOpenShop;
+
     /** header | bar */
     public string $variant = 'header';
 

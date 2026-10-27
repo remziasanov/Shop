@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\CanonicalHost;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\StorefrontOpen;
 use App\Services\Catalog\RedirectService;
+use App\Support\TrustedHosts;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,6 +22,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
+        // SF-08: the consent cookie is set by JavaScript, so it is not encrypted.
+        $middleware->encryptCookies(except: ['cookie_consent']);
+        // D-057: only the host of APP_URL (and its www. alias) is accepted. TrustHosts itself is inactive in the
+        // local environment and in unit tests; the list is resolved per request, so a cached config works.
+        $middleware->trustHosts(at: fn (): array => TrustedHosts::patterns(), subdomains: false);
+        // D-057: the www./bare twin of the APP_URL host is redirected to the canonical host (production only).
+        $middleware->prepend(CanonicalHost::class);
+        // SF-05: closed mode for the storefront.
+        $middleware->web(append: [StorefrontOpen::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

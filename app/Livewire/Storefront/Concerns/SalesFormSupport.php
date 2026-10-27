@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Livewire\Storefront\Concerns;
 
 use App\Exceptions\FormGuardException;
+use App\Services\Content\MenuService;
 use App\Services\Sales\FormGuard;
 use App\Settings\LegalSettings;
 use App\Support\PhoneNormalizer;
 use Closure;
-use Illuminate\Support\Facades\Route;
 use Livewire\Attributes\Locked;
 
 /**
@@ -96,23 +96,17 @@ trait SalesFormSupport
     }
 
     /**
-     * Consent label and link for the form view (SF-71). The consent page model arrives in stage 5: until then
-     * (or when no page is chosen) the link is '#'.
+     * Consent label and link for the form view (SF-71): the consent page when one is chosen and active,
+     * otherwise no link (the text stays).
      *
-     * @return array{text: string, url: string}
+     * @return array{text: string, url: string|null}
      */
     protected function consentLink(): array
     {
-        $legal = app(LegalSettings::class);
-
-        $url = '#';
-
-        // TODO(stage 5): the route of the page module; until it exists the link stays '#'.
-        if ($legal->consent_page_id !== null && Route::has('page.show')) {
-            $url = route('page.show', ['page' => $legal->consent_page_id]);
-        }
-
-        return ['text' => $legal->consent_text, 'url' => $url];
+        return [
+            'text' => app(LegalSettings::class)->consent_text,
+            'url' => app(MenuService::class)->consentLink()['url'] ?? null,
+        ];
     }
 
     protected function clientIp(): string

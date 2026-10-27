@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Filament\Pages\Settings;
 
 use App\Filament\Concerns\AdminOnlySettingsPage;
+use App\Models\Page;
 use App\Settings\LegalSettings;
 use BackedEnum;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Pages\SettingsPage;
@@ -27,13 +29,22 @@ class ManageLegalSettings extends SettingsPage
 
     public function form(Schema $schema): Schema
     {
-        // Privacy policy / consent page selects arrive with the Pages resource (stage 5).
         return $schema->components([
             Textarea::make('seller_details')
                 ->label(__('shop.settings.legal.fields.seller_details'))
                 ->rows(4)
                 ->maxLength(2000)
                 ->columnSpanFull(),
+            Select::make('privacy_page_id')
+                ->label(__('shop.settings.legal.fields.privacy_page_id'))
+                ->options(fn (): array => Page::query()->orderBy('title')->pluck('title', 'id')->all())
+                ->searchable()
+                ->native(false),
+            Select::make('consent_page_id')
+                ->label(__('shop.settings.legal.fields.consent_page_id'))
+                ->options(fn (): array => Page::query()->orderBy('title')->pluck('title', 'id')->all())
+                ->searchable()
+                ->native(false),
             Textarea::make('consent_text')
                 ->label(__('shop.settings.legal.fields.consent_text'))
                 ->helperText(__('shop.settings.legal.hints.check_with_lawyer'))
@@ -60,6 +71,10 @@ class ManageLegalSettings extends SettingsPage
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $data['seller_details'] = filled($data['seller_details'] ?? null) ? $data['seller_details'] : null;
+
+        foreach (['privacy_page_id', 'consent_page_id'] as $field) {
+            $data[$field] = filled($data[$field] ?? null) ? (int) $data[$field] : null;
+        }
 
         return $data;
     }
