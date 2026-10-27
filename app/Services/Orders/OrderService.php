@@ -429,7 +429,7 @@ final class OrderService
 
             $this->history($fresh, $from, $to, $user, $note);
 
-            DB::afterCommit(fn () => OrderStatusChanged::dispatch($fresh, $from, $to, $user));
+            DB::afterCommit(fn () => OrderStatusChanged::dispatch($fresh, $from, $to, $user, $bySystem));
 
             return true;
         });

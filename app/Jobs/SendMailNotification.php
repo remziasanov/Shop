@@ -9,7 +9,9 @@ use App\Mail\NewRequestShopMail;
 use App\Mail\OrderPlacedCustomerMail;
 use App\Mail\OrderStatusChangedCustomerMail;
 use App\Models\Order;
+use App\Services\Notifications\MailDeliveryException;
 use App\Support\PiiMask;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -19,7 +21,7 @@ use Throwable;
 /**
  * One email to one recipient (NT-01): retried on its own, independent of the other channels.
  */
-class SendMailNotification implements ShouldQueue
+class SendMailNotification implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -32,6 +34,9 @@ class SendMailNotification implements ShouldQueue
     public int $tries = 3;
 
     public int $timeout = 30;
+
+    /** Seconds a queued or running twin of this job blocks a duplicate (a parent retry must not resend). */
+    public int $uniqueFor = 3600;
 
     /**
      * @param  ?string  $to  recipient of shop emails; customer emails go to the order's address
@@ -49,6 +54,11 @@ class SendMailNotification implements ShouldQueue
     public function backoff(): array
     {
         return [60, 300];
+    }
+
+    public function uniqueId(): string
+    {
+        return implode(':', ['mail', $this->orderId, $this->kind, $this->to ?? '', $this->status ?? '']);
     }
 
     public function handle(): void
@@ -73,7 +83,12 @@ class SendMailNotification implements ShouldQueue
         };
 
         if ($mailable !== null) {
-            Mail::to($recipient)->send($mailable);
+            try {
+                Mail::to($recipient)->send($mailable);
+            } catch (Throwable $e) {
+                // Transport exceptions quote the recipient: rethrow a sanitized one, without `previous` (NF-15).
+                throw new MailDeliveryException(PiiMask::scrubEmails(str_replace((string) $recipient, PiiMask::email((string) $recipient), $e::class.': '.$e->getMessage())));
+            }
         }
     }
 
@@ -84,6 +99,7 @@ class SendMailNotification implements ShouldQueue
             'kind' => $this->kind,
             'to' => PiiMask::email($this->to),
             'exception' => $e::class,
+            'message' => PiiMask::scrubEmails($e->getMessage()),
         ]);
     }
 }

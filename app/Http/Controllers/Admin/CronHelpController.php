@@ -20,7 +20,7 @@ final class CronHelpController
 
         return view('admin.help.cron', [
             'scheduler' => '* * * * * cd '.$base.' && '.self::SUGGESTED_PHP.' artisan schedule:run >> /dev/null 2>&1',
-            'queue' => '* * * * * cd '.$base.' && '.self::SUGGESTED_PHP.' artisan queue:work --stop-when-empty --max-time=50 >> /dev/null 2>&1',
+            'queue' => '* * * * * cd '.$base.' && '.self::SUGGESTED_PHP.' artisan queue:work --stop-when-empty --max-time=50 --tries=3 >> /dev/null 2>&1',
             'panelUrl' => url((string) config('shop.admin_path')),
         ]);
     }

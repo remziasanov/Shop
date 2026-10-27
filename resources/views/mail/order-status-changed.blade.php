@@ -1,5 +1,5 @@
 <x-mail::message>
-# {{ __('notifications.mail.greeting', ['name' => $order->customer_name]) }}
+# {!! __('notifications.mail.greeting', ['name' => \App\Support\MarkdownEscaper::inline($order->customer_name)]) !!}
 
 {{ __('notifications.mail.status_text', ['number' => $order->number, 'status' => $statusLabel]) }}
 

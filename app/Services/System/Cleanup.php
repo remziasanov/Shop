@@ -11,6 +11,7 @@ use App\Services\Export\ExportManager;
 use App\Services\Import\ImportWizard;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 /**
  * Nightly housekeeping (`shop:cleanup`, TZ section 8): old carts, import and export files, abandoned uploads.
@@ -39,10 +40,10 @@ final class Cleanup
         $summary = ['carts' => 0, 'imports' => 0, 'temp_files' => 0, 'exports' => 0, 'livewire' => 0, 'skipped' => false];
 
         $steps = [
-            'carts' => fn (): int => $this->carts->clearOld(self::CART_DAYS),
+            'carts' => fn (): int => $this->carts->clearOld(self::CART_DAYS, $deadline),
             'imports' => fn (): int => $this->purgeImports($deadline),
             'temp_files' => fn (): int => $this->purgeTemporary($deadline),
-            'exports' => fn (): int => $this->exports->purgeOlderThan(),
+            'exports' => fn (): int => $this->exports->purgeOlderThan(null, $deadline),
             'livewire' => fn (): int => $this->purgeLivewire($deadline),
         ];
 
@@ -128,8 +129,13 @@ final class Cleanup
                 break;
             }
 
-            if ($disk->lastModified($path) < $threshold && $disk->delete($path)) {
-                $deleted++;
+            try {
+                if ($disk->lastModified($path) < $threshold && $disk->delete($path)) {
+                    $deleted++;
+                }
+            } catch (Throwable) {
+                // The file vanished between the listing and the check (e.g. removed by Livewire itself): skip it.
+                continue;
             }
         }
 

@@ -26,6 +26,7 @@ use Livewire\Livewire;
 use function Pest\Laravel\actingAs;
 
 beforeEach(function (): void {
+    Carbon::setTestNow('2026-10-27 12:00:00'); // fixed noon: the "today" and "7 days" counters must not depend on the wall clock
     Cache::flush();
     @unlink(app(Heartbeat::class)->path());
 });
@@ -176,7 +177,7 @@ it('renders the cron instructions with both lines and requires authentication', 
     $this->get(route('admin.help.cron'))
         ->assertOk()
         ->assertSee('artisan schedule:run', false)
-        ->assertSee('artisan queue:work --stop-when-empty --max-time=50', false)
+        ->assertSee('artisan queue:work --stop-when-empty --max-time=50 --tries=3', false)
         ->assertSee('/usr/local/php/cgi/8.3/bin/php', false)
         ->assertSee(base_path());
 });

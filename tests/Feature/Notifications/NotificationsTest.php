@@ -225,7 +225,7 @@ it('sends Telegram when a reservation expires automatically', function (): void 
     Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
     $order = newOrder(['reserved_until' => now()->subHour()], 'reservation');
 
-    OrderStatusChanged::dispatch($order, OrderStatus::New, OrderStatus::Expired, null);
+    OrderStatusChanged::dispatch($order, OrderStatus::New, OrderStatus::Expired, null, true);
 
     Http::assertSent(fn (Request $r): bool => str_contains($r->data()['text'], 'Резерв истёк автоматически'));
     Mail::assertNothingSent();
@@ -235,7 +235,7 @@ it('does not send the expired Telegram when its toggle is off', function (): voi
     notif(['notify_reservation_expired' => false]);
     Http::fake();
 
-    OrderStatusChanged::dispatch(newOrder([], 'reservation'), OrderStatus::New, OrderStatus::Expired, null);
+    OrderStatusChanged::dispatch(newOrder([], 'reservation'), OrderStatus::New, OrderStatus::Expired, null, true);
 
     Http::assertNothingSent();
 });

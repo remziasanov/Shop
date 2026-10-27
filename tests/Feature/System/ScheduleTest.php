@@ -17,7 +17,7 @@ dataset('schedule table', [
     'shop:recalc-prices --all' => ['shop:recalc-prices --all', '10 3 * * *'],
     'shop:sitemap' => ['shop:sitemap', '20 4 * * *'],
     'shop:cleanup' => ['shop:cleanup', '40 4 * * *'],
-    'queue:prune-failed' => ['queue:prune-failed --hours=168', '0 0 * * *'],
+    'queue:prune-failed' => ['queue:prune-failed --hours=168', '50 4 * * *'],
 ]);
 
 it('registers every scheduled command exactly once with a 10 minute overlap mutex', function (string $command, string $expression): void {

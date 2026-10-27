@@ -8,6 +8,7 @@ use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Mail\OrderStatusChangedCustomerMail;
 use App\Models\Order;
+use App\Services\Notifications\JobFanOut;
 use App\Services\Notifications\TelegramNotifier;
 use App\Settings\NotificationSettings;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -55,18 +56,26 @@ class SendOrderNotifications implements ShouldQueue
             return;
         }
 
-        match ($this->event) {
+        $jobs = match ($this->event) {
             self::EVENT_CREATED => $this->created($order, $settings, $telegram),
             self::EVENT_STATUS_CHANGED => $this->statusChanged($order, $settings),
             self::EVENT_EXPIRED => $this->expired($order, $settings, $telegram),
-            default => null,
+            default => [],
         };
+
+        // All or nothing: a failure rolls the whole group back, so the retry of this job cannot send twice.
+        JobFanOut::dispatch($jobs);
     }
 
-    private function created(Order $order, NotificationSettings $settings, TelegramNotifier $telegram): void
+    /**
+     * @return list<ShouldQueue>
+     */
+    private function created(Order $order, NotificationSettings $settings, TelegramNotifier $telegram): array
     {
+        $jobs = [];
+
         if ($settings->notify_customer_new && filled($order->customer_email)) {
-            SendMailNotification::dispatch($order->id, SendMailNotification::CUSTOMER_PLACED);
+            $jobs[] = new SendMailNotification($order->id, SendMailNotification::CUSTOMER_PLACED);
         }
 
         $typeEnabled = match ($order->type) {
@@ -76,37 +85,49 @@ class SendOrderNotifications implements ShouldQueue
         };
 
         if (! $typeEnabled) {
-            return;
+            return $jobs;
         }
 
         if ($settings->notify_shop_email) {
             foreach (array_unique(array_filter($settings->notify_emails)) as $email) {
-                SendMailNotification::dispatch($order->id, SendMailNotification::SHOP_NEW, $email);
+                $jobs[] = new SendMailNotification($order->id, SendMailNotification::SHOP_NEW, $email);
             }
         }
 
         if ($settings->telegram_enabled && $settings->notify_shop_telegram && $telegram->isConfigured()) {
-            SendTelegramNotification::dispatch($order->id, SendTelegramNotification::NEW_REQUEST);
+            $jobs[] = new SendTelegramNotification($order->id, SendTelegramNotification::NEW_REQUEST);
         }
+
+        return $jobs;
     }
 
-    private function statusChanged(Order $order, NotificationSettings $settings): void
+    /**
+     * @return list<ShouldQueue>
+     */
+    private function statusChanged(Order $order, NotificationSettings $settings): array
     {
         $status = $this->toStatus !== null ? OrderStatus::tryFrom($this->toStatus) : null;
 
         if ($status === null || ! OrderStatusChangedCustomerMail::shouldNotify($status)) {
-            return;
+            return [];
         }
 
         if ($settings->notify_customer_status && filled($order->customer_email)) {
-            SendMailNotification::dispatch($order->id, SendMailNotification::CUSTOMER_STATUS, null, $status->value);
+            return [new SendMailNotification($order->id, SendMailNotification::CUSTOMER_STATUS, null, $status->value)];
         }
+
+        return [];
     }
 
-    private function expired(Order $order, NotificationSettings $settings, TelegramNotifier $telegram): void
+    /**
+     * @return list<ShouldQueue>
+     */
+    private function expired(Order $order, NotificationSettings $settings, TelegramNotifier $telegram): array
     {
         if ($settings->telegram_enabled && $settings->notify_reservation_expired && $telegram->isConfigured()) {
-            SendTelegramNotification::dispatch($order->id, SendTelegramNotification::EXPIRED);
+            return [new SendTelegramNotification($order->id, SendTelegramNotification::EXPIRED)];
         }
+
+        return [];
     }
 }

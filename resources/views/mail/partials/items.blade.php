@@ -3,7 +3,7 @@
 | {{ __('notifications.mail.item_name') }} | {{ __('notifications.mail.item_qty') }} | {{ __('notifications.mail.item_total') }} |
 | :-- | :-: | --: |
 @foreach ($order->items as $item)
-| {{ str_replace('|', '/', $item->name) }} | {{ $item->qty }} | {{ $money($item->total) }} |
+| @mdi($item->name) | {{ $item->qty }} | {{ $money($item->total) }} |
 @endforeach
 </x-mail::table>
 

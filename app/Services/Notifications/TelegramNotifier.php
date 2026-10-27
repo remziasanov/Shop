@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Notifications;
 
+use App\Services\Notifications\Messages\OrderMessage;
 use App\Settings\NotificationSettings;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -41,8 +42,10 @@ class TelegramNotifier
             throw new TelegramException(__('notifications.telegram_not_configured'));
         }
 
-        if (mb_strlen($html) > self::MAX_LENGTH) {
-            $html = mb_substr($html, 0, self::MAX_LENGTH - 1).'…';
+        // Messages are built within the limit (see OrderMessage). Last resort: plain text cut on visible characters.
+        if (OrderMessage::visibleLength($html) > self::MAX_LENGTH) {
+            $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $html = HtmlEscaper::e(mb_substr($text, 0, self::MAX_LENGTH - 1).'…');
         }
 
         try {

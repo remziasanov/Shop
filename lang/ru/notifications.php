@@ -11,6 +11,7 @@ return [
         'customer' => 'Клиент',
         'phone' => 'Телефон',
         'items' => 'Позиции',
+        'more_items' => '…и ещё :count поз.',
         'total' => 'Сумма',
         'reserved_until' => 'Резерв до',
         'open' => 'Открыть в админке',

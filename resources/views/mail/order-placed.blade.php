@@ -1,5 +1,5 @@
 <x-mail::message>
-# {{ __('notifications.mail.greeting', ['name' => $order->customer_name]) }}
+# {!! __('notifications.mail.greeting', ['name' => \App\Support\MarkdownEscaper::inline($order->customer_name)]) !!}
 
 {{ $thanks }}
 
@@ -23,17 +23,17 @@
 ## {{ __('notifications.mail.delivery') }}
 
 @if (filled($order->delivery_method))
-{{ $order->delivery_method }}  
+@mdi($order->delivery_method)  
 @endif
 @if (filled($order->delivery_address))
-{{ __('notifications.mail.address') }}: {{ $order->delivery_address }}  
+{{ __('notifications.mail.address') }}: @mdi($order->delivery_address)  
 @endif
 @if (filled($order->payment_method))
-{{ __('notifications.mail.payment') }}: {{ $order->payment_method }}
+{{ __('notifications.mail.payment') }}: @mdi($order->payment_method)
 @endif
 
 @endif
 @if (filled($general->phones) || filled($general->email))
-{{ __('notifications.mail.contacts') }}: {{ implode(', ', array_filter([...($general->phones ?? []), $general->email])) }}
+{{ __('notifications.mail.contacts') }}: {!! implode(', ', array_map(\App\Support\MarkdownEscaper::inline(...), array_filter([...($general->phones ?? []), $general->email]))) !!}
 @endif
 </x-mail::message>

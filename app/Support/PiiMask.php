@@ -28,6 +28,14 @@ final class PiiMask
         return $plus.$prefix.str_repeat('*', max(strlen($digits) - 4 - strlen($prefix), 0)).substr($digits, -4);
     }
 
+    /**
+     * Masks every email address inside free text (exception messages of the mailer, SMTP replies).
+     */
+    public static function scrubEmails(string $text): string
+    {
+        return preg_replace_callback('/[^\s<>"\',;:()\[\]]+@[^\s<>"\',;:()\[\]]+/u', fn (array $m): string => self::email(rtrim($m[0], '.')), $text) ?? $text;
+    }
+
     public static function email(?string $email): string
     {
         $email = trim((string) $email);

@@ -10,6 +10,6 @@ final class NewRequestMessage extends OrderMessage
 {
     public function render(Order $order): string
     {
-        return implode("\n", [$this->heading($order, 'notifications.telegram.new'), '', ...$this->body($order)]);
+        return $this->compose($order, 'notifications.telegram.new');
     }
 }

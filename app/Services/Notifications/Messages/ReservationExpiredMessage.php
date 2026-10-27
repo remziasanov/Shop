@@ -10,6 +10,6 @@ final class ReservationExpiredMessage extends OrderMessage
 {
     public function render(Order $order): string
     {
-        return implode("\n", [$this->heading($order, 'notifications.telegram.expired'), '', ...$this->body($order)]);
+        return $this->compose($order, 'notifications.telegram.expired');
     }
 }

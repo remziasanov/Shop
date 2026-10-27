@@ -7,9 +7,11 @@ namespace App\Console\Commands;
 use App\Enums\OrderStatus;
 use App\Jobs\SendTelegramNotification;
 use App\Models\Order;
+use App\Services\Notifications\JobFanOut;
 use App\Services\Notifications\TelegramNotifier;
 use App\Settings\NotificationSettings;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class NotifyExpiringReservationsCommand extends Command
@@ -53,15 +55,25 @@ class NotifyExpiringReservationsCommand extends Command
                 $lastId = (int) $id;
 
                 try {
-                    // Claim the reservation atomically: a concurrent or repeated run skips it (once per reservation).
-                    $claimed = Order::query()
-                        ->whereKey($id)
-                        ->whereNull('expiring_notified_at')
-                        ->whereIn('status', [OrderStatus::New->value, OrderStatus::Reserved->value])
-                        ->update(['expiring_notified_at' => now()]);
+                    // Claim and queue in one transaction (the database queue shares the connection): if queueing
+                    // fails the claim is rolled back and the next run retries; a concurrent run skips a claimed order.
+                    $claimed = DB::transaction(function () use ($id): bool {
+                        $claimed = Order::query()
+                            ->whereKey($id)
+                            ->whereNull('expiring_notified_at')
+                            ->whereIn('status', [OrderStatus::New->value, OrderStatus::Reserved->value])
+                            ->update(['expiring_notified_at' => now()]);
 
-                    if ($claimed === 1) {
-                        SendTelegramNotification::dispatch((int) $id, SendTelegramNotification::EXPIRING);
+                        if ($claimed !== 1) {
+                            return false;
+                        }
+
+                        JobFanOut::dispatch([new SendTelegramNotification((int) $id, SendTelegramNotification::EXPIRING)]);
+
+                        return true;
+                    });
+
+                    if ($claimed) {
                         $notified++;
                     }
                 } catch (Throwable $e) {

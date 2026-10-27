@@ -10,6 +10,7 @@ use App\Services\Notifications\Messages\OrderMessage;
 use App\Services\Notifications\Messages\ReservationExpiredMessage;
 use App\Services\Notifications\Messages\ReservationExpiringMessage;
 use App\Services\Notifications\TelegramNotifier;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +19,7 @@ use Throwable;
 /**
  * One Telegram message about a request (NT-01, NT-02). The API error is thrown, so the queue retries it.
  */
-class SendTelegramNotification implements ShouldQueue
+class SendTelegramNotification implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -32,6 +33,9 @@ class SendTelegramNotification implements ShouldQueue
 
     public int $timeout = 30;
 
+    /** Seconds a queued or running twin of this job blocks a duplicate (a parent retry must not resend). */
+    public int $uniqueFor = 3600;
+
     public function __construct(public readonly int $orderId, public readonly string $kind) {}
 
     /**
@@ -40,6 +44,11 @@ class SendTelegramNotification implements ShouldQueue
     public function backoff(): array
     {
         return [60, 300];
+    }
+
+    public function uniqueId(): string
+    {
+        return implode(':', ['telegram', $this->orderId, $this->kind]);
     }
 
     public function handle(TelegramNotifier $telegram): void
