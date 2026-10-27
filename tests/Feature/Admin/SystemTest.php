@@ -11,6 +11,7 @@ use App\Services\System\EnvironmentChecker;
 use App\Services\System\Heartbeat;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
@@ -234,4 +235,94 @@ it('lists trusted hosts including SHOP_EXTRA_HOSTS', function () {
     config(['app.url' => 'https://example.ru', 'shop.extra_hosts' => ['login.beget.tech']]);
 
     expect(envCheck('trusted_hosts')->value)->toContain('example.ru', 'www.example.ru', 'login.beget.tech');
+});
+
+function checkerWithIni(array $ini): EnvironmentChecker
+{
+    return new class(app(Heartbeat::class), $ini) extends EnvironmentChecker
+    {
+        /** @param array<string, string> $ini */
+        public function __construct(Heartbeat $heartbeat, private array $ini)
+        {
+            parent::__construct($heartbeat);
+        }
+
+        protected function iniValue(string $key): string
+        {
+            return $this->ini[$key] ?? parent::iniValue($key);
+        }
+    };
+}
+
+function iniCheck(array $ini, string $key): CheckResult
+{
+    return collect(checkerWithIni($ini)->run())->firstWhere('key', $key);
+}
+
+it('warns when upload_max_filesize or post_max_size is below 10M', function (string $key) {
+    $low = iniCheck([$key => '2M'], $key);
+
+    expect($low->status)->toBe(CheckStatus::Warning)
+        ->and($low->hint)->toContain('10 МБ')->toContain('SFTP');
+
+    expect(iniCheck([$key => '10M'], $key)->status)->toBe(CheckStatus::Ok)
+        ->and(iniCheck([$key => '64M'], $key)->status)->toBe(CheckStatus::Ok)
+        ->and(iniCheck([$key => '1G'], $key)->status)->toBe(CheckStatus::Ok);
+})->with(['upload_max_filesize', 'post_max_size']);
+
+it('warns when memory_limit is below 128M', function () {
+    expect(iniCheck(['memory_limit' => '64M'], 'memory_limit')->status)->toBe(CheckStatus::Warning)
+        ->and(iniCheck(['memory_limit' => '128M'], 'memory_limit')->status)->toBe(CheckStatus::Ok)
+        ->and(iniCheck(['memory_limit' => '-1'], 'memory_limit')->status)->toBe(CheckStatus::Ok);
+});
+
+it('warns about a short max_execution_time but accepts 0 (unlimited)', function () {
+    expect(iniCheck(['max_execution_time' => '10'], 'max_execution_time')->status)->toBe(CheckStatus::Warning)
+        ->and(iniCheck(['max_execution_time' => '29'], 'max_execution_time')->hint)->not->toBeNull()
+        ->and(iniCheck(['max_execution_time' => '30'], 'max_execution_time')->status)->toBe(CheckStatus::Ok)
+        ->and(iniCheck(['max_execution_time' => '0'], 'max_execution_time')->status)->toBe(CheckStatus::Ok);
+});
+
+it('caches the photos size for 10 minutes and shows when it was calculated', function () {
+    Cache::flush();
+    $at = fn (string $time): string => Carbon::parse('2026-10-27 '.$time)->setTimezone((string) config('app.timezone'))->format('H:i');
+
+    Carbon::setTestNow('2026-10-27 09:05:00');
+    expect(iniCheck([], 'photos_size')->value)->toContain('посчитано '.$at('09:05:00'));
+
+    Carbon::setTestNow('2026-10-27 09:12:00');
+    expect(iniCheck([], 'photos_size')->value)->toContain('посчитано '.$at('09:05:00'));
+
+    Carbon::setTestNow('2026-10-27 09:16:00');
+    expect(iniCheck([], 'photos_size')->value)->toContain('посчитано '.$at('09:16:00'));
+});
+
+it('formats photo sizes with units from the language file', function () {
+    Cache::put('system.photos_size', ['bytes' => 5 * 1024 * 1024, 'at' => now()->timestamp], 600);
+
+    expect(iniCheck([], 'photos_size')->value)->toStartWith('5,0 МБ');
+
+    Cache::put('system.photos_size', ['bytes' => 512, 'at' => now()->timestamp], 600);
+    expect(iniCheck([], 'photos_size')->value)->toStartWith('512 Б');
+});
+
+it('labels the database engine from the driver and version string', function () {
+    $expected = match (DB::connection()->getDriverName()) {
+        'sqlite' => 'SQLite ',
+        default => str_contains(strtolower((string) DB::selectOne('select version() as v')->v), 'mariadb') ? 'MariaDB ' : 'MySQL ',
+    };
+
+    expect(iniCheck([], 'database')->value)->toStartWith($expected);
+});
+
+it('keeps the heartbeat file out of the real storage path in tests', function () {
+    expect(app(Heartbeat::class)->path())->not->toBe(storage_path('app/heartbeat'))
+        ->and(app(Heartbeat::class)->path())->toContain('framework/testing');
+});
+
+it('derives the database label from the version string', function () {
+    expect(EnvironmentChecker::databaseLabel('mysql', '8.0.36'))->toBe('MySQL')
+        ->and(EnvironmentChecker::databaseLabel('mysql', '10.6.12-MariaDB-0ubuntu0.22.04.1'))->toBe('MariaDB')
+        ->and(EnvironmentChecker::databaseLabel('mariadb', '11.4.2'))->toBe('MariaDB')
+        ->and(EnvironmentChecker::databaseLabel('sqlite', '3.45.0'))->toBe('SQLite');
 });

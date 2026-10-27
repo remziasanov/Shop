@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Pages\Settings;
 
 use App\Filament\Concerns\AdminOnlySettingsPage;
+use App\Filament\Concerns\DeletesReplacedSettingFiles;
 use App\Settings\SeoSettings;
 use BackedEnum;
 use Filament\Forms\Components\FileUpload;
@@ -18,6 +19,7 @@ use Filament\Support\Icons\Heroicon;
 class ManageSeoSettings extends SettingsPage
 {
     use AdminOnlySettingsPage;
+    use DeletesReplacedSettingFiles;
 
     protected static string $settings = SeoSettings::class;
 
@@ -26,6 +28,14 @@ class ManageSeoSettings extends SettingsPage
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMagnifyingGlass;
 
     protected static ?int $navigationSort = 60;
+
+    /**
+     * @return list<string>
+     */
+    protected function settingsFileFields(): array
+    {
+        return ['og_image'];
+    }
 
     public function form(Schema $schema): Schema
     {

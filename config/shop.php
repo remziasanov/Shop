@@ -32,6 +32,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Scheduler heartbeat file (AD-11)
+    |--------------------------------------------------------------------------
+    | Relative to the project root; null = storage/app/heartbeat. Tests point it to a scratch file.
+    */
+    'heartbeat_path' => env('HEARTBEAT_PATH') ? base_path((string) env('HEARTBEAT_PATH')) : null,
+
+    /*
+    |--------------------------------------------------------------------------
     | Bulk price change limit
     |--------------------------------------------------------------------------
     | Largest selection of products one bulk price change accepts (AD-42, D-032).

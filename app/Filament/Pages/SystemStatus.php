@@ -10,6 +10,7 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Cache;
 use UnitEnum;
 
 class SystemStatus extends Page
@@ -59,7 +60,7 @@ class SystemStatus extends Page
             Action::make('refresh')
                 ->label(__('system.refresh'))
                 ->icon(Heroicon::OutlinedArrowPath)
-                ->action(fn () => null),
+                ->action(fn () => Cache::forget('system.photos_size')),
         ];
     }
 }
