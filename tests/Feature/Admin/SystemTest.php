@@ -6,6 +6,7 @@ use App\Enums\CheckStatus;
 use App\Filament\Pages\SystemStatus;
 use App\Models\Page;
 use App\Models\User;
+use App\Services\System\CheckResult;
 use App\Services\System\EnvironmentChecker;
 use App\Services\System\Heartbeat;
 use Illuminate\Support\Carbon;
@@ -115,4 +116,115 @@ it('warns about template legal pages in the doctor report and clears the warning
     Page::query()->update(['content' => '<p>Своя редакция</p>']);
 
     expect($find()->status)->toBe(CheckStatus::Ok);
+});
+
+function setEnvironment(string $env): void
+{
+    app()->detectEnvironment(fn () => $env);
+}
+
+function envCheck(string $key): CheckResult
+{
+    $found = collect(app(EnvironmentChecker::class)->run())->firstWhere('key', $key);
+    expect($found)->not->toBeNull();
+
+    return $found;
+}
+
+it('flags an empty MAIL_FROM_ADDRESS as an error in production', function () {
+    setEnvironment('production');
+    config(['mail.from.address' => '']);
+
+    expect(envCheck('mail_from')->status)->toBe(CheckStatus::Error)
+        ->and(envCheck('mail_from')->hint)->not->toBeNull();
+
+    config(['mail.from.address' => 'shop@example.ru']);
+    expect(envCheck('mail_from')->status)->toBe(CheckStatus::Ok);
+});
+
+it('warns about log and array mailers in production only', function () {
+    setEnvironment('local');
+    config(['mail.default' => 'log']);
+    expect(envCheck('mail_mailer')->status)->toBe(CheckStatus::Ok);
+
+    setEnvironment('production');
+    expect(envCheck('mail_mailer')->status)->toBe(CheckStatus::Warning);
+
+    config(['mail.default' => 'smtp']);
+    expect(envCheck('mail_mailer')->status)->toBe(CheckStatus::Ok);
+});
+
+it('errors on an empty SMTP host with the smtp mailer', function () {
+    config(['mail.default' => 'smtp', 'mail.mailers.smtp.host' => '']);
+    expect(envCheck('mail_host')->status)->toBe(CheckStatus::Error);
+
+    config(['mail.mailers.smtp.host' => 'smtp.example.ru']);
+    expect(envCheck('mail_host')->status)->toBe(CheckStatus::Ok);
+
+    config(['mail.default' => 'log', 'mail.mailers.smtp.host' => '']);
+    expect(envCheck('mail_host')->status)->toBe(CheckStatus::Ok);
+});
+
+it('warns when APP_URL is not https in production and errors when invalid', function () {
+    setEnvironment('local');
+    config(['app.url' => 'http://example.ru']);
+    expect(envCheck('app_url')->status)->toBe(CheckStatus::Ok);
+
+    setEnvironment('production');
+    expect(envCheck('app_url')->status)->toBe(CheckStatus::Warning);
+
+    config(['app.url' => 'https://example.ru']);
+    expect(envCheck('app_url')->status)->toBe(CheckStatus::Ok);
+
+    config(['app.url' => 'not a url']);
+    expect(envCheck('app_url')->status)->toBe(CheckStatus::Error);
+});
+
+it('warns about insecure session cookies in production', function () {
+    setEnvironment('local');
+    config(['session.secure' => false]);
+    expect(envCheck('session_secure')->status)->toBe(CheckStatus::Ok);
+
+    setEnvironment('production');
+    expect(envCheck('session_secure')->status)->toBe(CheckStatus::Warning);
+
+    config(['session.secure' => true]);
+    expect(envCheck('session_secure')->status)->toBe(CheckStatus::Ok);
+});
+
+it('warns when the queue connection is not database', function () {
+    config(['queue.default' => 'sync']);
+    expect(envCheck('queue_connection')->status)->toBe(CheckStatus::Warning);
+
+    config(['queue.default' => 'database']);
+    expect(envCheck('queue_connection')->status)->toBe(CheckStatus::Ok);
+});
+
+it('errors on redis or memcached cache stores', function () {
+    config(['cache.default' => 'redis']);
+    expect(envCheck('cache_store')->status)->toBe(CheckStatus::Error);
+
+    config(['cache.default' => 'memcached']);
+    expect(envCheck('cache_store')->status)->toBe(CheckStatus::Error);
+
+    config(['cache.default' => 'file']);
+    expect(envCheck('cache_store')->status)->toBe(CheckStatus::Ok);
+});
+
+it('warns about debug log level in production', function () {
+    setEnvironment('local');
+    config(['logging.default' => 'daily', 'logging.channels.daily.level' => 'debug']);
+    expect(envCheck('log_level')->status)->toBe(CheckStatus::Ok);
+
+    setEnvironment('production');
+    expect(envCheck('log_level')->status)->toBe(CheckStatus::Warning);
+
+    config(['logging.channels.daily.level' => 'warning']);
+    expect(envCheck('log_level')->status)->toBe(CheckStatus::Ok);
+});
+
+it('lists trusted hosts including SHOP_EXTRA_HOSTS', function () {
+    config(['app.url' => 'https://example.ru', 'shop.extra_hosts' => ['login.beget.tech']]);
+
+    expect(envCheck('trusted_hosts')->value)->toContain('example.ru', 'www.example.ru', 'login.beget.tech');
 });
