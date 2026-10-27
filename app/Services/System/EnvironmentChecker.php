@@ -390,7 +390,8 @@ class EnvironmentChecker
     {
         $raw = $this->iniValue($key);
         $bytes = $this->toBytes($raw);
-        $low = $bytes !== -1 && $bytes < self::MIN_UPLOAD_BYTES;
+        // -1 and 0 (post_max_size) mean unlimited.
+        $low = $bytes > 0 && $bytes < self::MIN_UPLOAD_BYTES;
 
         return $this->result($key, $low ? CheckStatus::Warning : CheckStatus::Ok, $raw,
             $low ? __('system.hints.upload_limit') : null);

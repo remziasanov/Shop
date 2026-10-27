@@ -60,11 +60,11 @@ class AdminGuard
         }
 
         if ($actor !== null && $record->is($actor)) {
-            throw ValidationException::withMessages(['role' => __('shop.users.errors.self_lockout')]);
+            throw ValidationException::withMessages(['data.role' => __('shop.users.errors.self_lockout')]);
         }
 
         if ($this->isLastActiveAdmin($record)) {
-            throw ValidationException::withMessages(['role' => __('shop.users.errors.last_admin')]);
+            throw ValidationException::withMessages(['data.role' => __('shop.users.errors.last_admin')]);
         }
     }
 
