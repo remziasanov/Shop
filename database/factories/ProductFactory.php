@@ -52,7 +52,8 @@ class ProductFactory extends Factory
             'compare_at_price' => null,
             'fixed_price' => null,
             'price_on_request' => false,
-            'stock_qty' => $this->faker->numberBetween(0, 50),
+            // In stock by default; use outOfStock() for zero (random zero made tests flaky).
+            'stock_qty' => $this->faker->numberBetween(1, 50),
             'reserved_qty' => 0,
             'unit' => 'шт',
             'sales_mode' => null,

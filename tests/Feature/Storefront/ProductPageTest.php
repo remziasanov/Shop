@@ -131,8 +131,9 @@ it('returns 404 for inactive, soft-deleted and unknown products (SF-16)', functi
 });
 
 it('shows buttons per sales mode and none for showcase (SF-33 placeholder)', function () {
-    $both = Product::factory()->salesMode(SalesMode::Both)->create();
-    $showcase = Product::factory()->salesMode(SalesMode::Showcase)->create();
+    // Explicit stock and price flags: random factory values (out of stock, price on request) change the buttons.
+    $both = Product::factory()->salesMode(SalesMode::Both)->create(['stock_qty' => 10, 'price_on_request' => false]);
+    $showcase = Product::factory()->salesMode(SalesMode::Showcase)->create(['stock_qty' => 10, 'price_on_request' => false]);
 
     $this->get(route('product.show', $both->slug))->assertSeeText('В корзину')->assertSeeText('Зарезервировать');
     $this->get(route('product.show', $showcase->slug))->assertDontSeeText('В корзину')->assertDontSeeText('Зарезервировать')->assertDontSeeText('Оставить заявку');
