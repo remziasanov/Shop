@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Models\Import;
+use App\Services\Import\ImportPhotoProcessor;
 use App\Services\Import\ImportRunner;
 use App\Services\Import\ImportStep;
 use Illuminate\Bus\Queueable;
@@ -55,7 +56,7 @@ abstract class ProcessesImportSteps implements ShouldQueue
 
         do {
             $step = $runner->step($import, max(1.0, self::BUDGET - (microtime(true) - $started)));
-        } while ($step->progressed() && microtime(true) - $started < self::BUDGET);
+        } while ($step->progressed() && self::BUDGET - (microtime(true) - $started) >= ImportPhotoProcessor::ATTACH_RESERVE_SECONDS);
 
         if ($step === ImportStep::Finished || $step === ImportStep::Stopped) {
             return;

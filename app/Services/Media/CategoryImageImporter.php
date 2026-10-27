@@ -36,7 +36,7 @@ final class CategoryImageImporter
     {
         if ($temporaryPath === null || $temporaryPath === '') {
             if ($remove && $category->image_path !== null) {
-                $category->update(['image_path' => null]);
+                $category->update(['image_path' => null, 'image_source_hash' => null]);
             }
 
             return;
@@ -62,7 +62,8 @@ final class CategoryImageImporter
         }
 
         try {
-            $category->update(['image_path' => $path]);
+            // A manual upload is no longer the import's image: forget its source hash.
+            $category->update(['image_path' => $path, 'image_source_hash' => null]);
         } catch (Throwable $e) {
             // Keep the temporary file: the form still references it, so a retry can succeed.
             $this->filesystems->disk(ImageProcessor::DISK)->delete($path);

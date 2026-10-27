@@ -232,12 +232,12 @@ it('stops attaching images when the deadline passes between two images and conti
     $tasks = json_decode((string) file_get_contents($pendingFile), true);
     $processor = app(ImportPhotoProcessor::class);
 
-    // Fake clock: the deadline passes right after the first image is attached (heartbeat call 4 = after attach 1).
-    $deadline = microtime(true) + 1.5;
+    // Fake clock: after the first image is attached (heartbeat call 4) less than the attach reserve is left.
+    $deadline = microtime(true) + 4.0;
     $calls = 0;
     $left = $processor->run($import->fresh(), $tasks, $deadline, function () use (&$calls, $deadline): void {
         if (++$calls === 4) {
-            while (microtime(true) < $deadline) {
+            while (microtime(true) < $deadline - 1.0) {
                 usleep(20000);
             }
         }

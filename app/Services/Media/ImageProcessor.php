@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\ImageManager;
@@ -239,20 +240,62 @@ final class ImageProcessor
      */
     public function attachToProduct(Product $product, string $sourceAbsolutePath, ?string $alt = null, ?string $sourceHash = null, bool $deleteSource = false): ProductImage
     {
+        $hashed = $sourceHash !== null && $sourceHash !== '';
+
+        // Cheap early exits before the (slow) GD work: an import image (has a source hash) is attached at most once.
+        if ($hashed && ($existing = $product->images()->where('source_hash', $sourceHash)->first()) !== null) {
+            if ($deleteSource) {
+                @unlink($sourceAbsolutePath);
+            }
+
+            return $existing;
+        }
+
         if ($product->images()->count() >= self::MAX_PER_PRODUCT) {
             throw ImageProcessingException::limitReached(self::MAX_PER_PRODUCT);
         }
 
+        // Decoding and writing the variants takes seconds: done outside of any transaction / row lock.
         $data = $this->process($sourceAbsolutePath, $product);
+        $files = [$data['path_large'], $data['path_medium'], $data['path_small']];
 
-        $alt = $alt !== null && trim($alt) !== '' ? trim($alt) : $product->name;
-        $nextOrder = $product->images()->max('sort_order');
+        try {
+            // Short transaction: under the product row lock the hash and the limit are checked again (two workers
+            // may have processed the same photo meanwhile) and the row is inserted.
+            [$image, $duplicate] = DB::transaction(function () use ($product, $data, $alt, $sourceHash, $hashed): array {
+                if ($hashed) {
+                    Product::withTrashed()->whereKey($product->getKey())->lockForUpdate()->first(['id']);
 
-        $image = $product->images()->create($data + [
-            'alt' => $alt,
-            'sort_order' => $nextOrder === null ? 0 : ((int) $nextOrder) + 1,
-            'source_hash' => $sourceHash,
-        ]);
+                    $existing = $product->images()->where('source_hash', $sourceHash)->first();
+
+                    if ($existing !== null) {
+                        return [$existing, true];
+                    }
+                }
+
+                if ($this->imageCount($product) >= self::MAX_PER_PRODUCT) {
+                    throw ImageProcessingException::limitReached(self::MAX_PER_PRODUCT);
+                }
+
+                $alt = $alt !== null && trim($alt) !== '' ? trim($alt) : $product->name;
+                $nextOrder = $product->images()->max('sort_order');
+
+                return [$product->images()->create($data + [
+                    'alt' => $alt,
+                    'sort_order' => $nextOrder === null ? 0 : ((int) $nextOrder) + 1,
+                    'source_hash' => $sourceHash,
+                ]), false];
+            });
+        } catch (Throwable $e) {
+            $this->disk()->delete($files);
+
+            throw $e;
+        }
+
+        if ($duplicate) {
+            // Lost the race: the freshly written files are not needed, the winner's image is returned.
+            $this->disk()->delete($files);
+        }
 
         if ($deleteSource) {
             @unlink($sourceAbsolutePath);
@@ -261,6 +304,11 @@ final class ImageProcessor
         $product->unsetRelation('images');
 
         return $image;
+    }
+
+    private function imageCount(Product $product): int
+    {
+        return $product->images()->count();
     }
 
     /**

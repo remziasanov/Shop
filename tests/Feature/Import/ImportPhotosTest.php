@@ -16,6 +16,7 @@ use App\Services\Import\ImageFetcher;
 use App\Services\Import\ImportRunner;
 use App\Services\Import\ImportStep;
 use App\Services\Import\MediaResolver;
+use App\Services\Media\CategoryImageImporter;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -348,4 +349,47 @@ it('imports a category photo from the categories sheet', function () {
     expect($import->warning_count)->toBe(0)
         ->and($category->image_path)->not->toBeNull();
     Storage::disk('public')->assertExists($category->image_path);
+});
+
+it('does not reprocess an unchanged category photo on a re-import and reprocesses when the file is gone or the URL changed', function () {
+    Http::fake(['*' => fn () => jpegResponse2()]);
+    $sheet = fn (string $url): string => ImportFiles::xlsx([
+        'Товары' => [PHOTO_HEADER, ['A-1', 'Стол', 'Мебель', '100', '']],
+        'Категории' => [['Путь', 'Фото'], ['Мебель', $url]],
+    ]);
+
+    ImportHarness::run(ImportHarness::analyzed($sheet('https://img.test/cat.jpg')));
+    $category = Category::where('name', 'Мебель')->firstOrFail();
+    $first = $category->image_path;
+
+    expect($category->image_source_hash)->toBe(sha1('https://img.test/cat.jpg'));
+    Http::assertSentCount(1);
+
+    ImportHarness::run(ImportHarness::analyzed($sheet('https://img.test/cat.jpg')));
+    expect($category->refresh()->image_path)->toBe($first);
+    Http::assertSentCount(1);
+
+    Storage::disk('public')->delete($first);
+    ImportHarness::run(ImportHarness::analyzed($sheet('https://img.test/cat.jpg')));
+    expect($category->refresh()->image_path)->not->toBe($first);
+    Http::assertSentCount(2);
+
+    ImportHarness::run(ImportHarness::analyzed($sheet('https://img.test/other.jpg')));
+    expect($category->refresh()->image_source_hash)->toBe(sha1('https://img.test/other.jpg'));
+    Http::assertSentCount(3);
+});
+
+it('clears the category image source hash on a manual upload or removal', function () {
+    $category = Category::factory()->create(['image_source_hash' => sha1('https://img.test/cat.jpg')]);
+    $temporary = CategoryImageImporter::TEMP_DIRECTORY.'/manual.jpg';
+    Storage::disk('local')->put($temporary, ImportHarness::jpeg());
+
+    app(CategoryImageImporter::class)->apply($category, $temporary);
+    expect($category->refresh()->image_path)->not->toBeNull()
+        ->and($category->image_source_hash)->toBeNull();
+
+    $category->update(['image_source_hash' => 'x']);
+    app(CategoryImageImporter::class)->apply($category, null, true);
+    expect($category->refresh()->image_path)->toBeNull()
+        ->and($category->image_source_hash)->toBeNull();
 });
