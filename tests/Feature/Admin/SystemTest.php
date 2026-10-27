@@ -307,7 +307,12 @@ it('formats photo sizes with units from the language file', function () {
 });
 
 it('labels the database engine from the driver and version string', function () {
-    expect(iniCheck([], 'database')->value)->toStartWith('SQLite ');
+    $expected = match (DB::connection()->getDriverName()) {
+        'sqlite' => 'SQLite ',
+        default => str_contains(strtolower((string) DB::selectOne('select version() as v')->v), 'mariadb') ? 'MariaDB ' : 'MySQL ',
+    };
+
+    expect(iniCheck([], 'database')->value)->toStartWith($expected);
 });
 
 it('keeps the heartbeat file out of the real storage path in tests', function () {
