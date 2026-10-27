@@ -48,9 +48,28 @@ final class HomePageRenderer
 
     public function render(): string
     {
-        $html = Cache::remember(self::CACHE_KEY, self::CACHE_TTL, fn (): string => $this->build());
+        return $this->page()['html'];
+    }
 
-        return str_replace(self::CSRF_PLACEHOLDER, (string) csrf_token(), $html);
+    /**
+     * The page HTML plus the images worth preloading in `<head>` (the first banner / slide, NF-03). Both are
+     * cached together, so the preload always matches the markup.
+     *
+     * @return array{html: string, preload: list<array{href: string, srcset: string, sizes: string, media: string|null}>}
+     */
+    public function page(): array
+    {
+        $cached = Cache::get(self::CACHE_KEY);
+
+        if (! is_array($cached) || ! is_string($cached['html'] ?? null) || ! is_array($cached['preload'] ?? null)) {
+            $cached = $this->build();
+            Cache::put(self::CACHE_KEY, $cached, self::CACHE_TTL);
+        }
+
+        return [
+            'html' => str_replace(self::CSRF_PLACEHOLDER, (string) csrf_token(), $cached['html']),
+            'preload' => $cached['preload'],
+        ];
     }
 
     public static function forget(): void
@@ -58,14 +77,22 @@ final class HomePageRenderer
         Cache::forget(self::CACHE_KEY);
     }
 
-    private function build(): string
+    /**
+     * @return array{html: string, preload: list<array{href: string, srcset: string, sizes: string, media: string|null}>}
+     */
+    private function build(): array
     {
         $parts = [];
+        $preload = [];
 
         foreach ($this->visibleBlocks() as $block) {
             $data = $this->data($block['type'], $block['data'], $parts === []);
 
             if ($data !== null) {
+                if ($parts === []) {
+                    $preload = $this->preloadFor($block['type'], $data);
+                }
+
                 $parts[] = view('storefront.home.blocks.'.$block['type'], $data)->render();
             }
         }
@@ -77,7 +104,42 @@ final class HomePageRenderer
         $html = implode("\n", $parts);
         $token = (string) csrf_token();
 
-        return $token !== '' ? str_replace($token, self::CSRF_PLACEHOLDER, $html) : $html;
+        return [
+            'html' => $token !== '' ? str_replace($token, self::CSRF_PLACEHOLDER, $html) : $html,
+            'preload' => $preload,
+        ];
+    }
+
+    /**
+     * Preload links for the first image of a banner / slider that opens the page (it is the LCP element).
+     *
+     * @param  array<string, mixed>  $data  view data of the block
+     * @return list<array{href: string, srcset: string, sizes: string, media: string|null}>
+     */
+    private function preloadFor(string $type, array $data): array
+    {
+        $slide = match ($type) {
+            'banner' => $data['slide'] ?? null,
+            'slider' => is_array($data['slides'] ?? null) ? ($data['slides'][0] ?? null) : null,
+            default => null,
+        };
+
+        if (! is_array($slide) || ! is_string($slide['src'] ?? null) || ! is_string($slide['srcset'] ?? null)) {
+            return [];
+        }
+
+        $desktopSizes = '(min-width: 1280px) 1216px, 100vw';
+
+        if (is_string($slide['mobileSrcset'] ?? null)) {
+            $mobile = explode(' ', trim(explode(',', $slide['mobileSrcset'])[0]))[0];
+
+            return [
+                ['href' => $mobile, 'srcset' => $slide['mobileSrcset'], 'sizes' => '100vw', 'media' => '(max-width: 767px)'],
+                ['href' => $slide['src'], 'srcset' => $slide['srcset'], 'sizes' => $desktopSizes, 'media' => '(min-width: 768px)'],
+            ];
+        }
+
+        return [['href' => $slide['src'], 'srcset' => $slide['srcset'], 'sizes' => $desktopSizes, 'media' => null]];
     }
 
     /**

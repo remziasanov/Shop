@@ -86,7 +86,8 @@ it('renders banners with a picture, a lazy tail and a high-priority first image'
         homeBlock('banner', ['title' => 'Второй', 'image' => bannerImage('two')]),
     ]);
 
-    $html = $this->get(route('home'))->assertOk()->getContent();
+    $response = $this->get(route('home'))->assertOk();
+    $html = $response->getContent();
 
     expect($html)->toContain('<picture>')
         ->and($html)->toContain('<source media="(max-width: 767px)"')
@@ -98,10 +99,11 @@ it('renders banners with a picture, a lazy tail and a high-priority first image'
         ->and(substr_count($html, 'loading="lazy"'))->toBeGreaterThanOrEqual(1);
 
     // Only the first banner is eager.
-    $firstImg = strpos($html, 'one-1600.webp');
-    $secondImg = strpos($html, 'two-1600.webp');
-    expect(substr($html, $firstImg, 400))->toContain('fetchpriority="high"')
-        ->and(substr($html, $secondImg, 400))->toContain('loading="lazy"');
+    $main = homeMain($response);
+    $firstImg = strpos($main, 'one-1600.webp');
+    $secondImg = strpos($main, 'two-1600.webp');
+    expect(substr($main, $firstImg, 400))->toContain('fetchpriority="high"')
+        ->and(substr($main, $secondImg, 400))->toContain('loading="lazy"');
 });
 
 it('drops banners without a usable image and unsafe links', function () {
@@ -361,7 +363,7 @@ it('gives every session its own csrf token in the cached add-to-cart forms', fun
     $first = $this->withSession(['_token' => 'token-of-first-session-0000000000000000'])->get(route('home'))->assertOk();
     $first->assertSee('name="_token" value="token-of-first-session-0000000000000000"', false);
     expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeTrue()
-        ->and(Cache::get(HomePageRenderer::CACHE_KEY))->not->toContain('token-of-first-session');
+        ->and(Cache::get(HomePageRenderer::CACHE_KEY)['html'])->not->toContain('token-of-first-session');
 
     $this->flushSession();
     $second = $this->withSession(['_token' => 'token-of-second-session-111111111111111'])->get(route('home'))->assertOk();
@@ -414,4 +416,54 @@ it('renders the banner and slide alt text, defaulting to the title (NF-31)', fun
     expect($html)->toContain('alt="Распродажа лета -30%"')
         ->and($html)->toContain('alt="Новинки"')
         ->and($html)->toContain('alt=""');
+});
+
+describe('first banner preload', function () {
+    it('preloads the first banner image in the head, also from the cache', function () {
+        storeHomeBlocks([
+            homeBlock('banner', ['title' => 'Первый', 'image' => bannerImage('one')]),
+            homeBlock('banner', ['title' => 'Второй', 'image' => bannerImage('two')]),
+        ]);
+
+        foreach ([1, 2] as $request) {
+            $html = $this->get(route('home'))->assertOk()->getContent();
+            $head = substr($html, 0, strpos($html, '</head>'));
+
+            expect($head)->toContain('<link rel="preload" as="image"')
+                ->and($head)->toContain('one-1600.webp 1600w')
+                ->and($head)->not->toContain('two-1600.webp')
+                ->and(substr_count($head, 'rel="preload" as="image"'))->toBe(1);
+        }
+    });
+
+    it('preloads mobile and desktop images with media queries', function () {
+        storeHomeBlocks([homeBlock('banner', ['image' => bannerImage('one'), 'image_mobile' => bannerImage('mob')])]);
+
+        $html = $this->get(route('home'))->assertOk()->getContent();
+        $head = substr($html, 0, strpos($html, '</head>'));
+
+        expect($head)->toContain('media="(max-width: 767px)"')
+            ->and($head)->toContain('mob-800.webp 800w')
+            ->and($head)->toContain('media="(min-width: 768px)"');
+    });
+
+    it('preloads the first slide of a slider that opens the page', function () {
+        storeHomeBlocks([homeBlock('slider', ['slides' => [['image' => bannerImage('s1')], ['image' => bannerImage('s2')]]])]);
+
+        $html = $this->get(route('home'))->assertOk()->getContent();
+        $head = substr($html, 0, strpos($html, '</head>'));
+
+        expect($head)->toContain('s1-1600.webp')->and($head)->not->toContain('s2-1600.webp');
+    });
+
+    it('has no preload when the page does not open with a banner', function () {
+        storeHomeBlocks([
+            homeBlock('text', ['title' => 'Текст', 'content' => '<p>x</p>']),
+            homeBlock('banner', ['image' => bannerImage('one')]),
+        ]);
+
+        $html = $this->get(route('home'))->assertOk()->getContent();
+
+        expect(substr($html, 0, strpos($html, '</head>')))->not->toContain('rel="preload" as="image"');
+    });
 });

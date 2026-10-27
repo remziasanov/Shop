@@ -50,6 +50,31 @@ describe('ApplyBulkPriceChange job', function (): void {
             ->and($b->fresh()->base_price)->toBe('550.00');
     });
 
+    it('notifies the acting user about products skipped because their price changed since the preview', function (): void {
+        $admin = User::factory()->admin()->create();
+        $a = Product::factory()->create(['base_price' => '1000.00']);
+        $b = Product::factory()->create(['base_price' => '500.00']);
+        $targets = app(BulkPriceChanger::class)->computeTargets([$a->id, $b->id], BulkPriceOperation::IncreasePercent, '10');
+
+        // A second bulk change ran first.
+        $a->update(['base_price' => '2000.00']);
+
+        dispatch_sync(new ApplyBulkPriceChange($targets, $admin->id));
+
+        $notification = $admin->notifications()->sole();
+        expect($notification->data['title'])->toBe(__('admin_pricing.bulk.skipped', ['count' => 1]));
+    });
+
+    it('sends no notification when nothing was skipped', function (): void {
+        $admin = User::factory()->admin()->create();
+        $a = Product::factory()->create(['base_price' => '1000.00']);
+        $targets = app(BulkPriceChanger::class)->computeTargets([$a->id], BulkPriceOperation::IncreasePercent, '10');
+
+        dispatch_sync(new ApplyBulkPriceChange($targets, $admin->id));
+
+        expect($admin->notifications()->count())->toBe(0);
+    });
+
     it('records bulk history for the acting user although the queue has no authenticated user', function (): void {
         $admin = User::factory()->admin()->create();
         $product = Product::factory()->create(['base_price' => '1000.00']);

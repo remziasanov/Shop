@@ -11,6 +11,7 @@ use App\Filament\Resources\Products\Support\ExportSelectedAction;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\ProductDuplicator;
+use App\Services\Home\HomePageRenderer;
 use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\PriceRuleRecalculator;
 use App\Services\Sales\SalesModeResolver;
@@ -362,6 +363,7 @@ final class ProductsTable
                 $ids = $records->map(fn (Model $record): mixed => $record->getKey())->values()->all();
 
                 Product::withTrashed()->whereKey($ids)->update($values);
+                HomePageRenderer::forget();
 
                 if ($affectsPrice) {
                     app(PriceRuleRecalculator::class)->dispatch($ids);

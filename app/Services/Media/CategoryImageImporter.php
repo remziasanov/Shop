@@ -11,8 +11,9 @@ use Throwable;
 
 /**
  * Turns a category image uploaded through the admin form (private temporary directory) into the
- * processed public image and stores its path (AD-31, TZ section 2). The temporary file is always
- * removed; the previous image file is deleted by the Category observer when `image_path` changes.
+ * processed public image and stores its path (AD-31, TZ section 2). The temporary file is removed after
+ * success or an unusable image, and kept after any other failure (`shop:cleanup` removes it later). The
+ * previous image file is deleted by the Category observer when `image_path` changes.
  */
 final class CategoryImageImporter
 {
@@ -51,17 +52,23 @@ final class CategoryImageImporter
 
         try {
             $path = $this->images->processCategoryImage($disk->path($temporaryPath), $category);
-
-            try {
-                $category->update(['image_path' => $path]);
-            } catch (Throwable $e) {
-                $this->filesystems->disk(ImageProcessor::DISK)->delete($path);
-
-                throw $e;
-            }
-        } finally {
+        } catch (ImageProcessingException $e) {
+            // The file itself is unusable: nothing to retry with.
             $disk->delete($temporaryPath);
+
+            throw $e;
         }
+
+        try {
+            $category->update(['image_path' => $path]);
+        } catch (Throwable $e) {
+            // Keep the temporary file: the form still references it, so a retry can succeed.
+            $this->filesystems->disk(ImageProcessor::DISK)->delete($path);
+
+            throw $e;
+        }
+
+        $disk->delete($temporaryPath);
     }
 
     /**

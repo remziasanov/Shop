@@ -40,6 +40,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Price boundaries last-run file (PR-02)
+    |--------------------------------------------------------------------------
+    | Relative to the project root; null = storage/app/pricing-boundaries-last-run. Tests point it to a scratch file.
+    */
+    'pricing_boundaries_path' => env('PRICING_BOUNDARIES_PATH') ? base_path((string) env('PRICING_BOUNDARIES_PATH')) : null,
+
+    /*
+    |--------------------------------------------------------------------------
     | Bulk price change limit
     |--------------------------------------------------------------------------
     | Largest selection of products one bulk price change accepts (AD-42, D-032).

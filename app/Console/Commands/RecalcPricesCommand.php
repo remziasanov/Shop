@@ -25,7 +25,9 @@ class RecalcPricesCommand extends Command
     /** Last `--boundaries` run: a file (like the heartbeat), so that clearing the cache on deploy does not lose it. */
     public static function lastRunPath(): string
     {
-        return storage_path('app/pricing-boundaries-last-run');
+        $configured = config('shop.pricing_boundaries_path');
+
+        return is_string($configured) && $configured !== '' ? $configured : storage_path('app/pricing-boundaries-last-run');
     }
 
     /** Default window when there was no previous run (a bit more than the 15 minute schedule). */
