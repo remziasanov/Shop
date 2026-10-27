@@ -12,6 +12,8 @@ use Throwable;
  */
 final class ImageProcessingException extends RuntimeException
 {
+    private const STORAGE_FAILED = 1;
+
     public static function notFound(): self
     {
         return new self(__('catalog.errors.image_not_found'));
@@ -39,7 +41,13 @@ final class ImageProcessingException extends RuntimeException
 
     public static function storageFailed(?Throwable $previous = null): self
     {
-        return new self(__('catalog.errors.image_storage_failed'), 0, $previous);
+        return new self(__('catalog.errors.image_storage_failed'), self::STORAGE_FAILED, $previous);
+    }
+
+    /** The image itself is fine; writing it failed (disk full, quota), so a retry may succeed. */
+    public function isStorageFailure(): bool
+    {
+        return $this->getCode() === self::STORAGE_FAILED;
     }
 
     public static function limitReached(int $max): self

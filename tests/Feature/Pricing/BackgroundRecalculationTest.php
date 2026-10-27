@@ -253,12 +253,27 @@ describe('admin banner', function (): void {
 
         Livewire::test(PriceRecalcBanner::class)
             ->assertSee('Пересчёт цен: 3 из 10')
-            ->assertSeeHtml('wire:poll');
+            ->assertSeeHtml('wire:poll.5s')
+            ->assertDontSeeHtml('wire:poll.30s');
     });
 
-    it('renders nothing when idle', function (): void {
+    it('renders nothing but polls slowly when idle', function (): void {
         Livewire::test(PriceRecalcBanner::class)
             ->assertDontSee('Пересчёт цен')
-            ->assertDontSeeHtml('wire:poll');
+            ->assertSeeHtml('wire:poll.30s')
+            ->assertDontSeeHtml('wire:poll.5s');
+    });
+});
+
+describe('boundaries last-run path', function (): void {
+    it('is the scratch file under test and never the real storage file', function (): void {
+        expect(RecalcPricesCommand::lastRunPath())->toBe(base_path('storage/framework/testing/pricing-boundaries-last-run'))
+            ->and(RecalcPricesCommand::lastRunPath())->not->toBe(storage_path('app/pricing-boundaries-last-run'));
+    });
+
+    it('falls back to storage/app when not configured', function (): void {
+        config(['shop.pricing_boundaries_path' => null]);
+
+        expect(RecalcPricesCommand::lastRunPath())->toBe(storage_path('app/pricing-boundaries-last-run'));
     });
 });

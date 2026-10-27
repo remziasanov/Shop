@@ -1,4 +1,5 @@
-<div @if ($progress !== null) wire:poll.5s @endif>
+{{-- Slow poll when idle (one cache read), so a page opened before a recalculation started still shows it. --}}
+<div @if ($progress !== null) wire:poll.5s @else wire:poll.30s @endif>
     @if ($progress !== null)
         <div class="fi-price-recalc-banner" role="status" style="margin-bottom: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; background: var(--primary-50); border: 1px solid var(--primary-200);">
             <div style="font-size: 0.875rem; font-weight: 500;">

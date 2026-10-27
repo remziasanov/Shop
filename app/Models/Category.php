@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Catalog category (tree, max depth 4, materialized path).
@@ -46,6 +47,22 @@ class Category extends Model
     use HasFactory;
 
     public const MAX_DEPTH = 4;
+
+    /**
+     * Moving a category rewrites `path`/`depth` of its descendants from the `updated` observer. Run the whole
+     * save in one transaction, so a failed cascade rolls the parent change back instead of leaving descendants
+     * with a stale path (joins an outer transaction when there is one).
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public function save(array $options = []): bool
+    {
+        if (! $this->exists || ! $this->isDirty('parent_id')) {
+            return parent::save($options);
+        }
+
+        return DB::transaction(fn (): bool => parent::save($options));
+    }
 
     protected $fillable = [
         'parent_id',

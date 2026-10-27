@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\CategoryTreeException;
 use App\Filament\Resources\Categories\Pages\CreateCategory;
 use App\Filament\Resources\Categories\Pages\EditCategory;
 use App\Filament\Resources\Categories\Pages\ListCategories;
@@ -267,6 +268,40 @@ describe('category image', function (): void {
 
             Storage::disk('local')->assertExists('backups/secret.sql');
         }
+    });
+
+    it('keeps the temporary file after a non-image failure so a retry works, and does not call it a corrupt image', function (): void {
+        $category = Category::factory()->create(['name' => 'Повтор']);
+        $fail = true;
+        Category::saving(function () use (&$fail): void {
+            if ($fail) {
+                throw CategoryTreeException::parentNotFound();
+            }
+        });
+
+        $component = Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()])
+            ->fillForm(['new_image' => UploadedFile::fake()->image('a.png', 900, 900)])
+            ->call('save')
+            ->assertHasFormErrors(['parent_id'])
+            ->assertHasNoFormErrors(['new_image']);
+
+        // The form still references the temporary file, so it must still exist.
+        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+
+        $fail = false;
+        $component->call('save')->assertHasNoFormErrors();
+
+        expect($category->fresh()->image_path)->not->toBeNull()
+            ->and(Storage::disk('local')->allFiles())->toBe([]);
+    });
+
+    it('does not report a generic failure as a corrupt image', function (): void {
+        $category = Category::factory()->create(['name' => 'Сбой']);
+        Category::saving(fn () => throw new RuntimeException('database went away'));
+
+        expect(fn () => Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()])
+            ->fillForm(['new_image' => UploadedFile::fake()->image('a.png', 900, 900)])
+            ->call('save'))->toThrow(RuntimeException::class, 'database went away');
     });
 
     it('reports a corrupt image as a validation error and does not create the category', function (): void {

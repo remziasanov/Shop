@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Categories\Pages\Concerns;
 
-use App\Exceptions\CategoryTreeException;
 use App\Exceptions\ImageProcessingException;
 use App\Models\Category;
 use App\Services\Media\CategoryImageImporter;
@@ -13,7 +12,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 /**
  * Saves a category together with its uploaded image: the file waits in a private temporary directory
@@ -37,8 +35,13 @@ trait SavesCategoryImage
 
         $validTemporaryPath = is_string($temporaryPath) && CategoryImageImporter::isTemporaryPath($temporaryPath);
 
+        // The temporary file is dropped after success and after an image error (the user has to upload
+        // another file anyway). After any other failure it stays, because the form still references it and a
+        // retry must work; abandoned files are removed by `shop:cleanup` after 24 hours.
+        $discardTemporary = false;
+
         try {
-            return DB::transaction(function () use ($data, $save, $temporaryPath, $remove): Model {
+            $record = DB::transaction(function () use ($data, $save, $temporaryPath, $remove): Model {
                 $record = $save($data);
 
                 if ($record instanceof Category) {
@@ -47,22 +50,17 @@ trait SavesCategoryImage
 
                 return $record;
             });
+
+            $discardTemporary = true;
+
+            return $record;
         } catch (ImageProcessingException $e) {
+            $discardTemporary = true;
+
             throw ValidationException::withMessages(['data.new_image' => $e->getMessage()]);
-        } catch (ValidationException|CategoryTreeException $e) {
-            throw $e;
-        } catch (Throwable $e) {
-            if ($temporaryPath !== null) {
-                report($e);
-
-                throw ValidationException::withMessages(['data.new_image' => ImageProcessingException::corrupt()->getMessage()]);
-            }
-
-            throw $e;
         } finally {
-            // Idempotent: the importer already removed it on its own path; this covers a failure before it ran.
-            // Only validated paths are ever deleted.
-            if ($validTemporaryPath) {
+            // Idempotent: the importer already removed it on its own path. Only validated paths are ever deleted.
+            if ($discardTemporary && $validTemporaryPath) {
                 Storage::disk(CategoryImageImporter::TEMP_DISK)->delete($temporaryPath);
             }
         }

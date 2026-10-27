@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Models\User;
 use App\Services\Pricing\BulkPriceChanger;
+use Filament\Notifications\Notification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Applies a bulk base price change (AD-42) to up to {@see BulkPriceChanger::JOB_SIZE} products. The job carries
@@ -44,6 +47,30 @@ class ApplyBulkPriceChange implements ShouldQueue
 
         if ($result['skipped'] > 0) {
             Log::info('Bulk price change skipped products whose price changed meanwhile.', $result);
+
+            $this->notifySkipped($result['skipped']);
+        }
+    }
+
+    /**
+     * Tell the acting user that some products kept their price because it changed after the preview
+     * (for example a second bulk change that ran first). Never fails the job.
+     */
+    private function notifySkipped(int $skipped): void
+    {
+        $user = $this->userId !== null ? User::query()->find($this->userId) : null;
+
+        if ($user === null) {
+            return;
+        }
+
+        try {
+            Notification::make()
+                ->title(__('admin_pricing.bulk.skipped', ['count' => $skipped]))
+                ->warning()
+                ->sendToDatabase($user);
+        } catch (Throwable $e) {
+            report($e);
         }
     }
 }

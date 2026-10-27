@@ -6,6 +6,7 @@ namespace App\Services\Pricing;
 
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Home\HomePageRenderer;
 use App\Settings\PricingSettings;
 use App\Support\Money;
 use Carbon\CarbonInterface;
@@ -169,6 +170,11 @@ final class ProductPriceUpdater
 
                 $changed++;
             }
+        }
+
+        if ($changed > 0) {
+            // Raw UPDATEs above bypass model events: drop the cached home page (cheap Cache::forget).
+            HomePageRenderer::forget();
         }
 
         return $changed;

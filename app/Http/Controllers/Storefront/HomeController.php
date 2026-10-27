@@ -12,6 +12,8 @@ class HomeController extends Controller
 {
     public function __invoke(HomePageRenderer $renderer): View
     {
-        return view('storefront.home', ['blocksHtml' => $renderer->render()]);
+        $page = $renderer->page();
+
+        return view('storefront.home', ['blocksHtml' => $page['html'], 'preloadImages' => $page['preload']]);
     }
 }

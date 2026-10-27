@@ -287,3 +287,26 @@ it('forgets the memo when a queue worker loops', function (): void {
 
     expect($tree->node($root->id)->name)->toBe('Новое');
 });
+
+it('rolls the parent change back when the descendants cascade fails', function (): void {
+    $a = Category::factory()->create(['name' => 'A']);
+    $b = Category::factory()->create(['name' => 'B']);
+    $c = Category::factory()->childOf($a)->create(['name' => 'C']);
+    $d = Category::factory()->childOf($c)->create(['name' => 'D']);
+
+    // Fail the descendant UPDATE issued by the cascade (the last binding of that statement is the child id).
+    DB::listen(function ($query) use ($d): void {
+        if (str_starts_with(strtolower($query->sql), 'update') && end($query->bindings) === $d->id) {
+            throw new RuntimeException('cascade failed');
+        }
+    });
+
+    $c = $c->fresh();
+
+    expect(fn () => $c->update(['parent_id' => $b->id]))->toThrow(RuntimeException::class, 'cascade failed');
+
+    expect($c->fresh()->parent_id)->toBe($a->id)
+        ->and($c->fresh()->path)->toBe("{$a->id}/{$c->id}/")
+        ->and($d->fresh()->path)->toBe("{$a->id}/{$c->id}/{$d->id}/")
+        ->and($d->fresh()->depth)->toBe(3);
+});
