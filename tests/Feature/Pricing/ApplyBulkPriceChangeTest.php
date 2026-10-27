@@ -157,3 +157,13 @@ describe('bulk price change action', function (): void {
         Queue::assertPushed(ApplyBulkPriceChange::class, 1);
     });
 });
+
+it('does not report products already changed by an earlier attempt as skipped', function () {
+    $product = Product::factory()->create(['base_price' => '100.00']);
+    $changer = app(BulkPriceChanger::class);
+    $targets = [$product->id => ['old' => 10000, 'new' => 11000]];
+
+    expect($changer->applyTargets($targets, null))->toBe(['changed' => 1, 'skipped' => 0])
+        ->and($changer->applyTargets($targets, null))->toBe(['changed' => 0, 'skipped' => 0])
+        ->and($product->fresh()->base_price)->toBe('110.00');
+});

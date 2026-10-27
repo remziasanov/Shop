@@ -163,7 +163,14 @@ final class BulkPriceChanger
                     foreach ($products as $product) {
                         $target = $chunk[$product->id];
 
-                        if (Money::fromRubles($product->base_price) !== $target['old']) {
+                        $current = Money::fromRubles($product->base_price);
+
+                        // Already applied by an earlier attempt of the same job (retry): neither change nor skip.
+                        if ($current === $target['new']) {
+                            continue;
+                        }
+
+                        if ($current !== $target['old']) {
                             $skipped++;
 
                             continue;

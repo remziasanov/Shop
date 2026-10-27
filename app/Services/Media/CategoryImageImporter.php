@@ -53,8 +53,10 @@ final class CategoryImageImporter
         try {
             $path = $this->images->processCategoryImage($disk->path($temporaryPath), $category);
         } catch (ImageProcessingException $e) {
-            // The file itself is unusable: nothing to retry with.
-            $disk->delete($temporaryPath);
+            // The file itself is unusable: nothing to retry with (unless only writing the result failed).
+            if (! $e->isStorageFailure()) {
+                $disk->delete($temporaryPath);
+            }
 
             throw $e;
         }
