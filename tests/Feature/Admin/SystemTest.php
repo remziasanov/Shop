@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\CheckStatus;
 use App\Filament\Pages\SystemStatus;
+use App\Models\Page;
 use App\Models\User;
 use App\Services\System\EnvironmentChecker;
 use App\Services\System\Heartbeat;
@@ -101,4 +102,17 @@ it('shows the system page to admins only', function () {
 it('forbids the system page for managers', function () {
     $this->actingAs(User::factory()->create(['role' => 'manager']));
     $this->get(SystemStatus::getUrl())->assertForbidden();
+});
+
+it('warns about template legal pages in the doctor report and clears the warning after editing', function () {
+    $find = fn () => collect(app(EnvironmentChecker::class)->run())->first(fn ($r) => $r->key === 'legal_pages');
+
+    expect($find()->status)->toBe(CheckStatus::Warning)
+        ->and($find()->hint)->toContain('Политика обработки персональных данных');
+
+    $this->artisan('shop:doctor')->expectsOutputToContain('Юридические страницы');
+
+    Page::query()->update(['content' => '<p>Своя редакция</p>']);
+
+    expect($find()->status)->toBe(CheckStatus::Ok);
 });

@@ -137,6 +137,8 @@ final class ExportManager
         Export::query()
             ->whereNotNull('file_path')
             ->where('created_at', '<', now()->subDays($days))
+            // lazyById, not each(): offset paging would skip rows because the loop clears file_path.
+            ->lazyById(500)
             ->each(function (Export $export) use ($disk, &$purged): void {
                 $disk->deleteDirectory('exports/'.$export->id);
                 $export->update(['file_path' => null]);

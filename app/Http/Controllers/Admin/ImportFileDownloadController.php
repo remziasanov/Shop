@@ -24,7 +24,7 @@ final class ImportFileDownloadController
 
         $disk = Storage::disk('local');
 
-        abort_unless($import->file_path !== '' && $disk->exists($import->file_path), 404);
+        abort_unless($import->files_purged_at === null && $import->file_path !== '' && $disk->exists($import->file_path), 404);
 
         if ($kind === 'source') {
             $extension = strtolower(pathinfo($import->file_path, PATHINFO_EXTENSION));
