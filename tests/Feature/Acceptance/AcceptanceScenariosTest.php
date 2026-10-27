@@ -9,6 +9,7 @@ use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\PriceChangeSource;
 use App\Enums\SalesMode;
+use App\Enums\StockDisplay;
 use App\Filament\Pages\ManageHomePage;
 use App\Filament\Pages\Settings\ManageAppearanceSettings;
 use App\Filament\Pages\Settings\ManageGeneralSettings;
@@ -293,7 +294,7 @@ it('Заказ: two products, checkout with delivery, order in the admin, stock 
 // ---------------------------------------------------------------------------------------------
 
 it('Резерв: a reservation lowers the available stock; after the term it expires and the stock returns', function (): void {
-    sales(['stock_tracking' => true, 'allow_backorder' => false, 'reservation_hours' => 48]);
+    sales(['stock_tracking' => true, 'allow_backorder' => false, 'reservation_hours' => 48, 'stock_display' => StockDisplay::Exact]);
     $this->travelTo(now()->setDate(2026, 10, 26)->setTime(12, 0));
 
     $product = sellable(['name' => 'Стол', 'stock_qty' => 5, 'sales_mode' => SalesMode::Both, 'base_price' => '500.00']);
@@ -313,7 +314,8 @@ it('Резерв: a reservation lowers the available stock; after the term it ex
         ->and($product->fresh()->availableQty())->toBe(3)
         ->and($product->fresh()->stock_qty)->toBe(5);
 
-    $this->get('/product/'.$product->slug)->assertOk()->assertSeeText('3');
+    $this->get('/product/'.$product->slug)->assertOk()
+        ->assertSeeText(__('storefront.availability.exact', ['qty' => 3, 'unit' => $product->unit]));
 
     // Nobody touches the reservation; the cron run after the term expires it.
     $this->travelTo($order->reserved_until->copy()->addMinute());

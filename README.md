@@ -36,8 +36,17 @@ cp .env.example .env
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://127.0.0.1:8000
+SESSION_SECURE_COOKIE=false
 DB_CONNECTION=sqlite
 ```
+
+Строку `DB_DATABASE=...` из `.env.example` **удалите** (или закомментируйте): без неё Laravel использует файл `database/database.sqlite`. Если оставить `DB_DATABASE=login_shop`, команда `migrate` предложит создать файл `login_shop` в корне проекта. Можно вместо удаления указать абсолютный путь, например `DB_DATABASE=/полный/путь/к/shop/database/database.sqlite`. Правка одной командой:
+
+```bash
+sed -i '/^DB_DATABASE=/d' .env
+```
+
+`SESSION_SECURE_COOKIE=false` обязателен на `http://127.0.0.1`: с `true` браузер не сохранит cookie, и вход в админ-панель завершится ошибкой 419.
 
 Затем выполните команды:
 

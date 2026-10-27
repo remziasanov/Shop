@@ -181,15 +181,55 @@ it('uses explicit $fillable and no unguarded models (NF-10)', function (): void 
             ->and($source)->toMatch('/\$fillable|#\[Fillable/', basename($file).' has no explicit fillable list');
     }
 
-    expect((string) shell_exec('grep -rn "Model::unguard\|unguarded(" '.escapeshellarg(app_path())))->toBe('');
+    expect(scanSourceFiles(['app'], '/Model::unguard|unguarded\(/'))->toBe([]);
 });
 
 it('does not commit secrets (NF-14)', function (): void {
-    $output = [];
-    exec('cd '.escapeshellarg(base_path()).' && git grep -nIiE '.escapeshellarg('(password|secret|token|api[_-]?key)\s*[=:]\s*["\'][^"\']{6,}').' -- app config database routes resources lang bootstrap .env.example 2>/dev/null', $output);
+    $hits = scanSourceFiles(['app', 'config', 'database', 'routes', 'resources', 'lang', 'bootstrap'], '/(password|secret|token|api[_-]?key)\s*[=:]\s*["\'][^"\']{6,}/i');
+
+    foreach (file(base_path('.env.example'), FILE_IGNORE_NEW_LINES) ?: [] as $number => $line) {
+        if (preg_match('/(password|secret|token|api[_-]?key)\s*[=:]\s*["\'][^"\']{6,}/i', $line) === 1) {
+            $hits[] = '.env.example:'.($number + 1);
+        }
+    }
 
     // The only allowed hit: the CSRF token attribute rendered by Blade.
-    $output = array_values(array_filter($output, fn (string $line) => ! str_contains($line, 'csrf_token()')));
+    $hits = array_values(array_filter($hits, fn (string $line) => ! str_contains($line, 'csrf_token()')));
 
-    expect($output)->toBe([]);
+    expect($hits)->toBe([]);
 });
+
+/**
+ * Pure PHP scan (no git/grep needed): returns "path:line: text" for every matching line.
+ *
+ * @param  list<string>  $directories  relative to the project root
+ * @return list<string>
+ */
+function scanSourceFiles(array $directories, string $pattern): array
+{
+    $hits = [];
+    $scanned = 0;
+
+    foreach ($directories as $directory) {
+        $root = base_path($directory);
+        expect(is_dir($root))->toBeTrue("Directory $directory is missing");
+
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)) as $file) {
+            if (! $file->isFile() || ! preg_match('/\.(php|json|js|css|env\.example)$/', $file->getFilename()) || str_ends_with($file->getFilename(), '.min.js')) {
+                continue;
+            }
+
+            $scanned++;
+
+            foreach (file($file->getPathname(), FILE_IGNORE_NEW_LINES) ?: [] as $number => $line) {
+                if (preg_match($pattern, $line) === 1) {
+                    $hits[] = substr($file->getPathname(), strlen(base_path()) + 1).':'.($number + 1).': '.trim($line);
+                }
+            }
+        }
+    }
+
+    expect($scanned)->toBeGreaterThan(0);
+
+    return $hits;
+}

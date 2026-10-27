@@ -333,6 +333,7 @@ _SF-17 (фильтры по произвольным характеристик�
 | 6 | Ревью PR #7 r2 | NotifyExpiringReservationsCommand.php:71-73 — результат `JobFanOut::dispatch()` не проверяется; при сбое внешнего COMMIT уведомление «резерв истекает» может потеряться. |
 | 6 | Ревью PR #7 r2 | OrderMessage.php:19,117-119 — длина считается в кодовых точках, Telegram, вероятно, считает UTF-16 (эмодзи в названиях). **Решено в PR #8:** длина считается в единицах UTF-16 (`utf16Length`, `cutUtf16`). |
 | 6 | Ревью PR #7 r2 | SendMailNotification.php:88-90 — оборачивается любой Throwable без `previous`; оборачивать только ошибки транспорта/адреса. **Решено в PR #8:** оборачиваются только `TransportExceptionInterface` и `RfcComplianceException`. |
+| 7 | Ревью PR #8 | Действия GitHub (checkout, setup-php, setup-node, cache) закреплены тегами версий, а не SHA коммитов — закрепить по SHA (в сессии нет доступа к чужим репозиториям для получения SHA). |
 
 ## Журнал PR
 

@@ -89,7 +89,7 @@ final class CartService
 
         return DB::transaction(function () use ($cart, $product, $qty): CartItem {
             // Lock order is cart, then product, the same as in checkout (no deadlock between "add" and "checkout").
-            $this->lockCart($cart, $product->name);
+            $this->lockCart($cart);
 
             $locked = Product::query()->whereKey($product->id)->lockForUpdate()->first();
             $actions = $locked !== null && $this->isVisible($locked) ? $this->availability->actionsFor($locked) : null;
@@ -139,7 +139,7 @@ final class CartService
         $qty = min($qty, QtyLimit::MAX);
 
         return DB::transaction(function () use ($cart, $productId, $qty): CartItem {
-            $this->lockCart($cart, '');
+            $this->lockCart($cart);
 
             $item = CartItem::query()->where('cart_id', $cart->id)->where('product_id', $productId)->first()
                 ?? throw new SalesException(__('sales.cart.not_in_cart'));
@@ -164,10 +164,10 @@ final class CartService
      *
      * @throws SalesException when the cart no longer exists (it was checked out and removed meanwhile)
      */
-    private function lockCart(Cart $cart, string $name): void
+    private function lockCart(Cart $cart): void
     {
         if (Cart::query()->whereKey($cart->id)->lockForUpdate()->first() === null) {
-            throw new SalesException(__('sales.cart.not_available', ['name' => $name]));
+            throw new SalesException(__('sales.cart.gone'));
         }
     }
 

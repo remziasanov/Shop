@@ -230,7 +230,7 @@ class EnvironmentChecker
     {
         $level = $this->logChannelLevel();
 
-        if ($this->isProduction() && strtolower($level) === 'debug') {
+        if ($this->isProduction() && in_array(strtolower($level), ['debug', 'info', 'notice'], true)) {
             return $this->result('log_level', CheckStatus::Warning, $level, __('system.hints.log_level'));
         }
 

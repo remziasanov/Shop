@@ -219,8 +219,15 @@ it('warns about debug log level in production', function () {
     setEnvironment('production');
     expect(envCheck('log_level')->status)->toBe(CheckStatus::Warning);
 
-    config(['logging.channels.daily.level' => 'warning']);
-    expect(envCheck('log_level')->status)->toBe(CheckStatus::Ok);
+    foreach (['info', 'notice'] as $level) {
+        config(['logging.channels.daily.level' => $level]);
+        expect(envCheck('log_level')->status)->toBe(CheckStatus::Warning);
+    }
+
+    foreach (['warning', 'error'] as $level) {
+        config(['logging.channels.daily.level' => $level]);
+        expect(envCheck('log_level')->status)->toBe(CheckStatus::Ok);
+    }
 });
 
 it('lists trusted hosts including SHOP_EXTRA_HOSTS', function () {
