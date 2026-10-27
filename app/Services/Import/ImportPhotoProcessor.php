@@ -50,6 +50,8 @@ final class ImportPhotoProcessor
     /** @var (callable(): void)|null */
     private $heartbeat = null;
 
+    private bool $worked = false;
+
     public function __construct(
         private readonly ImageFetcher $fetcher,
         private readonly ImageProcessor $images,
@@ -63,10 +65,14 @@ final class ImportPhotoProcessor
      * @param  (callable(): void)|null  $heartbeat  called after every unit of work (keeps the import marked as active)
      * @param  (callable(list<array<string, mixed>>): void)|null  $onAbort  called with the tasks still to do (the one
      *                                                                      that failed first) when an exception escapes
+     * @param  (callable(list<array<string, mixed>>): void)|null  $onTaskSaved  called with the whole task list after a task
+     *                                                                          entry was updated mid-task (photos changed)
      * @return list<array<string, mixed>> tasks that were not (completely) processed
      */
-    public function run(Import $import, array $tasks, float $deadline, ?callable $heartbeat = null, ?callable $onAbort = null): array
+    public function run(Import $import, array $tasks, float $deadline, ?callable $heartbeat = null, ?callable $onAbort = null, ?callable $onTaskSaved = null): array
     {
+        $this->worked = false;
+
         if ($tasks === []) {
             return [];
         }
@@ -77,7 +83,8 @@ final class ImportPhotoProcessor
         $updated = 0;
         $unchanged = 0;
         $warnings = 0;
-        $position = 0;
+        // Number of tasks that are completely processed AND counted: what an abort must not hand back.
+        $done = 0;
 
         try {
             foreach ($tasks as $position => $task) {
@@ -91,9 +98,17 @@ final class ImportPhotoProcessor
                 // warnings are dropped with it and come back (once) when the task is retried.
                 $issues = new IssueBatch($import->id);
                 $changed = false;
+                // Persists the task entry (e.g. the "photos changed" mark) into the working file mid-task.
+                $save = function (array $updatedTask) use (&$tasks, $position, $onTaskSaved): void {
+                    $tasks[$position] = $updatedTask;
+
+                    if ($onTaskSaved !== null) {
+                        $onTaskSaved($tasks);
+                    }
+                };
                 $left = ($task['type'] ?? 'product') === 'category'
                     ? $this->category($task, $resolver, $issues, $deadline, $changed)
-                    : $this->product($task, $resolver, $issues, $deadline, $changed);
+                    : $this->product($task, $resolver, $issues, $deadline, $changed, $save);
 
                 if (! $issues->isEmpty()) {
                     $issues->flush();
@@ -111,36 +126,69 @@ final class ImportPhotoProcessor
                     $changed ? $updated++ : $unchanged++;
                 }
 
+                // The task is finished and counted: from here on it must never run (and be counted) again.
+                $done = $position + 1;
                 $this->beat();
             }
         } catch (Throwable $e) {
+            $this->heartbeat = null;
+
             if ($onAbort !== null) {
-                $onAbort(array_slice($tasks, $position));
+                $onAbort(array_slice($tasks, $done));
+            }
+
+            try {
+                $this->persistCounters($import, $warnings, $updated, $unchanged);
+            } catch (Throwable $counterError) {
+                report($counterError);
             }
 
             throw $e;
-        } finally {
-            $this->heartbeat = null;
+        }
 
-            $counters = array_filter([
-                'warning_count' => $warnings,
-                'updated_count' => $updated,
-                'unchanged_count' => $unchanged,
-            ]);
+        $this->heartbeat = null;
 
-            foreach ($counters as $column => $count) {
-                DB::table('imports')->where('id', $import->id)->update([$column => DB::raw($column.' + '.$count)]);
+        try {
+            $this->persistCounters($import, $warnings, $updated, $unchanged);
+        } catch (Throwable $e) {
+            // The counts of the finished tasks are lost with the failed update; the tasks still to do go back.
+            if ($onAbort !== null) {
+                $onAbort(array_slice($tasks, $done));
             }
+
+            throw $e;
         }
 
         return $pending;
     }
 
     /**
+     * Whether the last {@see run()} did any real work (a finished task, a download, an attached image); a run that
+     * only deferred its tasks did not.
+     */
+    public function didWork(): bool
+    {
+        return $this->worked;
+    }
+
+    private function persistCounters(Import $import, int $warnings, int $updated, int $unchanged): void
+    {
+        $counters = array_filter([
+            'warning_count' => $warnings,
+            'updated_count' => $updated,
+            'unchanged_count' => $unchanged,
+        ]);
+
+        foreach ($counters as $column => $count) {
+            DB::table('imports')->where('id', $import->id)->update([$column => DB::raw($column.' + '.$count)]);
+        }
+    }
+
+    /**
      * @param  array<string, mixed>  $task
      * @return array<string, mixed>|null null when the task is done, otherwise the task to run later
      */
-    private function product(array $task, MediaResolver $resolver, IssueBatch $issues, float $deadline, bool &$changed): ?array
+    private function product(array $task, MediaResolver $resolver, IssueBatch $issues, float $deadline, bool &$changed, callable $save): ?array
     {
         $product = Product::withTrashed()->find((int) ($task['id'] ?? 0));
         $row = (int) ($task['row'] ?? 0);
@@ -158,6 +206,16 @@ final class ImportPhotoProcessor
         }
 
         $changed = (bool) ($task['photos_changed'] ?? false);
+        $saved = $changed;
+        // Writes the "photos changed" mark into the working file as soon as an image changed, so a retry after an
+        // exception keeps it (the row is then not counted as unchanged).
+        $persistChanged = function () use (&$changed, &$saved, $task, $save): void {
+            if ($changed && ! $saved) {
+                $saved = true;
+                // The warnings of this pass are not saved: their issues are written only when the task finishes.
+                $save([...$task, 'photos_changed' => true]);
+            }
+        };
         /** @var array<string, true> $warned references that already produced a warning in an earlier pass */
         $warned = array_fill_keys(array_map('strval', (array) ($task['warned'] ?? [])), true);
 
@@ -234,10 +292,14 @@ final class ImportPhotoProcessor
             }
         }
 
+        $persistChanged();
+
         foreach ($sequence as $index => $entry) {
             if (! isset($entry['path'])) {
                 continue;
             }
+
+            $persistChanged();
 
             if (microtime(true) + self::ATTACH_RESERVE_SECONDS >= $deadline) {
                 return $this->deferred($task, $warned, $changed);
@@ -266,6 +328,8 @@ final class ImportPhotoProcessor
                 $order[] = $entry['id'];
             }
         }
+
+        $persistChanged();
 
         if ($mode === PhotoMode::Replace && $this->reorder($product, $order)) {
             $changed = true;
@@ -368,6 +432,8 @@ final class ImportPhotoProcessor
 
     private function beat(): void
     {
+        $this->worked = true;
+
         if ($this->heartbeat !== null) {
             ($this->heartbeat)();
         }

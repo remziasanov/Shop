@@ -498,7 +498,7 @@ final class ImportRunner
      * Run the tasks of a claimed working file. What does not fit into the time budget (or a crash with an exception)
      * goes back to `photos-pending-*.json`; a file that was taken over as stale in the meantime is left alone.
      */
-    private function processWorkingFile(Import $import, string $working, float $deadline): void
+    private function processWorkingFile(Import $import, string $working, float $deadline): bool
     {
         $pendingFile = dirname($working).'/photos-pending-'.substr(basename($working), strlen('photos-working-'));
         $decoded = json_decode((string) file_get_contents($working), true);
@@ -511,14 +511,15 @@ final class ImportRunner
 
         // On an exception the tasks that were already finished (counted, warnings written) must not run again on
         // the retry: the working file is cut down to the task that failed and the ones after it.
-        $onAbort = function (array $remaining) use ($working): void {
+        $rewrite = function (array $remaining) use ($working): void {
             if (is_file($working)) {
-                file_put_contents($working, json_encode($remaining, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), LOCK_EX);
+                file_put_contents($working, json_encode(array_values($remaining), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), LOCK_EX);
             }
         };
+        $onAbort = $rewrite;
 
         try {
-            $left = $this->photos->run($import, $tasks, $deadline, $heartbeat, $onAbort);
+            $left = $this->photos->run($import, $tasks, $deadline, $heartbeat, $onAbort, $rewrite);
         } catch (Throwable $e) {
             $this->withPhotosLock($import, function () use ($working, $pendingFile): void {
                 if (is_file($working)) {
@@ -543,6 +544,8 @@ final class ImportRunner
             file_put_contents($working, json_encode($left, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), LOCK_EX);
             @rename($working, $pendingFile);
         }, true);
+
+        return $this->photos->didWork();
     }
 
     /**
@@ -576,7 +579,7 @@ final class ImportRunner
      * Process one file of pending photo tasks. The file is claimed by renaming it under the photo lock, so two
      * workers never take the same one.
      *
-     * @return bool true when a file was taken and processed
+     * @return bool true when a file was taken and some of its work was done
      */
     private function processPendingPhotos(Import $import, float $deadline): bool
     {
@@ -591,7 +594,8 @@ final class ImportRunner
                 }
             }
 
-            if (microtime(true) >= $deadline) {
+            // Not enough time left to attach even one image: leave the file for the next (delayed) step.
+            if (microtime(true) + ImportPhotoProcessor::ATTACH_RESERVE_SECONDS >= $deadline) {
                 return null;
             }
 
@@ -615,9 +619,8 @@ final class ImportRunner
             return false;
         }
 
-        $this->processWorkingFile($import, $working, $deadline);
-
-        return true;
+        // A file that was claimed but only deferred (no work done) is not progress.
+        return $this->processWorkingFile($import, $working, $deadline);
     }
 
     private function hasPhotoFiles(Import $import): bool

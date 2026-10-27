@@ -240,45 +240,62 @@ final class ImageProcessor
      */
     public function attachToProduct(Product $product, string $sourceAbsolutePath, ?string $alt = null, ?string $sourceHash = null, bool $deleteSource = false): ProductImage
     {
-        // An import image (has a source hash) is attached at most once per product: the check runs under the product
-        // row lock, so two workers processing the same photo task end up with one image.
-        if ($sourceHash !== null && $sourceHash !== '') {
-            return DB::transaction(function () use ($product, $sourceAbsolutePath, $alt, $sourceHash, $deleteSource): ProductImage {
-                Product::withTrashed()->whereKey($product->getKey())->lockForUpdate()->first(['id']);
+        $hashed = $sourceHash !== null && $sourceHash !== '';
 
-                $existing = $product->images()->where('source_hash', $sourceHash)->first();
+        // Cheap early exits before the (slow) GD work: an import image (has a source hash) is attached at most once.
+        if ($hashed && ($existing = $product->images()->where('source_hash', $sourceHash)->first()) !== null) {
+            if ($deleteSource) {
+                @unlink($sourceAbsolutePath);
+            }
 
-                if ($existing !== null) {
-                    if ($deleteSource) {
-                        @unlink($sourceAbsolutePath);
-                    }
-
-                    return $existing;
-                }
-
-                return $this->attach($product, $sourceAbsolutePath, $alt, $sourceHash, $deleteSource);
-            });
+            return $existing;
         }
 
-        return $this->attach($product, $sourceAbsolutePath, $alt, $sourceHash, $deleteSource);
-    }
-
-    private function attach(Product $product, string $sourceAbsolutePath, ?string $alt, ?string $sourceHash, bool $deleteSource): ProductImage
-    {
         if ($product->images()->count() >= self::MAX_PER_PRODUCT) {
             throw ImageProcessingException::limitReached(self::MAX_PER_PRODUCT);
         }
 
+        // Decoding and writing the variants takes seconds: done outside of any transaction / row lock.
         $data = $this->process($sourceAbsolutePath, $product);
+        $files = [$data['path_large'], $data['path_medium'], $data['path_small']];
 
-        $alt = $alt !== null && trim($alt) !== '' ? trim($alt) : $product->name;
-        $nextOrder = $product->images()->max('sort_order');
+        try {
+            // Short transaction: under the product row lock the hash and the limit are checked again (two workers
+            // may have processed the same photo meanwhile) and the row is inserted.
+            [$image, $duplicate] = DB::transaction(function () use ($product, $data, $alt, $sourceHash, $hashed): array {
+                if ($hashed) {
+                    Product::withTrashed()->whereKey($product->getKey())->lockForUpdate()->first(['id']);
 
-        $image = $product->images()->create($data + [
-            'alt' => $alt,
-            'sort_order' => $nextOrder === null ? 0 : ((int) $nextOrder) + 1,
-            'source_hash' => $sourceHash,
-        ]);
+                    $existing = $product->images()->where('source_hash', $sourceHash)->first();
+
+                    if ($existing !== null) {
+                        return [$existing, true];
+                    }
+                }
+
+                if ($this->imageCount($product) >= self::MAX_PER_PRODUCT) {
+                    throw ImageProcessingException::limitReached(self::MAX_PER_PRODUCT);
+                }
+
+                $alt = $alt !== null && trim($alt) !== '' ? trim($alt) : $product->name;
+                $nextOrder = $product->images()->max('sort_order');
+
+                return [$product->images()->create($data + [
+                    'alt' => $alt,
+                    'sort_order' => $nextOrder === null ? 0 : ((int) $nextOrder) + 1,
+                    'source_hash' => $sourceHash,
+                ]), false];
+            });
+        } catch (Throwable $e) {
+            $this->disk()->delete($files);
+
+            throw $e;
+        }
+
+        if ($duplicate) {
+            // Lost the race: the freshly written files are not needed, the winner's image is returned.
+            $this->disk()->delete($files);
+        }
 
         if ($deleteSource) {
             @unlink($sourceAbsolutePath);
@@ -287,6 +304,11 @@ final class ImageProcessor
         $product->unsetRelation('images');
 
         return $image;
+    }
+
+    private function imageCount(Product $product): int
+    {
+        return $product->images()->count();
     }
 
     /**
