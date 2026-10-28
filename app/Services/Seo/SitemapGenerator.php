@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services\Seo;
 
+use App\Enums\StorefrontSection;
 use App\Models\Category;
+use App\Models\CustomerGroup;
 use App\Models\Product;
+use App\Services\Access\CatalogAccess;
 use App\Services\Catalog\CategoryTree;
 use Carbon\CarbonInterface;
 use Generator;
@@ -19,6 +22,7 @@ use XMLWriter;
 
 /**
  * Writes public/sitemap.xml (SF-82, D-056): home, catalog, visible categories, active products and active pages.
+ * Built for the «Гость» group only (CG-15): what a guest cannot see is not listed.
  * The XML is streamed with XMLWriter into a temporary file in the target directory and renamed over the old one,
  * so a crawler never sees a half-written file. With more than 50 000 URLs a sitemap index and parts are written.
  */
@@ -30,7 +34,10 @@ final class SitemapGenerator
 
     private const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 
-    public function __construct(private readonly CategoryTree $tree) {}
+    public function __construct(
+        private readonly CategoryTree $tree,
+        private readonly CatalogAccess $access,
+    ) {}
 
     public static function directory(): string
     {
@@ -150,10 +157,17 @@ final class SitemapGenerator
      */
     private function entries(): Generator
     {
-        yield [route('home', [], false), null, 'daily', '1.0'];
-        yield [route('catalog.index', [], false), null, 'daily', '0.9'];
+        $guest = CustomerGroup::guest();
+        $access = $this->access->for($guest);
+        $catalog = $access->allowsSection(StorefrontSection::Catalog);
 
-        $visible = $this->tree->visibleCategoryIds();
+        yield [route('home', [], false), null, 'daily', '1.0'];
+
+        if ($catalog) {
+            yield [route('catalog.index', [], false), null, 'daily', '0.9'];
+        }
+
+        $visible = $catalog ? array_values(array_filter($this->tree->visibleCategoryIds(), fn (int $id): bool => $access->canSeeCategory($id))) : [];
 
         if ($visible !== []) {
             foreach (array_chunk($visible, 500) as $ids) {
@@ -165,17 +179,27 @@ final class SitemapGenerator
             }
         }
 
-        $products = Product::query()->active()->select(['products.id', 'products.slug', 'products.updated_at']);
+        if ($catalog) {
+            $products = Product::query()->active()->select(['products.id', 'products.slug', 'products.updated_at']);
+            $access->applyToProducts($products);
 
-        foreach ($products->lazyById(1000, 'products.id', 'id') as $product) {
-            yield [route('product.show', $product->slug, false), $product->updated_at, 'weekly', '0.6'];
+            foreach ($products->lazyById(1000, 'products.id', 'id') as $product) {
+                yield [route('product.show', $product->slug, false), $product->updated_at, 'weekly', '0.6'];
+            }
         }
 
         // Pages are optional: the module may be absent or the route not registered.
         if (Route::has('page.show') && Schema::hasTable('pages')) {
-            $pages = DB::table('pages')->where('is_active', true)->orderBy('id')->get(['slug', 'updated_at']);
+            $pages = DB::table('pages')->where('is_active', true)->orderBy('id')->get(['slug', 'updated_at', 'visible_group_ids']);
 
             foreach ($pages as $page) {
+                // CG-10: a page hidden from the guest is not listed.
+                $groups = $page->visible_group_ids !== null ? json_decode((string) $page->visible_group_ids, true) : null;
+
+                if (is_array($groups) && ($guest->exists === false || ! in_array($guest->id, array_map('intval', $groups), true))) {
+                    continue;
+                }
+
                 $updated = $page->updated_at !== null ? Carbon::parse($page->updated_at) : null;
 
                 yield [route('page.show', [$page->slug], false), $updated, 'monthly', '0.4'];

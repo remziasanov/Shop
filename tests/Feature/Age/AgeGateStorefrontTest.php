@@ -130,10 +130,10 @@ it('keeps the cached home page markup independent of the cookie (AG-07)', functi
     ageProduct(ageCategory(AgeRestriction::Age18), ['name' => 'Сигары', 'is_featured' => true]);
 
     $renderer = app(HomePageRenderer::class);
-    Cache::forget(HomePageRenderer::CACHE_KEY);
+    Cache::forget(HomePageRenderer::cacheKey());
     $first = $renderer->render();
 
-    expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeTrue();
+    expect(Cache::has(HomePageRenderer::cacheKey()))->toBeTrue();
 
     $this->withUnencryptedCookie('shop_age', '18')->get(route('home'))->assertOk();
 

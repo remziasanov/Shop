@@ -116,6 +116,6 @@ class InquiryForm extends Component
 
     private function product(): ?Product
     {
-        return Product::query()->active()->find($this->productId);
+        return Product::query()->storefront()->find($this->productId);
     }
 }

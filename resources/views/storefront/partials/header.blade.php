@@ -13,6 +13,7 @@
         </a>
 
         {{-- SF-20, SF-21: search form with live suggestions (Alpine component "searchSuggest" in resources/js/app.js). --}}
+        @if ($searchEnabled)
         <form role="search" action="{{ route('search') }}" method="get"
               class="relative order-last w-full md:order-none md:ml-4 md:w-auto md:max-w-md md:flex-1"
               x-data="searchSuggest(@js(route('search.suggest')), @js($searchQuery))"
@@ -52,6 +53,7 @@
                 </li>
             </ul>
         </form>
+        @endif
 
         <div class="ml-auto flex items-center gap-3">
             @if ($shopPhones !== [])

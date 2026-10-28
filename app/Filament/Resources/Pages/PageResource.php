@@ -7,6 +7,7 @@ namespace App\Filament\Resources\Pages;
 use App\Filament\Resources\Pages\Pages\CreatePage;
 use App\Filament\Resources\Pages\Pages\EditPage;
 use App\Filament\Resources\Pages\Pages\ListPages;
+use App\Models\CustomerGroup;
 use App\Models\Page;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -14,6 +15,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\RichEditor;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -72,6 +74,14 @@ class PageResource extends Resource
                 Toggle::make('is_active')
                     ->label(__('admin_content.pages.fields.is_active'))
                     ->default(true),
+                Select::make('visible_group_ids')
+                    ->label(__('customer_groups.fields.visible_group_ids'))
+                    ->helperText(__('customer_groups.fields.visible_group_ids_hint'))
+                    ->options(fn (): array => CustomerGroup::query()->ordered()->pluck('name', 'id')->all())
+                    ->multiple()
+                    ->searchable()
+                    ->native(false)
+                    ->dehydrateStateUsing(fn (mixed $state): ?array => Page::normalizeGroupIds($state)),
                 RichEditor::make('content')
                     ->label(__('admin_content.pages.fields.content'))
                     ->columnSpanFull(),

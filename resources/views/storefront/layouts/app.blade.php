@@ -43,6 +43,14 @@
 <body class="flex min-h-screen flex-col bg-white pb-16 text-slate-900 antialiased md:pb-0">
     <a href="#content" class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-white focus:p-2">{{ __('storefront.skip_to_content') }}</a>
 
+    @if ($previewGroup ?? null)
+        {{-- CG-18: a staff member looks at the storefront as a customer group. --}}
+        <div class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900" role="status">
+            {{ __('customer_groups.storefront.preview_banner', ['group' => $previewGroup]) }}
+            <a href="{{ route('viewer.preview.exit') }}" class="ml-2 font-semibold underline">{{ __('customer_groups.storefront.preview_exit') }}</a>
+        </div>
+    @endif
+
     @include('storefront.partials.header')
 
     <main id="content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-6">

@@ -8,6 +8,7 @@ use App\Enums\AgeGateMode;
 use App\Enums\AgeRestriction;
 use App\Models\Product;
 use App\Providers\AgeGateServiceProvider;
+use App\Services\Catalog\CatalogVersion;
 use App\Services\Catalog\RedirectService;
 use App\Settings\AgeGateSettings;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ final class AgeGate
     /** Flash key set by the decline endpoint (AG-08); the value is the declined level. */
     public const FLASH_DECLINED = 'age_gate_declined';
 
-    /** AG-03: «the shop has restricted products», cached for 10 minutes (TZ 26.3). */
+    /** AG-03: «the shop has restricted products», cached for 10 minutes under `age:has_restricted:{catalog_version}` (TZ 26.3). */
     public const CACHE_KEY = 'age:has_restricted';
 
     public const CACHE_TTL = 600;
@@ -101,7 +102,7 @@ final class AgeGate
      */
     public function hasRestricted(): bool
     {
-        return (bool) Cache::remember(self::CACHE_KEY, self::CACHE_TTL, function (): bool {
+        return (bool) Cache::remember(self::cacheKey(), self::CACHE_TTL, function (): bool {
             $categoryIds = $this->resolver->restrictedCategoryIds();
 
             return Product::query()
@@ -119,7 +120,12 @@ final class AgeGate
      */
     public static function forgetCache(): void
     {
-        Cache::forget(self::CACHE_KEY);
+        Cache::forget(self::cacheKey());
+    }
+
+    public static function cacheKey(): string
+    {
+        return self::CACHE_KEY.':'.CatalogVersion::current();
     }
 
     /**

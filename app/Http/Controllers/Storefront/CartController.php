@@ -37,7 +37,7 @@ class CartController extends Controller
         ]);
 
         try {
-            $product = Product::query()->active()->find((int) $data['product_id'])
+            $product = Product::query()->storefront()->find((int) $data['product_id'])
                 ?? throw new SalesException(__('storefront_sales.add.not_found'));
             $carts->add($carts->getOrCreate($request), $product, (int) ($data['qty'] ?? 1));
         } catch (SalesException $e) {

@@ -99,7 +99,7 @@ it('drops the cached «has restricted products» flag after a bulk change (AG-03
     ageGate();
     $product = Product::factory()->inCategory(Category::factory()->create())->create();
 
-    expect(app(AgeGate::class)->hasRestricted())->toBeFalse()->and(Cache::has(AgeGate::CACHE_KEY))->toBeTrue();
+    expect(app(AgeGate::class)->hasRestricted())->toBeFalse()->and(Cache::has(AgeGate::cacheKey()))->toBeTrue();
 
     Livewire::test(ListProducts::class)
         ->selectTableRecords([$product->id])

@@ -17,6 +17,7 @@ use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Sales\AvailabilityService;
@@ -54,6 +55,7 @@ final class OrderService
         private readonly CategoryTree $tree,
         private readonly SalesSettings $settings,
         private readonly AgeGate $age,
+        private readonly ViewerContext $viewer,
     ) {}
 
     /**
@@ -159,7 +161,8 @@ final class OrderService
             }
 
             $itemsTotal = array_sum(array_map(fn (array $line): int => $line['price'] * $line['qty'], $lines));
-            $min = $this->settings->min_order_amount;
+            // CG-08: the group's minimum replaces the shop-wide one; checked on the server, against current prices.
+            $min = $this->viewer->access()->minOrderAmount ?? $this->settings->min_order_amount;
 
             if ($min > 0 && $itemsTotal < $min) {
                 throw new SalesException(__('sales.errors.min_order', [
@@ -280,7 +283,8 @@ final class OrderService
                 throw new SalesException(__('sales.errors.inquiry_unavailable'));
             }
 
-            $price = $locked->price_on_request ? null : Money::fromRubles($locked->final_price);
+            // CG-06: a group that sees no prices gets an inquiry without a price.
+            $price = $locked->price_on_request || ! $this->viewer->access()->showsPrices() ? null : Money::fromRubles($locked->final_price);
             $total = $price === null ? null : Money::toRubles($price * $data->qty);
 
             $order = $this->createRecord(OrderType::Inquiry, [
@@ -500,7 +504,11 @@ final class OrderService
 
     private function isSellable(Product $product): bool
     {
-        return ! $product->trashed() && $product->is_active && $this->tree->isVisible($product->category_id);
+        // CG-14: also the section and category access of the viewer's customer group.
+        return ! $product->trashed()
+            && $product->is_active
+            && $this->tree->isVisible($product->category_id)
+            && $this->viewer->access()->canSeeProduct($product);
     }
 
     /**

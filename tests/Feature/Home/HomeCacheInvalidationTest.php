@@ -16,7 +16,7 @@ use Livewire\Livewire;
 /** Models fire events that drop the cache, so the cache is filled after the fixtures exist. */
 function fillHomeCache(): void
 {
-    Cache::put(HomePageRenderer::CACHE_KEY, ['html' => 'cached', 'preload' => []], 600);
+    Cache::put(HomePageRenderer::cacheKey(), ['html' => 'cached', 'preload' => []], 600);
 }
 
 it('drops the cached home page after a raw SQL price recalculation', function (): void {
@@ -26,7 +26,7 @@ it('drops the cached home page after a raw SQL price recalculation', function ()
     fillHomeCache();
     app(ProductPriceUpdater::class)->recalculate([$product->id]);
 
-    expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeFalse();
+    expect(Cache::has(HomePageRenderer::cacheKey()))->toBeFalse();
 });
 
 it('keeps the cached home page when a recalculation changes nothing', function (): void {
@@ -35,7 +35,7 @@ it('keeps the cached home page when a recalculation changes nothing', function (
     fillHomeCache();
     app(ProductPriceUpdater::class)->recalculate([$product->id]);
 
-    expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeTrue();
+    expect(Cache::has(HomePageRenderer::cacheKey()))->toBeTrue();
 });
 
 it('drops the cached home page when StockService changes the stock quietly', function (): void {
@@ -44,7 +44,7 @@ it('drops the cached home page when StockService changes the stock quietly', fun
     fillHomeCache();
     app(StockService::class)->setStock($product, 9);
 
-    expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeFalse();
+    expect(Cache::has(HomePageRenderer::cacheKey()))->toBeFalse();
 });
 
 it('drops the cached home page after a bulk product action', function (): void {
@@ -57,5 +57,5 @@ it('drops the cached home page after a bulk product action', function (): void {
         ->selectTableRecords($products->pluck('id')->all())
         ->callAction(TestAction::make('deactivate')->table()->bulk());
 
-    expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeFalse();
+    expect(Cache::has(HomePageRenderer::cacheKey()))->toBeFalse();
 });

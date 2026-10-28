@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Catalog;
 
 use App\Enums\CatalogSort;
+use App\Enums\StorefrontSection;
+use App\Services\Access\AccessSet;
 use App\Support\Money;
 
 /**
@@ -33,6 +35,30 @@ final readonly class CatalogFilters
         public array $flags = [],
         public int $page = 1,
     ) {}
+
+    /**
+     * The filters the group may use (CG-04, CG-06): hidden prices remove the price range and the price sorting, hidden
+     * sections remove the brand filter and the «хит» / «новинка» / «скидка» labels. Hidden values never reach a query.
+     */
+    public function restrictedTo(AccessSet $access): self
+    {
+        $flags = array_values(array_filter($this->flags, fn (string $flag): bool => match ($flag) {
+            self::FLAG_HIT, self::FLAG_NEW => $access->allowsSection(StorefrontSection::Featured),
+            self::FLAG_SALE => $access->allowsSection(StorefrontSection::Promotions) && $access->showsPrices(),
+            default => false,
+        }));
+        $prices = $access->showsPrices();
+
+        return new self(
+            sort: ! $prices && in_array($this->sort, [CatalogSort::PriceAsc, CatalogSort::PriceDesc], true) ? CatalogSort::Default : $this->sort,
+            priceFrom: $prices ? $this->priceFrom : null,
+            priceTo: $prices ? $this->priceTo : null,
+            inStock: $this->inStock,
+            brands: $access->allowsSection(StorefrontSection::Brands) ? $this->brands : [],
+            flags: $flags,
+            page: $this->page,
+        );
+    }
 
     /**
      * Any filter (not sort, not page) is set.

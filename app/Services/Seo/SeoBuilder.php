@@ -111,7 +111,7 @@ final class SeoBuilder
     public function product(Product $product, ProductView $view, array $breadcrumbs): SeoMeta
     {
         $category = $product->relationLoaded('category') ? $product->category->name : '';
-        $price = $product->price_on_request ? '' : Money::format(Money::fromRubles($product->final_price));
+        $price = $product->price_on_request || $view->priceHidden ? '' : Money::format(Money::fromRubles($product->final_price));
         $values = [
             'name' => $product->name,
             'category' => $category,
@@ -229,7 +229,8 @@ final class SeoBuilder
     {
         $offer = ['@type' => 'Offer', 'url' => $url];
 
-        if (! $product->price_on_request) {
+        // CG-06: no price in the structured data for a group that sees no prices.
+        if (! $product->price_on_request && ! $view->priceHidden) {
             $offer['price'] = number_format((float) $product->final_price, 2, '.', '');
             $offer['priceCurrency'] = 'RUB';
         }

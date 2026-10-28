@@ -8,6 +8,7 @@ use App\Exceptions\SalesException;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
@@ -34,6 +35,7 @@ final class CartService
         private readonly CheckoutMethods $methods,
         private readonly CategoryTree $tree,
         private readonly SalesSettings $settings,
+        private readonly ViewerContext $viewer,
     ) {}
 
     /**
@@ -261,7 +263,8 @@ final class CartService
             $deliveries[] = ['method' => $method, 'price' => $price, 'free' => $price === 0 && $method->price > 0];
         }
 
-        $min = $this->settings->min_order_amount;
+        // CG-08: the group's minimum replaces the shop-wide one.
+        $min = $this->viewer->access()->minOrderAmount ?? $this->settings->min_order_amount;
         $missing = $min > 0 ? max($min - $total, 0) : 0;
 
         return new CartSummary($lines, $total, $deliveries, $min, $missing, $changes, $lines !== [] && $missing === 0);
@@ -293,6 +296,9 @@ final class CartService
 
     private function isVisible(Product $product): bool
     {
-        return $product->is_active && $this->tree->isVisible($product->category_id);
+        // CG-14: the category and section of the viewer's group are checked on every cart operation.
+        return $product->is_active
+            && $this->tree->isVisible($product->category_id)
+            && $this->viewer->access()->canSeeProduct($product);
     }
 }

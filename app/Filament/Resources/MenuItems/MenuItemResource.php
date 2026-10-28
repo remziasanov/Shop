@@ -9,6 +9,7 @@ use App\Enums\MenuLocation;
 use App\Filament\Resources\MenuItems\Pages\CreateMenuItem;
 use App\Filament\Resources\MenuItems\Pages\EditMenuItem;
 use App\Filament\Resources\MenuItems\Pages\ListMenuItems;
+use App\Models\CustomerGroup;
 use App\Models\MenuItem;
 use App\Models\Page;
 use App\Services\Catalog\CategoryTree;
@@ -116,6 +117,14 @@ class MenuItemResource extends Resource
             Toggle::make('is_active')
                 ->label(__('admin_content.menu.fields.is_active'))
                 ->default(true),
+            Select::make('visible_group_ids')
+                ->label(__('customer_groups.fields.visible_group_ids'))
+                ->helperText(__('customer_groups.fields.visible_group_ids_hint'))
+                ->options(fn (): array => CustomerGroup::query()->ordered()->pluck('name', 'id')->all())
+                ->multiple()
+                ->searchable()
+                ->native(false)
+                ->dehydrateStateUsing(fn (mixed $state): ?array => MenuItem::normalizeGroupIds($state)),
         ])->columns(2);
     }
 

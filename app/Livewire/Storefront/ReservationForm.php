@@ -162,7 +162,7 @@ class ReservationForm extends Component
     private function product(): ?Product
     {
         if (! $this->productLoaded) {
-            $this->loadedProduct = Product::query()->active()->find($this->productId);
+            $this->loadedProduct = Product::query()->storefront()->find($this->productId);
             $this->productLoaded = true;
         }
 

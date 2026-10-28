@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\AgeRestriction;
 use App\Enums\SalesMode;
 use App\Observers\ProductObserver;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Search\SearchNormalizer;
@@ -161,6 +162,18 @@ class Product extends Model
     {
         $query->where($query->qualifyColumn('is_active'), true)
             ->whereIn($query->qualifyColumn('category_id'), app(CategoryTree::class)->visibleCategoryIds());
+    }
+
+    /**
+     * Products the current storefront viewer may see: active ones in the categories of the viewer's customer group
+     * (CG-13). Use it for every storefront query; admin and console code uses {@see scopeActive()} or no scope.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public function scopeStorefront(Builder $query): void
+    {
+        $query->active();
+        app(ViewerContext::class)->access()->applyToProducts($query, $query->qualifyColumn('category_id'));
     }
 
     /**
