@@ -7,6 +7,7 @@ namespace App\Filament\Widgets;
 use App\Enums\OrderType;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Services\Dashboard\DashboardStats;
+use App\Services\Users\PermissionService;
 use Carbon\CarbonImmutable;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -17,6 +18,11 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 class RequestsStatsWidget extends StatsOverviewWidget
 {
     protected static ?int $sort = 1;
+
+    public static function canView(): bool
+    {
+        return app(PermissionService::class)->allowsCurrent('orders.view');
+    }
 
     protected ?string $pollingInterval = '60s';
 

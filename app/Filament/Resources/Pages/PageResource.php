@@ -24,6 +24,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Gate;
 use UnitEnum;
 
 /**
@@ -100,7 +101,8 @@ class PageResource extends Resource
                     ->label(__('admin_content.pages.table.slug'))
                     ->formatStateUsing(fn (string $state): string => '/page/'.$state),
                 ToggleColumn::make('is_active')
-                    ->label(__('admin_content.pages.table.is_active')),
+                    ->label(__('admin_content.pages.table.is_active'))
+                    ->disabled(fn (Page $record): bool => ! Gate::allows('update', $record)),
                 TextColumn::make('updated_at')
                     ->label(__('admin_content.pages.table.updated_at'))
                     ->dateTime()

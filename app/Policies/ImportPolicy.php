@@ -4,29 +4,31 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use App\Enums\UserRole;
 use App\Models\Import;
 use App\Models\User;
+use App\Policies\Concerns\ChecksPermissions;
 
 /**
- * Imports (TZ 6.13): administrators and managers run imports and see the whole journal (they share one catalog);
- * the «full synchronization» mode and deleting an import are for administrators only.
+ * Imports (TZ 6.13, 25.4): `imports.view` sees the journal and files, `imports.run` starts and processes imports,
+ * `imports.full_sync` is the «full synchronization» mode. Deleting an import is the same elevated right.
  */
 class ImportPolicy
 {
+    use ChecksPermissions;
+
     public function viewAny(User $user): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'imports.view');
     }
 
     public function view(User $user, Import $import): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'imports.view');
     }
 
     public function create(User $user): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'imports.run');
     }
 
     public function update(User $user, Import $import): bool
@@ -35,33 +37,28 @@ class ImportPolicy
     }
 
     /**
-     * Browser fallback (IM-10) and file downloads: same audience as viewing.
+     * Browser fallback (IM-10): drives the import forward.
      */
     public function process(User $user, Import $import): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'imports.run');
     }
 
     public function download(User $user, Import $import): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'imports.view');
     }
 
     /**
-     * «Полная синхронизация» deactivates products missing in the file: administrators only.
+     * «Полная синхронизация» deactivates products missing in the file.
      */
     public function useFullSync(User $user): bool
     {
-        return $this->staff($user) && $user->isAdmin();
+        return $this->allows($user, 'imports.run') && $this->allows($user, 'imports.full_sync');
     }
 
     public function delete(User $user, Import $import): bool
     {
-        return $this->staff($user) && $user->isAdmin() && ! $import->status->isRunning();
-    }
-
-    private function staff(User $user): bool
-    {
-        return $user->is_active && in_array($user->role, [UserRole::Admin, UserRole::Manager], true);
+        return $this->allows($user, 'imports.full_sync') && ! $import->status->isRunning();
     }
 }

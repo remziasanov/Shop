@@ -9,7 +9,6 @@ use App\Enums\PriceRuleScope;
 use App\Filament\Resources\PriceRules\PriceRuleResource;
 use App\Filament\Resources\PriceRules\Support\PriceRuleSummary;
 use App\Models\PriceRule;
-use App\Models\User;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Pricing\PriceRuleSaver;
 use Filament\Actions\EditAction;
@@ -21,10 +20,10 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 /**
- * Price rule list (TZ 6.8). The active toggle works for administrators only.
+ * Price rule list (TZ 6.8). The active toggle needs the `price_rules.update` right.
  */
 final class PriceRulesTable
 {
@@ -58,7 +57,7 @@ final class PriceRulesTable
                     ->wrap(),
                 ToggleColumn::make('is_active')
                     ->label(__('admin_pricing.rules.fields.is_active'))
-                    ->disabled(fn (): bool => ! self::isAdmin())
+                    ->disabled(fn (PriceRule $record): bool => ! Gate::allows('update', $record))
                     ->afterStateUpdated(fn (PriceRule $record) => app(PriceRuleSaver::class)->toggled($record))
                     ->sortable(),
                 TextColumn::make('updated_at')
@@ -87,12 +86,5 @@ final class PriceRulesTable
             ])
             ->defaultSort('priority', 'desc')
             ->recordUrl(fn (PriceRule $record): string => PriceRuleResource::getUrl(PriceRuleResource::canEdit($record) ? 'edit' : 'view', ['record' => $record]));
-    }
-
-    private static function isAdmin(): bool
-    {
-        $user = Auth::user();
-
-        return $user instanceof User && $user->isAdmin();
     }
 }

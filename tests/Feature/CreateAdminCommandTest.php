@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Enums\UserRole;
+use App\Enums\SystemRole;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
@@ -16,7 +16,7 @@ it('creates an administrator non-interactively', function () {
 
     $user = User::where('email', 'boss@example.com')->firstOrFail();
 
-    expect($user->role)->toBe(UserRole::Admin)
+    expect($user->role->code)->toBe(SystemRole::Admin->value)
         ->and($user->is_active)->toBeTrue()
         ->and(Hash::check('correct-horse-battery', $user->password))->toBeTrue();
 });

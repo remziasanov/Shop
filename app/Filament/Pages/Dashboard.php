@@ -10,6 +10,8 @@ use App\Filament\Widgets\LegalTemplatesWidget;
 use App\Filament\Widgets\ProductsStatsWidget;
 use App\Filament\Widgets\RequestsChartWidget;
 use App\Filament\Widgets\RequestsStatsWidget;
+use App\Models\User;
+use App\Services\Users\PermissionService;
 use Filament\Pages\Dashboard as BaseDashboard;
 
 /**
@@ -17,6 +19,13 @@ use Filament\Pages\Dashboard as BaseDashboard;
  */
 class Dashboard extends BaseDashboard
 {
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        return $user instanceof User && app(PermissionService::class)->allows($user, 'dashboard.view');
+    }
+
     public function getTitle(): string
     {
         return __('dashboard.title');

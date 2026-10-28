@@ -85,4 +85,9 @@ return [
     */
     'import_retention_days' => 30,
 
+    /*
+    | Days the admin action journal is kept (RB-12).
+    */
+    'audit_retention_days' => 365,
+
 ];

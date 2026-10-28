@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Enums\UserRole;
+use App\Enums\SystemRole;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -56,13 +57,23 @@ class CreateAdminCommand extends Command
             return self::FAILURE;
         }
 
-        User::query()->create([
+        $adminRoleId = Role::query()->where('code', SystemRole::Admin->value)->value('id');
+
+        if ($adminRoleId === null) {
+            $this->components->error(__('roles.errors.no_admin_role'));
+
+            return self::FAILURE;
+        }
+
+        // RB-14: the account gets the system role «Администратор».
+        $user = new User;
+        $user->forceFill([
             'name' => $name,
             'email' => $email,
             'password' => $password,
-            'role' => UserRole::Admin,
+            'role_id' => (int) $adminRoleId,
             'is_active' => true,
-        ]);
+        ])->save();
 
         $this->components->info(__('shop.command.created', ['email' => $email]));
 

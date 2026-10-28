@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Widgets;
 
 use App\Services\Dashboard\DashboardStats;
+use App\Services\Users\PermissionService;
 use Carbon\CarbonImmutable;
 use Filament\Widgets\ChartWidget;
 
@@ -14,6 +15,11 @@ use Filament\Widgets\ChartWidget;
 class RequestsChartWidget extends ChartWidget
 {
     protected static ?int $sort = 3;
+
+    public static function canView(): bool
+    {
+        return app(PermissionService::class)->allowsCurrent('orders.view');
+    }
 
     protected ?string $maxHeight = '260px';
 

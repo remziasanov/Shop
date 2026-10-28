@@ -27,6 +27,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
 use UnitEnum;
 
 /**
@@ -140,7 +141,8 @@ class MenuItemResource extends Resource
                         MenuLinkType::Url => $record->url,
                     }),
                 ToggleColumn::make('is_active')
-                    ->label(__('admin_content.menu.table.is_active')),
+                    ->label(__('admin_content.menu.table.is_active'))
+                    ->disabled(fn (MenuItem $record): bool => ! Gate::allows('update', $record)),
             ])
             ->recordActions([
                 EditAction::make(),

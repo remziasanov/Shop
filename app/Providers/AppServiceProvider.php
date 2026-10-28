@@ -15,11 +15,13 @@ use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Pricing\PriceRuleRepository;
 use App\Services\Sales\CartAvailability;
+use App\Services\Users\PermissionService;
 use App\View\Composers\StorefrontComposer;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
@@ -45,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PriceRuleRepository::class);
         $this->app->singleton(PriceChangeContext::class);
         $this->app->singleton(HtmlSanitizer::class);
+        $this->app->singleton(PermissionService::class);
         $this->app->singleton(ImageProcessor::class);
         $this->app->singleton(StorefrontComposer::class);
         $this->app->bind(HostResolver::class, DnsHostResolver::class);
@@ -65,7 +68,11 @@ class AppServiceProvider extends ServiceProvider
         Queue::looping(function (): void {
             $this->app->make(CategoryTree::class)->forgetMemo();
             $this->app->make(PriceRuleRepository::class)->forgetMemo();
+            $this->app->make(PermissionService::class)->flush();
         });
+
+        // RB-04: the per-request permission memo never outlives a request.
+        Event::listen(RequestHandled::class, fn () => $this->app->make(PermissionService::class)->flush());
 
         View::composer('storefront.*', StorefrontComposer::class);
 
