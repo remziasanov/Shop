@@ -83,7 +83,13 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         Route::post('/profile/email', [ProfileController::class, 'requestEmail'])->name('customer.email.request');
         Route::get('/profile/email/confirm', [ProfileController::class, 'showEmailConfirm'])->name('customer.email.confirm');
         Route::post('/profile/email/confirm', [ProfileController::class, 'confirmEmail'])->name('customer.email.confirm.store');
+
+        // CG-20: wholesale access application (stage 9, part B).
+        Route::post('/wholesale', [WholesaleApplicationController::class, 'store'])->name('customer.wholesale.store');
     });
+
+    // CG-20: a guest sees an invitation to register, a signed-in customer the application form or its status.
+    Route::get('/wholesale', [WholesaleApplicationController::class, 'show'])->name('customer.wholesale');
 });
 
 // CG-18: staff look at the storefront as a customer group (a flag of the staff session, not a customer login); POST so that CSRF protects it.
