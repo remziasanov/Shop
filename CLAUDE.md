@@ -45,7 +45,7 @@ php artisan shop:demo               # demo catalog (stage 1+)
 - Commits: Conventional Commits in English, mention requirement IDs where relevant (e.g. `feat(catalog): category tree (AD-30)`).
 
 ## Structure
-See TZ 3.1: `app/Enums`, `app/Models`, `app/Services/{Pricing,Sales,Cart,Orders,Stock,Import,Export,Media,Notifications}`, `app/Jobs`, `app/Settings`, `app/Filament`, `app/Http/Controllers/Storefront`, `app/Livewire`, `app/Console/Commands`, `resources/views/storefront`, `examples/`, `.github/workflows/{ci,deploy}.yml`.
+See TZ 3.1: `app/Enums`, `app/Models`, `app/Services/{Pricing,Sales,Cart,Orders,Stock,Import,Export,Media,Notifications,Telegram}`, `app/Jobs`, `app/Settings`, `app/Filament`, `app/Http/Controllers/Storefront`, `app/Livewire`, `app/Console/Commands`, `resources/views/storefront`, `examples/`, `.github/workflows/{ci,deploy}.yml`.
 
 ## Workflow for Claude sessions
 
