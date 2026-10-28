@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasGroupVisibility;
 use App\Observers\PageObserver;
 use Database\Factories\PageFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -21,12 +22,14 @@ use Illuminate\Database\Eloquent\Model;
  * @property bool $is_active
  * @property string|null $meta_title
  * @property string|null $meta_description
+ * @property list<int>|null $visible_group_ids groups the page is shown to (CG-10), null = all
  */
 #[ObservedBy(PageObserver::class)]
 class Page extends Model
 {
     /** @use HasFactory<PageFactory> */
     use HasFactory;
+    use HasGroupVisibility;
 
     protected $fillable = [
         'title',
@@ -35,6 +38,7 @@ class Page extends Model
         'is_active',
         'meta_title',
         'meta_description',
+        'visible_group_ids',
     ];
 
     /**
@@ -42,7 +46,7 @@ class Page extends Model
      */
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return ['is_active' => 'boolean', 'visible_group_ids' => 'array'];
     }
 
     /**

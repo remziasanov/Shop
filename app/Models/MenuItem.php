@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\MenuLinkType;
 use App\Enums\MenuLocation;
+use App\Models\Concerns\HasGroupVisibility;
 use App\Observers\MenuItemObserver;
 use Database\Factories\MenuItemFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $url
  * @property int $sort_order
  * @property bool $is_active
+ * @property list<int>|null $visible_group_ids groups the item is shown to (CG-10), null = all
  * @property-read Category|null $category
  * @property-read Page|null $page
  */
@@ -34,6 +36,7 @@ class MenuItem extends Model
 {
     /** @use HasFactory<MenuItemFactory> */
     use HasFactory;
+    use HasGroupVisibility;
 
     protected $fillable = [
         'location',
@@ -44,6 +47,7 @@ class MenuItem extends Model
         'url',
         'sort_order',
         'is_active',
+        'visible_group_ids',
     ];
 
     /**
@@ -56,6 +60,7 @@ class MenuItem extends Model
             'link_type' => MenuLinkType::class,
             'sort_order' => 'integer',
             'is_active' => 'boolean',
+            'visible_group_ids' => 'array',
         ];
     }
 

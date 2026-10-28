@@ -13,6 +13,7 @@ enum SalesModeSource: string
     case Category = 'category';
     case Shop = 'shop';
     case PriceOnRequest = 'price_on_request';
+    case Group = 'group';
 
     public function label(): string
     {

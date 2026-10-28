@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\CanonicalHost;
+use App\Http\Middleware\ResolveViewer;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\StorefrontOpen;
 use App\Services\Catalog\RedirectService;
@@ -30,8 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustHosts(at: fn (): array => TrustedHosts::patterns(), subdomains: false);
         // D-057: the www./bare twin of the APP_URL host is redirected to the canonical host (production only).
         $middleware->prepend(CanonicalHost::class);
-        // SF-05: closed mode for the storefront.
-        $middleware->web(append: [StorefrontOpen::class]);
+        // SF-05: closed mode for the storefront; CG-16: the viewer's customer group (stage 8: always the guest).
+        $middleware->web(append: [StorefrontOpen::class, ResolveViewer::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
