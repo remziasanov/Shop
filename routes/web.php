@@ -15,6 +15,7 @@ use App\Http\Controllers\Storefront\Account\LogoutController;
 use App\Http\Controllers\Storefront\Account\PasswordResetController;
 use App\Http\Controllers\Storefront\Account\ProfileController;
 use App\Http\Controllers\Storefront\Account\RegisterController;
+use App\Http\Controllers\Storefront\Account\WholesaleApplicationController;
 use App\Http\Controllers\Storefront\AgeGateController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CatalogController;

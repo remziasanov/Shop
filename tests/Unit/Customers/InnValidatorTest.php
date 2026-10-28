@@ -8,7 +8,6 @@ use App\Rules\Ogrn;
 use App\Services\Customers\InnValidator;
 use Illuminate\Support\Facades\Validator;
 
-
 it('accepts INNs with correct check digits (CA-10)', function (string $inn) {
     expect((new InnValidator)->isValidInn($inn))->toBeTrue();
 })->with(['7707083893', '7830002293', '500100732259', ' 7707083893 ']);
