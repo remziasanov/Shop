@@ -9,6 +9,7 @@ Progress tracker: `docs/PROGRESS.md` (continue from the first unchecked stage). 
 - spatie/laravel-settings (+ Filament plugin), spatie/simple-excel, intervention/image 3 (GD), Pest, Pint, Larastan level 5.
 - Version 2.0 (stage 15, PDF export): `barryvdh/laravel-dompdf` is an allowed package (D-079); if the wrapper does not support Laravel 13, use `dompdf/dompdf` directly.
 - Packages only from TZ section 3. Any new package requires a justified entry in `docs/DECISIONS.md`.
+- Version 2.1 (stages 16–18, TZ part III: mobile, PWA, Telegram bot and Mini App): no new packages; Telegram Bot API via the Laravel HTTP client, webhook only (no `getUpdates`, no daemons); the Mini App is the same storefront in a session-based "Telegram mode" (D-100…D-105, decisions of v2.1 use numbers D-100+).
 
 ## Hard constraints (TZ section 2)
 - Shared hosting: no Redis/Memcached, no daemons, Supervisor, Docker, Octane, WebSockets, no Node on server, no SPA/Inertia, no Elasticsearch/Meilisearch.
@@ -60,7 +61,7 @@ See TZ 3.1: `app/Enums`, `app/Models`, `app/Services/{Pricing,Sales,Cart,Orders,
 - After each agent: inspect `git diff`, run tests. Haiku failed → hand to Sonnet; Sonnet failed twice → Opus or orchestrator.
 - Always pass `model` explicitly in Agent calls.
 
-### Stage cycle (TZ section 13, stages 0–7)
+### Stage cycle (TZ section 13: stages 0–7, 8–15, 16–18)
 1. `git checkout main && git pull`, new branch `stage-N-<short>`.
 2. List the stage tasks in `docs/PROGRESS.md`, delegate, integrate.
 3. Checks (all green): `php artisan test`; `vendor/bin/pint --test`; `vendor/bin/phpstan analyse`; `npm run build`; `php artisan migrate:fresh --seed` on MySQL.
