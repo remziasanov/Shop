@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\BuildsListing;
 use App\Http\Requests\CatalogFilterRequest;
 use App\Models\Category;
+use App\Services\Age\AgeGate;
+use App\Services\Age\AgeRestrictionResolver;
 use App\Services\Catalog\Breadcrumbs;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
@@ -38,10 +40,13 @@ class CatalogController extends Controller
     /**
      * SF-11: category with its description, subcategory tiles and the products of it and all subcategories.
      */
-    public function category(string $slug, CatalogFilterRequest $request, CategoryTree $tree, Breadcrumbs $breadcrumbs, HtmlSanitizer $sanitizer, SeoBuilder $seo): View
+    public function category(string $slug, CatalogFilterRequest $request, CategoryTree $tree, Breadcrumbs $breadcrumbs, HtmlSanitizer $sanitizer, SeoBuilder $seo, AgeGate $ageGate, AgeRestrictionResolver $ageLevels): View
     {
         $category = Category::query()->where('slug', $slug)->firstOrFail();
         abort_unless($tree->isVisible($category->id), 404);
+
+        // AG-04: the overlay of the «restricted» mode asks for the effective level of this category.
+        $ageGate->setPageLevel($ageLevels->forCategoryId($category->id));
 
         $node = $tree->node($category->id);
         $listing = $this->listing($request, $tree->descendantIds($category->id));

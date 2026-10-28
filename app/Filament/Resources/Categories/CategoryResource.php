@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Categories;
 
+use App\Enums\AgeRestriction;
 use App\Enums\SalesMode;
 use App\Exceptions\CategoryTreeException;
 use App\Filament\Resources\Categories\Pages\CreateCategory;
@@ -12,6 +13,8 @@ use App\Filament\Resources\Categories\Pages\ListCategories;
 use App\Filament\Resources\Products\Support\PhotoUpload;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\Age\AgeHint;
+use App\Services\Age\AgeRestrictionResolver;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Media\CategoryImageImporter;
@@ -30,6 +33,7 @@ use Filament\Infolists\Components\ImageEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -38,6 +42,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use UnitEnum;
 
@@ -91,6 +96,20 @@ class CategoryResource extends Resource
                     ->placeholder(__('admin_categories.fields.sales_mode_inherit'))
                     ->options(SalesMode::options())
                     ->native(false),
+                // AG-12: only the category itself is saved; subcategories and products inherit on the fly.
+                Select::make('age_restriction')
+                    ->label(__('age_gate.admin.field'))
+                    ->placeholder(__('age_gate.admin.none'))
+                    ->options(AgeRestriction::options())
+                    ->native(false)
+                    ->live()
+                    ->helperText(fn (Get $get): string => AgeHint::text(
+                        app(AgeRestrictionResolver::class)->describeFor(
+                            AgeRestriction::tryFrom((string) $get('age_restriction')),
+                            filled($get('parent_id')) ? (int) $get('parent_id') : null,
+                        ),
+                        forCategory: true,
+                    )),
                 Toggle::make('is_active')
                     ->label(__('admin_categories.fields.is_active'))
                     ->default(true),
@@ -169,8 +188,15 @@ class CategoryResource extends Resource
                     ->badge()
                     ->state(fn (Category $record): string => $record->sales_mode?->label() ?? __('admin_categories.table.sales_mode_inherit'))
                     ->color(fn (Category $record): string => $record->sales_mode === null ? 'gray' : 'primary'),
+                TextColumn::make('age_restriction')
+                    ->label(__('age_gate.admin.column'))
+                    ->badge()
+                    ->state(fn (Category $record): ?string => app(AgeRestrictionResolver::class)->forCategory($record)?->badge())
+                    ->placeholder('—')
+                    ->color(fn (Category $record): string => $record->age_restriction === null ? 'gray' : 'danger'),
                 ToggleColumn::make('is_active')
-                    ->label(__('admin_categories.table.is_active')),
+                    ->label(__('admin_categories.table.is_active'))
+                    ->disabled(fn (Category $record): bool => ! Gate::allows('update', $record)),
             ])
             ->filters([
                 Filter::make('parent')

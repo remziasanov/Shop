@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\ImportFileDownloadController;
 use App\Http\Controllers\Admin\ImportProcessNextController;
 use App\Http\Controllers\Admin\ImportTemplateController;
 use App\Http\Controllers\Admin\OrderPrintController;
+use App\Http\Controllers\Storefront\AgeGateController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CatalogController;
 use App\Http\Controllers\Storefront\CheckoutController;
@@ -34,6 +35,10 @@ Route::get('/product/{slug}', [ProductController::class, 'show'])->name('product
 Route::get('/page/{slug}', [PageController::class, 'show'])->name('page.show');
 Route::get('/search', SearchController::class)->name('search');
 Route::get('/search/suggest', SearchSuggestController::class)->middleware('throttle:60,1')->name('search.suggest');
+
+// Age gate (stage 8, TZ 16): the answers of the overlay; both work as plain links / forms without JavaScript.
+Route::post('/age-gate/confirm', [AgeGateController::class, 'confirm'])->middleware('throttle:60,1')->name('age-gate.confirm');
+Route::get('/age-gate/decline', [AgeGateController::class, 'decline'])->name('age-gate.decline');
 
 // Sales (stage 4): cart, checkout and the "thank you" page addressed by the order UUID (SF-40…47).
 Route::get('/cart', [CartController::class, 'show'])->name('cart');

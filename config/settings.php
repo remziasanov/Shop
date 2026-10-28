@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Settings\AgeGateSettings;
 use App\Settings\AppearanceSettings;
 use App\Settings\GeneralSettings;
 use App\Settings\HomePageSettings;
@@ -29,6 +30,7 @@ return [
         SeoSettings::class,
         LegalSettings::class,
         HomePageSettings::class,
+        AgeGateSettings::class,
     ],
 
     /*

@@ -45,9 +45,10 @@
                     @php($product = $line->product)
                     @php($pid = $line->item->product_id)
                     <li wire:key="line-{{ $pid }}" class="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap sm:gap-4 sm:p-4 {{ $line->unavailable ? 'bg-slate-50' : '' }}" data-cart-line>
-                        <div class="h-20 w-20 flex-none overflow-hidden rounded bg-slate-50">
+                        @php($age = $product !== null ? app(\App\Services\Age\AgeRestrictionResolver::class)->forProduct($product) : null)
+                        <div class="age-media h-20 w-20 flex-none overflow-hidden rounded bg-slate-50" @if ($age) data-age="{{ $age->value }}" @endif>
                             @if ($product?->mainImage)
-                                <img src="{{ $product->mainImage->urlSmall() }}" alt="" width="80" height="80" loading="lazy" class="h-full w-full object-contain">
+                                <img src="{{ $product->mainImage->urlSmall() }}" alt="" width="80" height="80" loading="lazy" class="age-media-img h-full w-full object-contain">
                             @endif
                         </div>
                         <div class="min-w-0 flex-1 basis-40">

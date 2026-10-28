@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use App\Enums\AgeRestriction;
 use App\Enums\EmptyCellPolicy;
 use App\Enums\ImportField;
 use App\Enums\ImportIssueLevel;
@@ -291,6 +292,10 @@ final class RowImporter
             $data['sales_mode'] = $mode;
         }
 
+        if (isset($values['age']) && is_int($values['age']) && $values['age'] > 0) {
+            $data['age_restriction'] = AgeRestriction::fromAge($values['age']);
+        }
+
         $attributes = $this->mergeAttributes([], $fileAttributes, $this->fileNames($fileAttributes), false);
 
         if ($attributes !== []) {
@@ -382,6 +387,17 @@ final class RowImporter
                     }
                 } else {
                     $changes['sales_mode'] = $this->salesMode($raw);
+                }
+            }
+
+            // AG-13: 16 / 18 set the level, 0 clears it, a blank cell follows the empty-cell policy.
+            if (array_key_exists('age', $values)) {
+                $age = $values['age'];
+
+                if (is_int($age)) {
+                    $changes['age_restriction'] = $age > 0 ? AgeRestriction::fromAge($age) : null;
+                } elseif ($clear) {
+                    $changes['age_restriction'] = null;
                 }
             }
 

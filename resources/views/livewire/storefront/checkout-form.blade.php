@@ -73,6 +73,9 @@
             <div class="flex justify-between border-t border-slate-200 pt-2 text-lg font-semibold"><dt>{{ __('storefront_sales.checkout.total') }}</dt><dd data-total>{{ \App\Support\Money::format($total) }}</dd></div>
         </dl>
 
+        @if ($ageLevel)
+            <x-storefront.age-confirm prefix="co" :level="$ageLevel" />
+        @endif
         <x-storefront.consent prefix="co" :link="$consentLink" />
         <x-storefront.guard />
 

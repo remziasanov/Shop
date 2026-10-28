@@ -35,8 +35,10 @@
                 class="absolute inset-x-0 top-full z-40 mt-1 max-h-96 overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
                 <template x-for="(item, index) in items" :key="item.url">
                     <li role="option" :id="'suggest-' + index" :aria-selected="(index === active).toString()">
-                        <a :href="item.url" class="flex items-center gap-3 px-3 py-2 text-sm hover:bg-slate-50" :class="index === active ? 'bg-slate-100' : ''" @mouseenter="active = index">
-                            <img x-show="item.image" :src="item.image" alt="" width="40" height="40" loading="lazy" class="h-10 w-10 flex-none rounded object-cover">
+                        <a :href="item.url" class="flex items-center gap-3 px-3 py-2 text-sm hover:bg-slate-50" :class="index === active ? 'bg-slate-100' : ''" :data-age="item.age || null" @mouseenter="active = index">
+                            <span class="age-media h-10 w-10 flex-none overflow-hidden rounded">
+                                <img x-show="item.image" :src="item.image" alt="" width="40" height="40" loading="lazy" class="age-media-img h-10 w-10 object-cover">
+                            </span>
                             <span class="min-w-0 flex-1">
                                 <span class="block truncate" x-text="item.name"></span>
                                 <span class="block truncate text-xs text-slate-500" x-text="item.sku"></span>

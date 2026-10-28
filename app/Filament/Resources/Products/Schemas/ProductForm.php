@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Enums\AgeRestriction;
 use App\Enums\SalesMode;
 use App\Filament\Resources\PriceHistory\PriceHistoryResource;
 use App\Filament\Resources\Products\Support\PhotoUpload;
@@ -11,6 +12,8 @@ use App\Models\PriceHistory;
 use App\Models\Product;
 use App\Providers\AppServiceProvider;
 use App\Rules\RublesAmount;
+use App\Services\Age\AgeHint;
+use App\Services\Age\AgeRestrictionResolver;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Pricing\PriceResult;
 use App\Services\Pricing\ProductPriceUpdater;
@@ -87,6 +90,19 @@ final class ProductForm
                         ->searchable()
                         ->native(false)
                         ->live(),
+                    // AG-12: the product can only set its own level; empty means inherit from the category.
+                    Select::make('age_restriction')
+                        ->label(__('age_gate.admin.field'))
+                        ->placeholder(__('age_gate.admin.none'))
+                        ->options(AgeRestriction::options())
+                        ->native(false)
+                        ->live()
+                        ->helperText(fn (Get $get): string => AgeHint::text(
+                            app(AgeRestrictionResolver::class)->describeFor(
+                                AgeRestriction::tryFrom((string) $get('age_restriction')),
+                                filled($get('category_id')) ? (int) $get('category_id') : null,
+                            ),
+                        )),
                     TextInput::make('brand')
                         ->label(__('admin_products.fields.brand'))
                         ->maxLength(255)

@@ -21,5 +21,7 @@ final readonly class ReservationData
         public bool $consent,
         public string $ip,
         public ?string $userAgent = null,
+        /** AG-11: the «Мне исполнилось N лет» checkbox. */
+        public bool $ageConfirmed = false,
     ) {}
 }

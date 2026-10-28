@@ -45,6 +45,8 @@ class SearchSuggestController extends Controller
                 'url' => $view->url,
                 'price' => $view->price,
                 'image' => $view->product->mainImage?->urlSmall(),
+                // AG-05: 16 / 18 / null; the dropdown renders it as data-age, CSS does the blur.
+                'age' => $view->age?->minAge(),
             ];
         }
 

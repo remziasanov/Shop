@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Products\Tables;
 
+use App\Enums\AgeRestriction;
 use App\Enums\SalesMode;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\Products\Support\BulkPriceChangeAction;
 use App\Filament\Resources\Products\Support\ExportSelectedAction;
 use App\Models\Product;
+use App\Services\Age\AgeGate;
+use App\Services\Age\AgeRestrictionResolver;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\ProductDuplicator;
 use App\Services\Home\HomePageRenderer;
@@ -44,6 +47,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Enumerable;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use InvalidArgumentException;
 use Throwable;
@@ -144,12 +148,20 @@ final class ProductsTable
                 ->state(fn (Product $record): string => $record->stock_qty === null
                     ? __('admin_products.table.stock_untracked')
                     : $record->availableQty().' / '.$record->stock_qty),
+            // AG-12: red = the product's own level, gray = inherited from its category.
+            TextColumn::make('age_restriction')
+                ->label(__('age_gate.admin.column'))
+                ->badge()
+                ->state(fn (Product $record): ?string => app(AgeRestrictionResolver::class)->forProduct($record)?->badge())
+                ->placeholder('—')
+                ->color(fn (Product $record): string => $record->age_restriction === null ? 'gray' : 'danger'),
             TextColumn::make('effective_mode')
                 ->label(__('admin_products.table.mode'))
                 ->state(fn (Product $record): string => app(SalesModeResolver::class)->resolve($record)->label())
                 ->wrap(),
             ToggleColumn::make('is_active')
-                ->label(__('admin_products.fields.is_active')),
+                ->label(__('admin_products.fields.is_active'))
+                ->disabled(fn (Product $record): bool => ! Gate::allows('update', $record)),
             TextColumn::make('updated_at')
                 ->label(__('admin_products.fields.updated_at'))
                 ->dateTime()
@@ -200,6 +212,28 @@ final class ProductsTable
                         blank($value) => $query,
                         $value === 'inherit' => $query->whereNull('sales_mode'),
                         default => $query->where('sales_mode', $value),
+                    };
+                }),
+            // AG-12: own level (16 / 18), inherited from a category, none at all, or any restriction.
+            SelectFilter::make('age_restriction')
+                ->label(__('age_gate.admin.field'))
+                ->options([
+                    'none' => __('age_gate.admin.filter_none'),
+                    '16' => AgeRestriction::Age16->label(),
+                    '18' => AgeRestriction::Age18->label(),
+                    'inherited' => __('age_gate.admin.filter_inherited'),
+                    'any' => __('age_gate.admin.filter_any'),
+                ])
+                ->query(function (Builder $query, array $data): Builder {
+                    $value = $data['value'] ?? null;
+                    $restricted = app(AgeRestrictionResolver::class)->restrictedCategoryIds();
+
+                    return match (true) {
+                        blank($value) => $query,
+                        $value === 'none' => $query->whereNull('products.age_restriction')->whereNotIn('products.category_id', $restricted),
+                        $value === 'inherited' => $query->whereNull('products.age_restriction')->whereIn('products.category_id', $restricted),
+                        $value === 'any' => $query->where(fn (Builder $q) => $q->whereNotNull('products.age_restriction')->orWhereIn('products.category_id', $restricted)),
+                        default => $query->where('products.age_restriction', $value),
                     };
                 }),
             SelectFilter::make('flags')
@@ -304,6 +338,19 @@ final class ProductsTable
                 ],
             ),
             self::updateAction(
+                'set_age',
+                __('age_gate.admin.bulk_action'),
+                Heroicon::OutlinedShieldCheck,
+                fn (array $data): array => ['age_restriction' => AgeRestriction::tryFrom((string) ($data['age_restriction'] ?? ''))?->value],
+                [
+                    Select::make('age_restriction')
+                        ->label(__('age_gate.admin.field'))
+                        ->options(AgeRestriction::options())
+                        ->placeholder(__('age_gate.admin.none'))
+                        ->native(false),
+                ],
+            ),
+            self::updateAction(
                 'set_flags',
                 __('admin_products.actions.set_flags'),
                 Heroicon::OutlinedTag,
@@ -349,10 +396,13 @@ final class ProductsTable
             ->label($label)
             ->icon($icon)
             ->requiresConfirmation()
+            ->visible(fn (): bool => Gate::allows('bulk', Product::class))
             ->schema($form)
             ->chunkSelectedRecords(self::CHUNK)
             ->deselectRecordsAfterCompletion()
             ->action(function (Enumerable $records, array $data) use ($changes, $affectsPrice): void {
+                abort_unless(Gate::allows('bulk', Product::class), 403);
+
                 $values = $changes($data);
 
                 if ($values === []) {
@@ -364,6 +414,7 @@ final class ProductsTable
 
                 Product::withTrashed()->whereKey($ids)->update($values);
                 HomePageRenderer::forget();
+                AgeGate::forgetCache();
 
                 if ($affectsPrice) {
                     app(PriceRuleRecalculator::class)->dispatch($ids);

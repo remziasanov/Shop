@@ -465,7 +465,7 @@ final class CategoryTree
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->orderBy('id')
-                ->get(['id', 'parent_id', 'name', 'slug', 'is_active', 'sales_mode', 'sort_order', 'depth', 'path', 'image_path'])
+                ->get(['id', 'parent_id', 'name', 'slug', 'is_active', 'sales_mode', 'sort_order', 'depth', 'path', 'image_path', 'age_restriction'])
                 ->map(fn (Category $category): array => $category->getAttributes())
                 ->all();
         });

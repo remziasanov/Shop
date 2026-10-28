@@ -1,8 +1,18 @@
+@php
+    // TZ 16: the page markup never depends on the visitor's cookie (AG-07); only the settings and staff status vary here.
+    $ageGate = app(\App\Services\Age\AgeGate::class);
+    $ageOn = $ageGate->enabled();
+    $ageStaff = $ageOn && \App\Http\Middleware\StorefrontOpen::isActiveStaff(request()->user());
+@endphp
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" @if ($ageOn) data-age-on @if ($ageGate->showBadge()) data-age-badge @endif @if ($ageStaff) data-age-ok="18" @endif @endif>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @if ($ageOn)
+        {{-- AG-07: the answer lives in the shop_age cookie; this sets html[data-age-ok] before the first paint. --}}
+        <script>try{var m=document.cookie.match(/(?:^|; )shop_age=(16|18)/),d=document.documentElement;if(m&&!d.hasAttribute('data-age-ok')){d.setAttribute('data-age-ok',m[1])}}catch(e){}</script>
+    @endif
     @php
         $headStack = $__env->yieldPushContent('head');
         $seo ??= app(\App\Services\Seo\SeoBuilder::class)->fallback(
@@ -46,6 +56,9 @@
     @endif
 
     @include('storefront.partials.cookie-banner')
+    @if ($ageOn && ! $ageStaff)
+        @include('storefront.partials.age-gate', ['gate' => $ageGate])
+    @endif
 
     @livewireScripts
     {!! app(\App\Services\Seo\SeoCounters::class)->bodyCode() !!}

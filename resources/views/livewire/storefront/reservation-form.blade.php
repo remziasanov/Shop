@@ -17,6 +17,9 @@
                 <x-storefront.field prefix="rs" name="desiredDate" type="date" :label="__('storefront_sales.reservation.desired_date')" :min="now()->format('Y-m-d')" :max="$reservedUntil->format('Y-m-d')"
                                     :hint="__('storefront_sales.reservation.desired_hint', ['date' => $reservedUntil->format('d.m.Y')])" />
                 <x-storefront.field prefix="rs" name="comment" type="textarea" :label="__('storefront_sales.fields.comment')" maxlength="2000" />
+                @if ($ageLevel)
+                    <x-storefront.age-confirm prefix="rs" :level="$ageLevel" />
+                @endif
                 <x-storefront.consent prefix="rs" :link="$consentLink" />
                 <x-storefront.guard />
 

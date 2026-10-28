@@ -17,15 +17,18 @@ use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Age\AgeGate;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
 use App\Services\Stock\StockService;
+use App\Services\Users\PermissionService;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use App\Support\PhoneNormalizer;
 use App\Support\QtyLimit;
 use Carbon\CarbonInterface;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
@@ -50,6 +53,7 @@ final class OrderService
         private readonly CheckoutMethods $methods,
         private readonly CategoryTree $tree,
         private readonly SalesSettings $settings,
+        private readonly AgeGate $age,
     ) {}
 
     /**
@@ -147,6 +151,13 @@ final class OrderService
                 return $reasons;
             }
 
+            // AG-11: checked on the server against the locked products, whatever the cookie says.
+            $ageLevel = $this->age->requiredForProducts(array_map(fn (array $line): Product => $line['product'], $lines));
+
+            if ($ageLevel !== null && ! $data->ageConfirmed) {
+                throw new SalesException(__('age_gate.errors.confirm_required', ['age' => $ageLevel->minAge()]));
+            }
+
             $itemsTotal = array_sum(array_map(fn (array $line): int => $line['price'] * $line['qty'], $lines));
             $min = $this->settings->min_order_amount;
 
@@ -170,6 +181,7 @@ final class OrderService
                 'items_total' => Money::toRubles($itemsTotal),
                 'total' => Money::toRubles($itemsTotal + $deliveryPrice),
                 'customer_comment' => $this->blankToNull($data->comment),
+                'age_confirmed_level' => $ageLevel,
             ], $data->ip, $data->userAgent, $lines);
 
             $this->stock->deductForOrder($order);
@@ -210,6 +222,13 @@ final class OrderService
                 throw new SalesException(__('sales.errors.reservation_qty', ['max' => $actions->maxReserveQty]));
             }
 
+            // AG-11: the same server-side check for a reservation.
+            $ageLevel = $this->age->requiredForProducts([$locked]);
+
+            if ($ageLevel !== null && ! $data->ageConfirmed) {
+                throw new SalesException(__('age_gate.errors.confirm_required', ['age' => $ageLevel->minAge()]));
+            }
+
             $reservedUntil = now()->addHours($this->settings->reservation_hours);
 
             if ($data->desiredDate !== null) {
@@ -232,6 +251,7 @@ final class OrderService
                 'customer_comment' => $this->blankToNull($data->comment),
                 'reserved_until' => $reservedUntil,
                 'desired_date' => $data->desiredDate?->copy()->startOfDay(),
+                'age_confirmed_level' => $ageLevel,
             ], $data->ip, $data->userAgent, [['product' => $locked, 'qty' => $data->qty, 'price' => $price]]);
 
             $this->stock->holdForReservation($order);
@@ -329,6 +349,11 @@ final class OrderService
      */
     public function delete(Order $order, ?User $user = null): void
     {
+        // RB-11: a staff member needs `orders.delete`; no user means a system action (console, cleanup).
+        if ($user !== null && ! app(PermissionService::class)->allows($user, 'orders.delete')) {
+            throw new AuthorizationException;
+        }
+
         DB::transaction(function () use ($order, $user): void {
             /** @var Order|null $fresh */
             $fresh = Order::query()->whereKey($order->getKey())->lockForUpdate()->first();

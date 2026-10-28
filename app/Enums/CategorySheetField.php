@@ -17,6 +17,7 @@ enum CategorySheetField: string
     case Photo = 'photo';
     case MetaTitle = 'meta_title';
     case MetaDescription = 'meta_description';
+    case Age = 'age';
 
     /** Name of the optional sheet with categories. */
     public const SHEET_NAME = 'Категории';
@@ -40,6 +41,7 @@ enum CategorySheetField: string
             self::Photo => ['изображение', 'картинка', 'photo', 'image'],
             self::MetaTitle => ['seo title'],
             self::MetaDescription => ['seo description'],
+            self::Age => ['возрастное ограничение', 'age'],
         };
 
         return [...$own, $this->label(), $this->value];

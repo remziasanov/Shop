@@ -6,6 +6,7 @@ namespace App\Filament\Resources\Products\Support;
 
 use App\Enums\BulkPriceOperation;
 use App\Models\Product;
+use App\Models\User;
 use App\Rules\PositiveAmount;
 use App\Services\Pricing\BulkPriceChanger;
 use App\Support\Money;
@@ -94,11 +95,13 @@ class BulkPriceChangeAction extends BulkAction
                     return;
                 }
 
+                $actor = Auth::user();
+
                 $result = app(BulkPriceChanger::class)->dispatch(
                     $ids,
                     BulkPriceOperation::from((string) $data['operation']),
                     (string) $data['value'],
-                    Auth::id() !== null ? (int) Auth::id() : null,
+                    $actor instanceof User ? $actor : abort(403),
                 );
 
                 Notification::make()->success()->title(__('admin_pricing.bulk.queued', ['count' => $result['products']]))->send();

@@ -7,6 +7,7 @@ namespace App\Services\Catalog;
 use App\Enums\StockDisplay;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Services\Age\AgeRestrictionResolver;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\ProductActions;
 use App\Settings\AppearanceSettings;
@@ -24,6 +25,7 @@ final class ProductPresenter
         private readonly AvailabilityService $availability,
         private readonly SalesSettings $sales,
         private readonly AppearanceSettings $appearance,
+        private readonly AgeRestrictionResolver $age,
     ) {}
 
     /**
@@ -69,6 +71,7 @@ final class ProductPresenter
             productActions: $productActions,
             image: $image !== null ? $this->image($image, $product) : null,
             placeholderUrl: $this->placeholderUrl(),
+            age: $this->age->forProduct($product),
         );
     }
 
