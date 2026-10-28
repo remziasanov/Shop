@@ -36,6 +36,7 @@ return [
         'filter_inherited' => 'Унаследовано от категории',
         'filter_any' => 'Любое ограничение',
         'bulk_action' => 'Задать возрастное ограничение',
+        'order_confirmed' => 'Возраст подтверждён: :level',
     ],
 
     'settings' => [

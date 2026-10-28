@@ -39,6 +39,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -226,6 +227,23 @@ class CategoryResource extends Resource
                         $label = $parent === 'root' ? __('admin_categories.table.filter_root') : ($tree->options()[(int) $parent] ?? '');
 
                         return [__('admin_categories.table.filter_parent').': '.$label];
+                    }),
+                // Own level only (AG-12): categories show what is set on the category itself.
+                SelectFilter::make('age_restriction')
+                    ->label(__('age_gate.admin.field'))
+                    ->options([
+                        'none' => __('age_gate.admin.filter_none'),
+                        '16' => AgeRestriction::Age16->label(),
+                        '18' => AgeRestriction::Age18->label(),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $value = $data['value'] ?? null;
+
+                        return match (true) {
+                            blank($value) => $query,
+                            $value === 'none' => $query->whereNull('categories.age_restriction'),
+                            default => $query->where('categories.age_restriction', (string) $value),
+                        };
                     }),
             ])
             // Drag and drop only makes sense among siblings, so it is enabled once a parent is chosen (AD-30).
