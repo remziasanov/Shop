@@ -30,6 +30,11 @@ final readonly class SeoMeta
         return new self($this->title, $this->description, null, $this->robots, $this->ogType, $this->ogTitle, $this->ogDescription, $this->ogImage, $this->ogUrl, $this->jsonLd);
     }
 
+    public function withRobots(string $robots): self
+    {
+        return new self($this->title, $this->description, $this->canonical, $robots, $this->ogType, $this->ogTitle, $this->ogDescription, $this->ogImage, $this->ogUrl, $this->jsonLd);
+    }
+
     public function withoutRobots(): self
     {
         return new self($this->title, $this->description, $this->canonical, null, $this->ogType, $this->ogTitle, $this->ogDescription, $this->ogImage, $this->ogUrl, $this->jsonLd);

@@ -4,24 +4,26 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\User;
+use App\Policies\Concerns\ChecksPermissions;
 
 /**
- * Requests (TZ 6.13): administrators and managers view, change status, extend, comment and export;
- * only administrators delete (OR-07). Requests are created by customers, never in the admin.
+ * Requests (TZ 6.13, 25.4): view, change status / extend / comment (`orders.update`), export and delete (OR-07)
+ * are separate permissions. Requests are created by customers, never in the admin.
  */
 class OrderPolicy
 {
+    use ChecksPermissions;
+
     public function viewAny(User $user): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'orders.view');
     }
 
     public function view(User $user, Order $order): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'orders.view');
     }
 
     public function create(User $user): bool
@@ -34,22 +36,22 @@ class OrderPolicy
      */
     public function update(User $user, Order $order): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'orders.update');
     }
 
     public function export(User $user): bool
     {
-        return $this->staff($user);
+        return $this->allows($user, 'orders.export');
     }
 
     public function delete(User $user, Order $order): bool
     {
-        return $this->admin($user);
+        return $this->allows($user, 'orders.delete');
     }
 
     public function deleteAny(User $user): bool
     {
-        return $this->admin($user);
+        return $this->allows($user, 'orders.delete');
     }
 
     // Deleting settles stock (D-051), so a restored request would no longer hold it: restore is not supported.
@@ -65,21 +67,11 @@ class OrderPolicy
 
     public function forceDelete(User $user, Order $order): bool
     {
-        return $this->admin($user);
+        return $this->allows($user, 'orders.delete');
     }
 
     public function forceDeleteAny(User $user): bool
     {
-        return $this->admin($user);
-    }
-
-    private function staff(User $user): bool
-    {
-        return $user->is_active && in_array($user->role, [UserRole::Admin, UserRole::Manager], true);
-    }
-
-    private function admin(User $user): bool
-    {
-        return $user->is_active && $user->role === UserRole::Admin;
+        return $this->allows($user, 'orders.delete');
     }
 }

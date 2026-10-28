@@ -21,6 +21,7 @@
                 </select>
             </div>
 
+            @if ($showPrices)
             <fieldset>
                 <legend class="mb-1 text-sm font-semibold">{{ __('storefront.filters.price') }}</legend>
                 <div class="flex items-center gap-2">
@@ -33,6 +34,7 @@
                            class="w-full rounded border border-slate-300 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 </div>
             </fieldset>
+            @endif
 
             <label class="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="in_stock" value="1" @checked($filters->inStock) class="h-4 w-4 rounded border-slate-300 accent-primary">
@@ -53,10 +55,11 @@
                 </fieldset>
             @endif
 
+            @if ($flagOptions !== [])
             <fieldset>
                 <legend class="mb-1 text-sm font-semibold">{{ __('storefront.filters.labels') }}</legend>
                 <div class="space-y-1">
-                    @foreach (['hit', 'new', 'sale'] as $flag)
+                    @foreach ($flagOptions as $flag)
                         <label class="flex items-center gap-2 text-sm">
                             <input type="checkbox" name="flags[]" value="{{ $flag }}" @checked(in_array($flag, $filters->flags, true)) class="h-4 w-4 rounded border-slate-300 accent-primary">
                             {{ __('storefront.labels.'.$flag) }}
@@ -64,6 +67,7 @@
                     @endforeach
                 </div>
             </fieldset>
+            @endif
 
             <div class="flex gap-2">
                 <button type="submit" class="flex-1 rounded bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.filters.apply') }}</button>

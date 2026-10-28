@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\AgeRestriction;
 use App\Enums\SalesMode;
 use App\Observers\CategoryObserver;
 use App\Services\Catalog\CategoryTree;
@@ -32,6 +33,7 @@ use Illuminate\Support\Facades\DB;
  * @property string|null $image_source_hash
  * @property bool $is_active
  * @property SalesMode|null $sales_mode
+ * @property AgeRestriction|null $age_restriction own level only; the effective one comes from AgeRestrictionResolver
  * @property int $sort_order
  * @property int $depth
  * @property string $path
@@ -74,6 +76,7 @@ class Category extends Model
         'image_source_hash',
         'is_active',
         'sales_mode',
+        'age_restriction',
         'sort_order',
         'meta_title',
         'meta_description',
@@ -87,6 +90,7 @@ class Category extends Model
         return [
             'is_active' => 'boolean',
             'sales_mode' => SalesMode::class,
+            'age_restriction' => AgeRestriction::class,
             'sort_order' => 'integer',
             'depth' => 'integer',
         ];

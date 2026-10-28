@@ -30,6 +30,7 @@ enum ImportField: string
     case Sort = 'sort';
     case MetaTitle = 'meta_title';
     case MetaDescription = 'meta_description';
+    case Age = 'age';
 
     /** Prefix of mapping values that denote a characteristic column: "attr:Цвет". */
     public const ATTRIBUTE_PREFIX = 'attr:';
@@ -68,6 +69,7 @@ enum ImportField: string
             self::Sort => ['сортировка', 'sort'],
             self::MetaTitle => ['seo title'],
             self::MetaDescription => ['seo description'],
+            self::Age => ['возрастное ограничение', 'age'],
         };
 
         return [...$own, $this->label(), $this->value];

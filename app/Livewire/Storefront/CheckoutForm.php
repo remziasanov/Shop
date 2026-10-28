@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Livewire\Storefront;
 
+use App\Enums\AgeRestriction;
 use App\Exceptions\CartChangedException;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
+use App\Services\Age\AgeGate;
 use App\Services\Cart\CartService;
 use App\Services\Orders\CheckoutData;
 use App\Services\Orders\OrderService;
@@ -41,6 +43,9 @@ class CheckoutForm extends Component
 
     public bool $consent = false;
 
+    /** AG-11: «Мне исполнилось N лет», shown when the cart holds restricted products. */
+    public bool $ageConfirmed = false;
+
     public function mount(CheckoutMethods $methods): void
     {
         $this->delivery = $methods->deliveries()[0]->key ?? '';
@@ -55,7 +60,7 @@ class CheckoutForm extends Component
         $methods = app(CheckoutMethods::class);
         $requiresAddress = $methods->delivery($this->delivery)->requiresAddress ?? false;
 
-        return $this->contactRules() + [
+        return $this->contactRules() + $this->ageRules() + [
             'delivery' => ['required', Rule::in(array_map(fn ($o) => $o->key, $methods->deliveries()))],
             'address' => [$requiresAddress ? 'required' : 'nullable', 'string', 'max:500'],
             'payment' => ['required', Rule::in(array_map(fn ($o) => $o->key, $methods->payments()))],
@@ -67,7 +72,7 @@ class CheckoutForm extends Component
      */
     protected function messages(): array
     {
-        return $this->contactMessages() + [
+        return $this->contactMessages() + $this->ageMessages() + [
             'delivery.required' => __('sales.errors.delivery_invalid'),
             'delivery.in' => __('sales.errors.delivery_invalid'),
             'address.required' => __('sales.errors.address_required'),
@@ -117,6 +122,7 @@ class CheckoutForm extends Component
                 consent: $this->consent,
                 ip: $this->clientIp(),
                 userAgent: $this->clientUserAgent(),
+                ageConfirmed: $this->ageConfirmed,
             ));
         } catch (CartChangedException $e) {
             // SF-46: the cart was already corrected; the customer re-checks it and confirms again.
@@ -148,6 +154,27 @@ class CheckoutForm extends Component
             'deliveryPrice' => $deliveryPrice,
             'total' => ($summary !== null ? $summary->itemsTotal : 0) + $deliveryPrice,
             'consentLink' => $this->consentLink(),
+            'ageLevel' => $this->ageLevel(),
         ]);
+    }
+
+    private ?AgeRestriction $loadedAgeLevel = null;
+
+    private bool $ageLevelLoaded = false;
+
+    /**
+     * AG-11: the age to confirm for the products of the cart (null: gate off or nothing restricted).
+     */
+    protected function ageLevel(): ?AgeRestriction
+    {
+        if (! $this->ageLevelLoaded) {
+            $cart = app(CartService::class)->current(request());
+            $products = $cart !== null ? $cart->items()->with('product')->get()->pluck('product')->filter() : [];
+
+            $this->loadedAgeLevel = app(AgeGate::class)->requiredForProducts($products);
+            $this->ageLevelLoaded = true;
+        }
+
+        return $this->loadedAgeLevel;
     }
 }

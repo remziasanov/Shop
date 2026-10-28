@@ -6,6 +6,7 @@ namespace App\Services\Sales;
 
 use App\Enums\SalesMode;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Settings\SalesSettings;
 use Illuminate\Contracts\Cache\Repository;
@@ -25,11 +26,17 @@ final class CartAvailability
         private readonly Repository $cache,
         private readonly SalesSettings $settings,
         private readonly CategoryTree $tree,
+        private readonly ViewerContext $viewer,
     ) {}
 
     public function enabled(): bool
     {
-        return (bool) $this->cache->remember(self::CACHE_KEY, self::TTL_SECONDS, fn (): bool => $this->compute());
+        $access = $this->viewer->access();
+
+        // The shop-wide flag is cached; the viewer's group may still take the cart away (CG-07, CG-06).
+        return (bool) $this->cache->remember(self::CACHE_KEY, self::TTL_SECONDS, fn (): bool => $this->compute())
+            && $access->showsPrices()
+            && $access->allowsMode(SalesMode::Cart);
     }
 
     public function forget(): void

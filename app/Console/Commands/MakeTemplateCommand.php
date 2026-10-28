@@ -16,7 +16,8 @@ class MakeTemplateCommand extends Command
     public function handle(ImportTemplateBuilder $builder): int
     {
         $path = (string) $this->option('path');
-        $path = str_starts_with($path, '/') ? $path : base_path($path);
+        // Absolute POSIX or Windows (C:\..., \\server) path, otherwise relative to the project.
+        $path = preg_match('#^([/\\\\]|[A-Za-z]:[/\\\\])#', $path) === 1 ? $path : base_path($path);
 
         $dir = dirname($path);
 

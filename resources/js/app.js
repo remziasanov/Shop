@@ -5,6 +5,20 @@ document.addEventListener('alpine:init', () => {
     const Alpine = window.Alpine;
 
     /**
+     * Age gate overlay (AG-10). CSS already hides it for a visitor whose cookie is enough (html[data-age-ok], set by an
+     * inline script before the first paint); this only traps the focus and locks the background scroll while it is
+     * open. There is no way to close it without an answer.
+     */
+    Alpine.data('ageGate', (need) => ({
+        active: false,
+
+        init() {
+            const ok = parseInt(document.documentElement.dataset.ageOk || '0', 10);
+            this.active = ok < need;
+        },
+    }));
+
+    /**
      * Header search with suggestions (SF-21): debounce 300 ms, from 2 characters, up to 8 items,
      * arrow keys + Enter, Escape closes.
      */

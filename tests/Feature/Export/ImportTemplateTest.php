@@ -37,8 +37,8 @@ it('builds a template with three sheets, all columns and an example row', functi
         ->and(array_slice($headers, -2))->toBe(['Х: Цвет', 'Х: Материал']);
 
     $mapping = app(ColumnMapper::class)->autoMap($headers);
-    expect(array_slice($mapping, 0, 20))->toBe(array_map(fn (ImportField $f): string => $f->value, ImportField::cases()))
-        ->and(array_slice($mapping, 20))->toBe(['attr:Цвет', 'attr:Материал']);
+    expect(array_slice($mapping, 0, 21))->toBe(array_map(fn (ImportField $f): string => $f->value, ImportField::cases()))
+        ->and(array_slice($mapping, 21))->toBe(['attr:Цвет', 'attr:Материал']);
 
     $categories = sheetRows($path, 'Категории');
     expect($categories[1])->toBe(CatalogExporter::categoryHeaders())

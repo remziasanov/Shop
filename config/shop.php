@@ -36,6 +36,12 @@ return [
     'sitemap_lock_seconds' => 300,
 
     /*
+    | Queue a sitemap rebuild when a change decides what a guest sees (groups, categories, pages, products; CG-15).
+    | Switched off in phpunit.xml: the sync queue would rebuild the file on every model save.
+    */
+    'sitemap_rebuild_on_change' => env('SITEMAP_REBUILD_ON_CHANGE', true),
+
+    /*
     |--------------------------------------------------------------------------
     | Scheduler heartbeat file (AD-11)
     |--------------------------------------------------------------------------
@@ -84,5 +90,10 @@ return [
     | Days import files (source, ZIP, errors report) are kept (IM-13).
     */
     'import_retention_days' => 30,
+
+    /*
+    | Days the admin action journal is kept (RB-12).
+    */
+    'audit_retention_days' => 365,
 
 ];

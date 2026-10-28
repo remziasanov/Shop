@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Services\Catalog;
 
 use App\Enums\CatalogSort;
+use App\Enums\StorefrontSection;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Settings\AppearanceSettings;
 use App\Settings\SalesSettings;
 use App\Support\Money;
@@ -23,6 +25,7 @@ final class CatalogQuery
     public function __construct(
         private readonly AppearanceSettings $appearance,
         private readonly SalesSettings $sales,
+        private readonly ViewerContext $viewer,
     ) {}
 
     public function perPage(): int
@@ -39,6 +42,8 @@ final class CatalogQuery
      */
     public function paginate(CatalogFilters $filters, ?array $categoryIds = null, ?string $search = null, array $extraQuery = []): CatalogResult
     {
+        // CG-13: the viewer's group decides which categories, filters and sorts exist at all.
+        $filters = $filters->restrictedTo($this->viewer->access());
         $query = $this->filtered($this->base($categoryIds, $search), $filters, true);
         $this->applySort($query, $filters->sort);
 
@@ -56,7 +61,7 @@ final class CatalogQuery
      */
     private function base(?array $categoryIds, ?string $search): Builder
     {
-        $query = Product::query()->active();
+        $query = Product::query()->storefront();
 
         if ($categoryIds !== null) {
             $query->whereIn('category_id', $categoryIds);
@@ -138,6 +143,10 @@ final class CatalogQuery
      */
     private function brands(CatalogFilters $filters, ?array $categoryIds, ?string $search): array
     {
+        if (! $this->viewer->access()->allowsSection(StorefrontSection::Brands)) {
+            return [];
+        }
+
         $brands = $this->filtered($this->base($categoryIds, $search), $filters, false)
             ->reorder()
             ->whereNotNull('brand')

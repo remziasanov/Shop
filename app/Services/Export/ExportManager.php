@@ -10,8 +10,10 @@ use App\Jobs\ExportCatalog;
 use App\Jobs\ExportOrders;
 use App\Models\Export;
 use App\Models\User;
+use App\Services\Users\PermissionService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -29,6 +31,7 @@ final class ExportManager
     public function __construct(
         private readonly CatalogExporter $catalog,
         private readonly OrdersExporter $orders,
+        private readonly PermissionService $permissions,
     ) {}
 
     /**
@@ -50,6 +53,11 @@ final class ExportManager
      */
     public function request(ExportType $type, array $filters, ?User $user): Export
     {
+        // RB-11: a staff member needs the right of the export type; no user means a system action.
+        if ($user !== null && ! $this->permissions->allows($user, $type === ExportType::Orders ? 'orders.export' : 'exports.create')) {
+            throw new AuthorizationException;
+        }
+
         $rows = $this->count($type, $filters);
 
         $export = Export::query()->create([

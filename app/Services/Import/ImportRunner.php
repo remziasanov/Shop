@@ -15,8 +15,10 @@ use App\Models\Product;
 use App\Models\User;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Pricing\PriceRuleRecalculator;
+use App\Services\Users\PermissionService;
 use Carbon\CarbonImmutable;
 use Filament\Notifications\Notification;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -73,10 +75,21 @@ final class ImportRunner
     /**
      * Queue an analyzed import: status `queued`, progress counters reset, first job dispatched.
      *
+     * With an acting user the «full synchronization» mode needs the `imports.full_sync` right (RB-11).
+     *
      * @throws LogicException when the import is not in the `analyzed` state
+     * @throws AuthorizationException when the actor may not run this import
      */
-    public function start(Import $import): Import
+    public function start(Import $import, ?User $actor = null): Import
     {
+        if ($actor !== null) {
+            $permissions = app(PermissionService::class);
+
+            if (! $permissions->allows($actor, 'imports.run') || ($import->mode === ImportMode::FullSync && ! $permissions->allows($actor, 'imports.full_sync'))) {
+                throw new AuthorizationException;
+            }
+        }
+
         $started = DB::table('imports')
             ->where('id', $import->id)
             ->where('status', ImportStatus::Analyzed->value)

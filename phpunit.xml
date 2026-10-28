@@ -37,6 +37,7 @@
         <env name="HEARTBEAT_PATH" value="storage/framework/testing/heartbeat"/>
         <env name="PRICING_BOUNDARIES_PATH" value="storage/framework/testing/pricing-boundaries-last-run"/>
         <env name="SITEMAP_DIR" value="storage/framework/testing/sitemap"/>
+        <env name="SITEMAP_REBUILD_ON_CHANGE" value="false"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

@@ -82,6 +82,16 @@ final class OrderInfolist
                                 'time' => $record->consent_at->format('d.m.Y H:i'),
                                 'ip' => $record->consent_ip,
                             ])),
+                        // AG-11: the level the customer confirmed at checkout; hidden for orders without restricted products.
+                        TextEntry::make('age_confirmed_level')
+                            ->hiddenLabel()
+                            ->badge()
+                            ->color('danger')
+                            ->columnSpanFull()
+                            ->state(fn (Order $record): string => __('age_gate.admin.order_confirmed', [
+                                'level' => $record->age_confirmed_level?->badge() ?? '',
+                            ]))
+                            ->visible(fn (Order $record): bool => $record->age_confirmed_level !== null),
                     ]),
 
                 Section::make(__('admin_orders.view.section_items'))

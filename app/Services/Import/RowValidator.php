@@ -133,6 +133,14 @@ final class RowValidator
             }
         }
 
+        if ($row->has('age')) {
+            try {
+                $values['age'] = $this->parser->age($row->get('age'));
+            } catch (ValueParseException $e) {
+                $error(ImportField::Age, $e->getMessage(), $row->get('age'));
+            }
+        }
+
         // Required for a new product.
         if ($isNew) {
             foreach ([ImportField::Name, ImportField::Category, ImportField::Price] as $field) {
@@ -242,6 +250,14 @@ final class RowValidator
                 $out['sales_mode'] = $parsed instanceof SalesMode ? $parsed->value : $parsed;
             } catch (ValueParseException $e) {
                 $error(CategorySheetField::SalesMode, $e->getMessage(), $values['sales_mode']);
+            }
+        }
+
+        if (array_key_exists('age', $values)) {
+            try {
+                $out['age'] = $this->parser->age($values['age']);
+            } catch (ValueParseException $e) {
+                $error(CategorySheetField::Age, $e->getMessage(), $values['age']);
             }
         }
 

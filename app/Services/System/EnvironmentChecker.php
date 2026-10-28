@@ -76,6 +76,7 @@ class EnvironmentChecker
             'max_execution_time' => fn () => $this->maxExecutionTime(),
             'photos_size' => fn () => $this->photosSize(),
             'legal_pages' => fn () => $this->legalPages(),
+            'staff_roles' => fn () => $this->staffRoles(),
         ];
 
         $results = [];
@@ -384,6 +385,28 @@ class EnvironmentChecker
 
         return $this->result('legal_pages', CheckStatus::Warning, __('system.values.legal_template'),
             __('system.hints.legal_pages', ['pages' => implode(', ', $pending)]));
+    }
+
+    /**
+     * RB-14: at least one active administrator and every user has a role.
+     */
+    private function staffRoles(): CheckResult
+    {
+        $label = __('roles.doctor.label');
+        $adminRoleId = DB::table('roles')->where('code', 'admin')->value('id');
+        $admins = $adminRoleId === null ? 0 : DB::table('users')->where('is_active', true)->where('role_id', $adminRoleId)->count();
+
+        if ($admins === 0) {
+            return new CheckResult('staff_roles', $label, CheckStatus::Error, __('roles.doctor.no_admin'), __('roles.doctor.hint_no_admin'));
+        }
+
+        $withoutRole = DB::table('users')->whereNull('role_id')->count();
+
+        if ($withoutRole > 0) {
+            return new CheckResult('staff_roles', $label, CheckStatus::Error, __('roles.doctor.no_role', ['count' => $withoutRole]), __('roles.doctor.hint_no_role'));
+        }
+
+        return new CheckResult('staff_roles', $label, CheckStatus::Ok, __('roles.doctor.ok'));
     }
 
     private function uploadLimit(string $key): CheckResult

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\AgeRestriction;
 use App\Enums\SalesMode;
 use App\Observers\ProductObserver;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Search\SearchNormalizer;
@@ -52,6 +54,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $reserved_qty
  * @property string $unit
  * @property SalesMode|null $sales_mode
+ * @property AgeRestriction|null $age_restriction own level only; the effective one comes from AgeRestrictionResolver
  * @property bool $is_active
  * @property bool $is_featured
  * @property bool $is_new
@@ -86,6 +89,7 @@ class Product extends Model
         'stock_qty',
         'unit',
         'sales_mode',
+        'age_restriction',
         'is_active',
         'is_featured',
         'is_new',
@@ -112,6 +116,7 @@ class Product extends Model
             'stock_qty' => 'integer',
             'reserved_qty' => 'integer',
             'sales_mode' => SalesMode::class,
+            'age_restriction' => AgeRestriction::class,
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
             'is_new' => 'boolean',
@@ -157,6 +162,18 @@ class Product extends Model
     {
         $query->where($query->qualifyColumn('is_active'), true)
             ->whereIn($query->qualifyColumn('category_id'), app(CategoryTree::class)->visibleCategoryIds());
+    }
+
+    /**
+     * Products the current storefront viewer may see: active ones in the categories of the viewer's customer group
+     * (CG-13). Use it for every storefront query; admin and console code uses {@see scopeActive()} or no scope.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public function scopeStorefront(Builder $query): void
+    {
+        $query->active();
+        app(ViewerContext::class)->access()->applyToProducts($query, $query->qualifyColumn('category_id'));
     }
 
     /**

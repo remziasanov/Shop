@@ -4,47 +4,39 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use App\Enums\UserRole;
 use App\Models\PriceRule;
 use App\Models\User;
+use App\Policies\Concerns\ChecksPermissions;
 
 /**
- * Price rules: administrators manage them, managers only view (TZ 6.13).
+ * Price rules (TZ 6.13, 25.4): `price_rules.view|create|update|delete`; managers get view only by default.
  */
 class PriceRulePolicy
 {
+    use ChecksPermissions;
+
     public function viewAny(User $user): bool
     {
-        return $this->views($user);
+        return $this->allows($user, 'price_rules.view');
     }
 
     public function view(User $user, PriceRule $rule): bool
     {
-        return $this->views($user);
+        return $this->allows($user, 'price_rules.view');
     }
 
     public function create(User $user): bool
     {
-        return $this->administers($user);
+        return $this->allows($user, 'price_rules.create');
     }
 
     public function update(User $user, PriceRule $rule): bool
     {
-        return $this->administers($user);
+        return $this->allows($user, 'price_rules.update');
     }
 
     public function delete(User $user, PriceRule $rule): bool
     {
-        return $this->administers($user);
-    }
-
-    private function views(User $user): bool
-    {
-        return $user->is_active && in_array($user->role, [UserRole::Admin, UserRole::Manager], true);
-    }
-
-    private function administers(User $user): bool
-    {
-        return $user->is_active && $user->role === UserRole::Admin;
+        return $this->allows($user, 'price_rules.delete');
     }
 }

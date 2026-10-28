@@ -29,11 +29,11 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * The Filament Builder of the home page (5.2, AD-20): block types, their fields and labels.
- * The «HTML» block exists only for administrators (6.13).
+ * The «HTML» block exists only for users with `html_block.edit` (6.13).
  */
 final class HomeBlocksSchema
 {
-    public static function builder(bool $isAdmin): Builder
+    public static function builder(bool $canEditHtml): Builder
     {
         $blocks = [
             self::banner(),
@@ -44,7 +44,7 @@ final class HomeBlocksSchema
             self::advantages(),
         ];
 
-        if ($isAdmin) {
+        if ($canEditHtml) {
             $blocks[] = self::html();
         }
 

@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
-use App\Enums\UserRole;
+use App\Enums\SystemRole;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -33,7 +34,7 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
-            'role' => UserRole::Manager,
+            'role_id' => fn (): int => self::systemRoleId(SystemRole::Manager),
             'is_active' => true,
         ];
     }
@@ -50,16 +51,38 @@ class UserFactory extends Factory
 
     public function admin(): static
     {
-        return $this->state(fn (array $attributes) => ['role' => UserRole::Admin]);
+        return $this->state(fn (array $attributes) => ['role_id' => self::systemRoleId(SystemRole::Admin)]);
     }
 
     public function manager(): static
     {
-        return $this->state(fn (array $attributes) => ['role' => UserRole::Manager]);
+        return $this->state(fn (array $attributes) => ['role_id' => self::systemRoleId(SystemRole::Manager)]);
+    }
+
+    public function withRole(Role $role): static
+    {
+        return $this->state(fn (array $attributes) => ['role_id' => $role->getKey()]);
+    }
+
+    /**
+     * A user of a new custom role holding exactly these permissions.
+     *
+     * @param  list<string>  $permissions
+     */
+    public function withPermissions(array $permissions): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role_id' => Role::factory()->withPermissions($permissions)->create()->getKey(),
+        ]);
     }
 
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => ['is_active' => false]);
+    }
+
+    private static function systemRoleId(SystemRole $role): int
+    {
+        return (int) Role::query()->where('code', $role->value)->value('id');
     }
 }

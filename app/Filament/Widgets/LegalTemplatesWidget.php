@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Filament\Widgets;
 
+use App\Models\User;
 use App\Services\Content\LegalPageStatus;
+use App\Services\Users\PermissionService;
 use Filament\Widgets\Widget;
 
 /**
@@ -22,7 +24,11 @@ class LegalTemplatesWidget extends Widget
 
     public static function canView(): bool
     {
-        return (auth()->user()?->isAdmin() ?? false) && app(LegalPageStatus::class)->pendingTitles() !== [];
+        $user = auth()->user();
+
+        return $user instanceof User
+            && app(PermissionService::class)->allows($user, 'settings.legal.update')
+            && app(LegalPageStatus::class)->pendingTitles() !== [];
     }
 
     /**

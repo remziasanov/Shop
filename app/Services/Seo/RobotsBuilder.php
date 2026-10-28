@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Seo;
 
+use App\Enums\StorefrontSection;
+use App\Services\Access\CatalogAccess;
 use App\Settings\SeoSettings;
 
 /**
@@ -12,7 +14,10 @@ use App\Settings\SeoSettings;
  */
 final class RobotsBuilder
 {
-    public function __construct(private readonly SeoSettings $seo) {}
+    public function __construct(
+        private readonly SeoSettings $seo,
+        private readonly CatalogAccess $access,
+    ) {}
 
     public function build(): string
     {
@@ -24,7 +29,14 @@ final class RobotsBuilder
         }
 
         // The admin path is configurable (ADMIN_PATH): always keep it disallowed, plus the order pages.
-        foreach ([$admin, '/order/'] as $path) {
+        $paths = [$admin, '/order/'];
+
+        // CG-15: built for the «Гость» group; when it has no catalog section, crawlers are told to stay out of it.
+        if (! $this->access->guest()->allowsSection(StorefrontSection::Catalog)) {
+            array_push($paths, '/catalog', '/product/');
+        }
+
+        foreach ($paths as $path) {
             if (preg_match('/^Disallow:\s*'.preg_quote($path, '/').'\s*$/mi', $text) !== 1) {
                 $text = preg_match('/^User-agent:\s*\*\s*$/mi', $text) === 1
                     ? (string) preg_replace('/^(User-agent:\s*\*\s*)$/mi', "$1\nDisallow: ".$path, $text, 1)

@@ -7,6 +7,7 @@ namespace App\Services\Catalog;
 use App\Exceptions\CategoryTreeException;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\Access\AccessSet;
 use App\Services\Pricing\PriceRuleRecalculator;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Facades\DB;
@@ -198,14 +199,16 @@ final class CategoryTree
      * Soft-deleted products are not counted.
      *
      * With $storefront = true only active products in visible categories are counted (SF-16),
-     * and invisible categories get 0.
+     * and invisible categories get 0. With an {@see AccessSet} only the products the group may see are counted
+     * (a navigation parent of the «only» mode counts the products of its visible subtree).
      *
      * @return array<int, int> category id => number of products
      */
-    public function productCountsWithDescendants(bool $storefront = false): array
+    public function productCountsWithDescendants(bool $storefront = false, ?AccessSet $access = null): array
     {
         $direct = Product::query()
             ->when($storefront, fn ($query) => $query->where('is_active', true))
+            ->when($access !== null, fn ($query) => $access?->applyToProducts($query, 'category_id'))
             ->selectRaw('category_id, count(*) as aggregate')
             ->groupBy('category_id')
             ->pluck('aggregate', 'category_id')
@@ -465,7 +468,7 @@ final class CategoryTree
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->orderBy('id')
-                ->get(['id', 'parent_id', 'name', 'slug', 'is_active', 'sales_mode', 'sort_order', 'depth', 'path', 'image_path'])
+                ->get(['id', 'parent_id', 'name', 'slug', 'is_active', 'sales_mode', 'sort_order', 'depth', 'path', 'image_path', 'age_restriction'])
                 ->map(fn (Category $category): array => $category->getAttributes())
                 ->all();
         });

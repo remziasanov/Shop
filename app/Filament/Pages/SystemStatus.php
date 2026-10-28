@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
+use App\Models\User;
 use App\Services\System\CheckResult;
 use App\Services\System\EnvironmentChecker;
+use App\Services\Users\PermissionService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
@@ -25,7 +27,9 @@ class SystemStatus extends Page
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isAdmin() ?? false;
+        $user = auth()->user();
+
+        return $user instanceof User && app(PermissionService::class)->allows($user, 'system.view');
     }
 
     public static function getNavigationGroup(): string|UnitEnum|null

@@ -8,8 +8,11 @@ use App\Enums\BulkPriceOperation;
 use App\Enums\PriceChangeSource;
 use App\Jobs\ApplyBulkPriceChange;
 use App\Models\Product;
+use App\Models\User;
 use App\Rules\PositiveAmount;
+use App\Services\Users\PermissionService;
 use App\Support\Money;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -31,7 +34,10 @@ final class BulkPriceChanger
     /** Largest value of a decimal(12,2) column, in kopecks. */
     private const MAX_KOPECKS = 999_999_999_999;
 
-    public function __construct(private readonly PriceChangeContext $context) {}
+    public function __construct(
+        private readonly PriceChangeContext $context,
+        private readonly PermissionService $permissions,
+    ) {}
 
     /**
      * New price for an old one (both in kopecks).
@@ -123,14 +129,21 @@ final class BulkPriceChanger
     /**
      * Queue the change as {@see ApplyBulkPriceChange} jobs of up to {@see JOB_SIZE} products (a job must stay
      * within 40 s on shared hosting). The acting user is passed along, because queue workers have no session.
+     * The change needs the `prices.bulk` right of the actor (RB-11), whatever UI calls this.
      *
      * @param  iterable<int>  $ids
      * @return array{products: int, jobs: int}
      *
      * @throws InvalidArgumentException when the value is not a positive number
+     * @throws AuthorizationException when the actor lacks `prices.bulk`
      */
-    public function dispatch(iterable $ids, BulkPriceOperation $operation, string $value, ?int $userId): array
+    public function dispatch(iterable $ids, BulkPriceOperation $operation, string $value, User $actor): array
     {
+        if (! $this->permissions->allows($actor, 'prices.bulk')) {
+            throw new AuthorizationException;
+        }
+
+        $userId = (int) $actor->getKey();
         $targets = $this->computeTargets($ids, $operation, $value);
 
         foreach (array_chunk($targets, self::JOB_SIZE, true) as $chunk) {

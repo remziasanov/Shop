@@ -33,6 +33,7 @@ function appendixSynonyms(): array
         'sort' => ['Порядок', 'сортировка', 'sort'],
         'meta_title' => ['Meta title', 'seo title'],
         'meta_description' => ['Meta description', 'seo description'],
+        'age' => ['Возраст', 'возрастное ограничение', 'age'],
     ];
 }
 
@@ -92,7 +93,7 @@ it('maps the categories sheet columns', function () {
     expect((new ColumnMapper)->autoMapCategories(['Путь*', 'Описание', 'Порядок', 'Активна', 'Режим продажи', 'Фото', 'Meta title', 'Meta description', 'Лишнее']))
         ->toBe([0 => 'path', 1 => 'description', 2 => 'sort', 3 => 'active', 4 => 'sales_mode', 5 => 'photo', 6 => 'meta_title', 7 => 'meta_description', 8 => null]);
 
-    expect(CategorySheetField::cases())->toHaveCount(8);
+    expect(CategorySheetField::cases())->toHaveCount(9);
 });
 
 it('maps a raw row through a mapping', function () {

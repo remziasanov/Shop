@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\RoundingStep;
 use App\Enums\SalesMode;
+use App\Filament\Pages\Settings\ManageAgeGateSettings;
 use App\Filament\Pages\Settings\ManageAppearanceSettings;
 use App\Filament\Pages\Settings\ManageGeneralSettings;
 use App\Filament\Pages\Settings\ManageLegalSettings;
@@ -29,6 +30,7 @@ beforeEach(function () {
 it('renders every settings page', function (string $page) {
     Livewire::test($page)->assertOk();
 })->with([
+    ManageAgeGateSettings::class,
     ManageGeneralSettings::class,
     ManageAppearanceSettings::class,
     ManageSalesSettings::class,

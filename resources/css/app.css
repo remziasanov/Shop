@@ -21,3 +21,65 @@
 [x-cloak] {
     display: none !important;
 }
+
+/*
+ * Age gate (TZ 16, AG-05, AG-07). The markup never depends on the visitor: cards of restricted products carry
+ * data-age="16|18", the layout sets data-age-on / data-age-badge on <html> from the settings and a tiny inline script
+ * sets data-age-ok from the shop_age cookie before the first paint. Everything below is decided here, so cached
+ * fragments stay valid for every visitor. Without JavaScript the images stay blurred and the overlay is a plain form.
+ */
+.age-media {
+    position: relative;
+}
+
+.age-badge {
+    display: none;
+}
+
+html[data-age-on] [data-age] .age-media-img {
+    filter: blur(16px);
+    transform: scale(1.05);
+}
+
+html[data-age-on][data-age-badge] [data-age] .age-badge {
+    display: inline-block;
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 1;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    background: #b91c1c;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25rem;
+}
+
+html[data-age-ok='18'] [data-age] .age-media-img,
+html[data-age-ok='16'] [data-age='16'] .age-media-img {
+    filter: none;
+    transform: none;
+}
+
+html[data-age-ok='18'] [data-age] .age-badge,
+html[data-age-ok='16'] [data-age='16'] .age-badge {
+    display: none;
+}
+
+.age-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgb(15 23 42 / 0.85);
+    overflow-y: auto;
+}
+
+html[data-age-ok='18'] .age-gate,
+html[data-age-ok='16'] .age-gate[data-age-need='16'] {
+    display: none;
+}

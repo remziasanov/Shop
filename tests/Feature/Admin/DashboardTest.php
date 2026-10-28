@@ -172,7 +172,7 @@ it('shows the cron warning on the system page too', function (): void {
 it('renders the cron instructions with both lines and requires authentication', function (): void {
     $this->get(route('admin.help.cron'))->assertRedirect();
 
-    actingAs(User::factory()->create(['role' => 'manager']));
+    actingAs(User::factory()->manager()->create());
 
     $this->get(route('admin.help.cron'))
         ->assertOk()
@@ -186,7 +186,7 @@ it('reminds administrators, but not managers, about template legal pages', funct
     expect(Page::query()->where('slug', DefaultPageTemplates::PRIVACY_SLUG)->exists())->toBeTrue();
     $notice = 'Шаблон — проверить у юриста';
 
-    actingAs(User::factory()->create(['role' => 'manager']));
+    actingAs(User::factory()->manager()->create());
     $this->get(Dashboard::getUrl())->assertDontSee($notice);
 
     actingAs(User::factory()->admin()->create());

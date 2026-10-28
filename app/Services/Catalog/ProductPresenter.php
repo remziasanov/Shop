@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services\Catalog;
 
+use App\Enums\PriceDisplayMode;
 use App\Enums\StockDisplay;
+use App\Enums\StorefrontSection;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Services\Access\AccessSet;
+use App\Services\Access\ViewerContext;
+use App\Services\Age\AgeRestrictionResolver;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\ProductActions;
 use App\Settings\AppearanceSettings;
@@ -24,6 +29,8 @@ final class ProductPresenter
         private readonly AvailabilityService $availability,
         private readonly SalesSettings $sales,
         private readonly AppearanceSettings $appearance,
+        private readonly AgeRestrictionResolver $age,
+        private readonly ViewerContext $viewer,
     ) {}
 
     /**
@@ -46,11 +53,15 @@ final class ProductPresenter
      */
     public function present(Product $product, bool $absolute = true): ProductView
     {
-        $onRequest = $product->price_on_request;
-        $discount = $onRequest ? null : $product->discountPercent();
+        $access = $this->viewer->access();
+        // CG-06: a group that sees no prices gets a replacement text; nothing price-related is rendered.
+        $priceHidden = ! $access->showsPrices() && ! $product->price_on_request;
+        $onRequest = $product->price_on_request || $priceHidden;
+        $discount = $onRequest || ! $access->allowsSection(StorefrontSection::Promotions) ? null : $product->discountPercent();
         $oldPrice = (! $onRequest && $product->display_old_price !== null && $discount !== null)
             ? Money::format(Money::fromRubles($product->display_old_price))
             : null;
+        $loginPrice = $priceHidden && $access->priceDisplay === PriceDisplayMode::Login;
 
         $productActions = $this->availability->actionsFor($product);
         $image = $product->relationLoaded('mainImage') ? $product->mainImage : null;
@@ -59,16 +70,23 @@ final class ProductPresenter
             product: $product,
             url: route('product.show', $product->slug, $absolute),
             priceOnRequest: $onRequest,
-            price: $onRequest ? __('storefront.product.price_on_request') : Money::format(Money::fromRubles($product->final_price)),
+            price: match (true) {
+                $loginPrice => __('customer_groups.storefront.price_login'),
+                $onRequest => __('storefront.product.price_on_request'),
+                default => Money::format(Money::fromRubles($product->final_price)),
+            },
             oldPrice: $oldPrice,
             discount: $discount,
-            labels: $this->labels($product, $oldPrice !== null),
-            availability: $this->availability($product),
+            labels: $this->labels($product, $oldPrice !== null, $access),
+            availability: $this->availability($product, $access),
             mode: $productActions->mode,
             actions: $this->actions($productActions),
             productActions: $productActions,
             image: $image !== null ? $this->image($image, $product) : null,
             placeholderUrl: $this->placeholderUrl(),
+            age: $this->age->forProduct($product),
+            priceHidden: $priceHidden,
+            priceLoginUrl: $loginPrice ? route('customer.login', [], $absolute) : null,
         );
     }
 
@@ -106,15 +124,16 @@ final class ProductPresenter
     /**
      * @return list<array{key: string, text: string}>
      */
-    private function labels(Product $product, bool $onSale): array
+    private function labels(Product $product, bool $onSale, AccessSet $access): array
     {
         $labels = [];
+        $featured = $access->allowsSection(StorefrontSection::Featured);
 
-        if ($product->is_featured) {
+        if ($featured && $product->is_featured) {
             $labels[] = ['key' => 'hit', 'text' => __('storefront.labels.hit')];
         }
 
-        if ($product->is_new) {
+        if ($featured && $product->is_new) {
             $labels[] = ['key' => 'new', 'text' => __('storefront.labels.new')];
         }
 
@@ -130,8 +149,11 @@ final class ProductPresenter
      *
      * @return array{text: string, state: string}|null
      */
-    private function availability(Product $product): ?array
+    private function availability(Product $product, AccessSet $access): ?array
     {
+        // CG-27: the display mode of the group; «inherit» follows the sales settings.
+        $display = $access->stockDisplay->resolve($this->sales->stock_display);
+
         $available = $product->availableQty();
 
         if (! $this->sales->stock_tracking || $available === null) {
@@ -142,11 +164,11 @@ final class ProductPresenter
             return ['text' => __('storefront.availability.out'), 'state' => 'out'];
         }
 
-        if ($this->sales->stock_display === StockDisplay::Exact) {
+        if ($display === StockDisplay::Exact) {
             return ['text' => __('storefront.availability.exact', ['qty' => $available, 'unit' => $product->unit]), 'state' => 'in'];
         }
 
-        if ($this->sales->stock_display === StockDisplay::Low && $available <= $this->sales->low_stock_threshold) {
+        if ($display === StockDisplay::Low && $available <= $this->sales->low_stock_threshold) {
             return ['text' => __('storefront.availability.low'), 'state' => 'low'];
         }
 

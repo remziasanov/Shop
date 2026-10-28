@@ -4,21 +4,26 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Enums\UserRole;
+use App\Services\Users\PermissionService;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 /**
- * @property UserRole $role
+ * Staff account. Rights come from the role and are checked only through
+ * {@see PermissionService}; `role_id` is not mass assignable.
+ *
+ * @property int|null $role_id
  * @property bool $is_active
+ * @property Role|null $role
  */
-#[Fillable(['name', 'email', 'password', 'role', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -35,14 +40,17 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'role' => UserRole::class,
+            'role_id' => 'integer',
             'is_active' => 'boolean',
         ];
     }
 
-    public function isAdmin(): bool
+    /**
+     * @return BelongsTo<Role, $this>
+     */
+    public function role(): BelongsTo
     {
-        return $this->role === UserRole::Admin;
+        return $this->belongsTo(Role::class);
     }
 
     public function canAccessPanel(Panel $panel): bool

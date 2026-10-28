@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Enums\StorefrontSection;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CatalogFilterRequest;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\ProductPresenter;
 use App\Services\Search\SearchNormalizer;
 use Illuminate\Http\JsonResponse;
@@ -20,16 +22,20 @@ class SearchSuggestController extends Controller
     /**
      * SF-21: up to 8 products for the live search dropdown.
      */
-    public function __invoke(CatalogFilterRequest $request, SearchNormalizer $normalizer, ProductPresenter $presenter): JsonResponse
+    public function __invoke(CatalogFilterRequest $request, SearchNormalizer $normalizer, ProductPresenter $presenter, ViewerContext $viewer): JsonResponse
     {
         $term = $request->searchTerm();
 
-        if (mb_strlen($normalizer->normalize($term)) < self::MIN_LENGTH) {
+        // CG-04, CG-13: a group without the search or catalog section gets no suggestions (and nothing hidden leaks).
+        $access = $viewer->access();
+
+        if (! $access->allowsSection(StorefrontSection::Search) || ! $access->allowsSection(StorefrontSection::Catalog)
+            || mb_strlen($normalizer->normalize($term)) < self::MIN_LENGTH) {
             return response()->json(['items' => []]);
         }
 
         $products = Product::query()
-            ->active()
+            ->storefront()
             ->search($term)
             ->with('mainImage')
             ->orderBy('sort_order')
@@ -43,8 +49,11 @@ class SearchSuggestController extends Controller
                 'name' => $view->product->name,
                 'sku' => $view->product->sku,
                 'url' => $view->url,
-                'price' => $view->price,
+                // CG-06: no price for a group that does not see prices.
+                'price' => $view->priceHidden ? null : $view->price,
                 'image' => $view->product->mainImage?->urlSmall(),
+                // AG-05: 16 / 18 / null; the dropdown renders it as data-age, CSS does the blur.
+                'age' => $view->age?->minAge(),
             ];
         }
 

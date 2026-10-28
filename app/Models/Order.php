@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\AgeRestriction;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Services\Stock\StockService;
@@ -45,6 +46,7 @@ use Illuminate\Support\Str;
  * @property string $consent_ip
  * @property string|null $user_agent
  * @property bool $stock_applied
+ * @property AgeRestriction|null $age_confirmed_level age the customer confirmed at checkout (AG-11)
  * @property CarbonInterface|null $expiring_notified_at
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
@@ -77,6 +79,7 @@ class Order extends Model
         'consent_at',
         'consent_ip',
         'user_agent',
+        'age_confirmed_level',
     ];
 
     protected static function booted(): void
@@ -109,6 +112,7 @@ class Order extends Model
             'desired_date' => 'date',
             'consent_at' => 'datetime',
             'stock_applied' => 'boolean',
+            'age_confirmed_level' => AgeRestriction::class,
             'expiring_notified_at' => 'datetime',
         ];
     }
