@@ -475,7 +475,9 @@ class CreateImport extends Page
         }
 
         try {
-            app(ImportRunner::class)->start($import);
+            $actor = auth()->user();
+
+            app(ImportRunner::class)->start($import, $actor instanceof User ? $actor : abort(403));
         } catch (\LogicException) {
             $this->notifyWrongState();
 

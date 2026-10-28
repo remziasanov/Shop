@@ -42,7 +42,7 @@ final class CatalogExporter
     private const COLUMNS = [
         'id', 'category_id', 'sku', 'name', 'brand', 'short_description', 'description', 'base_price', 'cost_price',
         'compare_at_price', 'price_on_request', 'stock_qty', 'unit', 'sales_mode', 'is_active', 'is_featured',
-        'is_new', 'sort_order', 'meta_title', 'meta_description', 'attributes',
+        'is_new', 'sort_order', 'meta_title', 'meta_description', 'age_restriction', 'attributes',
     ];
 
     public function __construct(private readonly CategoryTree $tree) {}
@@ -241,6 +241,7 @@ final class CatalogExporter
             $product->sort_order,
             $product->meta_title,
             $product->meta_description,
+            $product->age_restriction?->value,
         ];
 
         foreach ($attributeNames as $name) {
@@ -288,6 +289,7 @@ final class CatalogExporter
                 $node->imagePath !== null ? $disk->url($node->imagePath) : null,
                 $detail?->meta_title,
                 $detail?->meta_description,
+                $node->ageRestriction?->value,
             ]);
         }
     }

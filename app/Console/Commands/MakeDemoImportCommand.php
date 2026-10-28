@@ -16,7 +16,8 @@ class MakeDemoImportCommand extends Command
     public function handle(DemoImportBuilder $builder): int
     {
         $dir = (string) $this->option('dir');
-        $dir = str_starts_with($dir, '/') ? $dir : base_path($dir);
+        // Absolute POSIX or Windows (C:\..., \\server) path, otherwise relative to the project.
+        $dir = preg_match('#^([/\\\\]|[A-Za-z]:[/\\\\])#', $dir) === 1 ? $dir : base_path($dir);
 
         $result = $builder->build($dir);
 

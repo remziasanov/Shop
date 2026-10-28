@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Enums\StorefrontSection;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
+use App\Services\Age\AgeGate;
 use App\Services\Catalog\Breadcrumbs;
 use App\Services\Catalog\ProductPresenter;
 use App\Services\Seo\SeoBuilder;
@@ -19,16 +22,19 @@ class ProductController extends Controller
      * SF-30…SF-32, SF-34…SF-36. Inactive or soft-deleted products and products of invisible
      * categories are 404 (SF-16); the redirect handler may still turn that into a 301 (SF-80).
      */
-    public function show(string $slug, ProductPresenter $presenter, Breadcrumbs $breadcrumbs, SeoBuilder $seo): View
+    public function show(string $slug, ProductPresenter $presenter, Breadcrumbs $breadcrumbs, SeoBuilder $seo, AgeGate $ageGate, ViewerContext $viewer): View
     {
+        $viewer->requireSection(StorefrontSection::Catalog);
+
+        // CG-13: a product of a category hidden from the group is a plain 404.
         $product = Product::query()
-            ->active()
+            ->storefront()
             ->where('slug', $slug)
             ->with(['images', 'category'])
             ->firstOrFail();
 
         $similar = Product::query()
-            ->active()
+            ->storefront()
             ->where('category_id', $product->category_id)
             ->whereKeyNot($product->id)
             ->with('mainImage')
@@ -39,6 +45,9 @@ class ProductController extends Controller
             ->get();
 
         $view = $presenter->present($product);
+
+        // AG-04: the overlay of the «restricted» mode asks for the effective level of this product.
+        $ageGate->setPageLevel($view->age);
         $trail = $breadcrumbs->forCategory($product->category_id, $product->name);
 
         return view('storefront.product.show', [
@@ -49,7 +58,9 @@ class ProductController extends Controller
             'description' => $product->safeDescription(),
             'similar' => $presenter->many($similar),
             'breadcrumbs' => $trail,
-            'seo' => $seo->product($product, $view, $trail),
+            'seo' => $viewer->noindexUnlessGuestSees(fn ($guest): bool => $guest->canSeeProduct($product))
+                ? $seo->product($product, $view, $trail)->withRobots('noindex,nofollow')
+                : $seo->product($product, $view, $trail),
         ]);
     }
 }

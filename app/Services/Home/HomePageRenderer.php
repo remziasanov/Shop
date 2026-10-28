@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services\Home;
 
+use App\Enums\StorefrontSection;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CatalogFilters;
+use App\Services\Catalog\CatalogVersion;
 use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\ProductPresenter;
@@ -21,14 +24,14 @@ use Illuminate\Support\Facades\Storage;
  * Renders the home page blocks (5.2, D-054). Only visible blocks are rendered, in their saved order.
  * Without any renderable block the page shows the root categories and the 12 latest products.
  *
- * The HTML is cached for 10 minutes under {@see CACHE_KEY} and dropped by {@see HomePageServiceProvider}
- * listeners. Product cards contain plain POST forms with a CSRF token (NF-02), which is per session:
+ * The HTML is cached for 10 minutes per customer group under `home:{group}:{catalog_version}` ({@see cacheKey()}, CG-19);
+ * the {@see HomePageServiceProvider} listeners move the catalog version on, which retires every group's copy. Product cards contain plain POST forms with a CSRF token (NF-02), which is per session:
  * the token is swapped for a placeholder before caching and filled in for the current session on every
  * {@see render()}, so the cached markup never serves a foreign or stale token.
  */
 final class HomePageRenderer
 {
-    public const CACHE_KEY = 'home.html';
+    public const CACHE_KEY = 'home';
 
     public const CACHE_TTL = 600;
 
@@ -44,6 +47,7 @@ final class HomePageRenderer
         private readonly ProductPresenter $presenter,
         private readonly AppearanceSettings $appearance,
         private readonly HtmlSanitizer $sanitizer,
+        private readonly ViewerContext $viewer,
     ) {}
 
     public function render(): string
@@ -59,11 +63,12 @@ final class HomePageRenderer
      */
     public function page(): array
     {
-        $cached = Cache::get(self::CACHE_KEY);
+        $key = self::cacheKey();
+        $cached = Cache::get($key);
 
         if (! is_array($cached) || ! is_string($cached['html'] ?? null) || ! is_array($cached['preload'] ?? null)) {
             $cached = $this->build();
-            Cache::put(self::CACHE_KEY, $cached, self::CACHE_TTL);
+            Cache::put($key, $cached, self::CACHE_TTL);
         }
 
         return [
@@ -72,9 +77,20 @@ final class HomePageRenderer
         ];
     }
 
+    /**
+     * Cache key of the home page of the current viewer's group (CG-19): `home:{group}:{catalog_version}`.
+     */
+    public static function cacheKey(): string
+    {
+        return self::CACHE_KEY.':'.app(ViewerContext::class)->access()->cacheKey().':'.CatalogVersion::current();
+    }
+
+    /**
+     * Retires the cached home page of every group (and every other cache keyed by the catalog version).
+     */
     public static function forget(): void
     {
-        Cache::forget(self::CACHE_KEY);
+        CatalogVersion::bump();
     }
 
     /**
@@ -259,6 +275,10 @@ final class HomePageRenderer
      */
     private function categories(array $data): ?array
     {
+        if (! $this->viewer->access()->allowsSection(StorefrontSection::Catalog)) {
+            return null;
+        }
+
         $max = max(1, min(24, (int) ($data['max_count'] ?? 8)));
 
         if (($data['mode'] ?? 'auto') === 'selected') {
@@ -286,11 +306,25 @@ final class HomePageRenderer
      */
     private function products(array $data, bool $first): ?array
     {
+        $access = $this->viewer->access();
         $source = is_string($data['source'] ?? null) ? $data['source'] : 'hits';
+
+        // CG-04: product links need the catalog; hits / new need «featured», discounts need «promotions» and prices.
+        $allowed = $access->allowsSection(StorefrontSection::Catalog) && match ($source) {
+            'new' => $access->allowsSection(StorefrontSection::Featured),
+            'discounted' => $access->allowsSection(StorefrontSection::Promotions) && $access->showsPrices(),
+            'category', 'manual' => true,
+            default => $access->allowsSection(StorefrontSection::Featured),
+        };
+
+        if (! $allowed) {
+            return null;
+        }
+
         $limit = max(1, min(24, (int) ($data['limit'] ?? 8)));
         $sort = is_string($data['sort'] ?? null) ? $data['sort'] : 'default';
 
-        $query = Product::query()->active()->with('mainImage');
+        $query = Product::query()->storefront()->with('mainImage');
         $manualOrder = [];
 
         switch ($source) {
@@ -418,13 +452,18 @@ final class HomePageRenderer
     private function fallback(): array
     {
         $parts = [];
+
+        if (! $this->viewer->access()->allowsSection(StorefrontSection::Catalog)) {
+            return [];
+        }
+
         $tiles = $this->tiles($this->tree->roots());
 
         if ($tiles !== []) {
             $parts[] = view('storefront.home.blocks.categories', ['title' => __('storefront.catalog.categories'), 'tiles' => $tiles])->render();
         }
 
-        $products = Product::query()->active()->with('mainImage')
+        $products = Product::query()->storefront()->with('mainImage')
             ->orderByDesc('created_at')->orderByDesc('id')
             ->limit(self::FALLBACK_PRODUCTS)->get();
 
@@ -451,13 +490,14 @@ final class HomePageRenderer
     {
         $counts = null;
         $tiles = [];
+        $access = $this->viewer->access();
 
         foreach ($nodes as $node) {
-            if (! $node->isActive || ! $this->tree->isVisible($node->id)) {
+            if (! $node->isActive || ! $this->tree->isVisible($node->id) || ! $access->canSeeCategory($node->id)) {
                 continue;
             }
 
-            $counts ??= $this->tree->productCountsWithDescendants(true);
+            $counts ??= $this->tree->productCountsWithDescendants(true, $access);
             $tiles[] = [
                 'name' => $node->name,
                 'url' => route('catalog.category', $node->slug, false),

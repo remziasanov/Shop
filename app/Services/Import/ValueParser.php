@@ -129,6 +129,31 @@ final class ValueParser
     }
 
     /**
+     * Age restriction cell (AG-13): 16 or 18 («16+» is accepted too), 0 clears the own value, blank gives null
+     * (inherit / leave unchanged, by the empty-cell policy).
+     *
+     * @return 0|16|18|null
+     *
+     * @throws ValueParseException
+     */
+    public function age(?string $value): ?int
+    {
+        $value = $this->clean($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $compact = preg_replace('/[\s\x{00A0}\x{202F}\x{2009}]+/u', '', $value) ?? '';
+
+        if (preg_match('/^(?:0|(16|18)\+?)$/', $compact, $m) !== 1) {
+            throw new ValueParseException(__('import.errors.invalid_age'));
+        }
+
+        return isset($m[1]) ? (int) $m[1] : 0;
+    }
+
+    /**
      * Sales mode word. Returns null for a blank cell; the explicit "по умолчанию" gives
      * {@see SALES_MODE_DEFAULT} (set the product to inherit the category/global mode).
      *

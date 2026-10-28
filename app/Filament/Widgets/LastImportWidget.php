@@ -8,6 +8,7 @@ use App\Enums\ImportStatus;
 use App\Filament\Resources\Imports\ImportResource;
 use App\Models\Import;
 use App\Services\Dashboard\DashboardStats;
+use App\Services\Users\PermissionService;
 use Filament\Widgets\Widget;
 
 /**
@@ -16,6 +17,11 @@ use Filament\Widgets\Widget;
 class LastImportWidget extends Widget
 {
     protected static ?int $sort = 4;
+
+    public static function canView(): bool
+    {
+        return app(PermissionService::class)->allowsCurrent('imports.view');
+    }
 
     protected string $view = 'filament.widgets.last-import';
 

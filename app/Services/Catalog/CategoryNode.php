@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Catalog;
 
+use App\Enums\AgeRestriction;
 use App\Enums\SalesMode;
 use App\Models\Category;
 
@@ -26,6 +27,7 @@ final class CategoryNode
         public readonly int $depth,
         public readonly string $path,
         public readonly ?string $imagePath = null,
+        public readonly ?AgeRestriction $ageRestriction = null,
     ) {}
 
     /**
@@ -44,6 +46,7 @@ final class CategoryNode
             depth: (int) $row['depth'],
             path: (string) $row['path'],
             imagePath: $row['image_path'] !== null ? (string) $row['image_path'] : null,
+            ageRestriction: AgeRestriction::fromAge($row['age_restriction'] ?? null),
         );
     }
 
@@ -69,6 +72,7 @@ final class CategoryNode
             'depth' => $this->depth,
             'path' => $this->path,
             'image_path' => $this->imagePath,
+            'age_restriction' => $this->ageRestriction?->value,
         ]);
     }
 }

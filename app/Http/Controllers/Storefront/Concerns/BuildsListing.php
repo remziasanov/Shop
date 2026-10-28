@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Storefront\Concerns;
 
 use App\Enums\CatalogSort;
+use App\Enums\StorefrontSection;
 use App\Http\Requests\CatalogFilterRequest;
+use App\Services\Access\AccessSet;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CatalogQuery;
 use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
@@ -29,7 +32,8 @@ trait BuildsListing
         ?string $search = null,
         array $extraQuery = [],
     ): array {
-        $filters = $request->filters();
+        $access = app(ViewerContext::class)->access();
+        $filters = $request->filters()->restrictedTo($access);
         $result = app(CatalogQuery::class)->paginate($filters, $categoryIds, $search, $extraQuery);
 
         return [
@@ -37,11 +41,50 @@ trait BuildsListing
             'paginator' => $result->products,
             'brands' => $result->brands,
             'filters' => $filters,
-            'sortOptions' => CatalogSort::options(),
+            'sortOptions' => $this->sortOptions($access->showsPrices()),
+            'showPrices' => $access->showsPrices(),
+            'flagOptions' => $this->flagOptions($access),
             'gridColumns' => app(AppearanceSettings::class)->grid_columns === 3 ? 3 : 4,
             'formAction' => $request->url(),
             'extraQuery' => $extraQuery,
         ];
+    }
+
+    /**
+     * Label filters the group may use (CG-04): «хит» / «новинка» need the featured section, «скидка» the promotions
+     * section and visible prices.
+     *
+     * @return list<string>
+     */
+    private function flagOptions(AccessSet $access): array
+    {
+        $flags = [];
+
+        if ($access->allowsSection(StorefrontSection::Featured)) {
+            $flags = ['hit', 'new'];
+        }
+
+        if ($access->allowsSection(StorefrontSection::Promotions) && $access->showsPrices()) {
+            $flags[] = 'sale';
+        }
+
+        return $flags;
+    }
+
+    /**
+     * Sort options; the price sorts disappear when the group sees no prices (CG-06).
+     *
+     * @return array<string, string>
+     */
+    private function sortOptions(bool $showPrices): array
+    {
+        $options = CatalogSort::options();
+
+        if (! $showPrices) {
+            unset($options[CatalogSort::PriceAsc->value], $options[CatalogSort::PriceDesc->value]);
+        }
+
+        return $options;
     }
 
     /**
@@ -52,11 +95,12 @@ trait BuildsListing
      */
     private function tiles(array $nodes): array
     {
-        $counts = app(CategoryTree::class)->productCountsWithDescendants(true);
+        $access = app(ViewerContext::class)->access();
+        $counts = app(CategoryTree::class)->productCountsWithDescendants(true, $access);
         $tiles = [];
 
         foreach ($nodes as $node) {
-            if (! $node->isActive) {
+            if (! $node->isActive || ! $access->canSeeCategory($node->id)) {
                 continue;
             }
 

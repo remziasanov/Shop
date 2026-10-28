@@ -272,7 +272,7 @@ describe('cache', function () {
         $this->get(route('home'))->assertOk();
         $warm = count(DB::getQueryLog());
 
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeTrue()
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeTrue()
             ->and($warm)->toBeLessThan($cold);
     });
 
@@ -301,40 +301,40 @@ describe('cache', function () {
         Cache::flush();
 
         $this->get(route('home'))->assertSee('Исходный');
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeTrue();
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeTrue();
 
         // Builder
         storeHomeBlocks([homeBlock('text', ['title' => 'Из конструктора', 'content' => '<p>x</p>'])]);
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeFalse();
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeFalse();
         $this->get(route('home'))->assertSee('Из конструктора');
 
         // Product
         storeHomeBlocks([homeBlock('products', ['source' => 'hits', 'limit' => 8, 'sort' => 'default'])]);
         $this->get(route('home'))->assertSee('Исходный');
         $product->update(['name' => 'Переименованный']);
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeFalse();
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeFalse();
         $this->get(route('home'))->assertSee('Переименованный');
 
         // Product deleted
         $product->delete();
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeFalse();
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeFalse();
 
         // Category
         $this->get(route('home'));
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeTrue();
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeTrue();
         $category->update(['is_active' => false]);
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeFalse();
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeFalse();
     });
 
     it('is dropped when appearance settings change', function () {
         $this->get(route('home'));
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeTrue();
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeTrue();
 
         $appearance = app(AppearanceSettings::class);
         $appearance->per_page = 30;
         $appearance->save();
 
-        expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeFalse();
+        expect(Cache::has(HomePageRenderer::cacheKey()))->toBeFalse();
     });
 
     it('expires after ten minutes', function () {
@@ -362,8 +362,8 @@ it('gives every session its own csrf token in the cached add-to-cart forms', fun
 
     $first = $this->withSession(['_token' => 'token-of-first-session-0000000000000000'])->get(route('home'))->assertOk();
     $first->assertSee('name="_token" value="token-of-first-session-0000000000000000"', false);
-    expect(Cache::has(HomePageRenderer::CACHE_KEY))->toBeTrue()
-        ->and(Cache::get(HomePageRenderer::CACHE_KEY)['html'])->not->toContain('token-of-first-session');
+    expect(Cache::has(HomePageRenderer::cacheKey()))->toBeTrue()
+        ->and(Cache::get(HomePageRenderer::cacheKey())['html'])->not->toContain('token-of-first-session');
 
     $this->flushSession();
     $second = $this->withSession(['_token' => 'token-of-second-session-111111111111111'])->get(route('home'))->assertOk();

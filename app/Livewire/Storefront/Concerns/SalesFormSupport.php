@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Livewire\Storefront\Concerns;
 
+use App\Enums\AgeRestriction;
 use App\Exceptions\FormGuardException;
 use App\Services\Content\MenuService;
 use App\Services\Sales\FormGuard;
@@ -58,6 +59,35 @@ trait SalesFormSupport
             'comment' => ['nullable', 'string', 'max:2000'],
             'consent' => ['accepted'],
         ];
+    }
+
+    /**
+     * AG-11: the age to confirm (null = no checkbox). Forms with restricted products override it.
+     */
+    protected function ageLevel(): ?AgeRestriction
+    {
+        return null;
+    }
+
+    /**
+     * AG-11: the age checkbox is required exactly when the form's products are restricted (the using component
+     * provides ageLevel()). The server re-checks it in OrderService, independent of the form.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    protected function ageRules(): array
+    {
+        return $this->ageLevel() !== null ? ['ageConfirmed' => ['accepted']] : [];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function ageMessages(): array
+    {
+        $level = $this->ageLevel();
+
+        return $level !== null ? ['ageConfirmed.accepted' => __('age_gate.errors.confirm_required', ['age' => $level->minAge()])] : [];
     }
 
     protected function phoneRule(): Closure

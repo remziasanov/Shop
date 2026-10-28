@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use App\Enums\AgeRestriction;
 use App\Enums\EmptyCellPolicy;
 use App\Enums\ImportIssueLevel;
 use App\Enums\PhotoMode;
@@ -175,6 +176,15 @@ final class CategorySheetImporter
                 $changes['sales_mode'] = SalesMode::tryFrom($mode);
             } elseif ($mode === ValueParser::SALES_MODE_DEFAULT || $clear) {
                 $changes['sales_mode'] = null;
+            }
+        }
+
+        // AG-13: 16 / 18 set the level, 0 clears it, a blank cell follows the empty-cell policy.
+        if (array_key_exists('age', $line)) {
+            if (is_int($line['age'])) {
+                $changes['age_restriction'] = $line['age'] > 0 ? AgeRestriction::fromAge($line['age']) : null;
+            } elseif ($clear) {
+                $changes['age_restriction'] = null;
             }
         }
 

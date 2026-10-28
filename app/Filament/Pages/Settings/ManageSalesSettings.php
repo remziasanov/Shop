@@ -8,9 +8,11 @@ use App\Enums\SalesMode;
 use App\Enums\StockDisplay;
 use App\Filament\Concerns\AdminOnlySettingsPage;
 use App\Rules\RublesAmount;
+use App\Services\Sales\MethodCodes;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use BackedEnum;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -75,6 +77,8 @@ class ManageSalesSettings extends SettingsPage
                 Repeater::make('delivery_methods')
                     ->hiddenLabel()
                     ->schema([
+                        // CG-09: immutable method code, generated on save when missing.
+                        Hidden::make('code'),
                         TextInput::make('name')
                             ->label(__('shop.settings.sales.fields.method_name'))
                             ->required()
@@ -108,6 +112,8 @@ class ManageSalesSettings extends SettingsPage
                 Repeater::make('payment_methods')
                     ->hiddenLabel()
                     ->schema([
+                        // CG-09: immutable method code, generated on save when missing.
+                        Hidden::make('code'),
                         TextInput::make('name')
                             ->label(__('shop.settings.sales.fields.method_name'))
                             ->required()
@@ -201,6 +207,7 @@ class ManageSalesSettings extends SettingsPage
 
             return $method;
         }, $data['delivery_methods'] ?? []));
+        $data['delivery_methods'] = MethodCodes::ensure($data['delivery_methods']);
 
         $data['payment_methods'] = array_values(array_map(function (array $method): array {
             $method['description'] = filled($method['description'] ?? null) ? $method['description'] : null;
@@ -208,6 +215,7 @@ class ManageSalesSettings extends SettingsPage
 
             return $method;
         }, $data['payment_methods'] ?? []));
+        $data['payment_methods'] = MethodCodes::ensure($data['payment_methods']);
 
         return $data;
     }

@@ -8,9 +8,11 @@ use App\Http\Controllers\Admin\ImportFileDownloadController;
 use App\Http\Controllers\Admin\ImportProcessNextController;
 use App\Http\Controllers\Admin\ImportTemplateController;
 use App\Http\Controllers\Admin\OrderPrintController;
+use App\Http\Controllers\Storefront\AgeGateController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CatalogController;
 use App\Http\Controllers\Storefront\CheckoutController;
+use App\Http\Controllers\Storefront\CustomerLoginController;
 use App\Http\Controllers\Storefront\HomeController;
 use App\Http\Controllers\Storefront\OrderThanksController;
 use App\Http\Controllers\Storefront\PageController;
@@ -19,6 +21,7 @@ use App\Http\Controllers\Storefront\RobotsController;
 use App\Http\Controllers\Storefront\SearchController;
 use App\Http\Controllers\Storefront\SearchSuggestController;
 use App\Http\Controllers\Storefront\SitemapController;
+use App\Http\Controllers\Storefront\ViewerPreviewController;
 use Filament\Http\Middleware\Authenticate as FilamentAuthenticate;
 use Illuminate\Support\Facades\Route;
 
@@ -34,6 +37,18 @@ Route::get('/product/{slug}', [ProductController::class, 'show'])->name('product
 Route::get('/page/{slug}', [PageController::class, 'show'])->name('page.show');
 Route::get('/search', SearchController::class)->name('search');
 Route::get('/search/suggest', SearchSuggestController::class)->middleware('throttle:60,1')->name('search.suggest');
+
+// Age gate (stage 8, TZ 16): the answers of the overlay; both work as plain links / forms without JavaScript.
+Route::post('/age-gate/confirm', [AgeGateController::class, 'confirm'])->middleware('throttle:60,1')->name('age-gate.confirm');
+Route::get('/age-gate/decline', [AgeGateController::class, 'decline'])->name('age-gate.decline');
+
+// Customer groups (stage 8, CG-04, CG-06): the sign-in route that «войдите» links and hidden sections point to. A
+// placeholder page until stage 9 brings the customer accounts.
+Route::get('/account/login', CustomerLoginController::class)->name('customer.login');
+
+// CG-18: staff look at the storefront as a customer group (a flag of the staff session, not a customer login); POST so that CSRF protects it.
+Route::post('/preview-as/exit', [ViewerPreviewController::class, 'exit'])->name('viewer.preview.exit');
+Route::post('/preview-as/{group}', [ViewerPreviewController::class, 'enter'])->whereNumber('group')->name('viewer.preview');
 
 // Sales (stage 4): cart, checkout and the "thank you" page addressed by the order UUID (SF-40…47).
 Route::get('/cart', [CartController::class, 'show'])->name('cart');

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\View\Composers;
 
+use App\Enums\StorefrontSection;
 use App\Models\MenuItem;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\MenuService;
@@ -30,6 +32,7 @@ class StorefrontComposer
         private readonly CategoryTree $tree,
         private readonly CartAvailability $cartAvailability,
         private readonly MenuService $menus,
+        private readonly ViewerContext $viewer,
     ) {}
 
     /** @var array<string, mixed>|null Data built once per request (the composer runs for every storefront view and partial). */
@@ -57,6 +60,7 @@ class StorefrontComposer
         $phones = array_values(array_filter($this->general->phones, fn ($phone) => trim($phone) !== ''));
 
         $menus = $this->menus->all();
+        $access = $this->viewer->access();
 
         return [
             'shopName' => $this->general->shop_name,
@@ -78,6 +82,9 @@ class StorefrontComposer
             'sellerDetails' => $menus['seller'],
             'socialLinks' => $this->socialLinks(),
             'cartEnabled' => $this->cartAvailability->enabled(),
+            // CG-04: the header search needs the search and catalog sections.
+            'searchEnabled' => $access->allowsSection(StorefrontSection::Search) && $access->allowsSection(StorefrontSection::Catalog),
+            'previewGroup' => $this->viewer->isPreview() ? $this->viewer->group()->name : null,
         ];
     }
 
@@ -130,9 +137,15 @@ class StorefrontComposer
     private function menuCategories(): array
     {
         $menu = [];
+        $access = $this->viewer->access();
+
+        // CG-13: no category links for a group without the catalog section or for categories it may not open.
+        if (! $access->allowsSection(StorefrontSection::Catalog)) {
+            return [];
+        }
 
         foreach ($this->tree->roots() as $root) {
-            if (! $root->isActive) {
+            if (! $root->isActive || ! $access->canSeeCategory($root->id)) {
                 continue;
             }
 
@@ -141,7 +154,7 @@ class StorefrontComposer
                 'url' => route('catalog.category', $root->slug),
                 'children' => array_values(array_map(
                     fn (CategoryNode $child): array => ['name' => $child->name, 'url' => route('catalog.category', $child->slug)],
-                    array_filter($root->children, fn (CategoryNode $child): bool => $child->isActive),
+                    array_filter($root->children, fn (CategoryNode $child): bool => $child->isActive && $access->canSeeCategory($child->id)),
                 )),
             ];
         }

@@ -6,6 +6,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Products\ProductResource;
 use App\Services\Dashboard\DashboardStats;
+use App\Services\Users\PermissionService;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -15,6 +16,11 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 class ProductsStatsWidget extends StatsOverviewWidget
 {
     protected static ?int $sort = 2;
+
+    public static function canView(): bool
+    {
+        return app(PermissionService::class)->allowsCurrent('products.view');
+    }
 
     protected function getColumns(): int
     {

@@ -82,6 +82,7 @@ return [
         'sort' => 'Порядок',
         'meta_title' => 'Meta title',
         'meta_description' => 'Meta description',
+        'age' => 'Возраст',
     ],
 
     'category_fields' => [
@@ -93,6 +94,7 @@ return [
         'photo' => 'Фото',
         'meta_title' => 'Meta title',
         'meta_description' => 'Meta description',
+        'age' => 'Возраст',
     ],
 
     'mapping' => [
@@ -117,6 +119,7 @@ return [
         'invalid_stock' => 'Остаток должен быть целым числом не меньше 0.',
         'invalid_integer' => 'Значение должно быть целым числом.',
         'invalid_bool' => 'Допустимые значения: да / нет / 1 / 0 / true / false / + / −.',
+        'invalid_age' => 'Допустимые значения: 16, 18, пусто (наследовать) или 0 (очистить).',
         'invalid_sales_mode' => 'Допустимые значения: корзина, резерв, корзина и резерв, заявка, витрина, по умолчанию.',
         'duplicate_sku' => 'Артикул повторяется в файле (первая строка: :row).',
         'category_too_deep' => 'Путь категории глубже :max уровней.',

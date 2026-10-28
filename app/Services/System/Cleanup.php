@@ -9,6 +9,7 @@ use App\Models\Import;
 use App\Services\Cart\CartService;
 use App\Services\Export\ExportManager;
 use App\Services\Import\ImportWizard;
+use App\Services\Users\AuditLogger;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -33,11 +34,11 @@ final class Cleanup
     ) {}
 
     /**
-     * @return array{carts: int, imports: int, temp_files: int, exports: int, livewire: int, skipped: bool}
+     * @return array{carts: int, imports: int, temp_files: int, exports: int, livewire: int, audit_log: int, skipped: bool}
      */
     public function run(float $deadline): array
     {
-        $summary = ['carts' => 0, 'imports' => 0, 'temp_files' => 0, 'exports' => 0, 'livewire' => 0, 'skipped' => false];
+        $summary = ['carts' => 0, 'imports' => 0, 'temp_files' => 0, 'exports' => 0, 'livewire' => 0, 'audit_log' => 0, 'skipped' => false];
 
         $steps = [
             'carts' => fn (): int => $this->carts->clearOld(self::CART_DAYS, $deadline),
@@ -45,6 +46,8 @@ final class Cleanup
             'temp_files' => fn (): int => $this->purgeTemporary($deadline),
             'exports' => fn (): int => $this->exports->purgeOlderThan(null, $deadline),
             'livewire' => fn (): int => $this->purgeLivewire($deadline),
+            // RB-12: the admin action journal is kept for `shop.audit_retention_days` days.
+            'audit_log' => fn (): int => app(AuditLogger::class)->purgeOlderThan(),
         ];
 
         foreach ($steps as $key => $step) {

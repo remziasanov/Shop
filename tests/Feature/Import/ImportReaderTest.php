@@ -100,6 +100,8 @@ it('reads xlsx sheets by name and lists them', function () {
         ])
         ->and($reader->headers($path, 'Категории'))->toBe(['Путь*', 'Описание']);
 
+    // OpenSpout keeps the zip handle alive until its object cycle is collected; Windows can't unlink an open file.
+    gc_collect_cycles();
     unlink($path);
 });
 

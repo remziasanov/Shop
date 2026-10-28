@@ -102,7 +102,7 @@ it('shows the system page to admins only', function () {
 });
 
 it('forbids the system page for managers', function () {
-    $this->actingAs(User::factory()->create(['role' => 'manager']));
+    $this->actingAs(User::factory()->manager()->create());
     $this->get(SystemStatus::getUrl())->assertForbidden();
 });
 

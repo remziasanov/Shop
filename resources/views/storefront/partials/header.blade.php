@@ -13,6 +13,7 @@
         </a>
 
         {{-- SF-20, SF-21: search form with live suggestions (Alpine component "searchSuggest" in resources/js/app.js). --}}
+        @if ($searchEnabled)
         <form role="search" action="{{ route('search') }}" method="get"
               class="relative order-last w-full md:order-none md:ml-4 md:w-auto md:max-w-md md:flex-1"
               x-data="searchSuggest(@js(route('search.suggest')), @js($searchQuery))"
@@ -35,8 +36,10 @@
                 class="absolute inset-x-0 top-full z-40 mt-1 max-h-96 overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
                 <template x-for="(item, index) in items" :key="item.url">
                     <li role="option" :id="'suggest-' + index" :aria-selected="(index === active).toString()">
-                        <a :href="item.url" class="flex items-center gap-3 px-3 py-2 text-sm hover:bg-slate-50" :class="index === active ? 'bg-slate-100' : ''" @mouseenter="active = index">
-                            <img x-show="item.image" :src="item.image" alt="" width="40" height="40" loading="lazy" class="h-10 w-10 flex-none rounded object-cover">
+                        <a :href="item.url" class="flex items-center gap-3 px-3 py-2 text-sm hover:bg-slate-50" :class="index === active ? 'bg-slate-100' : ''" :data-age="item.age || null" @mouseenter="active = index">
+                            <span class="age-media h-10 w-10 flex-none overflow-hidden rounded">
+                                <img x-show="item.image" :src="item.image" alt="" width="40" height="40" loading="lazy" class="age-media-img h-10 w-10 object-cover">
+                            </span>
                             <span class="min-w-0 flex-1">
                                 <span class="block truncate" x-text="item.name"></span>
                                 <span class="block truncate text-xs text-slate-500" x-text="item.sku"></span>
@@ -50,6 +53,7 @@
                 </li>
             </ul>
         </form>
+        @endif
 
         <div class="ml-auto flex items-center gap-3">
             @if ($shopPhones !== [])

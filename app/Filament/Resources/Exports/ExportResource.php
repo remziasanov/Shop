@@ -12,6 +12,7 @@ use App\Filament\Resources\Exports\Pages\ListExports;
 use App\Models\Category;
 use App\Models\Export;
 use App\Models\User;
+use App\Services\Users\PermissionService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Resources\Resource;
@@ -72,7 +73,7 @@ class ExportResource extends Resource
         $query = parent::getEloquentQuery();
         $user = Auth::user();
 
-        if ($user instanceof User && ! $user->isAdmin()) {
+        if ($user instanceof User && ! app(PermissionService::class)->isAdministrator($user)) {
             $query->where('exports.user_id', $user->id);
         }
 

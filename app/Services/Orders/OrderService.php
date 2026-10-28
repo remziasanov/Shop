@@ -17,15 +17,19 @@ use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Access\ViewerContext;
+use App\Services\Age\AgeGate;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
 use App\Services\Stock\StockService;
+use App\Services\Users\PermissionService;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use App\Support\PhoneNormalizer;
 use App\Support\QtyLimit;
 use Carbon\CarbonInterface;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
@@ -50,6 +54,8 @@ final class OrderService
         private readonly CheckoutMethods $methods,
         private readonly CategoryTree $tree,
         private readonly SalesSettings $settings,
+        private readonly AgeGate $age,
+        private readonly ViewerContext $viewer,
     ) {}
 
     /**
@@ -62,6 +68,7 @@ final class OrderService
      */
     public function createFromCart(Cart $cart, CheckoutData $data): Order
     {
+        $this->viewer->assertNotPreview();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         $delivery = $this->methods->delivery($data->deliveryKey)
@@ -147,8 +154,16 @@ final class OrderService
                 return $reasons;
             }
 
+            // AG-11: checked on the server against the locked products, whatever the cookie says.
+            $ageLevel = $this->age->requiredForProducts(array_map(fn (array $line): Product => $line['product'], $lines));
+
+            if ($ageLevel !== null && ! $data->ageConfirmed) {
+                throw new SalesException(__('age_gate.errors.confirm_required', ['age' => $ageLevel->minAge()]));
+            }
+
             $itemsTotal = array_sum(array_map(fn (array $line): int => $line['price'] * $line['qty'], $lines));
-            $min = $this->settings->min_order_amount;
+            // CG-08: the group's minimum replaces the shop-wide one; checked on the server, against current prices.
+            $min = $this->viewer->access()->minOrderAmount ?? $this->settings->min_order_amount;
 
             if ($min > 0 && $itemsTotal < $min) {
                 throw new SalesException(__('sales.errors.min_order', [
@@ -170,6 +185,7 @@ final class OrderService
                 'items_total' => Money::toRubles($itemsTotal),
                 'total' => Money::toRubles($itemsTotal + $deliveryPrice),
                 'customer_comment' => $this->blankToNull($data->comment),
+                'age_confirmed_level' => $ageLevel,
             ], $data->ip, $data->userAgent, $lines);
 
             $this->stock->deductForOrder($order);
@@ -192,6 +208,7 @@ final class OrderService
      */
     public function createReservation(Product $product, ReservationData $data): Order
     {
+        $this->viewer->assertNotPreview();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         if ($data->qty < 1 || $data->qty > QtyLimit::MAX) {
@@ -208,6 +225,13 @@ final class OrderService
 
             if ($actions->maxReserveQty !== null && $data->qty > $actions->maxReserveQty) {
                 throw new SalesException(__('sales.errors.reservation_qty', ['max' => $actions->maxReserveQty]));
+            }
+
+            // AG-11: the same server-side check for a reservation.
+            $ageLevel = $this->age->requiredForProducts([$locked]);
+
+            if ($ageLevel !== null && ! $data->ageConfirmed) {
+                throw new SalesException(__('age_gate.errors.confirm_required', ['age' => $ageLevel->minAge()]));
             }
 
             $reservedUntil = now()->addHours($this->settings->reservation_hours);
@@ -232,6 +256,7 @@ final class OrderService
                 'customer_comment' => $this->blankToNull($data->comment),
                 'reserved_until' => $reservedUntil,
                 'desired_date' => $data->desiredDate?->copy()->startOfDay(),
+                'age_confirmed_level' => $ageLevel,
             ], $data->ip, $data->userAgent, [['product' => $locked, 'qty' => $data->qty, 'price' => $price]]);
 
             $this->stock->holdForReservation($order);
@@ -247,6 +272,7 @@ final class OrderService
      */
     public function createInquiry(Product $product, InquiryData $data): Order
     {
+        $this->viewer->assertNotPreview();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         if ($data->qty < 1 || $data->qty > QtyLimit::MAX) {
@@ -260,7 +286,8 @@ final class OrderService
                 throw new SalesException(__('sales.errors.inquiry_unavailable'));
             }
 
-            $price = $locked->price_on_request ? null : Money::fromRubles($locked->final_price);
+            // CG-06: a group that sees no prices gets an inquiry without a price.
+            $price = $locked->price_on_request || ! $this->viewer->access()->showsPrices() ? null : Money::fromRubles($locked->final_price);
             $total = $price === null ? null : Money::toRubles($price * $data->qty);
 
             $order = $this->createRecord(OrderType::Inquiry, [
@@ -329,6 +356,11 @@ final class OrderService
      */
     public function delete(Order $order, ?User $user = null): void
     {
+        // RB-11: a staff member needs `orders.delete`; no user means a system action (console, cleanup).
+        if ($user !== null && ! app(PermissionService::class)->allows($user, 'orders.delete')) {
+            throw new AuthorizationException;
+        }
+
         DB::transaction(function () use ($order, $user): void {
             /** @var Order|null $fresh */
             $fresh = Order::query()->whereKey($order->getKey())->lockForUpdate()->first();
@@ -475,7 +507,11 @@ final class OrderService
 
     private function isSellable(Product $product): bool
     {
-        return ! $product->trashed() && $product->is_active && $this->tree->isVisible($product->category_id);
+        // CG-14: also the section and category access of the viewer's customer group.
+        return ! $product->trashed()
+            && $product->is_active
+            && $this->tree->isVisible($product->category_id)
+            && $this->viewer->access()->canSeeProduct($product);
     }
 
     /**

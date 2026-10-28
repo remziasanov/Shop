@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Enums\UserRole;
+use App\Enums\SystemRole;
 use App\Filament\Resources\Users\Pages\CreateUser;
 use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Resources\Users\Pages\ListUsers;
@@ -23,7 +23,7 @@ it('creates a user with a hashed password', function () {
         ->fillForm([
             'name' => 'Мария',
             'email' => 'maria@example.com',
-            'role' => 'manager',
+            'role_id' => roleId(SystemRole::Manager),
             'is_active' => true,
             'password' => 'long-enough-pass',
             'password_confirmation' => 'long-enough-pass',
@@ -33,7 +33,7 @@ it('creates a user with a hashed password', function () {
 
     $user = User::where('email', 'maria@example.com')->firstOrFail();
 
-    expect($user->role)->toBe(UserRole::Manager)
+    expect($user->role_id)->toBe(roleId(SystemRole::Manager))
         ->and(Hash::check('long-enough-pass', $user->password))->toBeTrue();
 });
 
@@ -42,7 +42,7 @@ it('rejects short passwords, mismatches and duplicate emails', function () {
         ->fillForm([
             'name' => 'A',
             'email' => $this->admin->email,
-            'role' => 'manager',
+            'role_id' => roleId(SystemRole::Manager),
             'password' => 'short',
             'password_confirmation' => 'short',
         ])
@@ -53,7 +53,7 @@ it('rejects short passwords, mismatches and duplicate emails', function () {
         ->fillForm([
             'name' => 'A',
             'email' => 'a@example.com',
-            'role' => 'manager',
+            'role_id' => roleId(SystemRole::Manager),
             'password' => 'long-enough-pass',
             'password_confirmation' => 'different-pass-1',
         ])
@@ -102,9 +102,9 @@ it('denies managers every user policy ability', function () {
         ->and($manager->can('delete', $this->admin))->toBeFalse();
 });
 
-it('locks role and activity fields of the admin own record', function () {
+it('locks role and activity fields of the own record', function () {
     Livewire::test(EditUser::class, ['record' => $this->admin->getRouteKey()])
-        ->assertFormFieldIsDisabled('role')
+        ->assertFormFieldIsDisabled('role_id')
         ->assertFormFieldIsDisabled('is_active');
 });
 
@@ -112,19 +112,19 @@ it('keeps role and activity editable for other users when another admin exists',
     $other = User::factory()->manager()->create();
 
     Livewire::test(EditUser::class, ['record' => $other->getRouteKey()])
-        ->assertFormFieldIsEnabled('role')
+        ->assertFormFieldIsEnabled('role_id')
         ->assertFormFieldIsEnabled('is_active');
 });
 
 it('ignores tampered role and activity values for the own record', function () {
-    $second = User::factory()->admin()->create();
+    User::factory()->admin()->create();
 
     Livewire::test(EditUser::class, ['record' => $this->admin->getRouteKey()])
-        ->set('data.role', 'manager')
+        ->set('data.role_id', roleId(SystemRole::Manager))
         ->set('data.is_active', false)
         ->call('save');
 
-    expect($this->admin->refresh()->role)->toBe(UserRole::Admin)
+    expect($this->admin->refresh()->role_id)->toBe(roleId(SystemRole::Admin))
         ->and($this->admin->is_active)->toBeTrue();
 });
 
@@ -132,31 +132,32 @@ it('rejects stripping own admin role or deactivating oneself on the server', fun
     User::factory()->admin()->create();
     $guard = app(AdminGuard::class);
 
-    expect(fn () => $guard->assertCanChange($this->admin, $this->admin, ['role' => 'manager']))
+    expect(fn () => $guard->assertCanChange($this->admin, $this->admin, ['role_id' => roleId(SystemRole::Manager)]))
         ->toThrow(ValidationException::class)
         ->and(fn () => $guard->assertCanChange($this->admin, $this->admin, ['is_active' => false]))
         ->toThrow(ValidationException::class);
 
-    $guard->assertCanChange($this->admin, $this->admin, ['role' => 'admin', 'is_active' => true]);
+    $guard->assertCanChange($this->admin, $this->admin, ['role_id' => roleId(SystemRole::Admin), 'is_active' => true]);
 });
 
 it('protects the last active admin from demotion, deactivation and deletion', function () {
     $guard = app(AdminGuard::class);
     $other = User::factory()->admin()->create();
     $actor = User::factory()->admin()->create();
+    $manager = roleId(SystemRole::Manager);
 
     // Two other active admins exist: both can be changed by the actor.
-    $guard->assertCanChange($other, $actor, ['role' => 'manager']);
+    $guard->assertCanChange($other, $actor, ['role_id' => $manager]);
     expect($actor->can('delete', $other))->toBeTrue();
 
     // Leave one active admin: the other admin is demoted, then the actor is the last one.
     $this->admin->update(['is_active' => false]);
-    $other->update(['role' => 'manager']);
+    $other->forceFill(['role_id' => $manager])->save();
 
     $last = User::factory()->manager()->create();
     expect($guard->isLastActiveAdmin($actor))->toBeTrue()
         ->and(fn () => $guard->assertCanChange($actor, $last, ['is_active' => false]))->toThrow(ValidationException::class)
-        ->and(fn () => $guard->assertCanChange($actor, $last, ['role' => 'manager']))->toThrow(ValidationException::class)
+        ->and(fn () => $guard->assertCanChange($actor, $last, ['role_id' => $manager]))->toThrow(ValidationException::class)
         ->and($guard->canDelete($actor, $last))->toBeFalse();
 
     $this->actingAs($actor);
@@ -174,10 +175,10 @@ it('lets a manager-demoted admin be changed when another active admin remains', 
     $other = User::factory()->admin()->create();
 
     Livewire::test(EditUser::class, ['record' => $other->getRouteKey()])
-        ->fillForm(['role' => 'manager', 'is_active' => false])
+        ->fillForm(['role_id' => roleId(SystemRole::Manager), 'is_active' => false])
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect($other->refresh()->role)->toBe(UserRole::Manager)
+    expect($other->refresh()->role_id)->toBe(roleId(SystemRole::Manager))
         ->and($other->is_active)->toBeFalse();
 });

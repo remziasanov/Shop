@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Livewire\Storefront;
 
+use App\Enums\AgeRestriction;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
 use App\Models\Product;
+use App\Services\Age\AgeGate;
 use App\Services\Orders\OrderService;
 use App\Services\Orders\ReservationData;
 use App\Services\Sales\AvailabilityService;
@@ -47,6 +49,9 @@ class ReservationForm extends Component
 
     public bool $consent = false;
 
+    /** AG-11: «Мне исполнилось N лет», shown when the product is restricted. */
+    public bool $ageConfirmed = false;
+
     /**
      * @return array<string, array<int, mixed>>
      */
@@ -55,7 +60,7 @@ class ReservationForm extends Component
         $product = $this->product();
         $max = $product !== null ? app(AvailabilityService::class)->actionsFor($product)->maxReserveQty : null;
 
-        return $this->contactRules() + [
+        return $this->contactRules() + $this->ageRules() + [
             'qty' => ['required', 'integer', 'min:1', 'max:'.min($max ?? QtyLimit::MAX, QtyLimit::MAX)],
             'desiredDate' => ['nullable', 'date_format:Y-m-d'],
         ];
@@ -66,7 +71,7 @@ class ReservationForm extends Component
      */
     protected function messages(): array
     {
-        return $this->contactMessages() + [
+        return $this->contactMessages() + $this->ageMessages() + [
             'qty.max' => __('sales.errors.reservation_qty', ['max' => ':max']),
             'desiredDate.date_format' => __('sales.errors.desired_date'),
         ];
@@ -114,6 +119,7 @@ class ReservationForm extends Component
                 consent: $this->consent,
                 ip: $this->clientIp(),
                 userAgent: $this->clientUserAgent(),
+                ageConfirmed: $this->ageConfirmed,
             ));
         } catch (SalesException $e) {
             $this->addError('form', $e->getMessage());
@@ -134,7 +140,18 @@ class ReservationForm extends Component
             'actions' => $actions,
             'reservedUntil' => now()->addHours($settings->reservation_hours),
             'consentLink' => $this->consentLink(),
+            'ageLevel' => $this->ageLevel(),
         ]);
+    }
+
+    /**
+     * AG-11: the age to confirm for this product (null: gate off or not restricted).
+     */
+    protected function ageLevel(): ?AgeRestriction
+    {
+        $product = $this->product();
+
+        return $product !== null ? app(AgeGate::class)->requiredForProducts([$product]) : null;
     }
 
     /** Loaded once per request (rules(), submit() and render() all need it). */
@@ -145,7 +162,7 @@ class ReservationForm extends Component
     private function product(): ?Product
     {
         if (! $this->productLoaded) {
-            $this->loadedProduct = Product::query()->active()->find($this->productId);
+            $this->loadedProduct = Product::query()->storefront()->find($this->productId);
             $this->productLoaded = true;
         }
 

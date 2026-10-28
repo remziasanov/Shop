@@ -1,13 +1,16 @@
 {{-- SF-15. $eager: first cards of a listing are above the fold and load eagerly (NF-03). $view: App\Services\Catalog\ProductView. Cart button = plain POST form (no Livewire component per card, NF-02), enhanced by Alpine `cardAdd`; reservation / inquiry open the product page with the modal. --}}
 @php($product = $view->product)
-<article class="group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-3 transition hover:shadow-md focus-within:shadow-md">
-    <a href="{{ $view->url }}" class="relative block aspect-square overflow-hidden rounded bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" tabindex="-1">
+<article class="group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-3 transition hover:shadow-md focus-within:shadow-md" @if ($view->age) data-age="{{ $view->age->value }}" @endif>
+    <a href="{{ $view->url }}" class="age-media relative block aspect-square overflow-hidden rounded bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" tabindex="-1">
         @if ($view->image)
             <img src="{{ $view->image['src'] }}" srcset="{{ $view->image['srcset'] }}" sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 50vw"
                  width="{{ $view->image['width'] }}" height="{{ $view->image['height'] }}" alt="{{ $view->image['alt'] }}" @if (! ($eager ?? false)) loading="lazy" @endif decoding="async"
-                 class="h-full w-full object-contain">
+                 class="age-media-img h-full w-full object-contain">
         @else
             @include('storefront.partials.image-placeholder', ['url' => $view->placeholderUrl, 'alt' => $product->name])
+        @endif
+        @if ($view->age)
+            <span class="age-badge">{{ $view->age->badge() }}</span>
         @endif
     </a>
     @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mt-2'])

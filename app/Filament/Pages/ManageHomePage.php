@@ -9,6 +9,7 @@ use App\Filament\Support\HomeBlocksSchema;
 use App\Models\User;
 use App\Services\Home\HomeHtmlBlocks;
 use App\Services\Home\HomeImages;
+use App\Services\Users\PermissionService;
 use App\Settings\HomePageSettings;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -19,9 +20,9 @@ use Illuminate\Validation\ValidationException;
 use UnitEnum;
 
 /**
- * Home page builder (5.2, AD-20): add, reorder, collapse and hide blocks. Admin and manager can edit it;
- * the raw «HTML» block is administrator-only (6.13): managers neither see nor change it, and it is kept
- * in place when they save.
+ * Home page builder (5.2, AD-20): add, reorder, collapse and hide blocks. Needs `home.update`;
+ * the raw «HTML» block needs `html_block.edit` (6.13): without it the block is neither shown nor changed,
+ * and it is kept in place on save.
  */
 class ManageHomePage extends SettingsPage
 {
@@ -41,7 +42,7 @@ class ManageHomePage extends SettingsPage
     {
         $user = auth()->user();
 
-        return $user instanceof User && $user->is_active;
+        return $user instanceof User && app(PermissionService::class)->allows($user, 'home.update');
     }
 
     public static function getNavigationGroup(): string|UnitEnum|null
@@ -67,7 +68,7 @@ class ManageHomePage extends SettingsPage
     public function form(Schema $schema): Schema
     {
         return $schema->components([
-            HomeBlocksSchema::builder($this->isAdmin()),
+            HomeBlocksSchema::builder($this->canEditHtml()),
         ]);
     }
 
@@ -93,8 +94,8 @@ class ManageHomePage extends SettingsPage
     {
         $blocks = array_values((array) ($data['blocks'] ?? []));
 
-        // Managers never receive the raw HTML of administrator blocks.
-        $data['blocks'] = $this->isAdmin() ? $blocks : app(HomeHtmlBlocks::class)->without($blocks);
+        // Without html_block.edit the raw HTML of such blocks is never sent to the browser.
+        $data['blocks'] = app(HomeHtmlBlocks::class)->visibleTo($this->user() ?? abort(403), $blocks);
 
         return $data;
     }
@@ -114,8 +115,7 @@ class ManageHomePage extends SettingsPage
             throw ValidationException::withMessages(['data.blocks' => $e->getMessage()]);
         }
 
-        $html = app(HomeHtmlBlocks::class);
-        $data['blocks'] = $this->savedBlocks = $this->isAdmin() ? $blocks : $html->restore($blocks, $this->storedBlocks);
+        $data['blocks'] = $this->savedBlocks = app(HomeHtmlBlocks::class)->prepareForSave($this->user() ?? abort(403), $blocks, $this->storedBlocks);
 
         return $data;
     }
@@ -128,10 +128,17 @@ class ManageHomePage extends SettingsPage
         $this->form->fill($this->mutateFormDataBeforeFill(['blocks' => $this->savedBlocks]));
     }
 
-    private function isAdmin(): bool
+    private function user(): ?User
     {
         $user = auth()->user();
 
-        return $user instanceof User && $user->isAdmin();
+        return $user instanceof User ? $user : null;
+    }
+
+    private function canEditHtml(): bool
+    {
+        $user = $this->user();
+
+        return $user !== null && app(HomeHtmlBlocks::class)->canEdit($user);
     }
 }

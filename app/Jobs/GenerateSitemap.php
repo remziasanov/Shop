@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Providers\SeoServiceProvider;
 use App\Services\Seo\SitemapGenerator;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
 /**
- * Rebuilds the sitemap after an import (SF-82). Streams and chunks the queries, so it stays well within the job time limit.
+ * Rebuilds the sitemap after an import (SF-82) and after changes that decide what a guest sees (CG-15, see
+ * {@see SeoServiceProvider}). Streams and chunks the queries, so it stays well within the job time limit.
+ * Unique until processing starts: any number of changes before the run collapse into one job, a change made while
+ * it runs queues the next one.
  */
-class GenerateSitemap implements ShouldBeUnique, ShouldQueue
+class GenerateSitemap implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Queueable;
 

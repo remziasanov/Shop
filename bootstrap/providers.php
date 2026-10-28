@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Providers\AccessServiceProvider;
+use App\Providers\AgeGateServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\Filament\AdminPanelProvider;
 use App\Providers\HomePageServiceProvider;
@@ -12,6 +14,8 @@ return [
     AppServiceProvider::class,
     AdminPanelProvider::class,
     HomePageServiceProvider::class,
+    AccessServiceProvider::class,
+    AgeGateServiceProvider::class,
     NotificationServiceProvider::class,
     SeoServiceProvider::class,
 ];

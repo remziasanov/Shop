@@ -1,6 +1,9 @@
 {{-- Price block: final price, old price struck through, discount percent (SF-15, SF-31, SF-36). $view: ProductView. --}}
 <div class="{{ $class ?? '' }}">
-    @if ($view->priceOnRequest)
+    @if ($view->priceLoginUrl)
+        {{-- CG-06: the group sees no prices, a sign-in link instead. --}}
+        <p class="font-semibold"><a href="{{ $view->priceLoginUrl }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ $view->price }}</a></p>
+    @elseif ($view->priceOnRequest)
         <p class="font-semibold text-slate-700">{{ $view->price }}</p>
     @else
         <p class="flex flex-wrap items-baseline gap-x-2">

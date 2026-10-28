@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Users\Pages;
 
+use App\Exceptions\StaffAccessException;
 use App\Filament\Resources\Users\UserResource;
 use App\Models\User;
-use App\Services\Users\AdminGuard;
+use App\Services\Users\StaffAccountService;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class EditUser extends EditRecord
 {
@@ -19,41 +20,25 @@ class EditUser extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            DeleteAction::make()->using(fn (User $record): bool => UserResource::deleteRecord($record)),
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    protected function mutateFormDataBeforeSave(array $data): array
-    {
-        $actor = auth()->user();
-
-        /** @var User $record */
-        $record = $this->getRecord();
-
-        app(AdminGuard::class)->assertCanChange($record, $actor instanceof User ? $actor : null, $data);
-
-        return $data;
-    }
-
-    /**
-     * Re-check under row locks so two admins demoting each other at once cannot leave no active admin.
+     * Rights, escalation, self-change and last-administrator rules live in the service, which re-checks them
+     * under row locks so two admins demoting each other at once cannot leave no active admin (RB-07, RB-08).
      *
      * @param  array<string, mixed>  $data
      */
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        return DB::transaction(function () use ($record, $data): Model {
-            User::query()->where('role', 'admin')->where('is_active', true)->lockForUpdate()->get(['id']);
+        $actor = auth()->user();
 
-            $actor = auth()->user();
+        try {
             /** @var User $record */
-            app(AdminGuard::class)->assertCanChange($record, $actor instanceof User ? $actor : null, $data);
-
-            return parent::handleRecordUpdate($record, $data);
-        });
+            return app(StaffAccountService::class)->update($record, $data, $actor instanceof User ? $actor : abort(403));
+        } catch (StaffAccessException $e) {
+            throw ValidationException::withMessages(['data.role_id' => $e->getMessage()]);
+        }
     }
 }
