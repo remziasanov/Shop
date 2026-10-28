@@ -1,4 +1,4 @@
-# Proposes updates of the GitHub Actions used in .github/workflows (tags today; see D-061 for SHA pinning).
+# Proposes updates of the GitHub Actions used in .github/workflows; they are pinned by commit SHA with the tag in a comment (D-061, D-091).
 version: 2
 updates:
   - package-ecosystem: github-actions

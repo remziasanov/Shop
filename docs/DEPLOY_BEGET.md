@@ -194,9 +194,13 @@ cat ~/.ssh/github_deploy
 
 ### 5.2. Где задать секреты
 
+Секреты хранятся в окружении `production`: workflow деплоя работает только в нём, и запуск ждёт вашего подтверждения (приложение «Безопасность CI», шаг 3).
+
 1. Откройте репозиторий магазина на GitHub.
-2. Перейдите в **Settings** → **Secrets and variables** → **Actions**.
-3. Нажмите **New repository secret**, введите имя из таблицы и значение. Повторите для каждого секрета.
+2. Перейдите в **Settings** → **Environments** и откройте `production` (если его нет — **New environment**, имя `production`).
+3. В блоке **Environment secrets** нажмите **Add environment secret**, введите имя из таблицы и значение. Повторите для каждого секрета.
+
+Секреты, заданные раньше в **Settings** → **Secrets and variables** → **Actions** (секреты репозитория), тоже работают, но их лучше перенести в окружение и удалить из репозитория.
 
 Проверьте путь `BEGET_PATH` на сервере. Войдите по SSH и выполните:
 
@@ -211,7 +215,8 @@ ls -ld /home/X/LOGIN/shop
 1. В репозитории откройте вкладку **Actions**.
 2. Слева выберите workflow **Deploy**.
 3. Нажмите **Run workflow**, в поле ветки оставьте `main` и нажмите зелёную кнопку **Run workflow**.
-4. Ждите 5–10 минут и откройте запуск. Зелёная галочка — загрузка прошла.
+4. Откройте запуск и нажмите **Review deployments** → отметьте `production` → **Approve and deploy** (если в окружении задано обязательное подтверждение).
+5. Ждите 5–10 минут. Зелёная галочка — загрузка прошла.
 
 **Важно: первый запуск только загружает файлы.** Пока на сервере нет файла `.env` с заполненными `APP_KEY` и `DB_DATABASE`, деплой считает установку первой: он загружает файлы, создаёт ссылку `public_html` и папки `storage`, копирует `.env.example` в `.env` (только если `.env` ещё нет, существующий файл никогда не перезаписывается) и **не выполняет** миграции, кэширование и проверку сайта. Запуск завершается успешно с пометкой: «Первая установка: файлы загружены. Заполните .env на сервере (шаг 6 DEPLOY_BEGET.md) и запустите Deploy ещё раз».
 
@@ -693,18 +698,91 @@ mkdir -p /home/X/LOGIN/shop/storage/app/import-media
 
 ## Приложение. Безопасность CI
 
-GitHub Actions в `.github/workflows` подключены по тегам версий (`actions/checkout@v4` и т. д.). Тег может быть перемещён автором, поэтому надёжнее закрепить действие по хешу коммита. Dependabot (`.github/dependabot.yml`, раз в неделю) сам предлагает обновления. Закрепление по хешу делает владелец один раз вручную: нужны права на чтение публичных репозиториев и `gh`.
+Репозиторий публичный: код, история коммитов, pull request-ы и логи Actions видны всем. Секретов в них нет и быть не должно; ниже — что защищено в коде и что владелец включает в настройках GitHub один раз (решение D-091).
 
-1. Узнайте хеш коммита для каждого тега (для аннотированного тега поле `object.type` равно `tag`, тогда выполните второй запрос с `object.sha`):
+### Уже сделано в коде
 
-```bash
-gh api repos/actions/checkout/git/ref/tags/v4 --jq '.object.type + " " + .object.sha'
-gh api repos/actions/cache/git/ref/tags/v4 --jq '.object.type + " " + .object.sha'
-gh api repos/actions/setup-node/git/ref/tags/v4 --jq '.object.type + " " + .object.sha'
-gh api repos/shivammathur/setup-php/git/ref/tags/v2 --jq '.object.type + " " + .object.sha'
-# только если type = tag:
-gh api repos/ВЛАДЕЛЕЦ/РЕПОЗИТОРИЙ/git/tags/ХЕШ_ИЗ_ПРЕДЫДУЩЕЙ_КОМАНДЫ --jq '.object.sha'
+- Действия в `.github/workflows/ci.yml` и `deploy.yml` закреплены по SHA коммита, тег — в комментарии (`uses: actions/checkout@<хеш> # v7`). Dependabot (`.github/dependabot.yml`, раз в неделю) предлагает новые хеши вместе с комментарием.
+- CI получает токен только на чтение (`permissions: contents: read`), деплой — тоже.
+- `actions/checkout` не оставляет токен в `.git/config` (`persist-credentials: false`), поэтому код зависимостей при `composer install` и `npm ci` его не прочитает.
+- CI запускается на `push` и `pull_request`, без `pull_request_target`: код из форка не получает секретов.
+- Деплой запускается только вручную и только в окружении `production`.
+- `SECURITY.md` объясняет, как сообщить об уязвимости приватно.
+
+### Что включить в настройках GitHub
+
+Нужен `gh`, авторизованный под владельцем (`gh auth login`). Команды для PowerShell, выполняйте в одном окне по порядку (переменная `$R` задаётся в шаге 1). Шаги 1, 3 и 4 можно повторять.
+
+**1. Сканирование секретов, Dependabot, приватные сообщения об уязвимостях, только squash-слияние**
+
+```powershell
+$R = 'repos/remziasanov/Shop'
+gh api -X PUT "$R/vulnerability-alerts"              # Dependabot alerts
+gh api -X PUT "$R/automated-security-fixes"          # Dependabot security updates
+gh api -X PUT "$R/private-vulnerability-reporting"   # кнопка Report a vulnerability
+'{"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"enabled"},"secret_scanning_non_provider_patterns":{"status":"enabled"},"secret_scanning_validity_checks":{"status":"enabled"}},"allow_merge_commit":false,"allow_rebase_merge":false,"allow_squash_merge":true,"has_wiki":false}' | gh api -X PATCH $R --input -
 ```
 
-2. В `.github/workflows/ci.yml` и `deploy.yml` замените тег на полученный хеш, оставив тег в комментарии, например: `uses: actions/checkout@<40-символьный хеш> # v4`.
-3. Dependabot будет предлагать новые хеши вместе с обновлением комментария. Решение принято в `docs/DECISIONS.md` (D-061).
+**2. Защита ветки `main` (ruleset):** нельзя удалить, нельзя force push, изменения только через pull request, перед слиянием должны пройти оба прогона CI. Подтверждение ревьюера не требуется (`required_approving_review_count: 0`), чтобы владелец и локальный агент могли вливать свои PR.
+
+```powershell
+@'
+{
+  "name": "protect-main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    { "type": "pull_request", "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false } },
+    { "type": "required_status_checks", "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [ { "context": "tests (SQLite)" }, { "context": "tests (MySQL 8.0)" } ] } }
+  ]
+}
+'@ | gh api -X POST "$R/rulesets" --input -
+```
+
+Проверка: `gh api "$R/rulesets"`. Повторный POST создаст второй ruleset; чтобы изменить существующий, используйте `gh api -X PUT "$R/rulesets/<id>" --input -`.
+
+**3. Окружение `production` для деплоя:** запуск ждёт подтверждения владельца, деплоить можно только из `main`.
+
+```powershell
+$me = gh api user --jq .id
+"{`"reviewers`":[{`"type`":`"User`",`"id`":$me}],`"deployment_branch_policy`":{`"protected_branches`":false,`"custom_branch_policies`":true}}" | gh api -X PUT "$R/environments/production" --input -
+gh api -X POST "$R/environments/production/deployment-branch-policies" -f name=main -f type=branch
+```
+
+Ограничение действует на ветку, из которой запущен workflow; поле **Branch (or tag) to deploy** может указать другую ветку, поэтому перед подтверждением проверьте его в запуске.
+
+Затем перенесите секреты `BEGET_*` в окружение (шаг 5.2).
+
+**4. CodeQL** (анализ JavaScript и workflow; PHP CodeQL не поддерживает, его проверяют Larastan и тесты):
+
+```powershell
+gh api -X PATCH "$R/code-scanning/default-setup" -f state=configured -f query_suite=default
+```
+
+**5. Права GitHub Actions** — в веб-интерфейсе, **Settings** → **Actions** → **General**:
+
+- **Fork pull request workflows from outside collaborators** → **Require approval for all external contributors**: CI из чужого форка запустится только после вашего одобрения.
+- **Workflow permissions** → **Read repository contents and packages permissions**; снимите галочку **Allow GitHub Actions to create and approve pull requests**.
+- **Actions permissions** → **Allow remziasanov, and select non-remziasanov, actions and reusable workflows**: отметьте **Allow actions created by GitHub** и в поле разрешённых действий впишите `shivammathur/setup-php@*`.
+
+**6. Аккаунт владельца:** включите двухфакторную аутентификацию (**Settings** аккаунта → **Password and authentication**) — это главная защита репозитория. Токены `gh` и Claude Code храните только на своём компьютере.
+
+### Проверка состояния
+
+```powershell
+gh api $R --jq '.security_and_analysis'
+gh api "$R/rulesets" --jq '.[].name'
+gh api "$R/environments" --jq '.environments[].name'
+gh api "$R/code-scanning/default-setup" --jq '.state'
+```
