@@ -6,6 +6,7 @@ namespace App\Livewire\Storefront;
 
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
+use App\Services\Access\ViewerContext;
 use App\Services\Cart\CartService;
 use App\Services\Cart\CartSummary;
 use App\Support\QtyLimit;
@@ -90,6 +91,8 @@ class CartPage extends Component
         return view('livewire.storefront.cart-page', [
             'summary' => $summary,
             'changedReasons' => session('cart_changed', []),
+            // CA-01, CG-12: a visitor who must sign in first gets a sign-in link instead of the checkout button.
+            'mustSignIn' => ! app(ViewerContext::class)->mayOrder(),
         ]);
     }
 }

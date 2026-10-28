@@ -9,6 +9,7 @@ use Database\Factories\CartFactory;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * @property int $id
  * @property string $token
+ * @property int|null $customer_id the owner of a customer cart (CA-15; unique); null for a guest cart (cookie token)
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property-read Collection<int, CartItem> $items
@@ -26,6 +28,14 @@ class Cart extends Model
     use HasFactory;
 
     protected $fillable = ['token'];
+
+    /**
+     * @return BelongsTo<Customer, $this>
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
 
     /**
      * @return HasMany<CartItem, $this>

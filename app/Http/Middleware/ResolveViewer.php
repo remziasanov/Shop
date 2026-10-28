@@ -27,6 +27,9 @@ class ResolveViewer
         if ($this->viewer->isPrivate() || $this->viewer->isPreview()) {
             $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
             $response->headers->set('Cache-Control', 'private, no-store');
+        } elseif ($this->viewer->customer() !== null) {
+            // 26.3: pages shown to a signed-in customer (name in the header, group prices) are never shared-cached.
+            $response->headers->set('Cache-Control', 'private, no-store');
         }
 
         return $response;

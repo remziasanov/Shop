@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\AuthenticateCustomer;
 use App\Http\Middleware\CanonicalHost;
+use App\Http\Middleware\PrivateAccountPage;
+use App\Http\Middleware\RedirectIfCustomer;
 use App\Http\Middleware\ResolveViewer;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\StorefrontOpen;
+use App\Http\Middleware\ValidateCustomerSession;
 use App\Services\Catalog\RedirectService;
 use App\Support\TrustedHosts;
 use Illuminate\Foundation\Application;
@@ -33,6 +37,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(CanonicalHost::class);
         // SF-05: closed mode for the storefront; CG-16: the viewer's customer group (stage 8: always the guest).
         $middleware->web(append: [StorefrontOpen::class, ResolveViewer::class]);
+        // CA-31, CA-32: a customer session with an outdated auth_version ends; the staff session is not touched.
+        $middleware->web(append: [ValidateCustomerSession::class]);
+        $middleware->alias([
+            'customer.auth' => AuthenticateCustomer::class,
+            'customer.guest' => RedirectIfCustomer::class,
+            'account.private' => PrivateAccountPage::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

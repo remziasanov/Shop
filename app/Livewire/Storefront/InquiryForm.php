@@ -111,6 +111,7 @@ class InquiryForm extends Component
             'product' => $product,
             'actions' => $product !== null ? $availability->actionsFor($product) : null,
             'consentLink' => $this->consentLink(),
+            'mustSignIn' => $this->mustSignIn(),
         ]);
     }
 

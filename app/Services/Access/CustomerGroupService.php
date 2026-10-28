@@ -6,6 +6,7 @@ namespace App\Services\Access;
 
 use App\Enums\CategoryAccessMode;
 use App\Exceptions\CustomerGroupException;
+use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Services\Catalog\CatalogVersion;
 use Illuminate\Support\Facades\DB;
@@ -39,15 +40,48 @@ final class CustomerGroupService
     }
 
     /**
-     * @throws CustomerGroupException for the system groups «Гость» and «Розница»
+     * Makes the group the one new customers get (CG-11): the flag moves, there is exactly one such group.
+     *
+     * @throws CustomerGroupException the group is inactive
      */
-    public function delete(CustomerGroup $group): void
+    public function setDefaultForNew(CustomerGroup $group): void
+    {
+        if (! $group->is_active) {
+            throw new CustomerGroupException(__('customer_groups.errors.inactive_default'));
+        }
+
+        DB::transaction(function () use ($group): void {
+            CustomerGroup::query()->where('is_default_for_new', true)->where('id', '!=', $group->id)->update(['is_default_for_new' => false]);
+            CustomerGroup::query()->whereKey($group->id)->update(['is_default_for_new' => true]);
+        });
+
+        $group->refresh();
+        CatalogVersion::bump();
+    }
+
+    /**
+     * Deletes a group (CG-25). Its customers move to `$moveCustomersTo` («Розница» by default); the group that new
+     * customers get cannot be deleted before another one is chosen.
+     *
+     * @throws CustomerGroupException for the system groups «Гость» and «Розница» and for the default group of new customers
+     */
+    public function delete(CustomerGroup $group, ?CustomerGroup $moveCustomersTo = null): void
     {
         if ($group->is_system) {
             throw new CustomerGroupException(__('customer_groups.errors.system_group'));
         }
 
-        DB::transaction(fn () => $group->delete());
+        if ($group->is_default_for_new) {
+            throw new CustomerGroupException(__('customer_groups.errors.default_group'));
+        }
+
+        $target = $moveCustomersTo ?? CustomerGroup::retail();
+
+        DB::transaction(function () use ($group, $target): void {
+            Customer::query()->where('customer_group_id', $group->id)->update(['customer_group_id' => $target->id]);
+            $group->delete();
+        });
+
         CatalogVersion::bump();
     }
 }

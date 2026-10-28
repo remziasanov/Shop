@@ -27,7 +27,7 @@ use Filament\Schemas\Schema;
 
 /**
  * Customer group form (CG-18): tabs «Основное», «Разделы и категории», «Цены», «Оформление». Fields that act in later
- * stages (discount, retail price, order only after login, documents) are added by those stages (D-085).
+ * stages (discount, retail price, documents) are added by those stages (D-085).
  *
  * The «allowed» lists work as checkboxes with everything checked by default; a fully checked list is stored as
  * `null` (= no restriction, also for methods added later).
@@ -107,7 +107,7 @@ final class CustomerGroupForm
                     Select::make('price_display')
                         ->label(__('customer_groups.fields.price_display'))
                         ->helperText(__('customer_groups.fields.price_display_hint'))
-                        ->options(fn (?CustomerGroup $record): array => self::priceDisplayOptions($record))
+                        ->options(self::priceDisplayOptions())
                         ->default(PriceDisplayMode::Show->value)
                         ->required()
                         ->native(false),
@@ -132,6 +132,10 @@ final class CustomerGroupForm
                                     'inquiry' => __('customer_groups.modes.inquiry'),
                                 ]),
                         ]),
+                    Toggle::make('require_login_to_order')
+                        ->label(__('customer_groups.fields.require_login_to_order'))
+                        ->helperText(__('customer_groups.fields.require_login_to_order_hint'))
+                        ->columnSpanFull(),
                     TextInput::make('min_order_amount')
                         ->label(__('customer_groups.fields.min_order_amount'))
                         ->helperText(__('customer_groups.fields.min_order_amount_hint'))
@@ -214,19 +218,10 @@ final class CustomerGroupForm
     /**
      * @return array<string, string>
      */
-    private static function priceDisplayOptions(?CustomerGroup $record): array
+    private static function priceDisplayOptions(): array
     {
-        // «login» needs customer accounts: it is offered from stage 9, but a group that already has it keeps it.
-        $options = [
-            PriceDisplayMode::Show->value => PriceDisplayMode::Show->label(),
-            PriceDisplayMode::Request->value => PriceDisplayMode::Request->label(),
-        ];
-
-        if ($record !== null && $record->price_display === PriceDisplayMode::Login) {
-            $options[PriceDisplayMode::Login->value] = PriceDisplayMode::Login->label();
-        }
-
-        return $options;
+        // «login» is offered since stage 9: «Войдите, чтобы увидеть цену» leads to the real sign-in page.
+        return PriceDisplayMode::options();
     }
 
     /**

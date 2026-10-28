@@ -35,7 +35,8 @@ beforeEach(function (): void {
 
 describe('migration defaults', function (): void {
     it('creates the system groups «Гость» and «Розница» with v1.0 behaviour (CG-01, CG-03)', function (): void {
-        $groups = CustomerGroup::query()->ordered()->get();
+        // Stage 9 adds the third seeded group «Опт» (not a system group); it is checked in the customer tests.
+        $groups = CustomerGroup::query()->where('is_system', true)->ordered()->get();
 
         expect($groups->pluck('code')->all())->toBe(['guest', 'retail'])
             ->and($groups->every(fn (CustomerGroup $g): bool => $g->is_system && $g->is_active))->toBeTrue();
@@ -100,7 +101,7 @@ describe('groups resource', function (): void {
         Livewire::test(CreateCustomerGroup::class)
             ->fillForm([
                 'name' => 'Опт',
-                'code' => 'opt',
+                'code' => 'trade',
                 'sort_order' => 20,
                 'is_active' => true,
                 'category_access_mode' => 'only',
@@ -113,7 +114,7 @@ describe('groups resource', function (): void {
             ->call('create')
             ->assertHasNoFormErrors();
 
-        $group = CustomerGroup::query()->where('code', 'opt')->firstOrFail();
+        $group = CustomerGroup::query()->where('code', 'trade')->firstOrFail();
 
         expect($group->category_access_mode)->toBe(CategoryAccessMode::Only)
             ->and($group->price_display)->toBe(PriceDisplayMode::Request)

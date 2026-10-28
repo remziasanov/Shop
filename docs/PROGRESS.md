@@ -359,9 +359,9 @@ _SF-17 (фильтры по произвольным характеристик�
 
 ## Этап 9. Личный кабинет покупателя и регистрация
 
-Статус: не начат
+Статус: в работе
 
-Ветка: `stage-9-<short>`; требования — раздел 13 ТЗ (этапы версии 2.0) и разделы части II.
+Ветка: `stage-9-customer-account`; требования — раздел 13 ТЗ (этапы версии 2.0) и разделы части II.
 
 - [ ] Группа «Опт» (code `opt`, скидка 0 %, заказ только после входа, `is_wholesale_default`; миграция этапа 9); `customers.auth_version` и middleware завершения прочих сессий; таблицы `customers`, `customer_addresses`, `customer_companies`, `customer_verification_codes`, `customer_notifications`; guard `customer`
 - [ ] `VerificationCodeService`, регистрация, вход по паролю и по коду, сброс пароля, смена email, профиль, адреса, реквизиты компании (`InnValidator`)

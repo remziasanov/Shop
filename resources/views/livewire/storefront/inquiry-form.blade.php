@@ -1,5 +1,8 @@
 <div x-data="{ open: @js((bool) ($open && $product !== null && $actions?->canInquire)) }">
-    @if ($product !== null && $actions !== null && $actions->canInquire)
+    @if ($product !== null && $actions !== null && $actions->canInquire && $mustSignIn)
+        <a href="{{ route('customer.login') }}" data-action="inquiry-login"
+           class="inline-block rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('account.actions.login_to_inquire') }}</a>
+    @elseif ($product !== null && $actions !== null && $actions->canInquire)
         <button type="button" @click="open = true" aria-haspopup="dialog" data-action="inquiry"
                 class="rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.inquiry') }}</button>
 

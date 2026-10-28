@@ -128,11 +128,11 @@ it('leaves the catalog out of the sitemap and robots.txt when the guest has no c
     $this->get('/robots.txt')->assertOk()->assertSee('Disallow: /catalog', false);
 });
 
-it('redirects a guest to the sign-in stub when a section is hidden and gives a signed-in group a 404 (CG-04)', function (StorefrontSection $section, string $url): void {
+it('redirects a guest to the sign-in page when a section is hidden and gives a signed-in group a 404 (CG-04)', function (StorefrontSection $section, string $url): void {
     configureGuest(['visible_sections' => array_values(array_diff(StorefrontSection::defaults(), [$section->value]))]);
 
     $this->get($url)->assertRedirect(route('customer.login'));
-    $this->get(route('customer.login'))->assertOk()->assertSee('Личный кабинет появится позже');
+    $this->get(route('customer.login'))->assertOk()->assertSee('Вход в личный кабинет');
 
     $retail = CustomerGroup::factory()->withoutSection($section)->create();
     previewAs($this, $retail);

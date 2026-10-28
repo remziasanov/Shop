@@ -7,18 +7,21 @@ namespace App\Services\Access;
 use App\Enums\StorefrontSection;
 use App\Exceptions\SalesException;
 use App\Http\Middleware\ResolveViewer;
+use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\User;
 use App\Services\Catalog\CatalogVersion;
 use App\Services\Users\PermissionService;
+use App\Settings\CustomerSettings;
 use Closure;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * The customer group of the current storefront visitor and what it may see (CG-16).
  *
- * Stage 8: the viewer is always «Гость». Stage 9 plugs the `customer` guard into {@see resolveGroup()}: a signed-in
- * customer gets their group (an inactive group falls back to «Розница»). A signed-in staff member can preview the
+ * The viewer is the signed-in customer of the `customer` guard with their group (an inactive group falls back to
+ * «Розница»), otherwise «Гость». A signed-in staff member can preview the
  * storefront as any group ("Просмотреть витрину как…", CG-18): that is a session flag of the staff user, not a login
  * as a customer. Queues and console code pass the group explicitly ({@see actingAs()}) or use {@see CatalogAccess}.
  *
@@ -38,6 +41,10 @@ final class ViewerContext
 
     private bool $private = false;
 
+    private ?Customer $customer = null;
+
+    private bool $customerLoaded = false;
+
     public function __construct(
         private readonly CatalogAccess $catalog,
         private readonly PermissionService $permissions,
@@ -55,6 +62,8 @@ final class ViewerContext
         $this->version = null;
         $this->explicit = null;
         $this->private = false;
+        $this->customer = null;
+        $this->customerLoaded = false;
     }
 
     /**
@@ -65,6 +74,8 @@ final class ViewerContext
         $this->explicit = $group;
         $this->group = null;
         $this->version = null;
+        $this->customer = null;
+        $this->customerLoaded = false;
     }
 
     public function group(): CustomerGroup
@@ -77,6 +88,56 @@ final class ViewerContext
         }
 
         return $this->group;
+    }
+
+    /**
+     * The signed-in customer of the storefront (guard `customer`), or null for a guest. Null too for code that acts
+     * as an explicit group and for a staff preview: they are not a customer's session. Read once per request.
+     */
+    public function customer(): ?Customer
+    {
+        if ($this->customerLoaded) {
+            return $this->customer;
+        }
+
+        $this->customerLoaded = true;
+        $this->customer = null;
+
+        if ($this->explicit !== null || $this->previewGroupId() !== null || ! request()->hasSession()) {
+            return null;
+        }
+
+        $user = Auth::guard('customer')->user();
+
+        // The session middleware has dropped stale sessions already; a blocked account is not a customer here either.
+        $this->customer = $user instanceof Customer && $user->canSignIn() ? $user : null;
+
+        return $this->customer;
+    }
+
+    /**
+     * CA-01, CG-12: whether the viewer may place an order, a reservation or an inquiry. A signed-in customer may; a
+     * guest may when guest checkout is on and the «Гость» group does not require a login.
+     */
+    public function mayOrder(): bool
+    {
+        if ($this->customer() !== null) {
+            return true;
+        }
+
+        return app(CustomerSettings::class)->allow_guest_checkout && ! $this->access()->requiresLoginToOrder;
+    }
+
+    /**
+     * Server-side gate of checkout, reservation and inquiry (CA-01, CG-12).
+     *
+     * @throws SalesException when the viewer has to sign in first
+     */
+    public function assertMayOrder(): void
+    {
+        if (! $this->mayOrder()) {
+            throw new SalesException(__('account.errors.login_required_to_order'));
+        }
     }
 
     public function access(): AccessSet
@@ -174,7 +235,15 @@ final class ViewerContext
             }
         }
 
-        // Stage 9: a signed-in customer (guard `customer`) is looked up here; an inactive group means «Розница».
+        $customer = $this->customer();
+
+        if ($customer !== null) {
+            $group = CustomerGroup::query()->find($customer->customer_group_id);
+
+            // CG-16: a deactivated group sends its customers to «Розница».
+            return $group !== null && $group->is_active ? $group : CustomerGroup::retail();
+        }
+
         return $this->catalog->guestGroup();
     }
 

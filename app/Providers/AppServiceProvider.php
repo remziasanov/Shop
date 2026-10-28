@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Http\Controllers\Admin\StaffLogoutController;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
@@ -17,6 +18,7 @@ use App\Services\Pricing\PriceRuleRepository;
 use App\Services\Sales\CartAvailability;
 use App\Services\Users\PermissionService;
 use App\View\Composers\StorefrontComposer;
+use Filament\Auth\Http\Controllers\LogoutController as FilamentLogoutController;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
@@ -51,6 +53,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ImageProcessor::class);
         $this->app->singleton(StorefrontComposer::class);
         $this->app->bind(HostResolver::class, DnsHostResolver::class);
+        // CA-32: the admin sign-out must not end a customer session of the same browser.
+        $this->app->bind(FilamentLogoutController::class, StaffLogoutController::class);
     }
 
     /**

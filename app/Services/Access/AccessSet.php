@@ -58,6 +58,7 @@ final class AccessSet
         public readonly ?array $allowedDeliveryCodes,
         public readonly ?array $allowedPaymentCodes,
         public readonly GroupStockDisplay $stockDisplay,
+        public readonly bool $requiresLoginToOrder = false,
     ) {
         $this->hiddenSet = array_fill_keys($hiddenCategoryIds, true);
         $this->productSet = array_fill_keys($productCategoryIds, true);
@@ -192,6 +193,7 @@ final class AccessSet
             'delivery' => $this->allowedDeliveryCodes,
             'payment' => $this->allowedPaymentCodes,
             'stock_display' => $this->stockDisplay->value,
+            'require_login' => $this->requiresLoginToOrder,
         ];
     }
 
@@ -200,6 +202,11 @@ final class AccessSet
      */
     public static function fromArray(array $data): self
     {
+        // A set cached before «order only after login» existed has no such key: it is rebuilt, never guessed.
+        if (! array_key_exists('require_login', $data)) {
+            throw new \UnexpectedValueException('Outdated access set.');
+        }
+
         return new self(
             groupId: isset($data['group_id']) ? (int) $data['group_id'] : null,
             groupCode: (string) $data['group_code'],
@@ -214,6 +221,7 @@ final class AccessSet
             allowedDeliveryCodes: is_array($data['delivery']) ? array_values(array_map('strval', $data['delivery'])) : null,
             allowedPaymentCodes: is_array($data['payment']) ? array_values(array_map('strval', $data['payment'])) : null,
             stockDisplay: GroupStockDisplay::from((string) $data['stock_display']),
+            requiresLoginToOrder: (bool) $data['require_login'],
         );
     }
 }

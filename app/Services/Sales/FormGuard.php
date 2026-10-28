@@ -31,9 +31,11 @@ final class FormGuard
     }
 
     /**
+     * Honeypot and minimum fill time only (no rate limit): for forms with limits of their own, like the registration.
+     *
      * @throws FormGuardException
      */
-    public function check(?string $honeypot, ?string $token, string $ip): void
+    public function checkSpam(?string $honeypot, ?string $token): void
     {
         if ($honeypot !== null && $honeypot !== '') {
             throw new FormGuardException(__('sales.guard.generic'));
@@ -52,6 +54,14 @@ final class FormGuard
         if (now()->getTimestamp() - $issuedAt < self::MIN_SECONDS) {
             throw new FormGuardException(__('sales.guard.too_fast'));
         }
+    }
+
+    /**
+     * @throws FormGuardException
+     */
+    public function check(?string $honeypot, ?string $token, string $ip): void
+    {
+        $this->checkSpam($honeypot, $token);
 
         $key = 'sales-form:'.$ip;
 

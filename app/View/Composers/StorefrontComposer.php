@@ -12,6 +12,7 @@ use App\Services\Catalog\CategoryTree;
 use App\Services\Content\MenuService;
 use App\Services\Sales\CartAvailability;
 use App\Settings\AppearanceSettings;
+use App\Settings\CustomerSettings;
 use App\Settings\GeneralSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ class StorefrontComposer
         private readonly CartAvailability $cartAvailability,
         private readonly MenuService $menus,
         private readonly ViewerContext $viewer,
+        private readonly CustomerSettings $customers,
     ) {}
 
     /** @var array<string, mixed>|null Data built once per request (the composer runs for every storefront view and partial). */
@@ -84,6 +86,9 @@ class StorefrontComposer
             'cartEnabled' => $this->cartAvailability->enabled(),
             // CG-04: the header search needs the search and catalog sections.
             'searchEnabled' => $access->allowsSection(StorefrontSection::Search) && $access->allowsSection(StorefrontSection::Catalog),
+            // CA-19: «Войти» / «Личный кабинет» in the header and the bottom bar; hidden when registration is off.
+            'accountLinks' => $this->customers->registration_enabled || $this->viewer->customer() !== null,
+            'accountCustomerName' => $this->viewer->customer()?->name,
             'previewGroup' => $this->viewer->isPreview() ? $this->viewer->group()->name : null,
         ];
     }

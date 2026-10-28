@@ -6,6 +6,7 @@ namespace App\Livewire\Storefront\Concerns;
 
 use App\Enums\AgeRestriction;
 use App\Exceptions\FormGuardException;
+use App\Services\Access\ViewerContext;
 use App\Services\Content\MenuService;
 use App\Services\Sales\FormGuard;
 use App\Settings\LegalSettings;
@@ -29,6 +30,24 @@ trait SalesFormSupport
     public function mountSalesFormSupport(): void
     {
         $this->formToken = app(FormGuard::class)->issueToken();
+
+        // 17.7: a signed-in customer gets name, phone and e-mail filled in (they can still be changed).
+        $customer = app(ViewerContext::class)->customer();
+
+        if ($customer !== null) {
+            $this->name = $customer->name;
+            $this->phone = (string) $customer->phone;
+            $this->email = $customer->email;
+        }
+    }
+
+    /**
+     * CA-01, CG-12: the viewer has to sign in before ordering, reserving or inquiring; the form shows a sign-in
+     * link instead. The server enforces the same rule in OrderService.
+     */
+    protected function mustSignIn(): bool
+    {
+        return ! app(ViewerContext::class)->mayOrder();
     }
 
     /**
