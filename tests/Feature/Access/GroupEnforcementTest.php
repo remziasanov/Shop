@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\File;
  * category access modes, and the same pages for another group through the staff preview.
  */
 beforeEach(function (): void {
+    $this->withoutVite();
     $this->open = Category::factory()->create(['name' => 'Открытая']);
     $this->secret = Category::factory()->create(['name' => 'Секретная']);
     $this->visible = groupProduct($this->open, 'Видимый чайник');

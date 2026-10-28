@@ -28,6 +28,11 @@ use Livewire\Livewire;
 /**
  * CG-01, CG-03, CG-10, CG-18, CG-25, RB-05 (TZ 25.9): the groups resource, its policy and the page / menu fields.
  */
+// Storefront pages render the Vite layout; CI jobs without a frontend build have no manifest.
+beforeEach(function (): void {
+    $this->withoutVite();
+});
+
 describe('migration defaults', function (): void {
     it('creates the system groups «Гость» and «Розница» with v1.0 behaviour (CG-01, CG-03)', function (): void {
         $groups = CustomerGroup::query()->ordered()->get();

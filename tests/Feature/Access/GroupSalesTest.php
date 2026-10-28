@@ -34,6 +34,11 @@ use App\Settings\SalesSettings;
  * CG-06, CG-07, CG-08, CG-09, CG-14, CG-27 (TZ 25.6, 25.9): the sales mode is clamped by the group, hidden prices
  * lower it, and the server re-checks delivery, payment and the order minimum.
  */
+// Storefront pages render the Vite layout; CI jobs without a frontend build have no manifest.
+beforeEach(function (): void {
+    $this->withoutVite();
+});
+
 describe('sales mode clamp', function (): void {
     it('narrows «both» to what the group allows (CG-07)', function (array $allowed, SalesMode $expected): void {
         $access = app(CatalogAccess::class)->for(CustomerGroup::factory()->salesModes($allowed)->create());

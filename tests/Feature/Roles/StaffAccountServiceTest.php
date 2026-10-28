@@ -76,7 +76,8 @@ describe('staff account service', function (): void {
 
         $entry = AdminAuditEntry::query()->where('action', AuditAction::UserRoleChanged->value)->firstOrFail();
 
-        expect($entry->data)->toBe(['from' => 'manager', 'to' => 'admin']);
+        // MySQL stores JSON with its own key order, so compare without order.
+        expect($entry->data)->toEqual(['from' => 'manager', 'to' => 'admin']);
     });
 
     it('does not let staff hand out a role with rights they lack', function (): void {
