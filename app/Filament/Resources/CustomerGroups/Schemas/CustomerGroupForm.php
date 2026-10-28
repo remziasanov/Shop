@@ -81,6 +81,7 @@ final class CustomerGroupForm
                         ->label(__('customer_groups.fields.visible_sections'))
                         ->helperText(__('customer_groups.fields.visible_sections_hint'))
                         ->options(StorefrontSection::options())
+                        ->default(StorefrontSection::defaults())
                         ->columns(2)
                         ->columnSpanFull(),
                     Select::make('category_access_mode')
@@ -124,6 +125,7 @@ final class CustomerGroupForm
                         ->schema([
                             CheckboxList::make('allowed_sales_modes')
                                 ->hiddenLabel()
+                                ->default(self::MODES)
                                 ->options([
                                     'cart' => __('customer_groups.modes.cart'),
                                     'reservation' => __('customer_groups.modes.reservation'),
@@ -141,6 +143,7 @@ final class CustomerGroupForm
                         ->schema([
                             CheckboxList::make('allowed_delivery_codes')
                                 ->hiddenLabel()
+                                ->default(fn (): array => array_keys(self::methodOptions('delivery_methods')))
                                 ->options(fn (): array => self::methodOptions('delivery_methods')),
                         ]),
                     Section::make(__('customer_groups.fields.allowed_payment_codes'))
@@ -148,6 +151,7 @@ final class CustomerGroupForm
                         ->schema([
                             CheckboxList::make('allowed_payment_codes')
                                 ->hiddenLabel()
+                                ->default(fn (): array => array_keys(self::methodOptions('payment_methods')))
                                 ->options(fn (): array => self::methodOptions('payment_methods')),
                         ]),
                 ])->columns(2),
@@ -171,21 +175,6 @@ final class CustomerGroupForm
             'category_access_mode' => $group->category_access_mode->value,
             'price_display' => $group->price_display->value,
             'stock_display' => $group->stock_display->value,
-        ];
-    }
-
-    /**
-     * Defaults of a new group: everything allowed.
-     *
-     * @return array<string, mixed>
-     */
-    public static function defaultState(): array
-    {
-        return [
-            'visible_sections' => StorefrontSection::defaults(),
-            'allowed_sales_modes' => self::MODES,
-            'allowed_delivery_codes' => array_keys(self::methodOptions('delivery_methods')),
-            'allowed_payment_codes' => array_keys(self::methodOptions('payment_methods')),
         ];
     }
 

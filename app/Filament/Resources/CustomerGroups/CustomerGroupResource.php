@@ -82,10 +82,10 @@ class CustomerGroupResource extends Resource
                     ->tooltip(fn (CustomerGroup $record): ?string => $record->is_system ? __('customer_groups.table.system') : null),
                 TextColumn::make('category_access_mode')
                     ->label(__('customer_groups.fields.category_access_mode'))
-                    ->formatStateUsing(fn (mixed $state): string => $state instanceof \BackedEnum ? (string) $state->label() : (string) $state),
+                    ->state(fn (CustomerGroup $record): string => $record->category_access_mode->label()),
                 TextColumn::make('price_display')
                     ->label(__('customer_groups.fields.price_display'))
-                    ->formatStateUsing(fn (mixed $state): string => $state instanceof \BackedEnum ? (string) $state->label() : (string) $state),
+                    ->state(fn (CustomerGroup $record): string => $record->price_display->label()),
                 IconColumn::make('is_active')
                     ->label(__('customer_groups.fields.is_active'))
                     ->boolean(),

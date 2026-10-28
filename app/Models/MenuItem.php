@@ -36,6 +36,7 @@ class MenuItem extends Model
 {
     /** @use HasFactory<MenuItemFactory> */
     use HasFactory;
+
     use HasGroupVisibility;
 
     protected $fillable = [

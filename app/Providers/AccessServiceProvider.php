@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Http\Middleware\ResolveViewer;
 use App\Services\Access\CatalogAccess;
 use App\Services\Access\ViewerContext;
 use Illuminate\Support\ServiceProvider;
@@ -13,7 +14,7 @@ use Illuminate\Support\ServiceProvider;
  * points: HomePageRenderer::forget() (products, categories, product images, settings, finished imports, price and
  * stock changes), MenuService::flush() (pages, menu items, categories, settings) and the customer group observer.
  *
- * ViewerContext is a singleton whose per-request state {@see \App\Http\Middleware\ResolveViewer} resets; it is not
+ * ViewerContext is a singleton whose per-request state {@see ResolveViewer} resets; it is not
  * "scoped" because long-lived services hold it and must see the same object the middleware resets.
  */
 class AccessServiceProvider extends ServiceProvider

@@ -29,6 +29,7 @@ class Page extends Model
 {
     /** @use HasFactory<PageFactory> */
     use HasFactory;
+
     use HasGroupVisibility;
 
     protected $fillable = [

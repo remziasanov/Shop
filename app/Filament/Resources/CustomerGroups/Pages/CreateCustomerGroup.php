@@ -15,13 +15,6 @@ class CreateCustomerGroup extends CreateRecord
 {
     protected static string $resource = CustomerGroupResource::class;
 
-    public function mount(): void
-    {
-        parent::mount();
-
-        $this->form->fill(CustomerGroupForm::defaultState());
-    }
-
     /**
      * @param  array<string, mixed>  $data
      */

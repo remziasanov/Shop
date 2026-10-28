@@ -136,7 +136,7 @@ it('stays cacheable with php artisan optimize: no closure routes, no env() outsi
         $action = $route->getAction('uses');
 
         // Closures of vendor packages (Livewire assets, the storage route) are serialized by Laravel itself.
-        if ($action instanceof Closure && ! str_contains((string) (new ReflectionFunction($action))->getFileName(), '/vendor/')) {
+        if ($action instanceof Closure && ! str_contains(str_replace('\\', '/', (string) (new ReflectionFunction($action))->getFileName()), '/vendor/')) {
             $this->fail('Closure route: '.$route->uri());
         }
     }

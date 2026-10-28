@@ -15,7 +15,37 @@ return new class extends SettingsMigration
     public function up(): void
     {
         foreach (['sales.delivery_methods', 'sales.payment_methods'] as $property) {
-            $this->migrator->update($property, fn (mixed $rows): array => self::withCodes(is_array($rows) ? $rows : []));
+            $this->migrator->update($property, function (mixed $rows): array {
+                // Rows may come out of the payload decoder as objects; work with plain arrays.
+                $rows = is_array($rows) ? array_map(fn (mixed $row): mixed => is_object($row) ? (array) $row : $row, array_values($rows)) : [];
+                $used = [];
+
+                // Codes that already exist keep their value; generated ones must not collide with them.
+                foreach ($rows as $row) {
+                    if (is_array($row) && is_string($row['code'] ?? null) && $row['code'] !== '') {
+                        $used[$row['code']] = true;
+                    }
+                }
+
+                foreach ($rows as $index => $row) {
+                    if (! is_array($row) || (is_string($row['code'] ?? null) && $row['code'] !== '')) {
+                        continue;
+                    }
+
+                    $base = Str::slug((string) ($row['name'] ?? '')) ?: 'method';
+                    $code = $base;
+                    $suffix = 2;
+
+                    while (isset($used[$code])) {
+                        $code = $base.'-'.$suffix++;
+                    }
+
+                    $used[$code] = true;
+                    $rows[$index]['code'] = $code;
+                }
+
+                return $rows;
+            });
         }
     }
 
@@ -24,6 +54,8 @@ return new class extends SettingsMigration
         foreach (['sales.delivery_methods', 'sales.payment_methods'] as $property) {
             $this->migrator->update($property, function (mixed $rows): array {
                 return array_map(function (mixed $row): mixed {
+                    $row = is_object($row) ? (array) $row : $row;
+
                     if (is_array($row)) {
                         unset($row['code']);
                     }
@@ -32,41 +64,5 @@ return new class extends SettingsMigration
                 }, is_array($rows) ? array_values($rows) : []);
             });
         }
-    }
-
-    /**
-     * @param  array<int|string, mixed>  $rows
-     * @return list<mixed>
-     */
-    private static function withCodes(array $rows): array
-    {
-        $rows = array_values($rows);
-        $used = [];
-
-        // Codes that already exist keep their value; generated ones must not collide with them.
-        foreach ($rows as $row) {
-            if (is_array($row) && is_string($row['code'] ?? null) && $row['code'] !== '') {
-                $used[$row['code']] = true;
-            }
-        }
-
-        foreach ($rows as $index => $row) {
-            if (! is_array($row) || (is_string($row['code'] ?? null) && $row['code'] !== '')) {
-                continue;
-            }
-
-            $base = Str::slug((string) ($row['name'] ?? '')) ?: 'method';
-            $code = $base;
-            $suffix = 2;
-
-            while (isset($used[$code])) {
-                $code = $base.'-'.$suffix++;
-            }
-
-            $used[$code] = true;
-            $rows[$index]['code'] = $code;
-        }
-
-        return $rows;
     }
 };

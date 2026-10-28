@@ -10,6 +10,7 @@ require_once __DIR__.'/Support/storefront_sales.php';
 require_once __DIR__.'/Support/seo.php';
 require_once __DIR__.'/Support/roles.php';
 require_once __DIR__.'/Support/age.php';
+require_once __DIR__.'/Support/groups.php';
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)

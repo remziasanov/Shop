@@ -99,16 +99,16 @@ final class CatalogAccess
         return new AccessSet(
             groupId: $group->exists ? (int) $group->id : null,
             groupCode: $group->code,
-            sections: array_values(array_map('strval', $group->visible_sections)),
+            sections: $group->visible_sections,
             categoryMode: $mode,
             hiddenCategoryIds: $hidden,
             productCategoryIds: $products,
             navCategoryIds: $nav,
             priceDisplay: $group->price_display,
-            allowedSalesModes: $group->allowed_sales_modes !== null ? array_values(array_map('strval', $group->allowed_sales_modes)) : null,
+            allowedSalesModes: $group->allowed_sales_modes,
             minOrderAmount: $group->min_order_amount !== null ? Money::fromRubles($group->min_order_amount) : null,
-            allowedDeliveryCodes: $group->allowed_delivery_codes !== null ? array_values(array_map('strval', $group->allowed_delivery_codes)) : null,
-            allowedPaymentCodes: $group->allowed_payment_codes !== null ? array_values(array_map('strval', $group->allowed_payment_codes)) : null,
+            allowedDeliveryCodes: $group->allowed_delivery_codes,
+            allowedPaymentCodes: $group->allowed_payment_codes,
             stockDisplay: $group->stock_display,
         );
     }
