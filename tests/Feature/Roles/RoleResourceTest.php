@@ -15,6 +15,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\System\EnvironmentChecker;
 use App\Services\Users\AuditLogger;
+use App\Services\Users\PermissionRegistry;
 use Filament\Actions\Testing\TestAction;
 use Livewire\Livewire;
 
@@ -80,8 +81,9 @@ describe('roles resource', function (): void {
 
     it('does not offer a matrix for the Administrator role and keeps its code locked', function (): void {
         $adminRole = Role::query()->where('code', 'admin')->firstOrFail();
-        // An administrator may not edit their own role (RB-08), so another role holder opens it.
-        $this->actingAs(staffWith(['roles.view', 'roles.update']));
+        // An administrator may not edit their own role (RB-08), and staff edit only roles within their own rights, so a
+        // custom role that holds every permission opens it.
+        $this->actingAs(staffWith(PermissionRegistry::all()));
 
         Livewire::test(EditRole::class, ['record' => $adminRole->getRouteKey()])->assertFormFieldIsDisabled('code');
 

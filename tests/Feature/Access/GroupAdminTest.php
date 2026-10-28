@@ -181,10 +181,12 @@ describe('groups resource', function (): void {
 
         Livewire::test(ListCustomerGroups::class)->assertTableActionExists('preview', null, $group);
 
-        $this->get(route('viewer.preview', $group))->assertRedirect(route('home'));
+        // Entering and leaving are POST with CSRF; a GET is not a route.
+        $this->get('/preview-as/'.$group->id)->assertStatus(405);
+        $this->post(route('viewer.preview', $group))->assertRedirect(route('home'));
         expect(session(ViewerContext::PREVIEW_KEY))->toBe($group->id);
         $this->get(route('home'))->assertOk()->assertSee($group->name);
-        $this->get(route('viewer.preview.exit'))->assertRedirect(route('home'));
+        $this->post(route('viewer.preview.exit'))->assertRedirect(route('home'));
         expect(session(ViewerContext::PREVIEW_KEY))->toBeNull();
     });
 });
@@ -222,10 +224,10 @@ describe('permissions', function (): void {
         $group = CustomerGroup::factory()->create();
 
         $this->actingAs(staffWith(['pages.view']));
-        $this->get(route('viewer.preview', $group))->assertForbidden();
+        $this->post(route('viewer.preview', $group))->assertForbidden();
 
         auth()->logout();
-        $this->get(route('viewer.preview', $group))->assertForbidden();
+        $this->post(route('viewer.preview', $group))->assertForbidden();
     });
 
     it('ignores a preview flag in the session of a visitor who is not staff (CG-16)', function (): void {

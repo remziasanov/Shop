@@ -42,13 +42,12 @@ final class RoleService
         $this->escalation->assertCanGrant($actor, $permissions);
 
         return DB::transaction(function () use ($attributes, $code, $permissions, $actor): Role {
-            $role = Role::query()->create([
+            $role = new Role([
                 'code' => $code,
                 'name' => (string) $attributes['name'],
                 'description' => $this->blankToNull($attributes['description'] ?? null),
-                'is_system' => false,
-                'permissions_version' => 1,
             ]);
+            $role->forceFill(['is_system' => false, 'permissions_version' => 1])->save();
 
             $this->store($role, $permissions);
             $this->audit->record(AuditAction::RoleCreated, $actor, $role, ['code' => $role->code, 'permissions' => $permissions]);
@@ -67,6 +66,7 @@ final class RoleService
     public function update(Role $role, array $attributes, ?array $permissions, User $actor): Role
     {
         $this->authorize($actor, 'roles.update');
+        $this->escalation->assertCanManageRole($actor, $role);
 
         if ($actor->role_id !== null && (int) $actor->role_id === (int) $role->getKey()) {
             throw new StaffAccessException(__('roles.errors.own_role'));
@@ -142,6 +142,7 @@ final class RoleService
     public function delete(Role $role, User $actor): void
     {
         $this->authorize($actor, 'roles.delete');
+        $this->escalation->assertCanManageRole($actor, $role);
 
         if ($role->is_system) {
             throw new StaffAccessException(__('roles.errors.system_delete'));

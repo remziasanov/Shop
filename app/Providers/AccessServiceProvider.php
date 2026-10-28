@@ -7,6 +7,9 @@ namespace App\Providers;
 use App\Http\Middleware\ResolveViewer;
 use App\Services\Access\CatalogAccess;
 use App\Services\Access\ViewerContext;
+use App\Services\Catalog\CatalogVersion;
+use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -23,5 +26,14 @@ class AccessServiceProvider extends ServiceProvider
     {
         $this->app->singleton(CatalogAccess::class);
         $this->app->singleton(ViewerContext::class);
+    }
+
+    public function boot(): void
+    {
+        // A queue worker lives for many jobs: each one starts with a fresh catalog version and guest group.
+        Event::listen(JobProcessing::class, function (): void {
+            CatalogVersion::reset();
+            $this->app->make(CatalogAccess::class)->reset();
+        });
     }
 }

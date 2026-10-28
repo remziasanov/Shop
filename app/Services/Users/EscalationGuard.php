@@ -55,6 +55,23 @@ final class EscalationGuard
     }
 
     /**
+     * Whether the actor may edit or delete the role: an administrator always, anyone else only when the role grants
+     * nothing the actor lacks (editing a stronger role would be an escalation, RB-08).
+     */
+    public function canManageRole(User $actor, Role $role): bool
+    {
+        return $this->canAssign($actor, $role);
+    }
+
+    /**
+     * @throws StaffAccessException
+     */
+    public function assertCanManageRole(User $actor, Role $role): void
+    {
+        $this->assertCanAssign($actor, $role);
+    }
+
+    /**
      * Whether the actor may change the account of `$target`: an administrator always, anyone else only when the
      * target's role grants nothing the actor lacks (otherwise changing the password would be an escalation).
      */

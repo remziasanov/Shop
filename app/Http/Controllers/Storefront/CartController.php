@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Storefront;
 use App\Exceptions\SalesException;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Services\Cart\CartService;
 use App\Support\QtyLimit;
 use Illuminate\Contracts\View\View;
@@ -29,7 +30,7 @@ class CartController extends Controller
      * (redirect back with a flash message) and answers JSON to the Alpine enhancement. The cart rules (sales
      * mode, visibility, stock) are checked in {@see CartService::add()} (SF-41).
      */
-    public function add(Request $request, CartService $carts): JsonResponse|RedirectResponse
+    public function add(Request $request, CartService $carts, ViewerContext $viewer): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
             'product_id' => ['required', 'integer'],
@@ -37,6 +38,7 @@ class CartController extends Controller
         ]);
 
         try {
+            $viewer->assertNotPreview();
             $product = Product::query()->storefront()->find((int) $data['product_id'])
                 ?? throw new SalesException(__('storefront_sales.add.not_found'));
             $carts->add($carts->getOrCreate($request), $product, (int) ($data['qty'] ?? 1));

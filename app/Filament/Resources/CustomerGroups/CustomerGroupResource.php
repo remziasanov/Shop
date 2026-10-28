@@ -10,7 +10,9 @@ use App\Filament\Resources\CustomerGroups\Pages\EditCustomerGroup;
 use App\Filament\Resources\CustomerGroups\Pages\ListCustomerGroups;
 use App\Filament\Resources\CustomerGroups\Schemas\CustomerGroupForm;
 use App\Models\CustomerGroup;
+use App\Models\User;
 use App\Services\Access\CustomerGroupService;
+use App\Services\Access\ViewerPreview;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -100,7 +102,8 @@ class CustomerGroupResource extends Resource
     }
 
     /**
-     * «Просмотреть витрину как…» (CG-18): opens the storefront as the group, in a new tab.
+     * «Просмотреть витрину как…» (CG-18): sets the preview flag in the staff session (a Livewire action, so CSRF
+     * protected) and opens the storefront as the group.
      */
     public static function previewAction(): Action
     {
@@ -108,8 +111,13 @@ class CustomerGroupResource extends Resource
             ->label(__('customer_groups.actions.preview'))
             ->icon(Heroicon::OutlinedEye)
             ->color('gray')
-            ->url(fn (CustomerGroup $record): string => route('viewer.preview', $record->getKey()))
-            ->openUrlInNewTab();
+            ->action(function (CustomerGroup $record) {
+                $user = auth()->user();
+
+                app(ViewerPreview::class)->enter($user instanceof User ? $user : null, $record, app('session.store'));
+
+                return redirect()->route('home');
+            });
     }
 
     /**

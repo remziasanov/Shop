@@ -26,7 +26,8 @@ use Illuminate\Support\Facades\DB;
  * @property int|null $users_count
  * @property int|null $permissions_count
  */
-#[Fillable(['code', 'name', 'description', 'is_system', 'permissions_version'])]
+// `is_system` and `permissions_version` are never mass assigned: the service sets them with forceFill().
+#[Fillable(['code', 'name', 'description'])]
 class Role extends Model
 {
     /** @use HasFactory<RoleFactory> */

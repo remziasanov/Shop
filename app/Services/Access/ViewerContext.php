@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Services\Access;
 
 use App\Enums\StorefrontSection;
+use App\Exceptions\SalesException;
 use App\Http\Middleware\ResolveViewer;
 use App\Models\CustomerGroup;
+use App\Models\User;
 use App\Services\Catalog\CatalogVersion;
+use App\Services\Users\PermissionService;
 use Closure;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
@@ -35,13 +38,19 @@ final class ViewerContext
 
     private bool $private = false;
 
-    public function __construct(private readonly CatalogAccess $catalog) {}
+    public function __construct(
+        private readonly CatalogAccess $catalog,
+        private readonly PermissionService $permissions,
+    ) {}
 
     /**
      * Start of a request: forget the previous request's group, flags and explicit viewer (long-lived processes, tests).
      */
     public function beginRequest(): void
     {
+        // Per-request memos of the catalog version and the guest group (a worker or a test may have kept old ones).
+        CatalogVersion::reset();
+        $this->catalog->reset();
         $this->group = null;
         $this->version = null;
         $this->explicit = null;
@@ -91,6 +100,18 @@ final class ViewerContext
     public function isPreview(): bool
     {
         return $this->explicit === null && $this->previewGroupId() !== null;
+    }
+
+    /**
+     * A staff preview never buys: the cart, checkout, reservations and inquiries are closed to it (CG-18).
+     *
+     * @throws SalesException
+     */
+    public function assertNotPreview(): void
+    {
+        if ($this->isPreview()) {
+            throw new SalesException(__('customer_groups.storefront.preview_blocked'));
+        }
     }
 
     /**
@@ -154,7 +175,7 @@ final class ViewerContext
         }
 
         // Stage 9: a signed-in customer (guard `customer`) is looked up here; an inactive group means «Розница».
-        return CustomerGroup::guest();
+        return $this->catalog->guestGroup();
     }
 
     private function previewGroupId(): ?int
@@ -166,8 +187,15 @@ final class ViewerContext
         }
 
         $id = $request->session()->get(self::PREVIEW_KEY);
+
+        if (! is_numeric($id)) {
+            return null;
+        }
+
+        // The right is checked on every request, not only when the preview starts: a role that lost
+        // `customer_groups.view` (or a deactivated account) ends the preview at once.
         $user = $request->user();
 
-        return is_numeric($id) && $user !== null && (bool) ($user->is_active ?? false) ? (int) $id : null;
+        return $user instanceof User && $user->is_active && $this->permissions->allows($user, 'customer_groups.view') ? (int) $id : null;
     }
 }

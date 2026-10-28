@@ -111,18 +111,34 @@ it('hides the overlay from signed-in staff and keeps the page whole', function (
 // Cookie in the markup (AG-06, AG-07)
 // ---------------------------------------------------------------------------------------------
 
-it('serves the same page whatever the cookie says; CSS and the inline script decide (AG-07)', function () {
+it('leaves the overlay out for a visitor whose cookie confirms the level, so no JavaScript is needed (AG-06, AG-07)', function () {
     ageGate(['mode' => AgeGateMode::Site]);
     ageProduct(ageCategory(AgeRestriction::Age18), ['name' => 'Сигары']);
 
-    $without = stableHtml($this->get(route('home'))->assertOk()->getContent());
-    $with16 = stableHtml($this->withUnencryptedCookie('shop_age', '16')->get(route('home'))->getContent());
-    $with18 = stableHtml($this->withUnencryptedCookie('shop_age', '18')->get(route('home'))->getContent());
+    $without = $this->get(route('home'))->assertOk()->getContent();
+    $with16 = $this->withUnencryptedCookie('shop_age', '16')->get(route('home'))->getContent();
+    $with18 = $this->withUnencryptedCookie('shop_age', '18')->get(route('home'))->getContent();
 
-    expect($with16)->toBe($without)
-        ->and($with18)->toBe($without)
-        ->and($without)->toContain('shop_age=(16|18)')
-        ->and($without)->toContain('data-age-need="18"');
+    // No cookie, or a lower level than the page asks: the overlay form is in the markup, CSS and the script still work.
+    expect($without)->toContain('data-age-need="18"')->toContain('shop_age=(16|18)')->not->toContain('data-age-ok="')
+        ->and($with16)->toContain('data-age-need="18"')->toContain('data-age-ok="16"')
+        // A sufficient cookie: no overlay on the server side, the page is already marked as answered.
+        ->and($with18)->not->toContain('data-age-need')->toContain('data-age-ok="18"');
+
+    // A garbage cookie value counts as no answer.
+    expect($this->withUnencryptedCookie('shop_age', '99')->get(route('home'))->getContent())->toContain('data-age-need="18"');
+});
+
+it('keeps the same home blocks whatever the cookie says; only the overlay differs (AG-07)', function () {
+    ageGate(['mode' => AgeGateMode::Site]);
+    ageProduct(ageCategory(AgeRestriction::Age18), ['name' => 'Сигары', 'is_featured' => true]);
+
+    $main = fn (string $html): string => stableHtml(preg_match('/<main id="content".*?<\/main>/s', $html, $m) === 1 ? $m[0] : '');
+
+    $without = $main($this->get(route('home'))->getContent());
+    $with18 = $main($this->withUnencryptedCookie('shop_age', '18')->get(route('home'))->getContent());
+
+    expect($without)->toContain('data-age="18"')->and($with18)->toBe($without);
 });
 
 it('keeps the cached home page markup independent of the cookie (AG-07)', function () {

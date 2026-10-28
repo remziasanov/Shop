@@ -83,6 +83,8 @@ final class CartService
      */
     public function add(Cart $cart, Product $product, int $qty = 1): CartItem
     {
+        $this->viewer->assertNotPreview();
+
         if ($qty < 1) {
             throw new SalesException(__('sales.cart.qty_invalid'));
         }

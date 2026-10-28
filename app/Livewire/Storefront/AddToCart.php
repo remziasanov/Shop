@@ -7,6 +7,7 @@ namespace App\Livewire\Storefront;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Services\Cart\CartService;
 use App\Services\Sales\AvailabilityService;
 use App\Support\QtyLimit;
@@ -59,6 +60,7 @@ class AddToCart extends Component
         }
 
         try {
+            app(ViewerContext::class)->assertNotPreview();
             $carts->add($carts->getOrCreate(request()), $product, $qty);
         } catch (SalesException $e) {
             $this->addError('cart', $e->getMessage());

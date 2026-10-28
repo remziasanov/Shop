@@ -13,21 +13,39 @@ use Illuminate\Support\Facades\Cache;
  *
  * Bumped when products, categories, groups, pages, menu items, settings or prices change and when an import finishes
  * (see CatalogVersionServiceProvider and HomePageRenderer::forget()).
+ *
+ * The token is read from the cache once per request and kept in memory ({@see $memo}); {@see bump()} replaces it at
+ * once, {@see reset()} drops it at the start of a request and before each queued job, so a long-lived process
+ * (queue worker) never keeps a stale generation.
  */
 final class CatalogVersion
 {
     public const KEY = 'catalog:version';
 
+    private static ?string $memo = null;
+
     public static function current(): string
     {
+        if (self::$memo !== null) {
+            return self::$memo;
+        }
+
         $version = Cache::get(self::KEY);
 
         if (is_string($version) && $version !== '') {
-            return $version;
+            return self::$memo = $version;
         }
 
         // Missing (fresh or flushed cache): start a new generation.
         return self::bump();
+    }
+
+    /**
+     * Forget the in-memory token; the next {@see current()} reads the cache again.
+     */
+    public static function reset(): void
+    {
+        self::$memo = null;
     }
 
     /**
@@ -45,6 +63,6 @@ final class CatalogVersion
 
         Cache::forever(self::KEY, $token);
 
-        return $token;
+        return self::$memo = $token;
     }
 }

@@ -19,9 +19,10 @@ use Symfony\Component\HttpFoundation\Cookie;
  * Age gate decisions (TZ 16.5): which level the current page asks for, whether the shop has restricted products,
  * the confirmation cookie and the data of the overlay.
  *
- * The rendered HTML never depends on the visitor's cookie (AG-07): the overlay is always in the markup of a page that
- * asks for a level, and CSS plus a tiny inline script hide it for a visitor who has already answered. This class
- * therefore only decides what a *page* requires; the cookie is read here only by the server-side checks (checkout).
+ * Cached fragments never depend on the visitor's cookie (AG-07): restricted cards always carry data-age and CSS plus a
+ * tiny inline script unblur them for a visitor who has already answered. The layout is not cached, so
+ * {@see overlay()} leaves the overlay out for a visitor whose cookie already confirms the level (no-JavaScript
+ * visitors can then pass); the cookie is also read by the server-side checks (checkout).
  *
  * Request scoped (see {@see AgeGateServiceProvider}): controllers of category and product pages
  * tell it which level their page has.
@@ -187,7 +188,8 @@ final class AgeGate
     {
         $level = $this->requiredLevel();
 
-        if ($level === null) {
+        // The answer is already in the cookie: nothing to ask (the overlay is not a cached fragment).
+        if ($level === null || $this->confirmedAge($request) >= $level->minAge()) {
             return null;
         }
 

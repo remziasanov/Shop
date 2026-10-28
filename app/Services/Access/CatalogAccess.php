@@ -26,7 +26,36 @@ final class CatalogAccess
     /** @var array<string, AccessSet> Per-instance memo, keyed like the cache (so a bumped version never reads it). */
     private array $memo = [];
 
+    private ?CustomerGroup $guestGroup = null;
+
+    private ?string $guestVersion = null;
+
     public function __construct(private readonly CategoryTree $tree) {}
+
+    /**
+     * Forget the per-instance memo (start of a request, before a queued job).
+     */
+    public function reset(): void
+    {
+        $this->memo = [];
+        $this->guestGroup = null;
+        $this->guestVersion = null;
+    }
+
+    /**
+     * The «Гость» group, read once per catalog version: saving the group moves the version on.
+     */
+    public function guestGroup(): CustomerGroup
+    {
+        $version = CatalogVersion::current();
+
+        if ($this->guestGroup === null || $this->guestVersion !== $version) {
+            $this->guestGroup = CustomerGroup::guest();
+            $this->guestVersion = $version;
+        }
+
+        return $this->guestGroup;
+    }
 
     public function for(CustomerGroup $group): AccessSet
     {
@@ -57,7 +86,7 @@ final class CatalogAccess
      */
     public function guest(): AccessSet
     {
-        return $this->for(CustomerGroup::guest());
+        return $this->for($this->guestGroup());
     }
 
     private function compute(CustomerGroup $group): AccessSet

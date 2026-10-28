@@ -87,6 +87,33 @@ describe('role service', function (): void {
             ->and(fn () => $this->service->update($role, [], ['products.view', 'prices.bulk'], $actor))->toThrow(StaffAccessException::class);
     });
 
+    it('lets staff edit or delete only roles that grant nothing beyond their own rights (RB-08)', function (): void {
+        $actor = staffWith(['roles.view', 'roles.update', 'roles.delete', 'products.view', 'pages.view']);
+        $stronger = Role::factory()->withPermissions(['products.view', 'orders.delete'])->create();
+        $weaker = Role::factory()->withPermissions(['products.view'])->create();
+
+        expect(fn () => $this->service->update($stronger, ['name' => 'Hijacked'], null, $actor))->toThrow(StaffAccessException::class)
+            ->and(fn () => $this->service->delete($stronger, $actor))->toThrow(StaffAccessException::class)
+            ->and($actor->can('update', $stronger))->toBeFalse()
+            ->and($actor->can('delete', $stronger))->toBeFalse()
+            ->and(Role::query()->whereKey($stronger->id)->value('name'))->not->toBe('Hijacked');
+
+        $this->service->update($weaker, ['name' => 'Fine'], null, $actor);
+
+        expect($actor->can('update', $weaker))->toBeTrue()
+            ->and($weaker->refresh()->name)->toBe('Fine');
+
+        $this->service->delete($weaker, $actor);
+
+        expect(Role::query()->whereKey($weaker->id)->exists())->toBeFalse();
+    });
+
+    it('never mass assigns the system flag or the permission version of a role', function (): void {
+        $role = new Role(['code' => 'mass', 'name' => 'Mass', 'is_system' => true, 'permissions_version' => 99]);
+
+        expect($role->is_system)->toBeNull()->and($role->permissions_version)->toBeNull();
+    });
+
     it('lets an administrator grant anything', function (): void {
         $role = $this->service->create(['code' => 'all', 'name' => 'All'], ['users.delete', 'system.view'], $this->admin);
 

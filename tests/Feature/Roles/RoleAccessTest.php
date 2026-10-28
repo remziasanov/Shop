@@ -10,6 +10,7 @@ use App\Filament\Resources\Imports\ImportResource;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\Pages\PageResource;
 use App\Filament\Resources\PriceRules\PriceRuleResource;
+use App\Filament\Resources\Products\Pages\EditProduct;
 use App\Filament\Resources\Products\Pages\ListProducts;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\Roles\RoleResource;
@@ -79,6 +80,79 @@ describe('custom role «Контент-менеджер»', function (): void {
         expect($this->editor->can('changePrices', Product::class))->toBeFalse()
             ->and($this->editor->can('bulk', Product::class))->toBeFalse()
             ->and($product->exists)->toBeTrue();
+    });
+});
+
+describe('panel home without dashboard.view (RB-13)', function (): void {
+    it('sends a role without the dashboard to its first section instead of a 403', function (): void {
+        $user = staffWith(['orders.view', 'orders.export', 'exports.view', 'exports.create']);
+
+        $response = $this->actingAs($user)->get('/admin');
+
+        $response->assertRedirect();
+        $target = $response->headers->get('Location');
+        expect($target)->not->toBe(url('/admin'));
+
+        $this->followingRedirects()->get('/admin')->assertOk();
+        $this->get((string) $target)->assertOk();
+    });
+
+    it('keeps the dashboard for a role that has dashboard.view', function (): void {
+        $this->actingAs(staffWith(['dashboard.view', 'orders.view']))->get('/admin')->assertOk();
+    });
+
+    it('answers 403 when the role has no accessible section at all', function (): void {
+        $this->actingAs(staffWith([]))->get('/admin')->assertForbidden();
+    });
+});
+
+describe('protected Livewire actions called directly (RB-13)', function (): void {
+    it('refuses bulk actions of a user without the permission and leaves the data unchanged', function (): void {
+        $viewer = staffWith(['dashboard.view', 'products.view']);
+        $product = Product::factory()->create(['is_active' => true, 'base_price' => '100.00']);
+        $this->actingAs($viewer);
+
+        foreach ([
+            ['deactivate', []],
+            ['delete', []],
+            ['change_price', ['operation' => 'increase_percent', 'value' => '10']],
+        ] as [$action, $data]) {
+            try {
+                Livewire::test(ListProducts::class)->callTableBulkAction($action, [$product], $data);
+            } catch (Throwable) {
+                // Refused with an exception (403) or an assertion about a hidden action: both mean "not executed".
+            }
+        }
+
+        $fresh = Product::withTrashed()->findOrFail($product->id);
+
+        expect($fresh->trashed())->toBeFalse()
+            ->and($fresh->is_active)->toBeTrue()
+            ->and($fresh->base_price)->toBe('100.00');
+    });
+
+    it('refuses the delete action of a role without products.delete on the edit page', function (): void {
+        $viewer = staffWith(['dashboard.view', 'products.view', 'products.update']);
+        $product = Product::factory()->create();
+        $this->actingAs($viewer);
+
+        try {
+            Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()])->callAction('delete');
+        } catch (Throwable) {
+            // Hidden or refused: not executed.
+        }
+
+        expect(Product::withTrashed()->findOrFail($product->id)->trashed())->toBeFalse();
+    });
+
+    it('lets the same bulk action through for a role that has the permission', function (): void {
+        $manager = staffWith(['dashboard.view', 'products.view', 'products.bulk']);
+        $product = Product::factory()->create(['is_active' => true]);
+        $this->actingAs($manager);
+
+        Livewire::test(ListProducts::class)->callTableBulkAction('deactivate', [$product]);
+
+        expect($product->fresh()->is_active)->toBeFalse();
     });
 });
 

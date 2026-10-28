@@ -1,11 +1,15 @@
 @php
-    // TZ 16: the page markup never depends on the visitor's cookie (AG-07); only the settings and staff status vary here.
+    // TZ 16: cached fragments (the home blocks) never depend on the visitor's cookie (AG-07). The layout itself is not
+    // cached, so a visitor whose shop_age cookie already confirms the level gets the page without the overlay and with
+    // html[data-age-ok] set here; the inline script does the same in the browser, which keeps a no-JavaScript visitor
+    // from being asked again on every page.
     $ageGate = app(\App\Services\Age\AgeGate::class);
     $ageOn = $ageGate->enabled();
     $ageStaff = $ageOn && \App\Http\Middleware\StorefrontOpen::isActiveStaff(request()->user());
+    $ageCookie = $ageOn && ! $ageStaff ? $ageGate->confirmedAge(request()) : 0;
 @endphp
 <!DOCTYPE html>
-<html lang="ru" @if ($ageOn) data-age-on @if ($ageGate->showBadge()) data-age-badge @endif @if ($ageStaff) data-age-ok="18" @endif @endif>
+<html lang="ru" @if ($ageOn) data-age-on @if ($ageGate->showBadge()) data-age-badge @endif @if ($ageStaff) data-age-ok="18" @elseif ($ageCookie > 0) data-age-ok="{{ $ageCookie }}" @endif @endif>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -47,7 +51,10 @@
         {{-- CG-18: a staff member looks at the storefront as a customer group. --}}
         <div class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900" role="status">
             {{ __('customer_groups.storefront.preview_banner', ['group' => $previewGroup]) }}
-            <a href="{{ route('viewer.preview.exit') }}" class="ml-2 font-semibold underline">{{ __('customer_groups.storefront.preview_exit') }}</a>
+            <form method="POST" action="{{ route('viewer.preview.exit') }}" class="ml-2 inline">
+                @csrf
+                <button type="submit" class="font-semibold underline">{{ __('customer_groups.storefront.preview_exit') }}</button>
+            </form>
         </div>
     @endif
 

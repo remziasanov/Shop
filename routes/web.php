@@ -46,9 +46,9 @@ Route::get('/age-gate/decline', [AgeGateController::class, 'decline'])->name('ag
 // placeholder page until stage 9 brings the customer accounts.
 Route::get('/account/login', CustomerLoginController::class)->name('customer.login');
 
-// CG-18: staff look at the storefront as a customer group (a flag of the staff session, not a customer login).
-Route::get('/preview-as/exit', [ViewerPreviewController::class, 'exit'])->name('viewer.preview.exit');
-Route::get('/preview-as/{group}', [ViewerPreviewController::class, 'enter'])->whereNumber('group')->name('viewer.preview');
+// CG-18: staff look at the storefront as a customer group (a flag of the staff session, not a customer login); POST so that CSRF protects it.
+Route::post('/preview-as/exit', [ViewerPreviewController::class, 'exit'])->name('viewer.preview.exit');
+Route::post('/preview-as/{group}', [ViewerPreviewController::class, 'enter'])->whereNumber('group')->name('viewer.preview');
 
 // Sales (stage 4): cart, checkout and the "thank you" page addressed by the order UUID (SF-40…47).
 Route::get('/cart', [CartController::class, 'show'])->name('cart');

@@ -68,6 +68,7 @@ final class OrderService
      */
     public function createFromCart(Cart $cart, CheckoutData $data): Order
     {
+        $this->viewer->assertNotPreview();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         $delivery = $this->methods->delivery($data->deliveryKey)
@@ -207,6 +208,7 @@ final class OrderService
      */
     public function createReservation(Product $product, ReservationData $data): Order
     {
+        $this->viewer->assertNotPreview();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         if ($data->qty < 1 || $data->qty > QtyLimit::MAX) {
@@ -270,6 +272,7 @@ final class OrderService
      */
     public function createInquiry(Product $product, InquiryData $data): Order
     {
+        $this->viewer->assertNotPreview();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         if ($data->qty < 1 || $data->qty > QtyLimit::MAX) {
