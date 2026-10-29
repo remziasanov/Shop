@@ -7,6 +7,7 @@
             <x-account.field prefix="dc" name="code" :label="__('account.fields.code')" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" />
             <x-account.button>{{ __('account.security.confirm_submit') }}</x-account.button>
         </form>
+        <x-account.resend-button :action="route('customer.security.delete.resend')" :seconds="$resendSeconds" />
         <p class="mt-6 text-sm">
             <a href="{{ route('customer.security') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.security.cancel') }}</a>
         </p>

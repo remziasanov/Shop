@@ -11,6 +11,7 @@
             </label>
             <x-account.button>{{ __('account.login.submit') }}</x-account.button>
         </form>
+        <x-account.resend-button :action="route('customer.login.resend')" :seconds="$resendSeconds" />
         <p class="mt-6 text-sm">
             <a href="{{ route('customer.login') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.login.back') }}</a>
         </p>

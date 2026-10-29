@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Account;
 
+use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
@@ -48,11 +49,35 @@ class PasswordResetController extends Controller
 
     public function showCode(Request $request): View|RedirectResponse
     {
-        if ($this->email($request) === null) {
+        $email = $this->email($request);
+
+        if ($email === null) {
             return redirect()->route('customer.password.forgot');
         }
 
-        return $this->page('forgot-code', __('account.reset.code_title'));
+        return $this->page('forgot-code', __('account.reset.code_title'), [
+            'resendSeconds' => $this->resendSeconds($email, VerificationPurpose::PasswordReset),
+        ]);
+    }
+
+    /**
+     * «Отправить код ещё раз» on the code page; the service enforces the pause.
+     */
+    public function resendCode(Request $request, CustomerAuthService $auth): RedirectResponse
+    {
+        $email = $this->email($request);
+
+        if ($email === null) {
+            return redirect()->route('customer.password.forgot');
+        }
+
+        try {
+            $auth->requestPasswordReset($email, (string) $request->ip());
+        } catch (CustomerAuthException $e) {
+            return $this->failure($request, $e);
+        }
+
+        return back()->with('status', __('account.resend.done'));
     }
 
     /**

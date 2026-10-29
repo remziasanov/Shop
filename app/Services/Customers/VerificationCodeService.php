@@ -80,7 +80,7 @@ final class VerificationCodeService
             throw new CustomerThrottledException(RateLimiter::availableIn($ipKey));
         }
 
-        $pauseKey = 'customer-code:pause:'.$purpose->value.':'.$this->hash($email);
+        $pauseKey = $this->pauseKey($purpose, $email);
 
         if (RateLimiter::tooManyAttempts($pauseKey, 1)) {
             throw new CustomerAuthException(__('account.errors.resend_wait', ['time' => CustomerThrottledException::humanTime(RateLimiter::availableIn($pauseKey))]), 'code');
@@ -217,6 +217,17 @@ final class VerificationCodeService
     }
 
     /**
+     * Seconds until the next code of this purpose may be requested for the address; 0 when it may be requested now.
+     * It is the same pause the request enforces, so the countdown on the code pages never disagrees with the server.
+     */
+    public function resendAvailableIn(string $email, VerificationPurpose $purpose): int
+    {
+        $key = $this->pauseKey($purpose, $email);
+
+        return RateLimiter::tooManyAttempts($key, 1) ? max(0, RateLimiter::availableIn($key)) : 0;
+    }
+
+    /**
      * Deletes codes that expired more than `$keepDays` days ago (for shop:purge-customer-codes).
      */
     public function purgeExpired(int $keepDays = 1, ?float $deadline = null): int
@@ -281,6 +292,11 @@ final class VerificationCodeService
     private function invalid(): CustomerAuthException
     {
         return new CustomerAuthException(__('account.errors.code_invalid'), 'code');
+    }
+
+    private function pauseKey(VerificationPurpose $purpose, string $email): string
+    {
+        return 'customer-code:pause:'.$purpose->value.':'.$this->hash($email);
     }
 
     private function lockKey(string $email): string

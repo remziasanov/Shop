@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Enums\VerificationPurpose;
+use App\Mail\Concerns\StripsMarkdownEscapes;
 use App\Settings\CustomerSettings;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
@@ -23,6 +24,7 @@ class CustomerCodeMail extends Mailable implements ShouldBeEncrypted, ShouldQueu
 {
     use Queueable;
     use SerializesModels;
+    use StripsMarkdownEscapes;
 
     public int $tries = 3;
 
@@ -40,6 +42,8 @@ class CustomerCodeMail extends Mailable implements ShouldBeEncrypted, ShouldQueu
 
     public function content(): Content
     {
+        $this->stripMarkdownEscapesFromTextPart();
+
         $settings = app(CustomerSettings::class);
 
         return new Content(markdown: 'mail.customer-code', with: [

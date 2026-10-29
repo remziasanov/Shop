@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Account;
 
+use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
@@ -47,10 +48,27 @@ class SecurityController extends Controller
 
     public function showConfirm(Request $request, CustomerSettings $settings): View
     {
+        $customer = $this->currentCustomer($request);
+
         return $this->page('delete-confirm', __('account.security.confirm_title'), [
-            'maskedEmail' => PiiMask::email($this->currentCustomer($request)->email),
+            'maskedEmail' => PiiMask::email($customer->email),
             'graceDays' => $settings->deletion_grace_days,
+            'resendSeconds' => $this->resendSeconds($customer->email, VerificationPurpose::DeleteAccount),
         ]);
+    }
+
+    /**
+     * «Отправить код ещё раз» for the deletion code; the service enforces the pause.
+     */
+    public function resendDeletionCode(Request $request, AccountDeletionService $deletion): RedirectResponse
+    {
+        try {
+            $deletion->requestCode($this->currentCustomer($request), (string) $request->ip());
+        } catch (CustomerAuthException $e) {
+            return $this->failure($request, $e);
+        }
+
+        return back()->with('status', __('account.resend.done'));
     }
 
     /**
