@@ -46,12 +46,12 @@ class EmailConfirmationController extends Controller
         }
 
         try {
-            $customer = $auth->confirmRegistration($email, $request->code(), (string) $request->ip());
+            $customer = $auth->confirmRegistration($email, $request->code(), (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
 
-        $request->session()->forget(RegisterController::PENDING_EMAIL_KEY);
+        $request->session()->forget([RegisterController::PENDING_EMAIL_KEY, RegisterController::BINDING_KEY]);
         $auth->signIn($customer, $request);
 
         return redirect()->intended(route('account'))->with('status', __('account.confirm.done'));
@@ -66,7 +66,7 @@ class EmailConfirmationController extends Controller
         }
 
         try {
-            $auth->resendRegistrationCode($email, (string) $request->ip());
+            $auth->resendRegistrationCode($email, (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }

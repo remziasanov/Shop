@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Account;
 
+use App\Rules\CanonicalEmail;
+
 /**
  * CA-06: sign-in by e-mail and password.
  */
@@ -15,7 +17,7 @@ class LoginRequest extends AccountRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email:rfc', 'max:190'],
+            'email' => ['bail', 'required', 'string', 'max:190', new CanonicalEmail, 'email:rfc'],
             'password' => ['required', 'string', 'max:255'],
             'remember' => ['nullable', 'boolean'],
         ];

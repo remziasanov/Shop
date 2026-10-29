@@ -42,7 +42,7 @@ class LoginController extends Controller
     public function store(LoginRequest $request, CustomerAuthService $auth): RedirectResponse
     {
         try {
-            $customer = $auth->authenticateByPassword($request->email(), (string) $request->validated('password'), (string) $request->ip());
+            $customer = $auth->authenticateByPassword($request->email(), (string) $request->validated('password'), (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerNotVerifiedException $e) {
             $request->session()->put(RegisterController::PENDING_EMAIL_KEY, $e->email);
 

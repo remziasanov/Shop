@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Customer;
 use App\Models\User;
+use App\Services\Access\ViewerContext;
 use App\Services\Customers\CustomerAuthService;
 use Filament\Models\Contracts\FilamentUser;
 use Illuminate\Support\Facades\Auth;
@@ -125,4 +126,17 @@ it('keeps customers and staff in different tables', function (): void {
     $customer = makeCustomer(['email' => 'same.address@example.com']);
 
     expect($user->getTable())->toBe('users')->and($customer->getTable())->toBe('customers');
+});
+
+it('renews the session id and drops staff-only keys on staff sign-out, keeping the customer (CA-32, CG-18)', function (): void {
+    signInStaff($this, User::factory()->admin()->create());
+    signInCustomer($this, $this->customer);
+    session()->put(ViewerContext::PREVIEW_KEY, 7);
+    $before = session()->getId();
+
+    $this->post('/'.config('shop.admin_path').'/logout');
+
+    expect(session()->getId())->not->toBe($before)
+        ->and(session()->has(ViewerContext::PREVIEW_KEY))->toBeFalse()
+        ->and(session(Auth::guard('customer')->getName()))->toBe($this->customer->id);
 });

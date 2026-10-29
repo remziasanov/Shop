@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Models\User;
+use App\Services\Users\PermissionService;
 use Illuminate\Contracts\View\View;
 
 /**
@@ -14,8 +16,12 @@ final class CronHelpController
     /** Typical PHP binary on Beget; the actual version depends on the site settings. */
     public const SUGGESTED_PHP = '/usr/local/php/cgi/8.3/bin/php';
 
-    public function __invoke(): View
+    public function __invoke(PermissionService $permissions): View
     {
+        // Linked from the dashboard warning (dashboard.view) and from the system status page (system.view).
+        $user = auth()->user();
+        abort_unless($user instanceof User && $permissions->allowsAny($user, 'dashboard.view', 'system.view'), 403);
+
         $base = base_path();
 
         return view('admin.help.cron', [

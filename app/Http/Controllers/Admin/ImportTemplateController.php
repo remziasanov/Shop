@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Services\Export\ImportTemplateBuilder;
+use App\Services\Users\PermissionService;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
@@ -12,8 +13,11 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 final class ImportTemplateController
 {
-    public function __invoke(ImportTemplateBuilder $builder): BinaryFileResponse
+    public function __invoke(ImportTemplateBuilder $builder, PermissionService $permissions): BinaryFileResponse
     {
+        // The template is linked from the import wizard: whoever may run an import may download it.
+        abort_unless($permissions->allowsCurrent('imports.run'), 403);
+
         $path = tempnam(sys_get_temp_dir(), 'shoptpl');
         abort_if($path === false, 500);
 

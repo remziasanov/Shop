@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Enums\AuditAction;
 use App\Enums\SystemRole;
+use App\Models\AdminAuditEntry;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
@@ -52,4 +54,28 @@ it('rejects an invalid email and missing values', function () {
     ])->assertFailed();
 
     expect(User::count())->toBe(0);
+});
+
+it('writes the creation to the action journal without personal data (RB-12)', function () {
+    $this->artisan('shop:create-admin', [
+        '--name' => 'Админ',
+        '--email' => 'boss@example.com',
+        '--password' => 'correct-horse-battery',
+        '--no-interaction' => true,
+    ])->assertSuccessful();
+
+    $user = User::where('email', 'boss@example.com')->firstOrFail();
+    $entry = AdminAuditEntry::query()->where('action', AuditAction::UserCreated->value)->firstOrFail();
+
+    expect($entry->subject_type)->toBe('users')
+        ->and($entry->subject_id)->toBe($user->id)
+        ->and($entry->user_id)->toBeNull()
+        ->and($entry->data)->toMatchArray(['role' => SystemRole::Admin->value, 'source' => 'console'])
+        ->and(json_encode($entry->data))->not->toContain('boss@example.com')->not->toContain('Админ');
+});
+
+it('writes nothing to the journal when the creation is refused', function () {
+    $this->artisan('shop:create-admin', ['--email' => 'bad', '--no-interaction' => true])->assertFailed();
+
+    expect(AdminAuditEntry::query()->count())->toBe(0);
 });

@@ -96,6 +96,7 @@ class ReservationForm extends Component
             return;
         }
 
+        $this->normalizeEmailInput();
         $this->validate();
 
         if (! $this->passesGuard()) {

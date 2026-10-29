@@ -60,7 +60,7 @@
             <section class="mt-6 rounded-lg border border-slate-200 p-4" aria-labelledby="thanks-account" data-create-account>
                 <h2 id="thanks-account" class="font-semibold">{{ __('account.thanks.title') }}</h2>
                 <p class="mt-1 text-sm text-slate-600">{{ __('account.thanks.text') }}</p>
-                <a href="{{ route('customer.register', ['email' => $order->customer_email]) }}" class="mt-3 inline-block rounded border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('account.thanks.create') }}</a>
+                <a href="{{ route('customer.register') }}" class="mt-3 inline-block rounded border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('account.thanks.create') }}</a>
             </section>
         @endif
 

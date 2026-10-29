@@ -6,8 +6,10 @@ namespace App\Livewire\Storefront\Concerns;
 
 use App\Enums\AgeRestriction;
 use App\Exceptions\FormGuardException;
+use App\Rules\CanonicalEmail;
 use App\Services\Access\ViewerContext;
 use App\Services\Content\MenuService;
+use App\Services\Customers\EmailNormalizer;
 use App\Services\Sales\FormGuard;
 use App\Settings\LegalSettings;
 use App\Support\PhoneNormalizer;
@@ -51,6 +53,15 @@ trait SalesFormSupport
     }
 
     /**
+     * Reduces the typed e-mail to its canonical ASCII form before validation, so the order is stored and later linked
+     * to an account by one spelling of the address (CA-14). An address without one stays as typed and fails the rule.
+     */
+    protected function normalizeEmailInput(): void
+    {
+        $this->email = trim($this->email) === '' ? '' : EmailNormalizer::normalizeOrLower($this->email);
+    }
+
+    /**
      * Runs the honeypot / too-fast / rate-limit checks; a failure is shown as the form error.
      */
     protected function passesGuard(): bool
@@ -74,7 +85,7 @@ trait SalesFormSupport
         return [
             'name' => ['required', 'string', 'max:150'],
             'phone' => ['required', 'string', 'max:30', $this->phoneRule()],
-            'email' => ['nullable', 'email', 'max:190'],
+            'email' => ['bail', 'nullable', 'string', 'max:190', new CanonicalEmail, 'email'],
             'comment' => ['nullable', 'string', 'max:2000'],
             'consent' => ['accepted'],
         ];

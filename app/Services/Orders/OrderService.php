@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Customers\EmailNormalizer;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
 use App\Services\Stock\StockService;
@@ -179,7 +180,7 @@ final class OrderService
             $order = $this->createRecord(OrderType::Order, [
                 'customer_name' => trim($data->name),
                 'customer_phone' => $phone,
-                'customer_email' => $this->blankToNull($data->email),
+                'customer_email' => $this->canonicalEmail($data->email),
                 'delivery_method' => $delivery->name,
                 'delivery_address' => $address,
                 'delivery_price' => Money::toRubles($deliveryPrice),
@@ -253,7 +254,7 @@ final class OrderService
             $order = $this->createRecord(OrderType::Reservation, [
                 'customer_name' => trim($data->name),
                 'customer_phone' => $phone,
-                'customer_email' => $this->blankToNull($data->email),
+                'customer_email' => $this->canonicalEmail($data->email),
                 'delivery_price' => '0.00',
                 'items_total' => Money::toRubles($price * $data->qty),
                 'total' => Money::toRubles($price * $data->qty),
@@ -299,7 +300,7 @@ final class OrderService
             $order = $this->createRecord(OrderType::Inquiry, [
                 'customer_name' => trim($data->name),
                 'customer_phone' => $phone,
-                'customer_email' => $this->blankToNull($data->email),
+                'customer_email' => $this->canonicalEmail($data->email),
                 'delivery_price' => '0.00',
                 'items_total' => $total,
                 'total' => $total,
@@ -583,6 +584,22 @@ final class OrderService
             'comment' => $comment,
             'created_at' => now(),
         ]);
+    }
+
+    /**
+     * The contact e-mail of a request in canonical ASCII form (see EmailNormalizer), null when none was given.
+     *
+     * @throws SalesException the address has no canonical form
+     */
+    private function canonicalEmail(?string $value): ?string
+    {
+        $value = $this->blankToNull($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        return EmailNormalizer::normalize($value) ?? throw new SalesException(__('validation.canonical_email', ['attribute' => __('storefront_sales.fields.email')]));
     }
 
     private function blankToNull(?string $value): ?string

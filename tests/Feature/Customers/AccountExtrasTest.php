@@ -18,9 +18,21 @@ it('offers a guest to create a cabinet on the thank-you page, with the e-mail pr
     $this->get(route('order.thanks', $order->uuid))
         ->assertOk()
         ->assertSee('data-create-account', false)
-        ->assertSee(route('customer.register', ['email' => 'guest.buyer@example.com']), false);
+        ->assertSee('href="'.route('customer.register').'"', false)
+        // NF-15: the address never travels in a URL (server logs, Referer), the page itself does not print it either.
+        ->assertDontSee('guest.buyer', false)
+        ->assertDontSee('email=', false);
 
-    $this->get(route('customer.register', ['email' => 'guest.buyer@example.com']))->assertOk()->assertSee('guest.buyer@example.com');
+    // The registration form of the same session is prefilled from the remembered order.
+    $this->get(route('customer.register'))->assertOk()->assertSee('value="guest.buyer@example.com"', false);
+});
+
+it('does not prefill the registration form for another browser session or from a query string (CA-27, NF-15)', function (): void {
+    Order::factory()->create(['customer_email' => 'guest.private@example.com']);
+
+    $this->get(route('customer.register', ['email' => 'guest.private@example.com']))
+        ->assertOk()
+        ->assertDontSee('guest.private@example.com', false);
 });
 
 it('does not offer a cabinet without an e-mail, to a signed-in customer, for an account order, or when registration is off (CA-27)', function (): void {

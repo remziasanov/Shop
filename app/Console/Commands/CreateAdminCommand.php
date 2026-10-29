@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Enums\AuditAction;
 use App\Enums\SystemRole;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Users\AuditLogger;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -74,6 +76,9 @@ class CreateAdminCommand extends Command
             'role_id' => (int) $adminRoleId,
             'is_active' => true,
         ])->save();
+
+        // RB-12: the first administrator is created outside the panel, so there is no actor; ids and the role only.
+        app(AuditLogger::class)->record(AuditAction::UserCreated, null, $user, ['role' => SystemRole::Admin->value, 'active' => true, 'source' => 'console']);
 
         $this->components->info(__('shop.command.created', ['email' => $email]));
 
