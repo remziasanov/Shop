@@ -6,6 +6,8 @@ use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Http\Controllers\Storefront\Account\RegisterController;
 use App\Models\Customer;
+use App\Models\User;
+use App\Services\Customers\CustomerAdminService;
 use App\Services\Customers\CustomerAuthService;
 use App\Services\Customers\RegistrationData;
 use Illuminate\Support\Facades\Hash;
@@ -119,4 +121,31 @@ it('refuses the code in a browser other than the one that registered (HTTP flow,
     $this->post(route('customer.confirm.store'), ['code' => $code])->assertSessionHasErrors('code');
     $this->assertGuest('customer');
     expect(Customer::query()->firstOrFail()->email_verified_at)->toBeNull();
+});
+
+it('lets a staff resend confirm only the pending registration, never a password set by somebody else (CA-05, D-108)', function (): void {
+    $this->auth->register(registrationFor('attacker-password-1', 'attacker-session', 'Атакующий'));
+    $this->travel(61)->seconds();
+    $this->auth->register(registrationFor('victim-password-1', 'victim-session', 'Жертва'));
+    $this->travel(61)->seconds();
+
+    // The victim's mail is late; staff press «Отправить код подтверждения».
+    $customer = Customer::query()->firstOrFail();
+    app(CustomerAdminService::class)
+        ->resendConfirmationCode($customer, User::factory()->admin()->create(), '192.0.2.20');
+    $staffCode = lastSentCode(VerificationPurpose::Register);
+
+    // The attacker's session cannot use it; the victim's can, and it applies the victim's own data.
+    expect(fn () => $this->auth->confirmRegistration($this->email, $staffCode, '192.0.2.12', 'attacker-session'))
+        ->toThrow(CustomerAuthException::class);
+
+    $this->travel(61)->seconds();
+    app(CustomerAdminService::class)
+        ->resendConfirmationCode($customer->fresh(), User::factory()->admin()->create(), '192.0.2.20');
+    $this->auth->confirmRegistration($this->email, lastSentCode(VerificationPurpose::Register), '192.0.2.11', 'victim-session');
+
+    $customer = Customer::query()->firstOrFail();
+    expect($customer->email_verified_at)->not->toBeNull()
+        ->and(Hash::check('victim-password-1', $customer->password))->toBeTrue()
+        ->and(Hash::check('attacker-password-1', $customer->password))->toBeFalse();
 });
