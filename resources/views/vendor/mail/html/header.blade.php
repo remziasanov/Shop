@@ -1,11 +1,10 @@
 @props(['url'])
 @php
-    $shopName = config('app.name');
+    $shopName = \App\Support\ShopName::get();
     $logoUrl = null;
 
     try {
         $general = app(\App\Settings\GeneralSettings::class);
-        $shopName = $general->shop_name ?: $shopName;
 
         if (filled($general->logo)) {
             $logoUrl = url(\Illuminate\Support\Facades\Storage::disk('public')->url($general->logo));

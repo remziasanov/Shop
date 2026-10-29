@@ -56,7 +56,7 @@ it('schedules the heartbeat every minute', function () {
 });
 
 it('returns statuses for every check', function () {
-    $results = app(EnvironmentChecker::class)->run();
+    $results = app(EnvironmentChecker::class, ['phpVersion' => '8.3.36', 'phpExtraVersion' => ''])->run();
     $keys = array_map(fn ($r) => $r->key, $results);
 
     expect($results)->not->toBeEmpty()
@@ -325,4 +325,37 @@ it('derives the database label from the version string', function () {
         ->and(EnvironmentChecker::databaseLabel('mysql', '10.6.12-MariaDB-0ubuntu0.22.04.1'))->toBe('MariaDB')
         ->and(EnvironmentChecker::databaseLabel('mariadb', '11.4.2'))->toBe('MariaDB')
         ->and(EnvironmentChecker::databaseLabel('sqlite', '3.45.0'))->toBe('SQLite');
+});
+
+it('reports a PHP version below the patched release of its branch (D-106)', function (string $version, string $extra, CheckStatus $status) {
+    $check = collect(app(EnvironmentChecker::class, ['phpVersion' => $version, 'phpExtraVersion' => $extra])->run())
+        ->first(fn (CheckResult $r) => $r->key === 'php_version');
+
+    expect($check->status)->toBe($status);
+
+    if ($status !== CheckStatus::Ok) {
+        expect($check->hint)->toContain('CVE-2026-109618');
+    }
+})->with([
+    'vulnerable 8.3' => ['8.3.35', '', CheckStatus::Error],
+    'patched 8.3' => ['8.3.36', '', CheckStatus::Ok],
+    'vulnerable 8.4' => ['8.4.26', '', CheckStatus::Error],
+    'patched 8.4' => ['8.4.27', '', CheckStatus::Ok],
+    'patched 8.5' => ['8.5.12', '', CheckStatus::Ok],
+    'newer branch' => ['8.6.0', '', CheckStatus::Ok],
+    'distribution build' => ['8.3.6', '-1ubuntu0.24.04.9', CheckStatus::Warning],
+]);
+
+it('keeps the CI and deploy check in sync with the config (D-106)', function () {
+    $minimums = config('php_security.patched_minimum');
+
+    foreach ($minimums as $minimum) {
+        [$major, $minor, $patch] = array_map('intval', explode('.', $minimum));
+        $below = "{$major}.{$minor}.".($patch - 1);
+
+        exec(PHP_BINARY.' '.escapeshellarg(base_path('.github/scripts/php_security_check.php')).' '.escapeshellarg($below), $out, $belowCode);
+        exec(PHP_BINARY.' '.escapeshellarg(base_path('.github/scripts/php_security_check.php')).' '.escapeshellarg($minimum), $out, $okCode);
+
+        expect($belowCode)->toBe(1, "{$below} must fail")->and($okCode)->toBe(0, "{$minimum} must pass");
+    }
 });

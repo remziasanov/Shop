@@ -32,6 +32,9 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: PHP security baseline (D-106)
+        run: php .github/scripts/php_security_check.php
+
       - name: Get composer cache directory
         id: composer-cache
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
@@ -69,6 +72,56 @@ jobs:
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
       - name: Tests (SQLite in-memory, see phpunit.xml)
+        run: php artisan test --log-junit=junit.xml
+
+      - name: Report failed tests as annotations
+        if: failure()
+        run: php .github/scripts/junit-annotations.php junit.xml
+
+  compat:
+    # PHP 8.4 and 8.5 must keep working (CLAUDE.md) so the shop can move to a newer PHP on the hosting at any time.
+    name: compat (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+          tools: composer:v2
+
+      - name: PHP security baseline (D-106)
+        run: php .github/scripts/php_security_check.php
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Tests (SQLite in-memory)
         run: php artisan test --log-junit=junit.xml
 
       - name: Report failed tests as annotations
@@ -113,6 +166,9 @@ jobs:
           extensions: ${{ env.PHP_EXTENSIONS }}
           coverage: none
           tools: composer:v2
+
+      - name: PHP security baseline (D-106)
+        run: php .github/scripts/php_security_check.php
 
       - name: Get composer cache directory
         id: composer-cache

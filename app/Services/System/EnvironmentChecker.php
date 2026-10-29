@@ -35,7 +35,15 @@ class EnvironmentChecker
         'bcmath', 'openssl', 'curl', 'xml', 'ctype', 'tokenizer',
     ];
 
-    public function __construct(private readonly Heartbeat $heartbeat) {}
+    /**
+     * @param  ?string  $phpVersion  overrides PHP_VERSION (tests)
+     * @param  ?string  $phpExtraVersion  overrides PHP_EXTRA_VERSION (tests)
+     */
+    public function __construct(
+        private readonly Heartbeat $heartbeat,
+        private readonly ?string $phpVersion = null,
+        private readonly ?string $phpExtraVersion = null,
+    ) {}
 
     /**
      * @return list<CheckResult>
@@ -107,10 +115,28 @@ class EnvironmentChecker
 
     private function phpVersion(): CheckResult
     {
-        $ok = version_compare(PHP_VERSION, '8.3.0', '>=');
+        $version = $this->phpVersion ?? PHP_VERSION;
+        $extra = $this->phpExtraVersion ?? PHP_EXTRA_VERSION;
+        preg_match('/^(\d+)\.(\d+)\.(\d+)/', $version, $m);
+        $plain = isset($m[3]) ? "{$m[1]}.{$m[2]}.{$m[3]}" : $version;
 
-        return $this->result('php_version', $ok ? CheckStatus::Ok : CheckStatus::Error, PHP_VERSION,
-            $ok ? null : __('system.hints.php_version'));
+        if (version_compare($plain, '8.3.0', '<')) {
+            return $this->result('php_version', CheckStatus::Error, $version, __('system.hints.php_version'));
+        }
+
+        // D-106: below the patched release of its branch = known remotely exploitable vulnerabilities.
+        $minimum = config('php_security.patched_minimum')[($m[1] ?? '').'.'.($m[2] ?? '')] ?? null;
+
+        if ($minimum === null || version_compare($plain, $minimum, '>=')) {
+            return $this->result('php_version', CheckStatus::Ok, $version);
+        }
+
+        $hint = __('system.hints.php_security', ['minimum' => $minimum, 'advisory' => config('php_security.advisory')]);
+
+        // Distribution builds (version suffix, e.g. Ubuntu) backport fixes without changing the version number.
+        return $extra !== ''
+            ? $this->result('php_version', CheckStatus::Warning, $version.$extra, $hint.' '.__('system.hints.php_distro'))
+            : $this->result('php_version', CheckStatus::Error, $version, $hint);
     }
 
     private function extension(string $name): CheckResult

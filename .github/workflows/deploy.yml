@@ -159,6 +159,15 @@ jobs:
             echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге."
             exit 1
           fi
+          # D-106: never deploy onto a PHP build with known remotely exploitable vulnerabilities.
+          if ! server_php="$(ssh beget "'$BEGET_PHP' -r 'echo PHP_VERSION;'")"; then
+            echo "::error::Не удалось запустить PHP на хостинге ($BEGET_PHP). Проверьте секрет BEGET_PHP. Ничего не загружено."
+            exit 1
+          fi
+          if ! php .github/scripts/php_security_check.php "$server_php"; then
+            echo "::error::На хостинге PHP $server_php с известными уязвимостями (config/php_security.php). Выберите исправленную версию PHP для сайта в панели Beget и укажите путь к ней в секрете BEGET_PHP (docs/DEPLOY_BEGET.md, «Версия PHP и обновления безопасности»). Ничего не загружено."
+            exit 1
+          fi
           # installed  = the application files are on the server (artisan exists).
           # configured = installed AND .env exists with a non-empty APP_KEY and DB_DATABASE.
           # Anything else is a first installation: files only, no artisan (docs/DEPLOY_BEGET.md, step 5.3).

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Http\Controllers\Admin\StaffLogoutController;
+use App\Listeners\ApplyShopNameToMail;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
@@ -24,6 +25,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
@@ -77,6 +79,7 @@ class AppServiceProvider extends ServiceProvider
 
         // RB-04: the per-request permission memo never outlives a request.
         Event::listen(RequestHandled::class, fn () => $this->app->make(PermissionService::class)->flush());
+        Event::listen(MessageSending::class, ApplyShopNameToMail::class);
 
         View::composer('storefront.*', StorefrontComposer::class);
 
