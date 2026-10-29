@@ -75,6 +75,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Local development: MAIL_MAILER=log + MAIL_LOG_CHANNEL=mail writes whole messages here, not into laravel.log.
+        'mail' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/mail.log'),
+            'level' => 'debug',
+            'replace_placeholders' => true,
+        ],
+
         'monthly' => [
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),

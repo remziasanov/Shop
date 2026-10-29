@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use App\Mail\Concerns\StripsMarkdownEscapes;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -19,6 +20,7 @@ class WholesaleDecisionMail extends Mailable implements ShouldQueue
 {
     use Queueable;
     use SerializesModels;
+    use StripsMarkdownEscapes;
 
     public int $tries = 3;
 
@@ -41,6 +43,8 @@ class WholesaleDecisionMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
+        $this->stripMarkdownEscapesFromTextPart();
+
         return new Content(markdown: 'mail.wholesale-decision', with: [
             'name' => $this->name,
             'approved' => $this->approved,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Account;
 
+use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
@@ -84,7 +85,30 @@ class ProfileController extends Controller
             return redirect()->route('customer.profile');
         }
 
-        return $this->page('email-confirm', __('account.profile.email_confirm_title'), ['maskedEmail' => PiiMask::email($email)]);
+        return $this->page('email-confirm', __('account.profile.email_confirm_title'), [
+            'maskedEmail' => PiiMask::email($email),
+            'resendSeconds' => $this->resendSeconds($email, VerificationPurpose::ChangeEmail),
+        ]);
+    }
+
+    /**
+     * «Отправить код ещё раз» for the e-mail change: the new address is the one kept in the session.
+     */
+    public function resendEmailCode(Request $request, CustomerAuthService $auth): RedirectResponse
+    {
+        $email = $this->newEmail($request);
+
+        if ($email === null) {
+            return redirect()->route('customer.profile');
+        }
+
+        try {
+            $auth->requestEmailChange($this->customer($request), $email, (string) $request->ip());
+        } catch (CustomerAuthException $e) {
+            return $this->failure($request, $e);
+        }
+
+        return back()->with('status', __('account.resend.done'));
     }
 
     /**

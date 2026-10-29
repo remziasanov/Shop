@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Account;
 
+use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
@@ -30,7 +31,10 @@ class EmailConfirmationController extends Controller
             return redirect()->route('customer.register');
         }
 
-        return $this->page('confirm', __('account.confirm.title'), ['maskedEmail' => PiiMask::email($email)]);
+        return $this->page('confirm', __('account.confirm.title'), [
+            'maskedEmail' => PiiMask::email($email),
+            'resendSeconds' => $this->resendSeconds($email, VerificationPurpose::Register),
+        ]);
     }
 
     public function store(CodeRequest $request, CustomerAuthService $auth): RedirectResponse

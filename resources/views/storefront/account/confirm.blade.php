@@ -8,9 +8,6 @@
             <x-account.button>{{ __('account.confirm.submit') }}</x-account.button>
         </form>
 
-        <form method="POST" action="{{ route('customer.confirm.resend') }}" class="mt-4">
-            @csrf
-            <x-account.button variant="secondary">{{ __('account.confirm.resend') }}</x-account.button>
-        </form>
+        <x-account.resend-button :action="route('customer.confirm.resend')" :seconds="$resendSeconds" />
     </x-account.card>
 @endsection

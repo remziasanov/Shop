@@ -315,3 +315,49 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 });
+
+document.addEventListener('alpine:init', () => {
+    const Alpine = window.Alpine;
+
+    /**
+     * Resend button with a countdown (CA-04). `seconds` comes from the server (what is left of the resend pause); the
+     * deadline is kept as a timestamp, so a throttled background tab still shows the right time. The server enforces
+     * the pause anyway, this only disables the button and shows when it works again.
+     */
+    Alpine.data('resendCountdown', ({ seconds, wait, ready, label }) => ({
+        left: Math.max(0, Math.ceil(seconds)),
+        deadline: Date.now() + Math.max(0, seconds) * 1000,
+        timer: null,
+        announcement: '',
+
+        init() {
+            if (this.left > 0) {
+                this.announcement = this.text();
+                this.timer = setInterval(() => this.tick(), 1000);
+            }
+        },
+
+        tick() {
+            this.left = Math.max(0, Math.ceil((this.deadline - Date.now()) / 1000));
+
+            if (this.left === 0) {
+                clearInterval(this.timer);
+                this.announcement = ready;
+            } else if (this.left % 15 === 0) {
+                this.announcement = this.text();
+            }
+        },
+
+        text() {
+            return wait.replace(':time', this.clock());
+        },
+
+        clock() {
+            return Math.floor(this.left / 60) + ':' + String(this.left % 60).padStart(2, '0');
+        },
+
+        get label() {
+            return this.left > 0 ? this.text() : label;
+        },
+    }));
+});

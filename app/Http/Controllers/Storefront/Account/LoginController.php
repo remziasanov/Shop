@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Account;
 
+use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Exceptions\CustomerNotVerifiedException;
 use App\Http\Controllers\Controller;
@@ -79,7 +80,29 @@ class LoginController extends Controller
             return redirect()->route('customer.login');
         }
 
-        return $this->page('login-code', __('account.login.code_title'));
+        return $this->page('login-code', __('account.login.code_title'), [
+            'resendSeconds' => $this->resendSeconds($email, VerificationPurpose::Login),
+        ]);
+    }
+
+    /**
+     * «Отправить код ещё раз» on the code page: the address is the one kept in the session; the service enforces the pause.
+     */
+    public function resendCode(Request $request, CustomerAuthService $auth): RedirectResponse
+    {
+        $email = $this->codeEmail($request);
+
+        if ($email === null) {
+            return redirect()->route('customer.login');
+        }
+
+        try {
+            $auth->requestLoginCode($email, (string) $request->ip());
+        } catch (CustomerAuthException $e) {
+            return $this->failure($request, $e);
+        }
+
+        return back()->with('status', __('account.resend.done'));
     }
 
     public function verifyCode(CodeRequest $request, CustomerAuthService $auth): RedirectResponse

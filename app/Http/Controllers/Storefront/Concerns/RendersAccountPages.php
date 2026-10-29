@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Concerns;
 
+use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Models\Customer;
 use App\Services\Content\MenuService;
+use App\Services\Customers\VerificationCodeService;
 use App\Services\Seo\SeoMeta;
 use App\Settings\LegalSettings;
 use Illuminate\Contracts\View\View;
@@ -28,6 +30,14 @@ trait RendersAccountPages
             'pageTitle' => $title,
             'seo' => new SeoMeta(title: $title, robots: 'noindex,nofollow'),
         ]);
+    }
+
+    /**
+     * Seconds left of the resend pause for a code page: the countdown of the resend button comes from the server.
+     */
+    protected function resendSeconds(string $email, VerificationPurpose $purpose): int
+    {
+        return app(VerificationCodeService::class)->resendAvailableIn($email, $purpose);
     }
 
     /**

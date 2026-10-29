@@ -70,11 +70,13 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         Route::post('/login/code', [LoginController::class, 'sendCode'])->name('customer.login.send-code');
         Route::get('/login/code', [LoginController::class, 'showCode'])->name('customer.login.code');
         Route::post('/login/code/verify', [LoginController::class, 'verifyCode'])->name('customer.login.verify');
+        Route::post('/login/code/resend', [LoginController::class, 'resendCode'])->name('customer.login.resend');
 
         Route::get('/password/forgot', [PasswordResetController::class, 'showRequest'])->name('customer.password.forgot');
         Route::post('/password/forgot', [PasswordResetController::class, 'sendCode'])->name('customer.password.send-code');
         Route::get('/password/code', [PasswordResetController::class, 'showCode'])->name('customer.password.code');
         Route::post('/password/code', [PasswordResetController::class, 'verifyCode'])->name('customer.password.verify');
+        Route::post('/password/code/resend', [PasswordResetController::class, 'resendCode'])->name('customer.password.resend');
         Route::get('/password/reset', [PasswordResetController::class, 'showReset'])->name('customer.password.reset');
         Route::post('/password/reset', [PasswordResetController::class, 'reset'])->name('customer.password.update');
     });
@@ -89,6 +91,7 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         Route::post('/profile/email', [ProfileController::class, 'requestEmail'])->name('customer.email.request');
         Route::get('/profile/email/confirm', [ProfileController::class, 'showEmailConfirm'])->name('customer.email.confirm');
         Route::post('/profile/email/confirm', [ProfileController::class, 'confirmEmail'])->name('customer.email.confirm.store');
+        Route::post('/profile/email/confirm/resend', [ProfileController::class, 'resendEmailCode'])->name('customer.email.confirm.resend');
 
         // CA-09: address book.
         Route::get('/addresses', [AddressController::class, 'index'])->name('customer.addresses');
@@ -117,6 +120,7 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         Route::post('/security/delete', [SecurityController::class, 'requestDeletion'])->name('customer.security.delete.request');
         Route::get('/security/delete', [SecurityController::class, 'showConfirm'])->name('customer.security.delete');
         Route::post('/security/delete/confirm', [SecurityController::class, 'confirmDeletion'])->name('customer.security.delete.confirm');
+        Route::post('/security/delete/resend', [SecurityController::class, 'resendDeletionCode'])->name('customer.security.delete.resend');
 
         // CG-20: wholesale access application (stage 9, part B).
         Route::post('/wholesale', [WholesaleApplicationController::class, 'store'])->name('customer.wholesale.store');
