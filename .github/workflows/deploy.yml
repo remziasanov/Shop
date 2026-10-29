@@ -175,7 +175,13 @@ jobs:
             echo "::error::Не удалось узнать версию PHP на хостинге ($BEGET_PHP). Проверьте секрет BEGET_PHP. Ничего не загружено."
             exit 1
           fi
-          if ! php .github/scripts/php_security_check.php "$server_php"; then
+          php_check=0
+          php .github/scripts/php_security_check.php "$server_php" || php_check=$?
+          if [ "$php_check" -eq 2 ]; then
+            echo "::error::Не удалось разобрать версию PHP на хостинге («$server_php»). Проверьте секрет BEGET_PHP. Ничего не загружено."
+            exit 1
+          fi
+          if [ "$php_check" -ne 0 ]; then
             if [ "$ALLOW_VULNERABLE_PHP" = "true" ]; then
               echo "::warning::На хостинге PHP $server_php с известными уязвимостями. Деплой продолжен по флажку allow_vulnerable_php — обновите PHP как можно скорее (docs/DEPLOY_BEGET.md, 10.5)."
             else

@@ -358,4 +358,8 @@ it('keeps the CI and deploy check in sync with the config (D-106)', function () 
 
         expect($belowCode)->toBe(1, "{$below} must fail")->and($okCode)->toBe(0, "{$minimum} must pass");
     }
+
+    exec(PHP_BINARY.' '.escapeshellarg(base_path('.github/scripts/php_security_check.php')).' garbage 2>/dev/null', $out, $parseCode);
+
+    expect($parseCode)->toBe(2);
 });
