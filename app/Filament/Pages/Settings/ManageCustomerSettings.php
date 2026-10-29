@@ -54,7 +54,7 @@ class ManageCustomerSettings extends SettingsPage
                     ->label(__('account.settings.fields.password_min_length'))
                     ->numeric()
                     ->integer()
-                    ->minValue(6)
+                    ->minValue(8)
                     ->maxValue(64)
                     ->required(),
             ])->columns(2),

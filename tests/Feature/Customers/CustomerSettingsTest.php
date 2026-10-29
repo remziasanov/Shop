@@ -10,6 +10,7 @@ use App\Models\CustomerGroup;
 use App\Models\User;
 use App\Services\Access\CustomerGroupService;
 use App\Settings\CustomerSettings;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 /**
@@ -51,6 +52,27 @@ describe('migration data', function (): void {
             ->and($settings->deletion_grace_days)->toBe(3)
             ->and($settings->password_min_length)->toBe(8)
             ->and($settings->code_mail_warning)->toContain('Никому не сообщайте');
+    });
+});
+
+describe('migration down()', function (): void {
+    it('keeps an opt group that existed before the migration', function (): void {
+        $migration = require database_path('migrations/2026_11_12_100001_add_customer_columns_to_customer_groups.php');
+
+        // A group of the shop's own (another description): down() must not delete it.
+        CustomerGroup::query()->where('code', 'opt')->update(['description' => 'Своя группа']);
+        $migration->down();
+
+        expect(DB::table('customer_groups')->where('code', 'opt')->exists())->toBeTrue();
+    });
+
+    it('removes the opt group the migration created', function (): void {
+        $migration = require database_path('migrations/2026_11_12_100001_add_customer_columns_to_customer_groups.php');
+
+        expect(DB::table('customer_groups')->where('code', 'opt')->exists())->toBeTrue();
+        $migration->down();
+
+        expect(DB::table('customer_groups')->where('code', 'opt')->exists())->toBeFalse();
     });
 });
 
@@ -161,6 +183,11 @@ describe('settings page', function (): void {
             ->fillForm(['code_ttl_minutes' => 0, 'code_max_attempts' => 99, 'code_resend_seconds' => 1, 'password_min_length' => 2])
             ->call('save')
             ->assertHasFormErrors(['code_ttl_minutes', 'code_max_attempts', 'code_resend_seconds', 'password_min_length']);
+    });
+
+    it('does not allow a minimum password length below 8 (CA-02)', function (): void {
+        Livewire::test(ManageCustomerSettings::class)->fillForm(['password_min_length' => 7])->call('save')->assertHasFormErrors(['password_min_length']);
+        Livewire::test(ManageCustomerSettings::class)->fillForm(['password_min_length' => 8])->call('save')->assertHasNoFormErrors();
     });
 
     it('is closed to a role without the settings right (RB-05)', function (): void {

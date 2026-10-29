@@ -55,6 +55,9 @@ final class CustomerAuthService
     /** CA-02: registrations per hour and IP. */
     public const REGISTRATIONS_PER_IP_PER_HOUR = 5;
 
+    /** CA-12: e-mail change requests per hour and customer (on top of the per-address and per-IP code limits). */
+    public const EMAIL_CHANGES_PER_HOUR = 5;
+
     /** CA-06, CA-12: password attempts per minute and failures before the lock. */
     public const PASSWORD_ATTEMPTS_PER_MINUTE = 5;
 
@@ -72,6 +75,7 @@ final class CustomerAuthService
         private readonly VerificationCodeService $codes,
         private readonly CustomerSettings $settings,
         private readonly CartMerger $cartMerger,
+        private readonly OrderLinker $orderLinker,
     ) {}
 
     // ------------------------------------------------------------------ registration (CA-02, CA-03, CA-05)
@@ -270,6 +274,7 @@ final class CustomerAuthService
         $request->session()->put(self::SESSION_VERSION_KEY, $customer->auth_version);
         $customer->forceFill(['last_login_at' => now()])->save();
         $this->mergeGuestCart($customer, $request);
+        $this->linkGuestOrders($customer);
     }
 
     /**
@@ -360,7 +365,8 @@ final class CustomerAuthService
             throw new CustomerAuthException(__('account.errors.reset_expired'), 'password');
         }
 
-        $customer->forceFill(['password' => $newPassword])->save();
+        // The reset was proven by a code, like a sign-in by code: it cancels a pending deletion request (CA-16).
+        $customer->forceFill(['password' => $newPassword, 'deletion_requested_at' => null])->save();
         $customer->bumpAuthVersion();
 
         return $customer;
@@ -417,13 +423,24 @@ final class CustomerAuthService
             throw new CustomerAuthException(__('account.errors.email_same'), 'email');
         }
 
+        // CA-05, CA-12: «the address is taken» is an answer that exists only behind the limits, otherwise a signed-in
+        // customer could enumerate registered addresses. Every attempt counts per customer, per address and per IP.
+        $customerKey = 'customer-email-change:'.$customer->id;
+
+        if (RateLimiter::tooManyAttempts($customerKey, self::EMAIL_CHANGES_PER_HOUR)) {
+            throw new CustomerThrottledException(RateLimiter::availableIn($customerKey));
+        }
+
+        RateLimiter::hit($customerKey, 3600);
+
         $taken = Customer::query()->where('email', $newEmail)->whereNotNull('email_verified_at')->exists();
+
+        // For a taken address all code limits run and nothing is sent; only then the refusal is shown.
+        $this->codes->request(VerificationPurpose::ChangeEmail, $newEmail, $ip, $customer, ['new_email' => $newEmail], deliver: ! $taken);
 
         if ($taken) {
             throw new CustomerAuthException(__('account.errors.email_taken'), 'email');
         }
-
-        $this->codes->request(VerificationPurpose::ChangeEmail, $newEmail, $ip, $customer, ['new_email' => $newEmail]);
     }
 
     /**
@@ -464,6 +481,19 @@ final class CustomerAuthService
     }
 
     // ------------------------------------------------------------------ internals
+
+    /**
+     * CA-14: guest requests placed with the confirmed address after the confirmation join the history at the next
+     * sign-in. A failure here never blocks the sign-in.
+     */
+    private function linkGuestOrders(Customer $customer): void
+    {
+        try {
+            $this->orderLinker->link($customer);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
 
     /**
      * CA-15: the guest cart of this browser joins the cart of the customer. A failure here never blocks the sign-in.

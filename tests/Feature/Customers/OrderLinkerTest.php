@@ -99,3 +99,32 @@ function actAsCustomerForService(TestCase $test, Customer $customer): void
     request()->setLaravelSession(app('session.store'));
     app(ViewerContext::class)->beginRequest();
 }
+
+it('links guest requests placed after the confirmation at the next sign-in (CA-14)', function (): void {
+    $customer = makeCustomer(['email' => 'later.buyer@example.com']);
+    $order = Order::factory()->create(['customer_email' => 'Later.Buyer@example.com']);
+
+    $this->post(route('customer.login.store'), ['email' => 'later.buyer@example.com', 'password' => 'password-123'])->assertRedirect(route('account'));
+
+    expect($order->fresh()->customer_id)->toBe($customer->id);
+});
+
+it('does not break the sign-in when the linking fails (CA-14)', function (): void {
+    // The failure is forced with a SQLite trigger.
+    makeCustomer(['email' => 'broken.link@example.com']);
+    Order::factory()->create(['customer_email' => 'broken.link@example.com']);
+    // The batch update of the linker fails; the failure is reported and the sign-in goes on.
+    DB::statement('CREATE TRIGGER fail_order_link BEFORE UPDATE ON orders BEGIN SELECT RAISE(ABORT, \'boom\'); END');
+
+    $this->post(route('customer.login.store'), ['email' => 'broken.link@example.com', 'password' => 'password-123'])->assertRedirect(route('account'));
+
+    $this->assertAuthenticated('customer');
+    expect(Order::query()->whereNull('customer_id')->count())->toBe(1);
+})->skip(fn (): bool => DB::connection()->getDriverName() !== 'sqlite', 'forced with a SQLite trigger');
+
+it('matches the e-mail of a request without regard to letter case on every driver (CA-14)', function (): void {
+    $customer = makeCustomer(['email' => 'case.check@example.com']);
+    Order::factory()->create(['customer_email' => 'CASE.Check@EXAMPLE.com']);
+
+    expect(app(OrderLinker::class)->link($customer))->toBe(1);
+});

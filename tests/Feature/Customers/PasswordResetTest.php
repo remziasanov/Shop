@@ -108,3 +108,15 @@ it('does not use link tokens: the standard reset table stays empty (CA-07)', fun
     expect(DB::table('password_reset_tokens')->count())->toBe(0);
     Mail::assertQueued(CustomerCodeMail::class, 1);
 });
+
+it('cancels a pending deletion request when the password is reset by code (CA-16)', function (): void {
+    $this->customer->forceFill(['deletion_requested_at' => now()->subDay()])->save();
+
+    startReset();
+    $this->post(route('customer.password.verify'), ['code' => lastSentCode(VerificationPurpose::PasswordReset)]);
+    $this->post(route('customer.password.update'), ['password' => 'fresh-password-9', 'password_confirmation' => 'fresh-password-9'])
+        ->assertRedirect(route('account'));
+
+    expect($this->customer->fresh()->deletion_requested_at)->toBeNull();
+    $this->assertAuthenticatedAs($this->customer->fresh(), 'customer');
+});

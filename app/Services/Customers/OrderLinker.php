@@ -6,6 +6,7 @@ namespace App\Services\Customers;
 
 use App\Models\Customer;
 use App\Models\Order;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -28,11 +29,18 @@ final class OrderLinker
 
         $email = Str::lower(trim($customer->email));
         $linked = 0;
+        // MySQL compares utf8mb4 *_ci columns without letter case and can use the index on `customer_email`; SQLite
+        // (tests) needs the case-insensitive collation spelled out.
+        $caseInsensitive = DB::connection()->getDriverName() === 'sqlite';
 
         do {
             $ids = Order::query()
                 ->whereNull('customer_id')
-                ->whereRaw('lower(customer_email) = ?', [$email])
+                ->when(
+                    $caseInsensitive,
+                    fn ($query) => $query->whereRaw('customer_email = ? COLLATE NOCASE', [$email]),
+                    fn ($query) => $query->where('customer_email', $email),
+                )
                 ->orderBy('id')
                 ->limit(self::BATCH)
                 ->pluck('id');

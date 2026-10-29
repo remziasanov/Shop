@@ -127,7 +127,7 @@ it('changes the group of a customer and writes the journal (CA-21)', function ()
     expect($customer->fresh()->customer_group_id)->toBe($group->id);
 
     $entry = AdminAuditEntry::query()->where('action', AuditAction::CustomerGroupChanged->value)->firstOrFail();
-    expect($entry->user_id)->toBe($this->admin->id)->and($entry->subject_id)->toBe($customer->id)->and($entry->data)->toBe(['from' => CustomerGroup::retail()->id, 'to' => $group->id]);
+    expect($entry->user_id)->toBe($this->admin->id)->and($entry->subject_id)->toBe($customer->id)->and($entry->data)->toEqual(['from' => CustomerGroup::retail()->id, 'to' => $group->id]);
 });
 
 it('refuses the guest group', function (): void {

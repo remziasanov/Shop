@@ -15,7 +15,7 @@ final class EraseWholesaleApplicationData
 {
     public function __construct(private readonly WholesaleApplicationService $applications) {}
 
-    public function handle(CustomerAnonymizing $event): void
+    public function onAnonymizing(CustomerAnonymizing $event): void
     {
         $this->applications->anonymizeFor($event->customer);
         $this->applications->forgetCount();

@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /** Description of the group created by this migration; `down()` removes only a group that still carries it. */
+    private const CREATED_DESCRIPTION = 'Оптовые покупатели (доступ по заявке)';
+
     public function up(): void
     {
         Schema::table('customer_groups', function (Blueprint $table): void {
@@ -42,7 +45,7 @@ return new class extends Migration
         DB::table('customer_groups')->insert([
             'code' => 'opt',
             'name' => 'Опт',
-            'description' => 'Оптовые покупатели (доступ по заявке)',
+            'description' => self::CREATED_DESCRIPTION,
             'is_system' => false,
             'is_active' => true,
             'sort_order' => 20,
@@ -64,8 +67,12 @@ return new class extends Migration
 
     public function down(): void
     {
-        // The customers table is already dropped by a later migration, so nothing references the group.
-        $optId = DB::table('customer_groups')->where('code', 'opt')->value('id');
+        // The customers table is already dropped by a later migration, so nothing references the group. A group that
+        // existed before `up()` (it only got the flags then) has another description and is left alone.
+        $optId = DB::table('customer_groups')
+            ->where('code', 'opt')
+            ->where('description', self::CREATED_DESCRIPTION)
+            ->value('id');
 
         if ($optId !== null) {
             DB::table('customer_group_categories')->where('customer_group_id', $optId)->delete();

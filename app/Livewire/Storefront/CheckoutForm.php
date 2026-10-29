@@ -77,6 +77,15 @@ class CheckoutForm extends Component
 
         if ($entry !== null) {
             $this->address = $entry->address;
+
+            // The entry also carries its recipient and phone; empty values keep what the profile filled in.
+            if ($entry->recipient_name !== '') {
+                $this->name = $entry->recipient_name;
+            }
+
+            if ($entry->phone !== '') {
+                $this->phone = $entry->phone;
+            }
         } else {
             $this->addressId = null;
         }

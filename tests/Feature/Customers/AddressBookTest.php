@@ -138,3 +138,29 @@ it('fills the checkout with the default address and lets the customer pick anoth
     $form->updatedAddressId($foreign->id);
     expect($form->address)->toBe('Адрес офиса')->and($form->addressId)->toBeNull();
 });
+
+it('fills the recipient and the phone from the picked entry of the address book (CA-09)', function (): void {
+    $entry = CustomerAddress::factory()->create([
+        'customer_id' => $this->customer->id,
+        'recipient_name' => 'Получатель Другой',
+        'phone' => '+79001112233',
+        'address' => 'Адрес получателя',
+    ]);
+    sales(['stock_tracking' => true]);
+    cartWith(sellable())->forceFill(['customer_id' => $this->customer->id])->save();
+
+    $this->get(route('checkout'))->assertOk();
+    nextRequest();
+    request()->setLaravelSession(app('session.store'));
+    app(ViewerContext::class)->beginRequest();
+
+    $form = new CheckoutForm;
+    $form->name = 'Профиль';
+    $form->phone = '+79990000000';
+    $form->addressId = $entry->id;
+    $form->updatedAddressId($entry->id);
+
+    expect($form->name)->toBe('Получатель Другой')
+        ->and($form->phone)->toBe('+79001112233')
+        ->and($form->address)->toBe('Адрес получателя');
+});

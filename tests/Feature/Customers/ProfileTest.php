@@ -156,3 +156,25 @@ it('refuses a password change with a wrong current password and limits the tries
 
     expect(Hash::check('password-123', $this->customer->fresh()->password))->toBeTrue();
 });
+
+it('limits e-mail change requests before it says that an address is taken (CA-05, CA-12)', function (): void {
+    makeCustomer(['email' => 'taken@example.com']);
+
+    // The refusal is an answer only behind the limits: the 5th request per address still gets it, the 6th gets 429.
+    foreach (range(1, 5) as $_) {
+        $this->post(route('customer.email.request'), ['email' => 'taken@example.com'])->assertSessionHasErrors('email');
+        $this->travel(61)->seconds();
+    }
+
+    $this->post(route('customer.email.request'), ['email' => 'taken@example.com'])->assertStatus(429);
+    Mail::assertNothingQueued();
+});
+
+it('limits e-mail change requests per customer across different addresses (CA-12)', function (): void {
+    foreach (range(1, CustomerAuthService::EMAIL_CHANGES_PER_HOUR) as $i) {
+        makeCustomer(['email' => "taken{$i}@example.com"]);
+        $this->post(route('customer.email.request'), ['email' => "taken{$i}@example.com"])->assertSessionHasErrors('email');
+    }
+
+    $this->post(route('customer.email.request'), ['email' => 'free.address@example.com'])->assertStatus(429);
+});

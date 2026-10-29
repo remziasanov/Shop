@@ -7,6 +7,7 @@ use App\Enums\CustomerNotificationType;
 use App\Enums\WholesaleApplicationStatus;
 use App\Events\CustomerAnonymizing;
 use App\Exceptions\WholesaleApplicationException;
+use App\Listeners\EraseWholesaleApplicationData;
 use App\Mail\WholesaleDecisionMail;
 use App\Models\AdminAuditEntry;
 use App\Models\Customer;
@@ -19,6 +20,7 @@ use App\Services\Access\ViewerContext;
 use App\Services\Customers\CustomerAnonymizer;
 use App\Services\Customers\WholesaleApplicationService;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -155,7 +157,7 @@ describe('approving (CG-22, CG-23)', function (): void {
 
         $entry = AdminAuditEntry::query()->where('action', AuditAction::WholesaleApplicationApproved->value)->sole();
         expect($entry->user_id)->toBe($this->manager->id)
-            ->and($entry->data)->toBe(['customer_id' => $this->customer->id, 'group_id' => $this->opt->id, 'requisites_copied' => true]);
+            ->and($entry->data)->toEqual(['customer_id' => $this->customer->id, 'group_id' => $this->opt->id, 'requisites_copied' => true]);
 
         $notification = CustomerNotification::query()->where('customer_id', $this->customer->id)->sole();
         expect($notification->type)->toBe(CustomerNotificationType::WholesaleDecision->value)
@@ -356,6 +358,14 @@ describe('anonymization (CA-17)', function (): void {
         expect($mine->fresh()->company_name)->toBeNull()
             ->and($mine->fresh()->phone)->toBeNull()
             ->and($theirs->fresh()->company_name)->not->toBeNull();
+    });
+
+    it('is registered exactly once for the anonymization event (CA-17)', function (): void {
+        $registered = collect(Event::getRawListeners()[CustomerAnonymizing::class] ?? [])
+            ->filter(fn (mixed $listener): bool => is_array($listener) && ($listener[0] ?? null) === EraseWholesaleApplicationData::class
+                || (is_string($listener) && str_starts_with($listener, EraseWholesaleApplicationData::class)));
+
+        expect($registered)->toHaveCount(1);
     });
 
     it('is not counted as a duplicate afterwards', function (): void {
