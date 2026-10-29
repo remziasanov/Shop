@@ -322,3 +322,25 @@ it('stays within 30 queries on a category page with 24 products (NF-02)', functi
 
     expect($queries)->toBeLessThanOrEqual(30);
 });
+
+it('stays within 30 queries on a category page with 24 products for a signed-in customer (NF-02)', function () {
+    $root = Category::factory()->create();
+    $child = Category::factory()->childOf($root)->create();
+
+    foreach (range(1, 24) as $i) {
+        $product = catalogProduct($i % 2 === 0 ? $child : $root, ['brand' => 'Бренд '.($i % 3)]);
+        ProductImage::factory()->create(['product_id' => $product->id]);
+    }
+
+    signInCustomer($this, makeCustomer());
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $this->get(route('catalog.category', $root->slug))->assertOk()->assertSee('data-account-menu', false)->assertDontSee('data-account-login', false);
+
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    expect($queries)->toBeLessThanOrEqual(30);
+});

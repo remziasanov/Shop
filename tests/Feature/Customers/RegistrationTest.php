@@ -6,6 +6,7 @@ use App\Enums\VerificationPurpose;
 use App\Events\CustomerEmailVerified;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\Order;
 use App\Services\Access\CustomerGroupService;
 use App\Settings\CustomerSettings;
 use Illuminate\Support\Facades\Event;
@@ -128,7 +129,7 @@ it('rejects the honeypot and a form submitted faster than 3 seconds (CA-02)', fu
     expect(Customer::query()->count())->toBe(0);
 });
 
-it('re-registration on an unconfirmed address updates the data and sends a new code (CA-05)', function (): void {
+it('re-registration on an unconfirmed address sends a new code and applies its data only when that code is confirmed (CA-05)', function (): void {
     $this->post(route('customer.register.store'), registrationBody());
     $this->travel(61)->seconds();
 
@@ -139,13 +140,21 @@ it('re-registration on an unconfirmed address updates the data and sends a new c
         'password_confirmation' => 'brand-new-pass-2',
     ]))->assertRedirect(route('customer.confirm'));
 
+    // The stored account is not touched by a registration that is not confirmed yet.
     expect(Customer::query()->count())->toBe(1);
+    $customer = Customer::query()->firstOrFail();
+    expect($customer->name)->toBe('Иван Тестов')
+        ->and(Hash::check('secret-pass-1', $customer->password))->toBeTrue();
+    Mail::assertQueuedCount(2);
+
+    $this->post(route('customer.confirm.store'), ['code' => lastSentCode(VerificationPurpose::Register)])->assertRedirect(route('account'));
+
     $customer = Customer::query()->firstOrFail();
     expect($customer->name)->toBe('Новое Имя')
         ->and($customer->phone)->toBe('+79010000001')
+        ->and($customer->email_verified_at)->not->toBeNull()
         ->and(Hash::check('brand-new-pass-2', $customer->password))->toBeTrue()
         ->and(Hash::check('secret-pass-1', $customer->password))->toBeFalse();
-    Mail::assertQueuedCount(2);
 });
 
 it('refuses to register on a confirmed address and keeps that account untouched (CA-05)', function (): void {
@@ -181,7 +190,11 @@ it('closes the registration form when registration is switched off (CA-23)', fun
     $this->get('/')->assertDontSee('data-account-login', false);
 });
 
-it('prefills the e-mail from the link of the thank-you page (CA-27)', function (): void {
-    $this->get(route('customer.register', ['email' => 'guest.order@example.com']))->assertSee('value="guest.order@example.com"', false);
+it('prefills the e-mail from the order remembered by the thank-you page, never from the URL (CA-27, NF-15)', function (): void {
+    $order = Order::factory()->create(['customer_email' => 'guest.order@example.com']);
+
+    $this->get(route('customer.register'))->assertDontSee('guest.order@example.com', false);
+    $this->get(route('order.thanks', $order->uuid))->assertOk();
+    $this->get(route('customer.register'))->assertSee('value="guest.order@example.com"', false);
     $this->get(route('customer.register', ['email' => '"><script>']))->assertDontSee('<script>', false);
 });

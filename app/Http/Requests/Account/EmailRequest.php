@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Account;
 
+use App\Rules\CanonicalEmail;
+
 /**
  * A form with an e-mail address only: «Войти по коду», «Забыли пароль», the new address of an e-mail change.
  */
@@ -14,7 +16,7 @@ class EmailRequest extends AccountRequest
      */
     public function rules(): array
     {
-        return ['email' => ['required', 'string', 'email:rfc', 'max:190']];
+        return ['email' => ['bail', 'required', 'string', 'max:190', new CanonicalEmail, 'email:rfc']];
     }
 
     /**

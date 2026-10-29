@@ -10,6 +10,7 @@ use App\Exceptions\CustomerAccountException;
 use App\Exceptions\CustomerAuthException;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\CustomerVerificationCode;
 use App\Models\User;
 use App\Services\Users\AuditLogger;
 use App\Services\Users\PermissionService;
@@ -166,8 +167,35 @@ final class CustomerAdminService
             throw new CustomerAccountException(__('customers.errors.already_verified'));
         }
 
-        $this->codes->request(VerificationPurpose::Register, $customer->email, $ip, $customer);
+        $this->codes->request(VerificationPurpose::Register, $customer->email, $ip, $customer, $this->latestRegistrationPayload($customer));
         $this->audit->record(AuditAction::CustomerCodeResent, $actor, $customer);
+    }
+
+    /**
+     * CA-05 (D-108): the code a staff member resends carries the data and the session binding of the latest pending
+     * registration of this address, so it can only confirm that registration. A code without a registration behind it
+     * would confirm the account with whatever password is stored — possibly one set by somebody else.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function latestRegistrationPayload(Customer $customer): ?array
+    {
+        $rows = CustomerVerificationCode::query()
+            ->where('email', $customer->email)
+            ->where('purpose', VerificationPurpose::Register->value)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
+        foreach ($rows as $row) {
+            $payload = $row->payload;
+
+            if (hash_equals($row->email, $customer->email) && is_array($payload) && is_string($payload['binding'] ?? null) && is_string($payload['password'] ?? null)) {
+                return $payload;
+            }
+        }
+
+        return null;
     }
 
     /**

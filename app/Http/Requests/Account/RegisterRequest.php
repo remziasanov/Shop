@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Account;
 
+use App\Rules\CanonicalEmail;
 use App\Rules\CustomerPassword;
 use App\Services\Customers\RegistrationData;
 use App\Support\PhoneNormalizer;
@@ -24,7 +25,7 @@ class RegisterRequest extends AccountRequest
 
         return [
             'name' => ['required', 'string', 'max:150'],
-            'email' => ['required', 'string', 'email:rfc', 'max:190'],
+            'email' => ['bail', 'required', 'string', 'max:190', new CanonicalEmail, 'email:rfc'],
             'phone' => ['required', 'string', 'max:30', function (string $attribute, mixed $value, Closure $fail): void {
                 if (PhoneNormalizer::normalize(is_string($value) ? $value : null) === null) {
                     $fail(__('sales.errors.phone_invalid'));
@@ -56,7 +57,7 @@ class RegisterRequest extends AccountRequest
         return ['consent.accepted' => __('sales.errors.consent_required')];
     }
 
-    public function registrationData(): RegistrationData
+    public function registrationData(string $bindingToken = ''): RegistrationData
     {
         return new RegistrationData(
             name: (string) $this->validated('name'),
@@ -64,6 +65,7 @@ class RegisterRequest extends AccountRequest
             phone: (string) PhoneNormalizer::normalize((string) $this->validated('phone')),
             password: (string) $this->validated('password'),
             ip: (string) $this->ip(),
+            bindingToken: $bindingToken,
         );
     }
 }

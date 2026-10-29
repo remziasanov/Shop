@@ -249,3 +249,23 @@ it('schedules the three commands', function (): void {
 
     expect($commands)->toContain('shop:anonymize-customers')->toContain('shop:purge-unverified-customers')->toContain('shop:purge-customer-codes');
 });
+
+it('anonymizes guest requests with the verified address that were never linked (CA-17, CA-14)', function (): void {
+    $customer = makeCustomer(['email' => 'unlinked.owner@example.com']);
+    $guestOrder = Order::factory()->create([
+        'customer_id' => null,
+        'customer_email' => 'Unlinked.Owner@example.com',
+        'customer_name' => 'Гость Покупатель',
+        'delivery_address' => 'г. Тестоград, ул. Личная, 1',
+    ]);
+    $stranger = Order::factory()->create(['customer_id' => null, 'customer_email' => 'someone.else@example.com', 'customer_name' => 'Другой Гость']);
+
+    app(CustomerAnonymizer::class)->anonymize($customer, null, 'self');
+
+    $guestOrder->refresh();
+    expect($guestOrder->customer_id)->toBe($customer->id)
+        ->and($guestOrder->customer_name)->toBe('Удалённый покупатель')
+        ->and($guestOrder->customer_email)->toBeNull()
+        ->and($guestOrder->delivery_address)->toBeNull()
+        ->and($stranger->fresh()->customer_name)->toBe('Другой Гость');
+});

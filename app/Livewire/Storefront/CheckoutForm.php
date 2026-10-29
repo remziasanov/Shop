@@ -143,6 +143,7 @@ class CheckoutForm extends Component
         }
 
         $this->resetErrorBag('form');
+        $this->normalizeEmailInput();
         $this->validate();
 
         if (! $this->passesGuard()) {

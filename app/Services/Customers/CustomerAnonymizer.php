@@ -26,7 +26,7 @@ use Illuminate\Support\Str;
  *  - Deleted: addresses, company, cabinet notifications, e-mail codes, carts. Features with personal data of their
  *    own (wholesale applications) erase it in a listener of {@see CustomerAnonymizing}, which fires first, inside
  *    the transaction.
- *  - Requests of the customer lose name, phone, e-mail, delivery address, comment, user agent and consent IP; items,
+ *  - Requests of the customer (guest requests with the verified address are linked first) lose name, phone, e-mail, delivery address, comment, user agent and consent IP; items,
  *    amounts and statuses stay for the accounting.
  *  - The journal entry (RB-12) carries ids and the source only, no personal data.
  */
@@ -39,7 +39,10 @@ final class CustomerAnonymizer
     /** Filler for the NOT NULL consent IP of a request. */
     public const NO_IP = '0.0.0.0';
 
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly OrderLinker $linker,
+    ) {}
 
     /**
      * @param  string  $source  `admin`, `system` (the grace period passed) or `self`; goes to the journal
@@ -56,6 +59,10 @@ final class CustomerAnonymizer
             }
 
             $oldEmail = $locked->email;
+
+            // Guest requests placed with the verified address that were not linked yet (the customer has not signed in
+            // since) are the customer's data too: link them first so the wipe below reaches them.
+            $this->linker->link($locked);
 
             // Before anything is wiped: listeners read the customer's data they have to erase.
             CustomerAnonymizing::dispatch($locked);

@@ -12,6 +12,7 @@ use App\Exceptions\CustomerThrottledException;
 use App\Mail\CustomerEmailChangedMail;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\CustomerVerificationCode;
 use App\Services\Cart\CartMerger;
 use App\Services\Cart\CartService;
 use App\Settings\CustomerSettings;
@@ -40,6 +41,11 @@ use Illuminate\Support\Facades\RateLimiter;
  *  - Every event that must end the other sessions (password reset / change, e-mail change) increments
  *    `auth_version`; the current session gets the new value ({@see SESSION_VERSION_KEY}, CA-31).
  *  - Passwords and codes are never logged.
+ *  - Every address is reduced to its canonical ASCII form ({@see EmailNormalizer}) before any lookup, and a row found
+ *    by e-mail is used only when its stored address equals that form byte for byte: the database collation (accent-
+ *    and case-insensitive on MySQL) must never decide whose account a code or a password belongs to.
+ *  - A registration code is bound to the browser session that asked for it (CA-05): the pending name, phone and
+ *    password hash travel with the code and are applied only when that very code is entered from that session.
  */
 final class CustomerAuthService
 {
@@ -82,7 +88,9 @@ final class CustomerAuthService
 
     /**
      * Creates the customer (group by CG-11, e-mail unconfirmed) and sends the confirmation code. A registration on the
-     * address of an unconfirmed account updates its name, phone and password and sends a new code (CA-05).
+     * address of an unconfirmed account sends a new code (CA-05) and takes the account over, but only when that code is
+     * entered: the name, phone and password of the registration travel with the code ({@see confirmRegistration()}),
+     * so an earlier or a later registration of the same address can never confirm with somebody else's password.
      *
      * @throws CustomerAuthException registration is off; the address is taken by a confirmed account; resend too early
      * @throws CustomerThrottledException
@@ -93,6 +101,7 @@ final class CustomerAuthService
             throw new CustomerAuthException(__('account.errors.registration_disabled'));
         }
 
+        $data = new RegistrationData($data->name, $this->canon($data->email), $data->phone, $data->password, $data->ip, $data->bindingToken);
         $ipKey = 'customer-register:ip:'.$data->ip;
 
         if (RateLimiter::tooManyAttempts($ipKey, self::REGISTRATIONS_PER_IP_PER_HOUR)) {
@@ -105,23 +114,31 @@ final class CustomerAuthService
             return $this->createOrRefreshUnverified($data);
         } catch (UniqueConstraintViolationException) {
             // A parallel registration took the address between the lookup and the insert: take the normal path again.
-            return $this->createOrRefreshUnverified($data);
+            try {
+                return $this->createOrRefreshUnverified($data);
+            } catch (UniqueConstraintViolationException) {
+                // The address is held by a row that is not spelled canonically (a legacy look-alike): it is not ours to take.
+                throw new CustomerAuthException(__('account.errors.email_registered'), 'email');
+            }
         }
     }
 
     /**
      * Sends a new registration code to an unconfirmed account («отправить код ещё раз»). Silent for any other address.
      */
-    public function resendRegistrationCode(string $email, string $ip): void
+    public function resendRegistrationCode(string $email, string $ip, ?string $bindingToken = null): void
     {
-        $customer = Customer::query()->where('email', $email)->first();
+        $email = $this->canon($email);
+        $customer = $this->findByEmail($email);
+        $deliver = $customer !== null && ! $customer->hasVerifiedEmail() && $customer->anonymized_at === null;
 
         $this->codes->request(
             VerificationPurpose::Register,
             $email,
             $ip,
             $customer,
-            deliver: $customer !== null && ! $customer->hasVerifiedEmail() && $customer->anonymized_at === null,
+            $deliver ? $this->pendingPayload($email, $bindingToken) : null,
+            deliver: $deliver,
         );
     }
 
@@ -129,21 +146,44 @@ final class CustomerAuthService
      * Confirms the address with the code of the registration (CA-04); the account becomes usable and the event for the
      * guest-request linker fires (CA-14).
      *
+     * The code carries the data of the registration that asked for it. It is accepted only from the session that holds
+     * the matching binding token, and its name, phone and password hash are written to the account now, not earlier.
+     *
      * @throws CustomerAuthException
      * @throws CustomerThrottledException
      */
-    public function confirmRegistration(string $email, string $code, string $ip): Customer
+    public function confirmRegistration(string $email, string $code, string $ip, ?string $bindingToken = null): Customer
     {
-        $this->codes->verify(VerificationPurpose::Register, $email, $code, $ip);
-
-        $customer = Customer::query()->where('email', $email)->first();
+        $email = $this->canon($email);
+        $row = $this->codes->verify(VerificationPurpose::Register, $email, $code, $ip);
+        $customer = $this->findByEmail($email);
 
         if ($customer === null || $customer->anonymized_at !== null) {
             throw new CustomerAuthException(__('account.errors.code_invalid'), 'code');
         }
 
+        $payload = is_array($row->payload) ? $row->payload : [];
+        $binding = $payload['binding'] ?? null;
+
+        if (is_string($binding) && ($bindingToken === null || ! hash_equals($binding, hash('sha256', $bindingToken)))) {
+            // The code was asked for by another browser than the one entering it.
+            throw new CustomerAuthException(__('account.errors.code_invalid'), 'code');
+        }
+
         if (! $customer->hasVerifiedEmail()) {
-            $customer->forceFill(['email_verified_at' => now()])->save();
+            $fill = ['email_verified_at' => now()];
+
+            if (is_string($payload['password'] ?? null) && is_string($payload['name'] ?? null) && is_string($payload['phone'] ?? null)) {
+                $fill += [
+                    'name' => $payload['name'],
+                    'phone' => $payload['phone'],
+                    'password' => $payload['password'],
+                    'consent_at' => now(),
+                    'consent_ip' => is_string($payload['consent_ip'] ?? null) ? $payload['consent_ip'] : $customer->consent_ip,
+                ];
+            }
+
+            $customer->forceFill($fill)->save();
             CustomerEmailVerified::dispatch($customer);
         }
 
@@ -159,8 +199,9 @@ final class CustomerAuthService
      * @throws CustomerNotVerifiedException the password is right but the address is not confirmed (a code was sent)
      * @throws CustomerThrottledException
      */
-    public function authenticateByPassword(string $email, string $password, string $ip): Customer
+    public function authenticateByPassword(string $email, string $password, string $ip, ?string $bindingToken = null): Customer
     {
+        $email = $this->canon($email);
         $pair = sha1($email.'|'.$ip);
         $lockKey = 'customer-login:lock:'.$pair;
         $until = Cache::get($lockKey);
@@ -177,7 +218,7 @@ final class CustomerAuthService
 
         RateLimiter::hit($attemptsKey, 60);
 
-        $customer = Customer::query()->where('email', $email)->first();
+        $customer = $this->findByEmail($email);
         // The hash is checked even for an unknown address, so both cases take the same time.
         $valid = Hash::check($password, $customer !== null ? $customer->password : self::DUMMY_HASH) && $customer !== null;
 
@@ -203,7 +244,7 @@ final class CustomerAuthService
 
         if (! $customer->hasVerifiedEmail()) {
             try {
-                $this->resendRegistrationCode($email, $ip);
+                $this->resendRegistrationCode($email, $ip, $bindingToken);
             } catch (CustomerAuthException) {
                 // A code was sent a moment ago: the customer uses it.
             }
@@ -227,7 +268,8 @@ final class CustomerAuthService
      */
     public function requestLoginCode(string $email, string $ip): void
     {
-        $customer = Customer::query()->where('email', $email)->first();
+        $email = $this->canon($email);
+        $customer = $this->findByEmail($email);
 
         $this->codes->request(
             VerificationPurpose::Login,
@@ -246,9 +288,10 @@ final class CustomerAuthService
      */
     public function authenticateByCode(string $email, string $code, string $ip): Customer
     {
+        $email = $this->canon($email);
         $this->codes->verify(VerificationPurpose::Login, $email, $code, $ip);
 
-        $customer = Customer::query()->where('email', $email)->first();
+        $customer = $this->findByEmail($email);
 
         if ($customer === null || ! $customer->canSignIn()) {
             throw new CustomerAuthException(__('account.errors.blocked'), 'code');
@@ -308,7 +351,8 @@ final class CustomerAuthService
      */
     public function requestPasswordReset(string $email, string $ip): void
     {
-        $customer = Customer::query()->where('email', $email)->first();
+        $email = $this->canon($email);
+        $customer = $this->findByEmail($email);
 
         $this->codes->request(
             VerificationPurpose::PasswordReset,
@@ -327,6 +371,7 @@ final class CustomerAuthService
      */
     public function verifyPasswordResetCode(string $email, string $code, string $ip, Session $session): void
     {
+        $email = $this->canon($email);
         $this->codes->verify(VerificationPurpose::PasswordReset, $email, $code, $ip);
 
         $session->put(self::RESET_TICKET_KEY, [
@@ -359,7 +404,7 @@ final class CustomerAuthService
         $email = $this->resetTicketEmail($session);
         $session->forget(self::RESET_TICKET_KEY);
 
-        $customer = $email !== null ? Customer::query()->where('email', $email)->first() : null;
+        $customer = $email !== null ? $this->findByEmail($email) : null;
 
         if ($customer === null || ! $customer->canSignIn()) {
             throw new CustomerAuthException(__('account.errors.reset_expired'), 'password');
@@ -419,6 +464,8 @@ final class CustomerAuthService
      */
     public function requestEmailChange(Customer $customer, string $newEmail, string $ip): void
     {
+        $newEmail = $this->canon($newEmail);
+
         if ($newEmail === $customer->email) {
             throw new CustomerAuthException(__('account.errors.email_same'), 'email');
         }
@@ -433,7 +480,8 @@ final class CustomerAuthService
 
         RateLimiter::hit($customerKey, 3600);
 
-        $taken = Customer::query()->where('email', $newEmail)->whereNotNull('email_verified_at')->exists();
+        $holder = Customer::query()->where('email', $newEmail)->whereNotNull('email_verified_at')->first();
+        $taken = $holder !== null && hash_equals($holder->email, $newEmail);
 
         // For a taken address all code limits run and nothing is sent; only then the refusal is shown.
         $this->codes->request(VerificationPurpose::ChangeEmail, $newEmail, $ip, $customer, ['new_email' => $newEmail], deliver: ! $taken);
@@ -452,6 +500,7 @@ final class CustomerAuthService
      */
     public function confirmEmailChange(Customer $customer, string $newEmail, string $code, string $ip, Session $session): Customer
     {
+        $newEmail = $this->canon($newEmail);
         $row = $this->codes->verify(VerificationPurpose::ChangeEmail, $newEmail, $code, $ip);
 
         if ($row->customer_id !== $customer->id) {
@@ -464,6 +513,7 @@ final class CustomerAuthService
             // An unconfirmed account that only holds the address is dropped; it cannot own requests (CA-24).
             Customer::query()->where('email', $newEmail)->whereNull('email_verified_at')->where('id', '!=', $customer->id)->delete();
 
+            // Any other row the database sees as the same address (even a non-canonical one) blocks the change.
             if (Customer::query()->where('email', $newEmail)->where('id', '!=', $customer->id)->exists()) {
                 throw new CustomerAuthException(__('account.errors.email_taken'), 'email');
             }
@@ -481,6 +531,60 @@ final class CustomerAuthService
     }
 
     // ------------------------------------------------------------------ internals
+
+    /**
+     * @throws CustomerAuthException the address has no canonical ASCII form
+     */
+    private function canon(string $email): string
+    {
+        return EmailNormalizer::normalize($email) ?? throw new CustomerAuthException(__('account.errors.email_invalid'), 'email');
+    }
+
+    /**
+     * The customer with exactly this canonical address. The database may return a look-alike row (accent- and
+     * case-insensitive collation); such a row is not the customer.
+     */
+    private function findByEmail(string $email, bool $lock = false): ?Customer
+    {
+        $query = Customer::query()->where('email', $email);
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        $customer = $query->first();
+
+        return $customer !== null && hash_equals($customer->email, $email) ? $customer : null;
+    }
+
+    /**
+     * The payload of a resent registration code: the data of the latest registration made from this very session, or
+     * only the binding when the session proved the account some other way (password sign-in).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function pendingPayload(string $email, ?string $bindingToken): ?array
+    {
+        if ($bindingToken === null || $bindingToken === '') {
+            return null;
+        }
+
+        $hash = hash('sha256', $bindingToken);
+        $rows = CustomerVerificationCode::query()
+            ->where('email', $email)
+            ->where('purpose', VerificationPurpose::Register->value)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
+        foreach ($rows as $row) {
+            if (hash_equals($row->email, $email) && is_array($row->payload) && hash_equals((string) ($row->payload['binding'] ?? ''), $hash)) {
+                return $row->payload;
+            }
+        }
+
+        return ['binding' => $hash];
+    }
 
     /**
      * CA-14: guest requests placed with the confirmed address after the confirmation join the history at the next
@@ -524,7 +628,7 @@ final class CustomerAuthService
     private function createOrRefreshUnverified(RegistrationData $data): Customer
     {
         return DB::transaction(function () use ($data): Customer {
-            $customer = Customer::query()->where('email', $data->email)->lockForUpdate()->first();
+            $customer = $this->findByEmail($data->email, lock: true);
 
             if ($customer !== null && ($customer->hasVerifiedEmail() || $customer->anonymized_at !== null)) {
                 throw new CustomerAuthException(__('account.errors.email_registered'), 'email');
@@ -538,16 +642,33 @@ final class CustomerAuthService
                 ]);
             }
 
-            // CA-05: an unconfirmed account is overwritten, so a stranger who registered someone's address cannot keep it.
-            $customer->forceFill([
+            $hash = Hash::make($data->password);
+
+            if (! $customer->exists) {
+                $customer->forceFill([
+                    'name' => trim($data->name),
+                    'phone' => $data->phone,
+                    'password' => $hash,
+                    'consent_at' => now(),
+                    'consent_ip' => $data->ip,
+                ])->save();
+            }
+
+            // CA-05: an existing unconfirmed account is NOT changed here. The data of this registration waits in the
+            // code and replaces the stored data only when this code is confirmed, so a stranger who registered someone's
+            // address cannot keep it, and cannot choose the password of an account the owner confirms either.
+            $payload = [
                 'name' => trim($data->name),
                 'phone' => $data->phone,
-                'password' => $data->password,
-                'consent_at' => now(),
+                'password' => $hash,
                 'consent_ip' => $data->ip,
-            ])->save();
+            ];
 
-            $this->codes->request(VerificationPurpose::Register, $data->email, $data->ip, $customer);
+            if ($data->bindingToken !== '') {
+                $payload['binding'] = hash('sha256', $data->bindingToken);
+            }
+
+            $this->codes->request(VerificationPurpose::Register, $data->email, $data->ip, $customer, $payload);
 
             return $customer;
         });
