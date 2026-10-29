@@ -219,9 +219,23 @@ final class VerificationCodeService
     /**
      * Deletes codes that expired more than `$keepDays` days ago (for shop:purge-customer-codes).
      */
-    public function purgeExpired(int $keepDays = 1): int
+    public function purgeExpired(int $keepDays = 1, ?float $deadline = null): int
     {
-        return CustomerVerificationCode::query()->where('expires_at', '<', now()->subDays(max(0, $keepDays)))->delete();
+        $threshold = now()->subDays(max(0, $keepDays));
+        $deleted = 0;
+
+        // In chunks, so one run stays within the time limits of shared hosting; the next run continues.
+        do {
+            $ids = CustomerVerificationCode::query()->where('expires_at', '<', $threshold)->orderBy('id')->limit(1000)->pluck('id');
+
+            if ($ids->isEmpty()) {
+                break;
+            }
+
+            $deleted += CustomerVerificationCode::query()->whereKey($ids->all())->delete();
+        } while ($ids->count() === 1000 && ($deadline === null || microtime(true) < $deadline));
+
+        return $deleted;
     }
 
     private function assertNotLocked(string $email): void

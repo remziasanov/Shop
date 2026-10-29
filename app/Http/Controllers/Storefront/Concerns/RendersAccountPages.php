@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Storefront\Concerns;
 
 use App\Exceptions\CustomerAuthException;
+use App\Models\Customer;
 use App\Services\Content\MenuService;
 use App\Services\Seo\SeoMeta;
 use App\Settings\LegalSettings;
@@ -27,6 +28,17 @@ trait RendersAccountPages
             'pageTitle' => $title,
             'seo' => new SeoMeta(title: $title, robots: 'noindex,nofollow'),
         ]);
+    }
+
+    /**
+     * The signed-in customer of the cabinet (the routes are behind `customer.auth`).
+     */
+    protected function currentCustomer(Request $request): Customer
+    {
+        $customer = $request->user('customer');
+        abort_unless($customer instanceof Customer, 403);
+
+        return $customer;
     }
 
     protected function failure(Request $request, CustomerAuthException $e): RedirectResponse

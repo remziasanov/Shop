@@ -9,12 +9,17 @@ use App\Http\Controllers\Admin\ImportProcessNextController;
 use App\Http\Controllers\Admin\ImportTemplateController;
 use App\Http\Controllers\Admin\OrderPrintController;
 use App\Http\Controllers\Storefront\Account\AccountController;
+use App\Http\Controllers\Storefront\Account\AddressController;
+use App\Http\Controllers\Storefront\Account\CompanyController;
 use App\Http\Controllers\Storefront\Account\EmailConfirmationController;
 use App\Http\Controllers\Storefront\Account\LoginController;
 use App\Http\Controllers\Storefront\Account\LogoutController;
+use App\Http\Controllers\Storefront\Account\NotificationController;
+use App\Http\Controllers\Storefront\Account\OrderHistoryController;
 use App\Http\Controllers\Storefront\Account\PasswordResetController;
 use App\Http\Controllers\Storefront\Account\ProfileController;
 use App\Http\Controllers\Storefront\Account\RegisterController;
+use App\Http\Controllers\Storefront\Account\SecurityController;
 use App\Http\Controllers\Storefront\Account\WholesaleApplicationController;
 use App\Http\Controllers\Storefront\AgeGateController;
 use App\Http\Controllers\Storefront\CartController;
@@ -84,6 +89,34 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         Route::post('/profile/email', [ProfileController::class, 'requestEmail'])->name('customer.email.request');
         Route::get('/profile/email/confirm', [ProfileController::class, 'showEmailConfirm'])->name('customer.email.confirm');
         Route::post('/profile/email/confirm', [ProfileController::class, 'confirmEmail'])->name('customer.email.confirm.store');
+
+        // CA-09: address book.
+        Route::get('/addresses', [AddressController::class, 'index'])->name('customer.addresses');
+        Route::post('/addresses', [AddressController::class, 'store'])->name('customer.addresses.store');
+        Route::post('/addresses/{address}', [AddressController::class, 'update'])->whereNumber('address')->name('customer.addresses.update');
+        Route::post('/addresses/{address}/default', [AddressController::class, 'makeDefault'])->whereNumber('address')->name('customer.addresses.default');
+        Route::post('/addresses/{address}/delete', [AddressController::class, 'destroy'])->whereNumber('address')->name('customer.addresses.destroy');
+
+        // CA-10: company requisites.
+        Route::get('/company', [CompanyController::class, 'show'])->name('customer.company');
+        Route::post('/company', [CompanyController::class, 'save'])->name('customer.company.save');
+        Route::post('/company/delete', [CompanyController::class, 'destroy'])->name('customer.company.destroy');
+
+        // CA-11, CA-13, CA-28: order history, detail by UUID, repeat order.
+        Route::get('/orders', [OrderHistoryController::class, 'index'])->name('customer.orders');
+        Route::get('/orders/{uuid}', [OrderHistoryController::class, 'show'])->name('customer.orders.show');
+        Route::post('/orders/{uuid}/repeat', [OrderHistoryController::class, 'repeat'])->name('customer.orders.repeat');
+
+        // CA-18: cabinet notifications.
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('customer.notifications');
+        Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('customer.notifications.read-all');
+        Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->whereNumber('notification')->name('customer.notifications.read');
+
+        // CA-16: security section, deleting the account with a code.
+        Route::get('/security', [SecurityController::class, 'show'])->name('customer.security');
+        Route::post('/security/delete', [SecurityController::class, 'requestDeletion'])->name('customer.security.delete.request');
+        Route::get('/security/delete', [SecurityController::class, 'showConfirm'])->name('customer.security.delete');
+        Route::post('/security/delete/confirm', [SecurityController::class, 'confirmDeletion'])->name('customer.security.delete.confirm');
 
         // CG-20: wholesale access application (stage 9, part B).
         Route::post('/wholesale', [WholesaleApplicationController::class, 'store'])->name('customer.wholesale.store');

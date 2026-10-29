@@ -12,6 +12,8 @@ use App\Exceptions\CustomerThrottledException;
 use App\Mail\CustomerEmailChangedMail;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Services\Cart\CartMerger;
+use App\Services\Cart\CartService;
 use App\Settings\CustomerSettings;
 use App\Support\PiiMask;
 use Illuminate\Auth\SessionGuard;
@@ -69,6 +71,7 @@ final class CustomerAuthService
     public function __construct(
         private readonly VerificationCodeService $codes,
         private readonly CustomerSettings $settings,
+        private readonly CartMerger $cartMerger,
     ) {}
 
     // ------------------------------------------------------------------ registration (CA-02, CA-03, CA-05)
@@ -266,6 +269,7 @@ final class CustomerAuthService
         $guard->login($customer, $remember);
         $request->session()->put(self::SESSION_VERSION_KEY, $customer->auth_version);
         $customer->forceFill(['last_login_at' => now()])->save();
+        $this->mergeGuestCart($customer, $request);
     }
 
     /**
@@ -460,6 +464,27 @@ final class CustomerAuthService
     }
 
     // ------------------------------------------------------------------ internals
+
+    /**
+     * CA-15: the guest cart of this browser joins the cart of the customer. A failure here never blocks the sign-in.
+     */
+    private function mergeGuestCart(Customer $customer, Request $request): void
+    {
+        $token = $request->cookie(CartService::COOKIE);
+
+        if (! is_string($token)) {
+            return;
+        }
+
+        try {
+            $this->cartMerger->merge($customer, $token);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        // From now on the cart is the customer's own: the guest cookie must not outlive the sign-in.
+        Cookie::queue(Cookie::forget(CartService::COOKIE));
+    }
 
     /**
      * @throws CustomerAuthException

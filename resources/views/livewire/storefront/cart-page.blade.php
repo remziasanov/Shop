@@ -1,4 +1,9 @@
 <div>
+    {{-- CA-13: result of «Повторить заказ». --}}
+    @if (session('reorder_report'))
+        <p role="status" class="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-emerald-900" data-reorder-report>{{ session('reorder_report') }}</p>
+    @endif
+
     {{-- SF-46: reasons of a cart changed during checkout. --}}
     @if ($changedReasons !== [])
         <div role="alert" class="mb-4 rounded-lg border border-amber-400 bg-amber-50 p-4 text-amber-900" data-cart-changed>
@@ -95,7 +100,7 @@
 
                 @if ($summary->canCheckout && $mustSignIn)
                     <p class="mt-4 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900" data-login-required>{{ __('account.errors.login_required_to_order') }}</p>
-                    <a href="{{ route('customer.login') }}" class="mt-3 block rounded bg-primary px-4 py-3 text-center font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-checkout-login>{{ __('account.actions.login_to_order') }}</a>
+                    <a href="{{ route('customer.login', ['back' => 'checkout']) }}" class="mt-3 block rounded bg-primary px-4 py-3 text-center font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-checkout-login>{{ __('account.actions.login_to_order') }}</a>
                 @elseif ($summary->canCheckout)
                     <a href="{{ route('checkout') }}" class="mt-4 block rounded bg-primary px-4 py-3 text-center font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-checkout>{{ __('storefront_sales.cart.checkout') }}</a>
                 @else

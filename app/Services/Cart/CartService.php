@@ -7,6 +7,9 @@ namespace App\Services\Cart;
 use App\Exceptions\SalesException;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\Customer;
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
@@ -15,6 +18,7 @@ use App\Services\Sales\CheckoutMethods;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use App\Support\QtyLimit;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
@@ -39,24 +43,38 @@ final class CartService
     ) {}
 
     /**
-     * The visitor's cart or null when they have none yet.
+     * The visitor's cart or null when they have none yet. A signed-in customer has one cart bound to the account
+     * (CA-15); a guest's cart is found by the cookie and is never a customer cart.
      */
     public function current(Request $request): ?Cart
     {
+        $customer = $this->viewer->customer();
+
+        if ($customer !== null) {
+            return Cart::query()->where('customer_id', $customer->id)->first();
+        }
+
         $token = $request->cookie(self::COOKIE);
 
         if (! is_string($token) || ! Str::isUuid($token)) {
             return null;
         }
 
-        return Cart::query()->where('token', $token)->first();
+        return Cart::query()->where('token', $token)->whereNull('customer_id')->first();
     }
 
     /**
-     * The visitor's cart, created on demand; queues the cookie (refreshing its 30 days) on the response.
+     * The visitor's cart, created on demand; for a guest it queues the cookie (refreshing its 30 days) on the
+     * response. The cart of a customer is addressed by the account, so no cookie is set for it.
      */
     public function getOrCreate(Request $request): Cart
     {
+        $customer = $this->viewer->customer();
+
+        if ($customer !== null) {
+            return $this->customerCart($customer);
+        }
+
         $cart = $this->current($request) ?? Cart::query()->create(['token' => (string) Str::uuid()]);
 
         Cookie::queue(Cookie::make(
@@ -194,6 +212,15 @@ final class CartService
      */
     public function countForRequest(Request $request): int
     {
+        $customer = $this->viewer->customer();
+
+        if ($customer !== null) {
+            return (int) CartItem::query()
+                ->join('carts', 'carts.id', '=', 'cart_items.cart_id')
+                ->where('carts.customer_id', $customer->id)
+                ->sum('cart_items.qty');
+        }
+
         $token = $request->cookie(self::COOKIE);
 
         if (! is_string($token) || ! Str::isUuid($token)) {
@@ -203,7 +230,60 @@ final class CartService
         return (int) CartItem::query()
             ->join('carts', 'carts.id', '=', 'cart_items.cart_id')
             ->where('carts.token', $token)
+            ->whereNull('carts.customer_id')
             ->sum('cart_items.qty');
+    }
+
+    /**
+     * «Повторить заказ» (CA-13): every position of the request goes through {@see add()} again, so the product, its
+     * sales mode, availability, stock limit and the current price for the customer's group are decided now. Positions
+     * that cannot be added are skipped and listed in the report.
+     */
+    public function addFromOrder(Cart $cart, Order $order): ReorderReport
+    {
+        $items = OrderItem::query()->where('order_id', $order->id)->orderBy('id')->get();
+        $added = 0;
+        $skipped = [];
+
+        foreach ($items as $item) {
+            $product = $item->product_id !== null ? Product::query()->find($item->product_id) : null;
+
+            try {
+                if ($product === null) {
+                    throw new SalesException(__('sales.cart.not_available', ['name' => $item->name]));
+                }
+
+                $this->add($cart, $product, $item->qty);
+                $added++;
+            } catch (SalesException) {
+                $skipped[] = $item->name;
+            }
+        }
+
+        return new ReorderReport($added, $items->count(), $skipped);
+    }
+
+    /**
+     * The cart of a customer, created on demand. A parallel request may create it first (unique `customer_id`): the
+     * loser reads the winner's cart.
+     */
+    private function customerCart(Customer $customer): Cart
+    {
+        $cart = Cart::query()->where('customer_id', $customer->id)->first();
+
+        if ($cart !== null) {
+            return $cart;
+        }
+
+        try {
+            $cart = new Cart(['token' => (string) Str::uuid()]);
+            $cart->customer_id = $customer->id;
+            $cart->save();
+
+            return $cart;
+        } catch (UniqueConstraintViolationException) {
+            return Cart::query()->where('customer_id', $customer->id)->firstOrFail();
+        }
     }
 
     /**
@@ -281,10 +361,19 @@ final class CartService
     public function clearOld(int $days = 30, ?float $deadline = null): int
     {
         $threshold = now()->subDays($days);
+        // A customer's cart lives three times longer than a guest's (CA-15): it is meant to wait for the next visit.
+        $customerThreshold = now()->subDays($days * 3);
         $deleted = 0;
 
         do {
-            $ids = Cart::query()->where('updated_at', '<', $threshold)->orderBy('id')->limit(1000)->pluck('id');
+            $ids = Cart::query()
+                ->where(function ($query) use ($threshold, $customerThreshold): void {
+                    $query->where(fn ($guest) => $guest->whereNull('customer_id')->where('updated_at', '<', $threshold))
+                        ->orWhere(fn ($own) => $own->whereNotNull('customer_id')->where('updated_at', '<', $customerThreshold));
+                })
+                ->orderBy('id')
+                ->limit(1000)
+                ->pluck('id');
 
             if ($ids->isEmpty()) {
                 break;

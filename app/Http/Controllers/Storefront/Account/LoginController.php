@@ -27,8 +27,14 @@ class LoginController extends Controller
 
     private const CODE_EMAIL_KEY = 'customer_login_email';
 
-    public function show(CustomerSettings $settings): View
+    public function show(Request $request, CustomerSettings $settings): View
     {
+        // The cart page links here with `back=checkout`: after signing in the customer lands on the checkout again.
+        // Only known targets are accepted, never a free URL.
+        if ($request->query('back') === 'checkout') {
+            $request->session()->put('url.intended', route('checkout'));
+        }
+
         return $this->page('login', __('account.login.title'), ['registrationEnabled' => $settings->registration_enabled]);
     }
 

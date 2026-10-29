@@ -20,7 +20,7 @@ class CleanupCommand extends Command
     {
         $summary = $cleanup->run(microtime(true) + self::BUDGET_SECONDS);
 
-        foreach (['carts', 'imports', 'temp_files', 'exports', 'livewire', 'audit_log'] as $key) {
+        foreach (['carts', 'imports', 'temp_files', 'exports', 'livewire', 'audit_log', 'customer_notifications'] as $key) {
             $this->line(__('cleanup.'.$key, ['count' => $summary[$key]]));
         }
 

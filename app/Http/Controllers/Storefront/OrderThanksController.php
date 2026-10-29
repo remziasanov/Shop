@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\Access\ViewerContext;
+use App\Settings\CustomerSettings;
 use App\Settings\SalesSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Str;
@@ -15,7 +17,7 @@ class OrderThanksController extends Controller
     /**
      * SF-47, SF-52: the order is addressed by its unguessable UUID only; the page is not indexed.
      */
-    public function __invoke(string $uuid, SalesSettings $settings): View
+    public function __invoke(string $uuid, SalesSettings $settings, CustomerSettings $customers, ViewerContext $viewer): View
     {
         abort_unless(Str::isUuid($uuid), 404);
 
@@ -29,6 +31,11 @@ class OrderThanksController extends Controller
 
         return view('storefront.order-thanks', [
             'order' => $order,
+            // CA-27: a guest who left an e-mail can create an account with it (registration must be on).
+            'offerAccount' => $customers->registration_enabled
+                && $viewer->customer() === null
+                && $order->customer_id === null
+                && filled($order->customer_email),
             'thanksText' => $text !== null && trim($text) !== '' ? $text : __('storefront_sales.thanks.default_'.$order->type->value),
         ]);
     }

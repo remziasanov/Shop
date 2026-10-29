@@ -7,9 +7,11 @@ namespace App\Filament\Pages;
 use App\Filament\Widgets\CronWarningWidget;
 use App\Filament\Widgets\LastImportWidget;
 use App\Filament\Widgets\LegalTemplatesWidget;
+use App\Filament\Widgets\NewCustomersWidget;
 use App\Filament\Widgets\ProductsStatsWidget;
 use App\Filament\Widgets\RequestsChartWidget;
 use App\Filament\Widgets\RequestsStatsWidget;
+use App\Filament\Widgets\WholesaleApplicationsWidget;
 use App\Models\User;
 use App\Services\Users\PermissionService;
 use Filament\Facades\Filament;
@@ -64,6 +66,8 @@ class Dashboard extends BaseDashboard
             CronWarningWidget::class,
             LegalTemplatesWidget::class,
             RequestsStatsWidget::class,
+            NewCustomersWidget::class,
+            WholesaleApplicationsWidget::class,
             ProductsStatsWidget::class,
             RequestsChartWidget::class,
             LastImportWidget::class,

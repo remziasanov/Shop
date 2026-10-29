@@ -8,7 +8,6 @@ use App\Filament\Resources\CustomerGroups\CustomerGroupResource;
 use App\Filament\Resources\CustomerGroups\Schemas\CustomerGroupForm;
 use App\Models\CustomerGroup;
 use App\Services\Access\CustomerGroupService;
-use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,7 +19,7 @@ class EditCustomerGroup extends EditRecord
     {
         return [
             CustomerGroupResource::previewAction(),
-            DeleteAction::make()->using(fn (CustomerGroup $record): bool => CustomerGroupResource::deleteRecord($record)),
+            CustomerGroupResource::deleteAction(),
         ];
     }
 

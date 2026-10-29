@@ -9,8 +9,10 @@ use App\Exceptions\CartChangedException;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
+use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Cart\CartService;
+use App\Services\Customers\CustomerAddressService;
 use App\Services\Orders\CheckoutData;
 use App\Services\Orders\OrderService;
 use App\Services\Sales\CheckoutMethods;
@@ -46,10 +48,38 @@ class CheckoutForm extends Component
     /** AG-11: «Мне исполнилось N лет», shown when the cart holds restricted products. */
     public bool $ageConfirmed = false;
 
-    public function mount(CheckoutMethods $methods): void
+    /** CA-09: id of the chosen entry of the address book (a signed-in customer only). */
+    public ?int $addressId = null;
+
+    public function mount(CheckoutMethods $methods, ViewerContext $viewer, CustomerAddressService $addresses): void
     {
         $this->delivery = $methods->deliveries()[0]->key ?? '';
         $this->payment = $methods->payments()[0]->key ?? '';
+
+        // CA-09: a signed-in customer starts with the default address of the address book (name, phone and e-mail are
+        // filled in by SalesFormSupport).
+        $customer = $viewer->customer();
+        $default = $customer !== null ? $addresses->listFor($customer)->first() : null;
+
+        if ($default !== null) {
+            $this->addressId = $default->id;
+            $this->address = $default->address;
+        }
+    }
+
+    /**
+     * CA-09: picking an entry of the address book fills the address field (only the customer's own entries count).
+     */
+    public function updatedAddressId(mixed $value): void
+    {
+        $customer = app(ViewerContext::class)->customer();
+        $entry = $customer !== null && is_numeric($value) ? app(CustomerAddressService::class)->find($customer, (int) $value) : null;
+
+        if ($entry !== null) {
+            $this->address = $entry->address;
+        } else {
+            $this->addressId = null;
+        }
     }
 
     /**
@@ -142,6 +172,7 @@ class CheckoutForm extends Component
     public function render(CartService $carts, CheckoutMethods $methods): View
     {
         $cart = $carts->current(request());
+        $customer = app(ViewerContext::class)->customer();
         $summary = $cart !== null ? $carts->summary($cart) : null;
         $selected = $methods->delivery($this->delivery);
         $deliveryPrice = $selected !== null && $summary !== null ? $selected->priceFor($summary->itemsTotal) : 0;
@@ -155,6 +186,7 @@ class CheckoutForm extends Component
             'total' => ($summary !== null ? $summary->itemsTotal : 0) + $deliveryPrice,
             'consentLink' => $this->consentLink(),
             'ageLevel' => $this->ageLevel(),
+            'savedAddresses' => $customer !== null ? app(CustomerAddressService::class)->listFor($customer) : [],
         ]);
     }
 

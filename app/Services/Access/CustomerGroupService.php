@@ -77,6 +77,10 @@ final class CustomerGroupService
 
         $target = $moveCustomersTo ?? CustomerGroup::retail();
 
+        if ($target->id === $group->id || $target->isGuest() || ! $target->is_active) {
+            throw new CustomerGroupException(__('customer_groups.errors.target_invalid'));
+        }
+
         DB::transaction(function () use ($group, $target): void {
             Customer::query()->where('customer_group_id', $group->id)->update(['customer_group_id' => $target->id]);
             $group->delete();

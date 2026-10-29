@@ -22,10 +22,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $title
  * @property string $body
  * @property string|null $url
+ * @property string|null $dedupe_key
  * @property CarbonInterface|null $read_at
  * @property CarbonInterface|null $created_at
  */
-#[Fillable(['customer_id', 'type', 'title', 'body', 'url'])]
+#[Fillable(['customer_id', 'type', 'title', 'body', 'url', 'dedupe_key'])]
 class CustomerNotification extends Model
 {
     /** @use HasFactory<CustomerNotificationFactory> */

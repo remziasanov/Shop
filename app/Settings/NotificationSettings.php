@@ -37,6 +37,12 @@ class NotificationSettings extends Settings
     /** Status changes (confirmed, ready, cancelled, reservation confirmed): email to the customer. */
     public bool $notify_customer_status;
 
+    /** New wholesale application (CG-21): email to the shop. */
+    public bool $notify_wholesale_email;
+
+    /** New wholesale application (CG-21): Telegram to the shop. */
+    public bool $notify_wholesale_telegram;
+
     /** Reservation expires within 6 hours: Telegram to the shop. */
     public bool $notify_reservation_expiring;
 

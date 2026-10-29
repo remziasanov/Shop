@@ -146,9 +146,10 @@ it('opens the checkout to a signed-in customer and fills in the contact data (CA
     guestCheckout(false);
     $customer = makeCustomer(['name' => 'Пётр Покупатель', 'phone' => '+79001112233', 'email' => 'peter.buyer@example.com']);
     signInCustomer($this, $customer);
-    $cart = cartWith($this->product);
+    // CA-15: the cart of a signed-in customer is the one bound to the account, not the cookie cart.
+    cartWith($this->product)->forceFill(['customer_id' => $customer->id])->save();
 
-    $html = $this->withCookie('cart', $cart->token)->get(route('checkout'))->assertOk()->getContent();
+    $html = $this->get(route('checkout'))->assertOk()->getContent();
 
     // The state of the checkout component is in its Livewire snapshot.
     preg_match_all('/wire:snapshot="([^"]*)"/', (string) $html, $matches);

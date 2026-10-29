@@ -121,6 +121,14 @@ class Customer extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
+    /**
+     * @return HasMany<WholesaleApplication, $this>
+     */
+    public function wholesaleApplications(): HasMany
+    {
+        return $this->hasMany(WholesaleApplication::class)->orderByDesc('id');
+    }
+
     public function hasVerifiedEmail(): bool
     {
         return $this->email_verified_at !== null;

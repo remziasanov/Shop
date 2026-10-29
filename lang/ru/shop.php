@@ -194,6 +194,8 @@ return [
                 'notify_customer_status' => 'Смена статуса: письмо покупателю',
                 'notify_reservation_expiring' => 'Резерв скоро истекает (за 6 ч): Telegram',
                 'notify_reservation_expired' => 'Резерв истёк: Telegram',
+                'notify_wholesale_email' => 'Заявки на опт: email',
+                'notify_wholesale_telegram' => 'Заявки на опт: Telegram',
             ],
             'send_test' => 'Отправить тестовое сообщение в Telegram',
             'send_test_mail' => 'Отправить тестовое письмо',
