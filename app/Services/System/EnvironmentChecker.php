@@ -125,7 +125,7 @@ class EnvironmentChecker
         }
 
         // D-106: below the patched release of its branch = known remotely exploitable vulnerabilities.
-        $minimum = config('php_security.patched_minimum')[($m[1] ?? '').'.'.($m[2] ?? '')] ?? null;
+        $minimum = ((array) config('php_security.patched_minimum', []))[($m[1] ?? '').'.'.($m[2] ?? '')] ?? null;
 
         if ($minimum === null || version_compare($plain, $minimum, '>=')) {
             return $this->result('php_version', CheckStatus::Ok, $version);

@@ -30,6 +30,7 @@ jobs:
           php-version: '8.3'
           extensions: ${{ env.PHP_EXTENSIONS }}
           coverage: none
+          update: true
           tools: composer:v2
 
       - name: PHP security baseline (D-106)
@@ -97,6 +98,7 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: ${{ env.PHP_EXTENSIONS }}
           coverage: none
+          update: true
           tools: composer:v2
 
       - name: PHP security baseline (D-106)
@@ -165,6 +167,7 @@ jobs:
           php-version: '8.3'
           extensions: ${{ env.PHP_EXTENSIONS }}
           coverage: none
+          update: true
           tools: composer:v2
 
       - name: PHP security baseline (D-106)

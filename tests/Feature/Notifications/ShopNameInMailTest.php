@@ -60,3 +60,37 @@ it('falls back to APP_NAME when the shop name is empty', function () {
 
     expect(ShopName::get())->toBe('Магазин');
 });
+
+it('keeps a sender name chosen on purpose for the default address', function () {
+    Mail::raw('Текст', function ($message) {
+        $message->to('buyer@example.ru')->from('shop@example.ru', 'Отдел опта');
+    });
+
+    expect(sentMessages()[0]->getOriginalMessage()->getFrom()[0]->getName())->toBe('Отдел опта');
+});
+
+it('skips messages with several sender addresses', function () {
+    Mail::raw('Текст', function ($message) {
+        $message->to('buyer@example.ru');
+        $message->getSymfonyMessage()->from('shop@example.ru', 'other@example.ru');
+    });
+
+    $from = sentMessages()[0]->getOriginalMessage()->getFrom();
+
+    expect($from)->toHaveCount(2)
+        ->and(collect($from)->map->getName()->all())->not->toContain('Ромашка');
+});
+
+it('applies the shop name to queued mail when the worker sends it', function () {
+    config(['queue.default' => 'sync']);
+
+    Mail::to('buyer@example.ru')->queue(new TestMail);
+
+    expect(sentMessages()[0]->getOriginalMessage()->getFrom()[0]->getName())->toBe('Ромашка');
+});
+
+it('falls back to APP_NAME when the settings cannot be read', function () {
+    app()->bind(GeneralSettings::class, fn () => throw new RuntimeException('settings table is missing'));
+
+    expect(ShopName::get())->toBe('Магазин');
+});

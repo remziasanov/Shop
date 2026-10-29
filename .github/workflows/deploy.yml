@@ -9,6 +9,11 @@ on:
         required: false
         default: main
         type: string
+      allow_vulnerable_php:
+        description: 'Deploy even if PHP on the hosting is below the patched version (only for urgent fixes while Beget has no patched PHP yet, D-106)'
+        required: false
+        default: false
+        type: boolean
 
 # Never run two deploys at once and never cancel one that is already running (NF-22).
 concurrency:
@@ -71,6 +76,7 @@ jobs:
           php-version: '8.3'
           extensions: ${{ env.PHP_EXTENSIONS }}
           coverage: none
+          update: true
           tools: composer:v2
 
       - name: Get composer cache directory
@@ -149,6 +155,7 @@ jobs:
       - name: Check connection and server state
         id: server
         env:
+          ALLOW_VULNERABLE_PHP: ${{ inputs.allow_vulnerable_php }}
           BEGET_HOST: ${{ secrets.BEGET_HOST }}
           BEGET_USER: ${{ secrets.BEGET_USER }}
           BEGET_PATH: ${{ secrets.BEGET_PATH }}
@@ -159,14 +166,22 @@ jobs:
             echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге."
             exit 1
           fi
-          # D-106: never deploy onto a PHP build with known remotely exploitable vulnerabilities.
-          if ! server_php="$(ssh beget "'$BEGET_PHP' -r 'echo PHP_VERSION;'")"; then
-            echo "::error::Не удалось запустить PHP на хостинге ($BEGET_PHP). Проверьте секрет BEGET_PHP. Ничего не загружено."
+          # D-106: never deploy onto a PHP build with known remotely exploitable vulnerabilities, unless the owner
+          # explicitly allows it for an urgent fix (input allow_vulnerable_php). The marker skips any text that the
+          # hosting shell may print on login. Deliberately stricter than shop:doctor: distribution builds are not
+          # recognised here (Beget builds plain PHP versions).
+          server_php="$(ssh beget "'$BEGET_PHP' -r 'echo \"PHPVER=\".PHP_VERSION;'" | sed -n 's/^PHPVER=//p' | tail -n1)"
+          if [ -z "$server_php" ]; then
+            echo "::error::Не удалось узнать версию PHP на хостинге ($BEGET_PHP). Проверьте секрет BEGET_PHP. Ничего не загружено."
             exit 1
           fi
           if ! php .github/scripts/php_security_check.php "$server_php"; then
-            echo "::error::На хостинге PHP $server_php с известными уязвимостями (config/php_security.php). Выберите исправленную версию PHP для сайта в панели Beget и укажите путь к ней в секрете BEGET_PHP (docs/DEPLOY_BEGET.md, «Версия PHP и обновления безопасности»). Ничего не загружено."
-            exit 1
+            if [ "$ALLOW_VULNERABLE_PHP" = "true" ]; then
+              echo "::warning::На хостинге PHP $server_php с известными уязвимостями. Деплой продолжен по флажку allow_vulnerable_php — обновите PHP как можно скорее (docs/DEPLOY_BEGET.md, 10.5)."
+            else
+              echo "::error::На хостинге PHP $server_php с известными уязвимостями (config/php_security.php). Выберите исправленную версию PHP для сайта в панели Beget и укажите путь к ней в секрете BEGET_PHP (docs/DEPLOY_BEGET.md, 10.5). Срочное исправление можно выкатить, отметив при запуске «allow_vulnerable_php». Ничего не загружено."
+              exit 1
+            fi
           fi
           # installed  = the application files are on the server (artisan exists).
           # configured = installed AND .env exists with a non-empty APP_KEY and DB_DATABASE.
