@@ -1,6 +1,6 @@
 {{-- Expects $code (int|null), $title, $text, $links (bool). Minimal storefront-styled shell for error pages (SF-07). Must render even when the database is down: settings are read defensively. --}}
 @php
-    $shop = rescue(fn () => app(\App\Settings\GeneralSettings::class)->shop_name, (string) config('app.name', 'Shop'), false);
+    $shop = \App\Support\ShopName::get();
     $primary = rescue(fn () => app(\App\Settings\AppearanceSettings::class)->primary_color, '#2563eb', false);
     $accent = rescue(fn () => app(\App\Settings\AppearanceSettings::class)->accent_color, '#f59e0b', false);
     $hex = '/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/';

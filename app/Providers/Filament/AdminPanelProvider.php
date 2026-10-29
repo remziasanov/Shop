@@ -6,7 +6,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\Dashboard;
 use App\Livewire\Admin\PriceRecalcBanner;
-use App\Settings\GeneralSettings;
+use App\Support\ShopName;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -22,7 +22,6 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Throwable;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -72,11 +71,6 @@ class AdminPanelProvider extends PanelProvider
 
     private function brandName(): string
     {
-        try {
-            return app(GeneralSettings::class)->shop_name;
-        } catch (Throwable) {
-            // Settings are not migrated yet (fresh install, CLI before migrate).
-            return (string) config('app.name');
-        }
+        return ShopName::get();
     }
 }

@@ -2,7 +2,7 @@
 {{-- Header --}}
 <x-slot:header>
 <x-mail::header :url="config('app.url')">
-{{ config('app.name') }}
+{{ \App\Support\ShopName::get() }}
 </x-mail::header>
 </x-slot:header>
 
@@ -21,7 +21,7 @@
 {{-- Footer --}}
 <x-slot:footer>
 <x-mail::footer>
-© {{ date('Y') }} {{ config('app.name') }}. {{ __('notifications.mail.rights') }}
+© {{ date('Y') }} {{ \App\Support\ShopName::get() }}. {{ __('notifications.mail.rights') }}
 </x-mail::footer>
 </x-slot:footer>
 </x-mail::layout>
