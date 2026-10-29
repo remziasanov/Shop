@@ -69,6 +69,8 @@ final class OrderService
     public function createFromCart(Cart $cart, CheckoutData $data): Order
     {
         $this->viewer->assertNotPreview();
+        // CA-01, CG-12: the server decides, whatever the form showed.
+        $this->viewer->assertMayOrder();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         $delivery = $this->methods->delivery($data->deliveryKey)
@@ -209,6 +211,8 @@ final class OrderService
     public function createReservation(Product $product, ReservationData $data): Order
     {
         $this->viewer->assertNotPreview();
+        // CA-01, CG-12: the server decides, whatever the form showed.
+        $this->viewer->assertMayOrder();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         if ($data->qty < 1 || $data->qty > QtyLimit::MAX) {
@@ -273,6 +277,8 @@ final class OrderService
     public function createInquiry(Product $product, InquiryData $data): Order
     {
         $this->viewer->assertNotPreview();
+        // CA-01, CG-12: the server decides, whatever the form showed.
+        $this->viewer->assertMayOrder();
         $phone = $this->contact($data->name, $data->phone, $data->consent);
 
         if ($data->qty < 1 || $data->qty > QtyLimit::MAX) {
@@ -527,6 +533,17 @@ final class OrderService
         $order->status = OrderStatus::New;
         $order->consent_at = now();
         $order->consent_ip = $ip;
+
+        // CA-26: a request under an account remembers the customer and a snapshot of their group at that moment.
+        $customer = $this->viewer->customer();
+
+        if ($customer !== null) {
+            $group = $this->viewer->group();
+            $order->customer_id = $customer->id;
+            $order->customer_group_id = $group->exists ? $group->id : null;
+            $order->customer_group_name = $group->name;
+        }
+
         $order->user_agent = $userAgent === null ? null : Str::limit($userAgent, 500, '');
         $order->save();
 

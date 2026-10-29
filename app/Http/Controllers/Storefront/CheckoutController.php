@@ -23,6 +23,11 @@ class CheckoutController extends Controller
             return redirect()->route('cart')->with('cart_error', __('customer_groups.storefront.preview_blocked'));
         }
 
+        // CA-01, CG-12: no checkout without a login where the shop or the group requires it.
+        if (! $viewer->mayOrder()) {
+            return redirect()->guest(route('customer.login'))->with('access_message', __('account.errors.login_required_to_order'));
+        }
+
         $cart = $carts->current($request);
 
         if ($cart === null || ! $carts->summary($cart)->canCheckout) {

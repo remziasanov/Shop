@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\User;
 use App\Policies\Concerns\ChecksPermissions;
@@ -24,6 +25,15 @@ class OrderPolicy
     public function view(User $user, Order $order): bool
     {
         return $this->allows($user, 'orders.view');
+    }
+
+    /**
+     * CA-28: the customer opens only requests that belong to the account (the cabinet answers 404 otherwise). Staff
+     * permissions have nothing to do with it: the `customer` guard and the staff guard are separate (D-071).
+     */
+    public function viewAsCustomer(Customer $customer, Order $order): bool
+    {
+        return $order->customer_id !== null && $order->customer_id === $customer->id;
     }
 
     public function create(User $user): bool

@@ -28,6 +28,12 @@ Schedule::command('shop:notify-expiring-reservations')->hourly()->withoutOverlap
 // Nightly housekeeping: old carts, import/export files, abandoned uploads (TZ section 8).
 Schedule::command('shop:cleanup')->dailyAt('04:40')->withoutOverlapping(10);
 
+// Customer accounts (stage 9): anonymization after the cancel period (CA-16), accounts that never confirmed their
+// address (CA-24), expired e-mail codes (CA-04). Staggered between the heavy tasks above, each well under 40 s.
+Schedule::command('shop:anonymize-customers')->dailyAt('03:30')->withoutOverlapping(10);
+Schedule::command('shop:purge-unverified-customers')->dailyAt('03:50')->withoutOverlapping(10);
+Schedule::command('shop:purge-customer-codes')->dailyAt('04:05')->withoutOverlapping(10);
+
 // Failed queue jobs are kept for a week (TZ section 8).
 // schedule:run executes due tasks one after another within a minute, so the heavy daily tasks are staggered
 // (03:10, 04:20, 04:40, 04:50), each within ~50 s (D-059).

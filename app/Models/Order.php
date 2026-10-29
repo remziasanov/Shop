@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -47,6 +48,9 @@ use Illuminate\Support\Str;
  * @property string|null $user_agent
  * @property bool $stock_applied
  * @property AgeRestriction|null $age_confirmed_level age the customer confirmed at checkout (AG-11)
+ * @property int|null $customer_id the signed-in customer who placed the request; null for a guest (CA-14, CA-26)
+ * @property int|null $customer_group_id snapshot of the customer's group at that moment (CA-26)
+ * @property string|null $customer_group_name name of that group (survives a later change or deletion of the group)
  * @property CarbonInterface|null $expiring_notified_at
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
@@ -113,6 +117,8 @@ class Order extends Model
             'consent_at' => 'datetime',
             'stock_applied' => 'boolean',
             'age_confirmed_level' => AgeRestriction::class,
+            'customer_id' => 'integer',
+            'customer_group_id' => 'integer',
             'expiring_notified_at' => 'datetime',
         ];
     }
@@ -123,6 +129,16 @@ class Order extends Model
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    /**
+     * The customer account the request belongs to (null for guest requests).
+     *
+     * @return BelongsTo<Customer, $this>
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     /**

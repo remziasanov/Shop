@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Enums\OrderStatus;
 use App\Jobs\SendTelegramNotification;
 use App\Models\Order;
+use App\Services\Customers\CustomerNotificationService;
 use App\Services\Notifications\JobFanOut;
 use App\Services\Notifications\TelegramNotifier;
 use App\Settings\NotificationSettings;
@@ -27,8 +28,15 @@ class NotifyExpiringReservationsCommand extends Command
 
     protected $description = 'Telegram warning about reservations that expire within 6 hours, once per reservation (AD-10)';
 
-    public function handle(NotificationSettings $settings, TelegramNotifier $telegram): int
+    public function handle(NotificationSettings $settings, TelegramNotifier $telegram, CustomerNotificationService $cabinet): int
     {
+        // CA-18: the cabinet notification of the customer does not depend on the Telegram settings of the shop.
+        try {
+            $cabinet->notifyExpiringReservations(microtime(true) + 20);
+        } catch (Throwable $e) {
+            report($e);
+        }
+
         if (! $settings->telegram_enabled || ! $settings->notify_reservation_expiring || ! $telegram->isConfigured()) {
             $this->info(__('admin_orders.command.expiring_notified', ['count' => 0]));
 

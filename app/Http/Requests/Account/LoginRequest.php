@@ -1,0 +1,34 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\Account;
+
+/**
+ * CA-06: sign-in by e-mail and password.
+ */
+class LoginRequest extends AccountRequest
+{
+    /**
+     * @return array<string, array<int, mixed>>
+     */
+    public function rules(): array
+    {
+        return [
+            'email' => ['required', 'string', 'email:rfc', 'max:190'],
+            'password' => ['required', 'string', 'max:255'],
+            'remember' => ['nullable', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        /** @var array<string, string> $attributes */
+        $attributes = trans('account.fields');
+
+        return $attributes;
+    }
+}

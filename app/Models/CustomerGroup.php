@@ -10,6 +10,7 @@ use App\Enums\PriceDisplayMode;
 use App\Enums\StorefrontSection;
 use App\Observers\CustomerGroupObserver;
 use App\Services\Access\CatalogAccess;
+use App\Services\Access\CustomerGroupService;
 use Database\Factories\CustomerGroupFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -40,12 +41,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property list<string>|null $allowed_delivery_codes
  * @property list<string>|null $allowed_payment_codes
  * @property GroupStockDisplay $stock_display
+ * @property bool $is_default_for_new CG-11: the group of newly registered customers (exactly one; set by {@see CustomerGroupService})
+ * @property bool $require_login_to_order CG-12
+ * @property bool $is_wholesale_default CG-22: preselected by a wholesale approval (set by the migration / the service)
  */
 #[ObservedBy(CustomerGroupObserver::class)]
 #[Fillable([
     'code', 'name', 'description', 'is_active', 'sort_order', 'visible_sections', 'category_access_mode',
     'price_display', 'allowed_sales_modes', 'min_order_amount', 'allowed_delivery_codes', 'allowed_payment_codes',
-    'stock_display',
+    'stock_display', 'require_login_to_order',
 ])]
 class CustomerGroup extends Model
 {
@@ -64,6 +68,9 @@ class CustomerGroup extends Model
         return [
             'is_system' => 'boolean',
             'is_active' => 'boolean',
+            'is_default_for_new' => 'boolean',
+            'require_login_to_order' => 'boolean',
+            'is_wholesale_default' => 'boolean',
             'sort_order' => 'integer',
             'visible_sections' => 'array',
             'category_access_mode' => CategoryAccessMode::class,
@@ -124,6 +131,15 @@ class CustomerGroup extends Model
     public static function retail(): self
     {
         return self::query()->where('code', self::RETAIL)->first() ?? self::fallback(self::RETAIL, 'Розница');
+    }
+
+    /**
+     * The group of a newly registered customer (CG-11): the active group flagged `is_default_for_new`, otherwise
+     * «Розница».
+     */
+    public static function defaultForNew(): self
+    {
+        return self::query()->where('is_default_for_new', true)->where('is_active', true)->orderBy('id')->first() ?? self::retail();
     }
 
     /**

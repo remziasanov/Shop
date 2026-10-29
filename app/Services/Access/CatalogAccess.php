@@ -139,6 +139,7 @@ final class CatalogAccess
             allowedDeliveryCodes: $group->allowed_delivery_codes,
             allowedPaymentCodes: $group->allowed_payment_codes,
             stockDisplay: $group->stock_display,
+            requiresLoginToOrder: (bool) $group->require_login_to_order,
         );
     }
 }

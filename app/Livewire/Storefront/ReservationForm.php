@@ -141,6 +141,7 @@ class ReservationForm extends Component
             'reservedUntil' => now()->addHours($settings->reservation_hours),
             'consentLink' => $this->consentLink(),
             'ageLevel' => $this->ageLevel(),
+            'mustSignIn' => $this->mustSignIn(),
         ]);
     }
 

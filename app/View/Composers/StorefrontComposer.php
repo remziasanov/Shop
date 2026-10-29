@@ -10,8 +10,10 @@ use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\MenuService;
+use App\Services\Customers\CustomerNotificationService;
 use App\Services\Sales\CartAvailability;
 use App\Settings\AppearanceSettings;
+use App\Settings\CustomerSettings;
 use App\Settings\GeneralSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -33,6 +35,8 @@ class StorefrontComposer
         private readonly CartAvailability $cartAvailability,
         private readonly MenuService $menus,
         private readonly ViewerContext $viewer,
+        private readonly CustomerSettings $customers,
+        private readonly CustomerNotificationService $notifications,
     ) {}
 
     /** @var array<string, mixed>|null Data built once per request (the composer runs for every storefront view and partial). */
@@ -61,6 +65,7 @@ class StorefrontComposer
 
         $menus = $this->menus->all();
         $access = $this->viewer->access();
+        $customer = $this->viewer->customer();
 
         return [
             'shopName' => $this->general->shop_name,
@@ -84,6 +89,11 @@ class StorefrontComposer
             'cartEnabled' => $this->cartAvailability->enabled(),
             // CG-04: the header search needs the search and catalog sections.
             'searchEnabled' => $access->allowsSection(StorefrontSection::Search) && $access->allowsSection(StorefrontSection::Catalog),
+            // CA-19: «Войти» / «Личный кабинет» in the header and the bottom bar; hidden when registration is off.
+            'accountLinks' => $this->customers->registration_enabled || $customer !== null,
+            'accountCustomerName' => $customer?->name,
+            // CA-18: unread cabinet notifications (one count query for a signed-in customer, nothing for a guest).
+            'accountUnread' => $customer !== null ? $this->notifications->unreadCount($customer) : 0,
             'previewGroup' => $this->viewer->isPreview() ? $this->viewer->group()->name : null,
         ];
     }

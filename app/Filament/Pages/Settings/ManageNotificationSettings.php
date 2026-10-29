@@ -99,6 +99,10 @@ class ManageNotificationSettings extends SettingsPage
                     ->label(__('shop.settings.notifications.fields.notify_reservation_expiring')),
                 Toggle::make('notify_reservation_expired')
                     ->label(__('shop.settings.notifications.fields.notify_reservation_expired')),
+                Toggle::make('notify_wholesale_email')
+                    ->label(__('shop.settings.notifications.fields.notify_wholesale_email')),
+                Toggle::make('notify_wholesale_telegram')
+                    ->label(__('shop.settings.notifications.fields.notify_wholesale_telegram')),
             ])->columns(2),
         ])->columns(1);
     }

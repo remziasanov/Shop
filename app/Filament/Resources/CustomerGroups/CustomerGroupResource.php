@@ -9,6 +9,7 @@ use App\Filament\Resources\CustomerGroups\Pages\CreateCustomerGroup;
 use App\Filament\Resources\CustomerGroups\Pages\EditCustomerGroup;
 use App\Filament\Resources\CustomerGroups\Pages\ListCustomerGroups;
 use App\Filament\Resources\CustomerGroups\Schemas\CustomerGroupForm;
+use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\User;
 use App\Services\Access\CustomerGroupService;
@@ -17,6 +18,7 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -95,8 +97,7 @@ class CustomerGroupResource extends Resource
             ->recordActions([
                 self::previewAction(),
                 EditAction::make(),
-                DeleteAction::make()
-                    ->using(fn (CustomerGroup $record): bool => self::deleteRecord($record)),
+                self::deleteAction(),
             ])
             ->recordUrl(fn (CustomerGroup $record): string => static::getUrl('edit', ['record' => $record]));
     }
@@ -121,12 +122,49 @@ class CustomerGroupResource extends Resource
     }
 
     /**
-     * Deletion through the service: the system groups are refused with a message (CG-01).
+     * «Удалить» (CG-25): hidden for the system groups (policy), otherwise asks which group receives the customers
+     * («Розница» preselected). The work is {@see CustomerGroupService::delete()}.
      */
-    public static function deleteRecord(CustomerGroup $record): bool
+    public static function deleteAction(): DeleteAction
+    {
+        return DeleteAction::make()
+            ->modalHeading(fn (CustomerGroup $record): string => __('customer_groups.actions.delete_heading', ['name' => $record->name]))
+            ->modalDescription(fn (CustomerGroup $record): string => __('customer_groups.actions.delete_description', ['count' => Customer::query()->where('customer_group_id', $record->id)->count()]))
+            ->schema([
+                Select::make('move_to')
+                    ->label(__('customer_groups.actions.move_to'))
+                    ->options(fn (CustomerGroup $record): array => self::moveTargets($record))
+                    ->default(fn (): ?int => CustomerGroup::query()->where('code', CustomerGroup::RETAIL)->value('id'))
+                    ->required()
+                    ->native(false),
+            ])
+            ->using(fn (CustomerGroup $record, array $data): bool => self::deleteRecord($record, isset($data['move_to']) ? (int) $data['move_to'] : null));
+    }
+
+    /**
+     * Groups that can receive the customers of a deleted group: active, not «Гость», not the group itself.
+     *
+     * @return array<int, string>
+     */
+    public static function moveTargets(CustomerGroup $group): array
+    {
+        return CustomerGroup::query()
+            ->where('is_active', true)
+            ->where('code', '!=', CustomerGroup::GUEST)
+            ->whereKeyNot($group->id)
+            ->ordered()
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /**
+     * Deletion through the service: the system groups and a wrong target are refused with a message (CG-01, CG-25).
+     */
+    public static function deleteRecord(CustomerGroup $record, ?int $moveToId = null): bool
     {
         try {
-            app(CustomerGroupService::class)->delete($record);
+            $target = $moveToId === null ? null : CustomerGroup::query()->find($moveToId);
+            app(CustomerGroupService::class)->delete($record, $target);
         } catch (CustomerGroupException $e) {
             Notification::make()->danger()->title($e->getMessage())->send();
 

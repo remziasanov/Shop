@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Customer;
 use App\Models\User;
 
 return [
@@ -44,6 +45,13 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Storefront customers (D-071, CA-32): their own session keys, provider and model; the admin panel only
+        // knows `web`.
+        'customer' => [
+            'driver' => 'session',
+            'provider' => 'customers',
+        ],
     ],
 
     /*
@@ -67,6 +75,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'customers' => [
+            'driver' => 'eloquent',
+            'model' => Customer::class,
         ],
 
         // 'users' => [
@@ -99,6 +112,14 @@ return [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
             'expire' => 60,
+            'throttle' => 60,
+        ],
+
+        // Declared for completeness: customers reset passwords with e-mail codes, never with token links (CA-07).
+        'customers' => [
+            'provider' => 'customers',
+            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
+            'expire' => 15,
             'throttle' => 60,
         ],
     ],

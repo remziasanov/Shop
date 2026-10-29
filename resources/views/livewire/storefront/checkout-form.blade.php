@@ -32,6 +32,18 @@
                 <p class="text-sm text-red-700">{{ $message }}</p>
             @enderror
 
+            @if (count($savedAddresses) > 0)
+                {{-- CA-09: saved addresses of the signed-in customer. --}}
+                <div>
+                    <label for="co-address-book" class="mb-1 block text-sm font-medium">{{ __('account.addresses.checkout_pick') }}</label>
+                    <select id="co-address-book" wire:model.live="addressId" class="w-full rounded border border-slate-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-address-book>
+                        <option value="">{{ __('account.addresses.checkout_other') }}</option>
+                        @foreach ($savedAddresses as $saved)
+                            <option value="{{ $saved->id }}">{{ $saved->label }}: {{ \Illuminate\Support\Str::limit($saved->address, 60) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <x-storefront.field prefix="co" name="address" type="textarea" :label="__('storefront_sales.fields.address')" :required="$selectedDelivery?->requiresAddress ?? false"
                                 :placeholder="__('storefront_sales.checkout.address_placeholder')" autocomplete="street-address" maxlength="500" />
         </fieldset>
