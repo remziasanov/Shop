@@ -1,9 +1,19 @@
 name: Deploy to Beget
+run-name: Deploy ${{ inputs.site }} (${{ inputs.ref }})
 
-# TZ 12.3. Manual only: pick a branch (default main). Nothing here runs on push.
+# TZ 12.3. Manual only: pick a site and a branch (default main). Nothing here runs on push.
 on:
   workflow_dispatch:
     inputs:
+      site:
+        # One GitHub environment per site, each with its own BEGET_* secrets and protection rules.
+        # A new site = a new environment + one line here (docs/DEPLOY_BEGET.md, section 13).
+        description: 'Site to deploy (GitHub environment with its BEGET_* secrets)'
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
       ref:
         description: 'Branch (or tag) to deploy'
         required: false
@@ -15,9 +25,9 @@ on:
         default: false
         type: boolean
 
-# Never run two deploys at once and never cancel one that is already running (NF-22).
+# Never run two deploys of the same site at once and never cancel one that is already running (NF-22).
 concurrency:
-  group: deploy
+  group: deploy-${{ inputs.site }}
   cancel-in-progress: false
 
 permissions:
@@ -31,8 +41,8 @@ jobs:
     name: build and deploy
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Protection rules of the "production" environment (required reviewer, main only) apply here (D-091).
-    environment: production
+    # Protection rules and secrets of the chosen site's environment (required reviewer, main only) apply here (D-091).
+    environment: ${{ inputs.site }}
     steps:
       - name: Check secrets
         env:

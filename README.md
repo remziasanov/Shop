@@ -122,7 +122,7 @@ DB_CONNECTION=mysql php artisan migrate:fresh --seed
 
 ## Деплой
 
-Развёртывание на Beget описано в [docs/DEPLOY_BEGET.md](docs/DEPLOY_BEGET.md): регистрация и тариф, сайт и PHP 8.3, база MySQL, SSH-ключ, секреты GitHub, первоначальная настройка `.env`, две задачи CronTab, SSL и почта, проверка, обновление, откат, резервные копии и частые проблемы. Деплой запускается вручную: в GitHub Actions выберите workflow **Deploy**.
+Развёртывание на Beget описано в [docs/DEPLOY_BEGET.md](docs/DEPLOY_BEGET.md): регистрация и тариф, сайт и PHP 8.3, база MySQL, SSH-ключ, секреты GitHub, первоначальная настройка `.env`, две задачи CronTab, SSL и почта, проверка, обновление, откат, резервные копии и частые проблемы. Деплой запускается вручную: в GitHub Actions выберите workflow **Deploy** и сайт. Как развернуть ещё один сайт на Beget из этого же репозитория (отдельное окружение GitHub со своими секретами и одна строка в `deploy.yml`) — раздел 13 в [docs/DEPLOY_BEGET.md](docs/DEPLOY_BEGET.md).
 
 ## Команды artisan `shop:*`
 
