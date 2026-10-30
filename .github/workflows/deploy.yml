@@ -270,8 +270,10 @@ jobs:
 
           if ssh beget 'command -v rsync' > /dev/null 2>&1; then
             echo "Uploading with rsync"
-            # --omit-dir-times: on Beget the site folder belongs to the hosting, its time cannot be changed (rsync code 23).
-            rsync -az --omit-dir-times --delete --exclude-from="$RUNNER_TEMP/excludes.rsync" -e ssh ./ "beget:$BEGET_PATH/"
+            # Not -a: on Beget the site folder belongs to the hosting, so its time and permissions cannot be changed
+            # (rsync code 23). -rlt copies files, symlinks and file times; directory times, permissions, owner and group
+            # are left to the server (new files get the default hosting permissions, the executable bit is kept).
+            rsync -rlzt --omit-dir-times --delete --exclude-from="$RUNNER_TEMP/excludes.rsync" -e ssh ./ "beget:$BEGET_PATH/"
           else
             echo "::warning::На сервере нет rsync: файлы загружаются архивом tar.gz. Удалённые из репозитория файлы на сервере не удаляются."
             sed -e 's#^/#./#' -e 's#/$##' "$RUNNER_TEMP/excludes.rsync" > "$RUNNER_TEMP/excludes.tar"
