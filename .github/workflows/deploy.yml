@@ -270,13 +270,14 @@ jobs:
 
           if ssh beget 'command -v rsync' > /dev/null 2>&1; then
             echo "Uploading with rsync"
-            rsync -az --delete --exclude-from="$RUNNER_TEMP/excludes.rsync" -e ssh ./ "beget:$BEGET_PATH/"
+            # --omit-dir-times: on Beget the site folder belongs to the hosting, its time cannot be changed (rsync code 23).
+            rsync -az --omit-dir-times --delete --exclude-from="$RUNNER_TEMP/excludes.rsync" -e ssh ./ "beget:$BEGET_PATH/"
           else
             echo "::warning::На сервере нет rsync: файлы загружаются архивом tar.gz. Удалённые из репозитория файлы на сервере не удаляются."
             sed -e 's#^/#./#' -e 's#/$##' "$RUNNER_TEMP/excludes.rsync" > "$RUNNER_TEMP/excludes.tar"
             tar -czf "$RUNNER_TEMP/release.tar.gz" --exclude-from="$RUNNER_TEMP/excludes.tar" .
             scp -q "$RUNNER_TEMP/release.tar.gz" "beget:$BEGET_PATH/.deploy-release.tar.gz"
-            ssh beget "cd '$BEGET_PATH' && tar -xzf .deploy-release.tar.gz && rm -f .deploy-release.tar.gz"
+            ssh beget "cd '$BEGET_PATH' && tar -xzf .deploy-release.tar.gz --no-overwrite-dir -m && rm -f .deploy-release.tar.gz"
           fi
 
       - name: Prepare and switch release on the server
