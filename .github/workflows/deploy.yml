@@ -43,6 +43,9 @@ jobs:
     timeout-minutes: 30
     # Protection rules and secrets of the chosen site's environment (required reviewer, main only) apply here (D-091).
     environment: ${{ inputs.site }}
+    env:
+      # Environment variable (Settings → Environments → <site> → Environment variables), not a secret (D-111).
+      DEPLOY_DOCROOT: ${{ vars.DEPLOY_DOCROOT || 'public_html' }}
     steps:
       - name: Check secrets
         env:
@@ -72,6 +75,18 @@ jobs:
           fi
           if ! [[ "$BEGET_PHP" =~ $safe ]]; then
             echo "::error::BEGET_PHP должен быть абсолютным путём из латинских букв, цифр и символов . _ / - без пробелов и кавычек, например /usr/local/php/cgi/8.3/bin/php."
+            exit 1
+          fi
+          # D-111: name of the folder next to the app that the web server serves (a symlink to public/ is created
+          # under this name). Beget, Timeweb, Sprinthost: public_html (default). "none" = no link (VPS whose web server
+          # root already points at public/).
+          # No leading dot or dash (.env, options), and never a folder of the application or a server-only file.
+          case "$DEPLOY_DOCROOT" in
+            public|storage|bootstrap|vendor|app|config|database|lang|resources|routes|tests|php.ini) bad_docroot=1 ;;
+            *) bad_docroot=0 ;;
+          esac
+          if ! [[ "$DEPLOY_DOCROOT" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]] || [ "$bad_docroot" = 1 ]; then
+            echo "::error::Переменная окружения DEPLOY_DOCROOT должна быть именем папки сайта из латинских букв, цифр и . _ - (не с точки и не с дефиса, не имя папки магазина), например public_html или www, либо none."
             exit 1
           fi
 
@@ -172,8 +187,18 @@ jobs:
           # Falls back to the default Beget PHP 8.3 CLI when the secret is empty.
           BEGET_PHP: ${{ secrets.BEGET_PHP || '/usr/local/php/cgi/8.3/bin/php' }}
         run: |
+          # D-111: the document root link must never replace a folder or file of the application itself.
+          if [ "$DEPLOY_DOCROOT" != "none" ] && [ -e "./$DEPLOY_DOCROOT" ]; then
+            echo "::error::DEPLOY_DOCROOT совпадает с файлом или папкой магазина. Укажите имя папки сайта на хостинге (например public_html или www) или none. Ничего не загружено."
+            exit 1
+          fi
           if ! ssh beget 'echo connected' > /dev/null; then
             echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге."
+            exit 1
+          fi
+          # D-111: an existing regular file under the document root name is never replaced; stop before uploading.
+          if [ "$DEPLOY_DOCROOT" != "none" ] && ssh beget "test -f '$BEGET_PATH/$DEPLOY_DOCROOT' && ! test -L '$BEGET_PATH/$DEPLOY_DOCROOT'"; then
+            echo "::error::На хостинге на месте корня сайта (DEPLOY_DOCROOT) лежит файл, а не папка или ссылка. Проверьте настройку. Ничего не загружено."
             exit 1
           fi
           # D-106: never deploy onto a PHP build with known remotely exploitable vulnerabilities, unless the owner
@@ -257,8 +282,6 @@ jobs:
           /.env.backup
           /.env.production
           /storage/
-          /public_html
-          /public_html.bak-*
           /public/storage
           /public/hot
           /public/sitemap*.xml
@@ -274,7 +297,14 @@ jobs:
           /tests/
           /junit.xml
           /.phpunit.cache/
+          /public_html
+          /*.bak-[0-9]*
           EXCLUDES
+          # D-111: public_html and every *.bak-<date> backup stay protected even after DEPLOY_DOCROOT changes,
+          # so rsync --delete never removes the old document root or the hosting's original content.
+          if [ "$DEPLOY_DOCROOT" != "none" ] && [ "$DEPLOY_DOCROOT" != "public_html" ]; then
+            printf '/%s\n' "$DEPLOY_DOCROOT" >> "$RUNNER_TEMP/excludes.rsync"
+          fi
 
           ssh beget "mkdir -p '$BEGET_PATH'"
 
@@ -287,7 +317,8 @@ jobs:
           else
             echo "::warning::На сервере нет rsync: файлы загружаются архивом tar.gz. Удалённые из репозитория файлы на сервере не удаляются."
             sed -e 's#^/#./#' -e 's#/$##' "$RUNNER_TEMP/excludes.rsync" > "$RUNNER_TEMP/excludes.tar"
-            tar -czf "$RUNNER_TEMP/release.tar.gz" --exclude-from="$RUNNER_TEMP/excludes.tar" .
+            # Anchored like rsync: patterns apply to paths from the release root only, * does not cross "/".
+            tar -czf "$RUNNER_TEMP/release.tar.gz" --anchored --no-wildcards-match-slash --exclude-from="$RUNNER_TEMP/excludes.tar" .
             scp -q "$RUNNER_TEMP/release.tar.gz" "beget:$BEGET_PATH/.deploy-release.tar.gz"
             ssh beget "cd '$BEGET_PATH' && tar -xzf .deploy-release.tar.gz --no-overwrite-dir -m && rm -f .deploy-release.tar.gz"
           fi
@@ -306,21 +337,27 @@ jobs:
           APP_DIR="$1"
           PHP="$2"
           MODE="$3"
+          DOCROOT="${4:-public_html}"
           cd "$APP_DIR"
 
-          # 1. public_html must be a symlink to public (TZ 12.1).
-          if [ -L public_html ]; then
-            if [ "$(readlink public_html)" != "public" ]; then
-              rm public_html
-              ln -s public public_html
+          # 1. The web server's document root folder must be a symlink to public (TZ 12.1, D-111).
+          if [ "$DOCROOT" = "none" ]; then
+            echo "DEPLOY_DOCROOT=none: no document root link (the web server serves public/ directly)"
+          elif [ -L "$DOCROOT" ]; then
+            if [ "$(readlink -- "$DOCROOT")" != "public" ]; then
+              rm -- "$DOCROOT"
+              ln -s -- public "$DOCROOT"
             fi
-          elif [ -e public_html ]; then
-            backup="public_html.bak-$(date +%Y%m%d%H%M%S)"
-            mv public_html "$backup"
-            ln -s public public_html
-            echo "public_html was a regular folder, renamed to $backup"
+          elif [ -d "$DOCROOT" ]; then
+            backup="$DOCROOT.bak-$(date +%Y%m%d%H%M%S)"
+            mv -- "$DOCROOT" "$backup"
+            ln -s -- public "$DOCROOT"
+            echo "$DOCROOT was a regular folder, renamed to $backup"
+          elif [ -e "$DOCROOT" ]; then
+            echo "DEPLOY_DOCROOT points at an existing file, not a folder: nothing was moved; check the setting" >&2
+            exit 1
           else
-            ln -s public public_html
+            ln -s -- public "$DOCROOT"
           fi
 
           # 2. Writable structure (storage/ is never shipped). The private disk root is storage/app/private.
@@ -372,7 +409,7 @@ jobs:
           REMOTE
           mode=files
           if [ "$CONFIGURED" = "true" ]; then mode=full; fi
-          ssh beget bash -s -- "'$BEGET_PATH'" "'$BEGET_PHP'" "$mode" < "$RUNNER_TEMP/remote.sh"
+          ssh beget bash -s -- "'$BEGET_PATH'" "'$BEGET_PHP'" "$mode" "'$DEPLOY_DOCROOT'" < "$RUNNER_TEMP/remote.sh"
           echo "APP_DOWN=0" >> "$GITHUB_ENV"
 
       - name: First installation notice
