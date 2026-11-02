@@ -80,8 +80,13 @@ jobs:
           # D-111: name of the folder next to the app that the web server serves (a symlink to public/ is created
           # under this name). Beget, Timeweb, Sprinthost: public_html (default). "none" = no link (VPS whose web server
           # root already points at public/).
-          if ! [[ "$DEPLOY_DOCROOT" =~ ^([A-Za-z0-9._-]+)$ ]] || [ "$DEPLOY_DOCROOT" = "." ] || [ "$DEPLOY_DOCROOT" = ".." ] || [ "$DEPLOY_DOCROOT" = "public" ]; then
-            echo "::error::Переменная окружения DEPLOY_DOCROOT должна быть именем папки из латинских букв, цифр и . _ - (например public_html или www) либо none. Сейчас: '$DEPLOY_DOCROOT'."
+          # No leading dot or dash (.env, options), and never a folder of the application or a server-only file.
+          case "$DEPLOY_DOCROOT" in
+            public|storage|bootstrap|vendor|app|config|database|lang|resources|routes|tests|php.ini) bad_docroot=1 ;;
+            *) bad_docroot=0 ;;
+          esac
+          if ! [[ "$DEPLOY_DOCROOT" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]] || [ "$bad_docroot" = 1 ]; then
+            echo "::error::Переменная окружения DEPLOY_DOCROOT должна быть именем папки сайта из латинских букв, цифр и . _ - (не с точки и не с дефиса, не имя папки магазина), например public_html или www, либо none."
             exit 1
           fi
 
@@ -184,7 +189,7 @@ jobs:
         run: |
           # D-111: the document root link must never replace a folder or file of the application itself.
           if [ "$DEPLOY_DOCROOT" != "none" ] && [ -e "./$DEPLOY_DOCROOT" ]; then
-            echo "::error::DEPLOY_DOCROOT='$DEPLOY_DOCROOT' совпадает с файлом или папкой приложения. Укажите имя папки сайта на хостинге (например public_html или www) или none. Ничего не загружено."
+            echo "::error::DEPLOY_DOCROOT совпадает с файлом или папкой магазина. Укажите имя папки сайта на хостинге (например public_html или www) или none. Ничего не загружено."
             exit 1
           fi
           if ! ssh beget 'echo connected' > /dev/null; then
@@ -287,9 +292,13 @@ jobs:
           /tests/
           /junit.xml
           /.phpunit.cache/
+          /public_html
+          /*.bak-[0-9]*
           EXCLUDES
-          if [ "$DEPLOY_DOCROOT" != "none" ]; then
-            printf '/%s\n/%s.bak-*\n' "$DEPLOY_DOCROOT" "$DEPLOY_DOCROOT" >> "$RUNNER_TEMP/excludes.rsync"
+          # D-111: public_html and every *.bak-<date> backup stay protected even after DEPLOY_DOCROOT changes,
+          # so rsync --delete never removes the old document root or the hosting's original content.
+          if [ "$DEPLOY_DOCROOT" != "none" ] && [ "$DEPLOY_DOCROOT" != "public_html" ]; then
+            printf '/%s\n' "$DEPLOY_DOCROOT" >> "$RUNNER_TEMP/excludes.rsync"
           fi
 
           ssh beget "mkdir -p '$BEGET_PATH'"
@@ -329,17 +338,20 @@ jobs:
           if [ "$DOCROOT" = "none" ]; then
             echo "DEPLOY_DOCROOT=none: no document root link (the web server serves public/ directly)"
           elif [ -L "$DOCROOT" ]; then
-            if [ "$(readlink "$DOCROOT")" != "public" ]; then
-              rm "$DOCROOT"
-              ln -s public "$DOCROOT"
+            if [ "$(readlink -- "$DOCROOT")" != "public" ]; then
+              rm -- "$DOCROOT"
+              ln -s -- public "$DOCROOT"
             fi
-          elif [ -e "$DOCROOT" ]; then
+          elif [ -d "$DOCROOT" ]; then
             backup="$DOCROOT.bak-$(date +%Y%m%d%H%M%S)"
-            mv "$DOCROOT" "$backup"
-            ln -s public "$DOCROOT"
+            mv -- "$DOCROOT" "$backup"
+            ln -s -- public "$DOCROOT"
             echo "$DOCROOT was a regular folder, renamed to $backup"
+          elif [ -e "$DOCROOT" ]; then
+            echo "DEPLOY_DOCROOT points at an existing file, not a folder: nothing was moved; check the setting" >&2
+            exit 1
           else
-            ln -s public "$DOCROOT"
+            ln -s -- public "$DOCROOT"
           fi
 
           # 2. Writable structure (storage/ is never shipped). The private disk root is storage/app/private.
