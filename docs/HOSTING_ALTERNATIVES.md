@@ -25,7 +25,7 @@
 | **Beget** (текущий) | от ≈ 200 ₽/мес | 30 дней | да, проверено на практике | — |
 | **Timeweb** — ближайший аналог | от ≈ 180 ₽/мес при долгой оплате, ≈ 450 ₽/мес помесячно; домен .ru в подарок при оплате за год | 10 дней | вероятно да: SSH, cron, выбор версии PHP | версию PHP в SSH (как у Beget, консольный PHP может отличаться от PHP сайта), путь к PHP, частоту cron |
 | **Sprinthost** — самый дешёвый | от ≈ 90–190 ₽/мес, допуслуги отдельно | 30 дней | вероятно да | SSH и cron на выбранном тарифе, версия PHP 8.3+, расширения `intl` и `zip` |
-| **REG.RU** | ≈ 210–270 ₽/мес (Host-A / Host-0), «от 130 ₽» — только при самой долгой предоплате | нет | возможно | SSH на тарифе, где лежит корень сайта (часто `www/домен`), MySQL или MariaDB, cron раз в минуту |
+| **REG.RU** | ≈ 210–270 ₽/мес (Host-A / Host-0), «от 130 ₽» — только при самой долгой предоплате | нет | возможно | SSH на тарифе, раскладку папок (часто корень сайта — `~/www/домен`, см. 2.1), MySQL или MariaDB, cron раз в минуту |
 
 **Совет:** у Timeweb и Sprinthost есть бесплатный тестовый период — разверните магазин на тесте по разделу 2 и прогоните `shop:doctor` до оплаты.
 
@@ -48,7 +48,8 @@
 
 ### 2.1. Подготовка на хостинге
 
-1. Создайте сайт и привяжите домен. Узнайте **папку сайта** — ту, в которой будет лежать магазин (например `~/example.ru`), и **как называется корень сайта** внутри неё — папка, которую веб-сервер отдаёт браузеру (у Beget, Timeweb и Sprinthost обычно `public_html`, у REG.RU бывает `www`). Если хостинг отдаёт саму папку сайта (без вложенной), в панели смените корень сайта на вложенную папку `public_html` — так проще всего.
+1. Создайте сайт и привяжите домен. Узнайте **папку сайта** — ту, в которой будет лежать магазин (например `~/example.ru`), и **как называется корень сайта** внутри неё — папка, которую веб-сервер отдаёт браузеру (у Beget, Timeweb и Sprinthost обычно `public_html`). Если хостинг отдаёт саму папку сайта (без вложенной), в панели смените корень сайта на вложенную папку `public_html` — так проще всего.
+   - **Если корень сайта вида `~/www/example.ru`** (так бывает у REG.RU): `DEPLOY_DOCROOT` — только имя папки, без `/`. Тогда `BEGET_PATH` = полный путь к `~/www`, `DEPLOY_DOCROOT` = `example.ru`: магазин ляжет в `~/www`, а `example.ru` станет ссылкой на `public`. Минус: код магазина окажется в папке `www`, которую веб-сервер может отдавать для других доменов, — надёжнее сменить в панели (или через поддержку) корень сайта на отдельную папку, например `~/shop/public_html`.
 2. Выберите **PHP 8.3** (или 8.4, 8.5) для сайта.
 3. Создайте базу MySQL и пользователя.
 4. Включите SSH. Войдите по SSH и найдите консольный PHP нужной версии:
@@ -123,7 +124,7 @@
        location / { try_files $uri $uri/ /index.php?$query_string; }
        location ~ \.php$ {
            include snippets/fastcgi-php.conf;
-           fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+           fastcgi_pass unix:/run/php/php8.3-fpm-shop.sock;   # пул из шага 5
        }
        location ~ /\.(?!well-known) { deny all; }
    }
@@ -134,7 +135,22 @@
    certbot --nginx -d example.ru -d www.example.ru
    ```
    Корень сайта сразу указывает на `public`, поэтому в окружении GitHub задайте `DEPLOY_DOCROOT=none`.
-5. **Права:** PHP-FPM работает от `www-data`, файлы загружает `deploy`. Добавьте `deploy` в группу `www-data` (`usermod -aG www-data deploy`) и после первого деплоя выполните `chmod -R g+rwX /var/www/shop/storage /var/www/shop/bootstrap/cache`.
+5. **Права: отдельный пул PHP-FPM от пользователя `deploy`.** Файлы загружает и cron запускает `deploy`, поэтому и сайт должен работать от него — иначе файлы кэша и логов, созданные сайтом, нельзя будет удалить при деплое, и наоборот. Создайте `/etc/php/8.3/fpm/pool.d/shop.conf`:
+   ```ini
+   [shop]
+   user = deploy
+   group = www-data
+   listen = /run/php/php8.3-fpm-shop.sock
+   listen.owner = www-data
+   listen.group = www-data
+   pm = ondemand
+   pm.max_children = 8
+   php_admin_value[upload_max_filesize] = 64M
+   php_admin_value[post_max_size] = 64M
+   php_admin_value[memory_limit] = 256M
+   php_admin_value[max_execution_time] = 60
+   ```
+   Выполните `systemctl restart php8.3-fpm`. Лимиты загрузки в пуле совпадают с `client_max_body_size 64m` в nginx (по умолчанию PHP принимает только 2–8 МБ).
 6. **SSH-ключ** для GitHub — в `/home/deploy/.ssh/authorized_keys`. Секреты: `BEGET_HOST` = IP или домен сервера, `BEGET_USER` = `deploy`, `BEGET_PATH` = `/var/www/shop`, `BEGET_PHP` = `/usr/bin/php8.3`.
 7. **Cron** — `crontab -e -u deploy`, те же две строки, что в разделе 7 `DEPLOY_BEGET.md`, с путями `/usr/bin/php8.3` и `/var/www/shop/artisan`.
 8. **Защита:** `ufw allow OpenSSH && ufw allow 'Nginx Full' && ufw enable`; вход по паролю для SSH отключите (`PasswordAuthentication no` в `/etc/ssh/sshd_config`); включите автоматические обновления (`apt -y install unattended-upgrades`).
