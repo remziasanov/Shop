@@ -196,6 +196,11 @@ jobs:
             echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге."
             exit 1
           fi
+          # D-111: an existing regular file under the document root name is never replaced; stop before uploading.
+          if [ "$DEPLOY_DOCROOT" != "none" ] && ssh beget "test -f '$BEGET_PATH/$DEPLOY_DOCROOT' && ! test -L '$BEGET_PATH/$DEPLOY_DOCROOT'"; then
+            echo "::error::На хостинге на месте корня сайта (DEPLOY_DOCROOT) лежит файл, а не папка или ссылка. Проверьте настройку. Ничего не загружено."
+            exit 1
+          fi
           # D-106: never deploy onto a PHP build with known remotely exploitable vulnerabilities, unless the owner
           # explicitly allows it for an urgent fix (input allow_vulnerable_php). The marker skips any text that the
           # hosting shell may print on login. Deliberately stricter than shop:doctor: distribution builds are not
@@ -312,7 +317,8 @@ jobs:
           else
             echo "::warning::На сервере нет rsync: файлы загружаются архивом tar.gz. Удалённые из репозитория файлы на сервере не удаляются."
             sed -e 's#^/#./#' -e 's#/$##' "$RUNNER_TEMP/excludes.rsync" > "$RUNNER_TEMP/excludes.tar"
-            tar -czf "$RUNNER_TEMP/release.tar.gz" --exclude-from="$RUNNER_TEMP/excludes.tar" .
+            # Anchored like rsync: patterns apply to paths from the release root only, * does not cross "/".
+            tar -czf "$RUNNER_TEMP/release.tar.gz" --anchored --no-wildcards-match-slash --exclude-from="$RUNNER_TEMP/excludes.tar" .
             scp -q "$RUNNER_TEMP/release.tar.gz" "beget:$BEGET_PATH/.deploy-release.tar.gz"
             ssh beget "cd '$BEGET_PATH' && tar -xzf .deploy-release.tar.gz --no-overwrite-dir -m && rm -f .deploy-release.tar.gz"
           fi
