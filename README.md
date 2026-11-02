@@ -118,11 +118,12 @@ DB_CONNECTION=mysql php artisan migrate:fresh --seed
 - `docs/DECISIONS.md` — журнал решений: контекст, выбор и отвергнутые варианты.
 - `docs/DEV_ENV.md` — окружение разработки и песочница.
 - `docs/DEPLOY_BEGET.md` — пошаговое развёртывание на Beget для владельца магазина.
+- `docs/HOSTING_ALTERNATIVES.md` — куда ещё можно разместить магазин (аналоги Beget и VPS), как перенастроить деплой и частые проблемы.
 - `CLAUDE.md` — правила работы с кодом и конвенции проекта.
 
 ## Деплой
 
-Развёртывание на Beget описано в [docs/DEPLOY_BEGET.md](docs/DEPLOY_BEGET.md): регистрация и тариф, сайт и PHP 8.3, база MySQL, SSH-ключ, секреты GitHub, первоначальная настройка `.env`, две задачи CronTab, SSL и почта, проверка, обновление, откат, резервные копии и частые проблемы. Деплой запускается вручную: в GitHub Actions выберите workflow **Deploy** и сайт. Как развернуть ещё один сайт на Beget из этого же репозитория (отдельное окружение GitHub со своими секретами и одна строка в `deploy.yml`) — раздел 13 в [docs/DEPLOY_BEGET.md](docs/DEPLOY_BEGET.md).
+Развёртывание на Beget описано в [docs/DEPLOY_BEGET.md](docs/DEPLOY_BEGET.md): регистрация и тариф, сайт и PHP 8.3, база MySQL, SSH-ключ, секреты GitHub, первоначальная настройка `.env`, две задачи CronTab, SSL и почта, проверка, обновление, откат, резервные копии и частые проблемы. Деплой запускается вручную: в GitHub Actions выберите workflow **Deploy** и сайт. Как развернуть ещё один сайт на Beget из этого же репозитория (отдельное окружение GitHub со своими секретами и одна строка в `deploy.yml`) — раздел 13 в [docs/DEPLOY_BEGET.md](docs/DEPLOY_BEGET.md). Другие хостинги (Timeweb, Sprinthost, REG.RU, VPS) — [docs/HOSTING_ALTERNATIVES.md](docs/HOSTING_ALTERNATIVES.md).
 
 ## Команды artisan `shop:*`
 
