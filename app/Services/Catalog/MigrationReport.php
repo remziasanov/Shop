@@ -9,11 +9,23 @@ namespace App\Services\Catalog;
  */
 final class MigrationReport
 {
+    /** Number of examples of dropped values kept in the report. */
+    public const EXAMPLES = 10;
+
     /**
      * @param  int  $products  products with characteristics in JSON
      * @param  list<PlannedAttribute>  $plan  every planned characteristic (existing, new and merged)
+     * @param  int  $lostValues  values that do not fit the type of their characteristic and would be dropped
+     * @param  int  $lostProducts  products that would lose at least one value
+     * @param  list<array{product_id: int, characteristic: string, value: string}>  $lostExamples  first examples of dropped values
      */
-    public function __construct(public readonly int $products, public readonly array $plan) {}
+    public function __construct(
+        public readonly int $products,
+        public readonly array $plan,
+        public readonly int $lostValues = 0,
+        public readonly int $lostProducts = 0,
+        public readonly array $lostExamples = [],
+    ) {}
 
     /**
      * Attributes that will be created.
@@ -94,6 +106,7 @@ final class MigrationReport
             'merged_names' => $this->mergedNames(),
             'disputed' => array_map(fn (PlannedAttribute $p): array => $p->toArray(), $this->disputed()),
             'non_filterable' => array_map(fn (PlannedAttribute $p): array => $p->toArray(), $this->nonFilterable()),
+            'loss' => ['values' => $this->lostValues, 'products' => $this->lostProducts, 'examples' => $this->lostExamples],
         ];
     }
 }

@@ -213,7 +213,7 @@ describe('bulk actions', function (): void {
 
     it('uses chunks of at most 500 products', function (): void {
         $color = Attribute::factory()->create();
-        $ids = Product::factory()->count(3)->create()->pluck('id')->all();
+        $ids = Product::factory()->count(3)->create(['attributes' => null])->pluck('id')->all();
         $queries = 0;
         DB::listen(function () use (&$queries): void {
             $queries++;
@@ -227,7 +227,7 @@ describe('bulk actions', function (): void {
 
     it('validates before touching any product', function (): void {
         $number = Attribute::factory()->number()->create();
-        $product = Product::factory()->create();
+        $product = Product::factory()->create(['attributes' => null]);
 
         expect(fn () => attrService()->setAttributeForProducts($number, 'abc', [$product->id]))->toThrow(AttributeException::class);
     });
@@ -415,5 +415,29 @@ describe('copying values', function (): void {
         expect($copied)->toBe(2)
             ->and(attrValuesOf($target, $power)[0]->value_number)->toBe('12.5000')
             ->and($target->specs())->toBe($source->specs());
+    });
+});
+
+describe('bulk writers before the JSON migration is finished (FL-04)', function (): void {
+    it('refuses to set or remove a characteristic on a JSON-only product and keeps its JSON', function (): void {
+        $color = Attribute::factory()->create(['name' => 'Цвет']);
+        $legacy = Product::factory()->create(['attributes' => [['name' => 'Вес', 'value' => '2 кг']]]);
+        $plain = Product::factory()->create(['attributes' => null]);
+
+        expect(fn () => attrService()->setAttributeForProducts($color, 'Красный', [$legacy->id, $plain->id]))->toThrow(AttributeException::class)
+            ->and(fn () => attrService()->removeAttributeFromProducts($color, [$legacy->id]))->toThrow(AttributeException::class)
+            ->and($legacy->fresh()->specs())->toBe([['name' => 'Вес', 'value' => '2 кг']])
+            ->and(ProductAttributeValue::query()->count())->toBe(0);
+
+        // Products without v1 JSON are fine even before the migration is finished.
+        expect(attrService()->setAttributeForProducts($color, 'Красный', [$plain->id]))->toBe(1);
+    });
+
+    it('allows the bulk writers once the migration is finished', function (): void {
+        $color = Attribute::factory()->create(['name' => 'Цвет']);
+        $legacy = Product::factory()->create(['attributes' => [['name' => 'Вес', 'value' => '2 кг']]]);
+        attrMigrated();
+
+        expect(attrService()->setAttributeForProducts($color, 'Красный', [$legacy->id]))->toBe(1);
     });
 });

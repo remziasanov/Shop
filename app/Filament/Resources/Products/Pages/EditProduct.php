@@ -76,7 +76,7 @@ class EditProduct extends EditRecord
      */
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        return $this->saveWithAttributes(fn (): Model => parent::handleRecordUpdate($record, $data));
+        return $this->saveWithAttributes(fn (): Model => parent::handleRecordUpdate($record, $data), $record);
     }
 
     protected function mutateFormDataBeforeSave(array $data): array

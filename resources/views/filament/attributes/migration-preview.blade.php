@@ -16,6 +16,20 @@
         <li>{{ __('admin_attributes.migration.values', ['count' => $report['values_to_create'] ?? 0]) }}</li>
     </ul>
 
+    @if (($report['loss']['values'] ?? 0) > 0)
+        <div class="rounded-lg border border-danger-300 bg-danger-50 p-3 dark:border-danger-700 dark:bg-danger-950" data-testid="attribute-migration-loss">
+            <p class="font-medium text-danger-700 dark:text-danger-400">
+                {{ __('admin_attributes.migration.loss', ['values' => $report['loss']['values'], 'products' => $report['loss']['products']]) }}
+            </p>
+            <ul class="list-disc pl-5">
+                @foreach ($report['loss']['examples'] as $example)
+                    <li>{{ __('admin_attributes.migration.loss_example', ['product' => $example['product_id'], 'name' => $example['characteristic'], 'value' => $example['value']]) }}</li>
+                @endforeach
+            </ul>
+            <p class="mt-2 text-gray-700 dark:text-gray-300">{{ __('admin_attributes.migration.loss_hint') }}</p>
+        </div>
+    @endif
+
     @if (! empty($report['merged_names']))
         <div>
             <p class="font-medium">{{ __('admin_attributes.migration.merged') }}</p>

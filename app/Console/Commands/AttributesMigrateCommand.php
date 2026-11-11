@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\Attribute;
+use App\Services\Catalog\AttributeJsonBackup;
 use App\Services\Catalog\AttributeTypeInference;
 use App\Services\Catalog\JsonAttributeMigrator;
 use App\Services\Catalog\MigrationReport;
@@ -35,6 +36,7 @@ class AttributesMigrateCommand extends Command
             $this->line(__('attributes.migration.command.progress', ['done' => $progress['done'], 'total' => $progress['total']]));
         });
 
+        $this->line(__('attributes.migration.command.backup', ['path' => app(AttributeJsonBackup::class)->directory()]));
         $this->info(__('attributes.migration.command.finished', ['attributes' => Attribute::query()->count(), 'skipped' => $skipped]));
 
         return self::SUCCESS;
@@ -47,6 +49,14 @@ class AttributesMigrateCommand extends Command
         $this->line(__('attributes.migration.command.to_create', ['count' => count($report->toCreate())]));
         $this->line(__('attributes.migration.command.existing', ['count' => count($report->existing())]));
         $this->line(__('attributes.migration.command.values', ['count' => $report->valuesToCreate()]));
+
+        if ($report->lostValues > 0) {
+            $this->warn(__('attributes.migration.command.loss', ['values' => $report->lostValues, 'products' => $report->lostProducts]));
+
+            foreach ($report->lostExamples as $example) {
+                $this->line(__('attributes.migration.command.loss_example', ['product' => $example['product_id'], 'name' => $example['characteristic'], 'value' => $example['value']]));
+            }
+        }
 
         foreach ($report->mergedNames() as $names) {
             $this->line(__('attributes.migration.command.merged', ['names' => implode(' = ', $names)]));

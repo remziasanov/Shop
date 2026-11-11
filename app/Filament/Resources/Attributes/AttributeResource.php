@@ -89,7 +89,7 @@ class AttributeResource extends Resource
                 ->live()
                 ->disabled(fn (?Attribute $record): bool => self::typeLocked($record))
                 ->helperText(fn (?Attribute $record): string => self::typeLocked($record)
-                    ? AttributeException::typeLocked(app(AttributeService::class)->usageCount($record))->getMessage()
+                    ? AttributeException::typeLocked(self::usage($record))->getMessage()
                     : __('admin_attributes.fields.type_hint')),
             TextInput::make('unit')
                 ->label(__('admin_attributes.fields.unit'))
@@ -236,7 +236,7 @@ class AttributeResource extends Resource
     {
         return DeleteAction::make()
             ->modalDescription(function (Attribute $record): ?string {
-                $count = app(AttributeService::class)->usageCount($record);
+                $count = self::usage($record);
 
                 return $count > 0 ? AttributeException::inUse($count)->getMessage() : null;
             })
@@ -262,11 +262,11 @@ class AttributeResource extends Resource
     {
         return DeleteAction::make('detach_delete')
             ->label(__('admin_attributes.actions.detach_delete'))
-            ->visible(fn (Attribute $record): bool => self::allows('attributes.delete') && app(AttributeService::class)->usageCount($record) > 0)
+            ->visible(fn (Attribute $record): bool => self::allows('attributes.delete') && self::usage($record) > 0)
             ->modalHeading(__('admin_attributes.actions.detach_delete'))
             ->modalDescription(fn (Attribute $record): string => __('admin_attributes.actions.detach_delete_description', [
                 'name' => $record->name,
-                'count' => app(AttributeService::class)->usageCount($record),
+                'count' => self::usage($record),
             ]))
             ->using(function (Attribute $record): bool {
                 abort_unless(self::allows('attributes.delete'), 403);
@@ -279,7 +279,18 @@ class AttributeResource extends Resource
 
     public static function typeLocked(?Attribute $record): bool
     {
-        return $record !== null && $record->exists && app(AttributeService::class)->usageCount($record) > 0;
+        return $record !== null && $record->exists && self::usage($record) > 0;
+    }
+
+    /**
+     * Products using the characteristic: the `products_count` the table query already selected (no query per row),
+     * counted only for a record that comes without it (forms).
+     */
+    private static function usage(Attribute $record): int
+    {
+        $selected = $record->getAttributes()['products_count'] ?? null;
+
+        return $selected !== null ? (int) $selected : app(AttributeService::class)->usageCount($record);
     }
 
     private static function allows(string $permission): bool

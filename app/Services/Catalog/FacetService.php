@@ -8,6 +8,7 @@ use App\Enums\AttributeType;
 use App\Models\AttributeValue;
 use App\Services\Access\ViewerContext;
 use App\Settings\CatalogSettings;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -27,6 +28,15 @@ use Illuminate\Support\Facades\DB;
  */
 final class FacetService
 {
+    /**
+     * Optimizer hint right after `select` of the numeric query: the materialized selection drives the join and the
+     * values are probed by product (FL-12). Without it MySQL 8 prefers a range scan of the number index (60 000 rows
+     * at 20 000 products x 3 numbers) and probes the selection from there: ~200 ms instead of ~15 ms. Not used for the
+     * list queries, where the same hint is much slower (their selection is larger). It is a plain comment for SQLite
+     * and MySQL 5.7, which ignore it.
+     */
+    private const SELECTION_FIRST = '/*+ JOIN_ORDER(sel, fv) NO_BNL(fv) NO_RANGE_OPTIMIZATION(fv) */ ';
+
     /** FL-10: 9 list filters + 1 numeric query. */
     public const MAX_QUERIES = 10;
 
@@ -179,13 +189,10 @@ final class FacetService
      */
     private function counts(int $attributeId, string $slug, CatalogFilters $filters, array $categoryIds): array
     {
-        return $this->catalog->selection($filters, $categoryIds, null, [$slug])
-            ->join('product_attribute_values as fv', 'fv.product_id', '=', 'products.id')
+        return $this->fromSelection($filters, $categoryIds, [$slug])
             ->where('fv.attribute_id', $attributeId)
-            ->reorder()
             ->groupBy('fv.attribute_value_id')
-            ->toBase()
-            ->get(['fv.attribute_value_id as value_id', DB::raw('count(distinct fv.product_id) as product_count')])
+            ->get(['fv.attribute_value_id as value_id', DB::raw('count(*) as product_count')])
             ->mapWithKeys(fn (object $row): array => [(int) $row->value_id => (int) $row->product_count])
             ->all();
     }
@@ -259,14 +266,11 @@ final class FacetService
      */
     private function ranges(CatalogFilters $filters, array $categoryIds, array $attributeIds, array $slugs): array
     {
-        $rows = $this->catalog->selection($filters, $categoryIds, null, $slugs)
-            ->join('product_attribute_values as fv', 'fv.product_id', '=', 'products.id')
+        $rows = $this->fromSelection($filters, $categoryIds, $slugs)
             ->whereIn('fv.attribute_id', $attributeIds)
             ->whereNotNull('fv.value_number')
-            ->reorder()
             ->groupBy('fv.attribute_id')
-            ->toBase()
-            ->get(['fv.attribute_id', DB::raw('min(fv.value_number) as range_min'), DB::raw('max(fv.value_number) as range_max')]);
+            ->get([DB::raw(self::SELECTION_FIRST.'fv.attribute_id'), DB::raw('min(fv.value_number) as range_min'), DB::raw('max(fv.value_number) as range_max')]);
 
         $ranges = [];
 
@@ -278,5 +282,29 @@ final class FacetService
         }
 
         return $ranges;
+    }
+
+    /**
+     * Values of the characteristics (`fv`) of the products of the selection. The selection is a derived table of
+     * product ids (DISTINCT keeps MySQL from merging it into the outer query), so the selective filters drive the
+     * query and the values are fetched through the (product_id, attribute_id) index, instead of range-scanning the
+     * value indexes of the whole characteristic (FL-12). `(product_id, attribute_id, value)` is unique, so a product
+     * counts once per value.
+     *
+     * @param  list<int>  $categoryIds
+     * @param  list<string>  $exceptAttributes  slugs of characteristics whose filter is left out
+     */
+    private function fromSelection(CatalogFilters $filters, array $categoryIds, array $exceptAttributes): QueryBuilder
+    {
+        $ids = $this->catalog->selection($filters, $categoryIds, null, $exceptAttributes)
+            ->reorder()
+            ->select('products.id')
+            ->distinct()
+            ->toBase();
+
+        return DB::query()
+            ->fromSub($ids, 'sel')
+            // CROSS JOIN pins the join order in SQLite (the selection is the outer table); MySQL treats it as INNER JOIN.
+            ->crossJoin('product_attribute_values as fv', 'fv.product_id', '=', 'sel.id');
     }
 }

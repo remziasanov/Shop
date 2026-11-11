@@ -21,7 +21,8 @@ use Illuminate\Support\Facades\DB;
  *     FACET_PERF_PRODUCTS=20000 php artisan test --filter=FacetPerformanceTest
  *     FACET_PERF_PRODUCTS=20000 DB_CONNECTION=mysql DB_DATABASE=shop_test DB_USERNAME=shop DB_PASSWORD=shop php artisan test --filter=FacetPerformanceTest
  *
- * `FACET_PERF_MAX_MS` (default 500) is the allowed time of one facet query; FL-12 wants 100 on Beget.
+ * `FACET_PERF_MAX_MS` (default 100, FL-12) is the allowed time of one facet query. Measured on MySQL 8.0 at 20 000 x 8: numeric
+ * ~15 ms, list facets 33-51 ms (before the selection became a derived table: ~210 and 52-65 ms).
  * `FACET_PERF_EXPLAIN=1` prints the MySQL plan of every facet query to stderr.
  */
 beforeEach(function (): void {
@@ -146,7 +147,7 @@ it('stays within 30 queries with filters applied, cached facets and a second vis
 });
 
 it('answers every facet query in time and keeps listing and counters consistent (FL-12)', function (): void {
-    $max = (float) (getenv('FACET_PERF_MAX_MS') ?: 500);
+    $max = (float) (getenv('FACET_PERF_MAX_MS') ?: 100);
     $url = route('catalog.category', 'big').'?a[material][]=material-1&a[season][]=season-2';
 
     // The first run warms the database buffers; a new catalog version makes the facets be built again.

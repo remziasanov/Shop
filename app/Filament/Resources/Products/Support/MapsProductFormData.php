@@ -37,15 +37,34 @@ trait MapsProductFormData
     protected ?array $typedSpecs = null;
 
     /**
+     * The form was filled in the legacy JSON mode (FL-04). The mode is decided again on every request, so after the
+     * migration (or after the product got rows) the form would save an empty typed editor or raw JSON over the tables.
+     */
+    #[Locked]
+    public bool $loadedLegacySpecs = false;
+
+    /**
      * Runs the save of the product and writes the typed characteristics in the same transaction (FL-03). A domain
      * error (a word in a number field) is shown as a notification and nothing is saved.
      *
+     * A form filled in the legacy JSON mode is refused when the product is no longer a JSON-only one at save time (the
+     * migration finished or the product got rows meanwhile): saving it would overwrite the tables.
+     *
      * @param  Closure(): Model  $save
+     * @param  Model|null  $existing  the record being edited (null on create)
      */
-    protected function saveWithAttributes(Closure $save): Model
+    protected function saveWithAttributes(Closure $save, ?Model $existing = null): Model
     {
         try {
-            return DB::transaction(function () use ($save): Model {
+            return DB::transaction(function () use ($save, $existing): Model {
+                if ($this->loadedLegacySpecs && $existing instanceof Product) {
+                    $current = Product::withTrashed()->lockForUpdate()->find($existing->getKey());
+
+                    if ($current === null || ! app(ProductAttributeEditor::class)->isLegacy($current)) {
+                        throw AttributeException::legacyEditorStale();
+                    }
+                }
+
                 $record = $save();
 
                 if ($this->typedSpecs !== null && $record instanceof Product) {
@@ -94,7 +113,9 @@ trait MapsProductFormData
     {
         $editor = app(ProductAttributeEditor::class);
 
-        if ($editor->isLegacy($product)) {
+        $this->loadedLegacySpecs = $editor->isLegacy($product);
+
+        if ($this->loadedLegacySpecs) {
             $data['specs'] = $product->specs();
         } else {
             $data['typed_specs'] = $editor->load($product);

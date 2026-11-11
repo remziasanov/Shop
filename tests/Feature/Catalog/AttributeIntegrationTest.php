@@ -17,6 +17,8 @@ use App\Services\System\EnvironmentChecker;
 use App\Settings\CatalogSettings;
 use Livewire\Livewire;
 
+beforeEach(fn () => Storage::fake('local'));
+
 /**
  * FL-04 notices (doctor, dashboard), the settings page «Каталог и фильтры» and product duplication (20.6).
  */

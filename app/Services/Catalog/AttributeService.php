@@ -403,11 +403,12 @@ final class AttributeService
 
                 ProductAttributeValue::query()->where('attribute_value_id', $from->id)->whereIn('product_id', $already)->delete();
                 ProductAttributeValue::query()->where('attribute_value_id', $from->id)->whereIn('product_id', $chunk)->update(['attribute_value_id' => $to->id]);
-                $this->sync->syncProducts($chunk, true);
             }
 
             $from->delete();
         });
+
+        $this->queueRebuild($affected);
 
         unset($this->valueMaps[$from->attribute_id]);
         $this->bump();
@@ -487,10 +488,12 @@ final class AttributeService
      * @param  array<int>  $productIds
      * @return int number of products written
      *
-     * @throws AttributeException
+     * @throws AttributeException also when the migration from JSON is not finished and some product only has JSON
      */
     public function setAttributeForProducts(Attribute $attribute, mixed $values, array $productIds): int
     {
+        $this->guardJsonOnly($productIds);
+
         try {
             $rows = DB::transaction(fn (): array => $this->rowsFor($attribute, $values));
         } catch (Throwable $e) {
@@ -535,9 +538,13 @@ final class AttributeService
      *
      * @param  array<int>  $productIds
      * @return int number of products that had a value
+     *
+     * @throws AttributeException the migration from JSON is not finished and some product only has JSON
      */
     public function removeAttributeFromProducts(Attribute $attribute, array $productIds): int
     {
+        $this->guardJsonOnly($productIds);
+
         $done = 0;
 
         foreach (array_chunk(array_values(array_unique(array_map('intval', $productIds))), self::CHUNK) as $chunk) {
@@ -748,6 +755,22 @@ final class AttributeService
         }
 
         return $this->valueMaps[$attributeId];
+    }
+
+    /**
+     * Bulk writers refuse products whose v1 characteristics live only in JSON until the migration is finished.
+     *
+     * @param  array<int>  $productIds
+     *
+     * @throws AttributeException
+     */
+    private function guardJsonOnly(array $productIds): void
+    {
+        $jsonOnly = app(AttributeMigrationState::class)->jsonOnlyProductIds($productIds);
+
+        if ($jsonOnly !== []) {
+            throw AttributeException::migrationPending(count($jsonOnly));
+        }
     }
 
     /**

@@ -57,6 +57,35 @@ final class AttributeMigrationState
     }
 
     /**
+     * Ids (of the given ones) of products that only have v1 characteristics in JSON: no rows in the tables yet.
+     * While the migration is not finished, writing such a product through the tables would rebuild its JSON from
+     * the new rows only and the migrator would skip it afterwards (FL-04): the v1 characteristics would be lost.
+     *
+     * @param  array<int>  $productIds
+     * @return list<int>
+     */
+    public function jsonOnlyProductIds(array $productIds): array
+    {
+        if ($this->isMigrated() || $productIds === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach (array_chunk(array_values(array_unique(array_map('intval', $productIds))), self::SCAN_CHUNK) as $chunk) {
+            $withRows = array_flip(DB::table('product_attribute_values')->whereIn('product_id', $chunk)->distinct()->pluck('product_id')->map(fn ($id): int => (int) $id)->all());
+
+            foreach (DB::table('products')->whereIn('id', $chunk)->whereNotNull('attributes')->get(['id', 'attributes']) as $row) {
+                if (! isset($withRows[(int) $row->id]) && self::hasSpecs($row->attributes)) {
+                    $found[] = (int) $row->id;
+                }
+            }
+        }
+
+        return $found;
+    }
+
+    /**
      * The raw JSON of `products.attributes` holds at least one characteristic.
      */
     public static function hasSpecs(mixed $json): bool
@@ -67,11 +96,11 @@ final class AttributeMigrationState
     }
 
     /**
-     * @return array{total: int, done: int, last_id: int, skipped: int, created: int, started_at: int}|null
+     * @return array{total: int, done: int, last_id: int, skipped: int, created: int, started_at: int, run_id: string}|null
      */
     public function current(): ?array
     {
-        /** @var array{total: int, done: int, last_id: int, skipped: int, created: int, started_at: int}|null $state */
+        /** @var array{total: int, done: int, last_id: int, skipped: int, created: int, started_at: int, run_id: string}|null $state */
         $state = Cache::get(self::CACHE_KEY);
 
         return is_array($state) ? $state : null;
@@ -79,7 +108,7 @@ final class AttributeMigrationState
 
     public function begin(int $total, int $created): void
     {
-        Cache::forever(self::CACHE_KEY, ['total' => $total, 'done' => 0, 'last_id' => 0, 'skipped' => 0, 'created' => $created, 'started_at' => now()->getTimestamp()]);
+        Cache::forever(self::CACHE_KEY, ['total' => $total, 'done' => 0, 'last_id' => 0, 'skipped' => 0, 'created' => $created, 'started_at' => now()->getTimestamp(), 'run_id' => now()->format('Ymd-His')]);
     }
 
     public function advance(int $lastId, int $done, int $skipped): void

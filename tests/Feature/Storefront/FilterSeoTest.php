@@ -38,7 +38,8 @@ beforeEach(function (): void {
 
 function seoPage(string $query): TestResponse
 {
-    return test()->get(route('catalog.category', 'odezhda').$query)->assertOk();
+    // A raw spelling of the selection is redirected to the normalized URL (FL-07): the page is the one it leads to.
+    return test()->followingRedirects()->get(route('catalog.category', 'odezhda').$query)->assertOk();
 }
 
 it('(а) keeps a page without characteristic filters as before', function (): void {
@@ -117,12 +118,56 @@ it('(в) does not index a characteristic whose flag is off even for one value', 
 
 it('uses the inherited set for the (б) rule of a subcategory', function (): void {
     $child = Category::factory()->childOf($this->category)->create(['slug' => 'futbolki', 'name' => 'Футболки']);
-    facetProduct($child, [[$this->material, $this->cotton]]);
+    foreach (range(1, 3) as $i) {
+        facetProduct($child, [[$this->material, $this->cotton]]);
+    }
 
     $html = $this->get(route('catalog.category', 'futbolki').'?a[material][]=cotton')->assertOk()->getContent();
 
     expect($html)->toContain('Футболки — Хлопок</h1>')
         ->and($html)->not->toContain('name="robots"');
+});
+
+it('(б) sends a single-value page with fewer than seo_single_value_min_products products to noindex,follow, like the sitemap', function (): void {
+    // The category has 4 products with cotton and 1 with linen; the default threshold is 3.
+    $settings = app(CatalogSettings::class);
+    expect($settings->seo_single_value_min_products)->toBe(3);
+
+    $thin = seoPage('?a[material][]=linen')->getContent();
+    expect($thin)->toContain('<meta name="robots" content="noindex,follow">')
+        ->and($thin)->toContain('<link rel="canonical" href="'.$this->url.'">')
+        ->and($thin)->not->toContain('Одежда — Лён</h1>');
+
+    expect(seoPage('?a[material][]=cotton')->getContent())->not->toContain('name="robots"');
+
+    // Lowering the threshold makes the same page indexable again.
+    $settings->seo_single_value_min_products = 1;
+    $settings->save();
+
+    expect(seoPage('?a[material][]=linen')->getContent())->not->toContain('name="robots"')
+        ->and(seoPage('?a[material][]=linen')->getContent())->toContain('Одежда — Лён</h1>');
+});
+
+it('redirects a raw or differently written filter query to the normalized URL with 301 (FL-07)', function (): void {
+    $normalized = $this->url.'?'.http_build_query(['sort' => 'name', 'a' => ['material' => ['cotton', 'linen'], 'power' => ['min' => '100', 'max' => '300']]]);
+
+    // Another order, a decimal comma, empty bounds of an unused filter, indexed list keys.
+    $raw = $this->url.'?a[power][max]=300&a[power][min]=100&a[material][5]=cotton&a[material][]=linen&a[color][]=&sort=name';
+
+    $this->get($raw)->assertStatus(301)->assertRedirect($normalized);
+
+    // The normalized URL is final: no loop, no redirect.
+    $this->get($normalized)->assertOk();
+
+    // Other parameters are kept; page and built-in filters stay as normalized.
+    $this->get($this->url.'?utm_source=x&page=1&in_stock=1&a[material][]=cotton')
+        ->assertStatus(301)
+        ->assertRedirect($this->url.'?in_stock=1&'.http_build_query(['a' => ['material' => ['cotton']]]).'&utm_source=x');
+
+    // Only GET is redirected, and pages without a characteristic filter are left alone.
+    $this->post($raw)->assertStatus(405);
+    $this->get($this->url.'?sort=name&in_stock=1')->assertOk();
+    $this->get($this->url.'?a[unknown][]=x')->assertOk();
 });
 
 describe('sitemap', function (): void {

@@ -21,9 +21,12 @@ use App\Services\Catalog\AttributeMigrationState;
 use App\Settings\CatalogSettings;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 use function Pest\Laravel\actingAs;
+
+beforeEach(fn () => Storage::fake('local'));
 
 /**
  * @return array{0: Attribute, 1: AttributeValue, 2: AttributeValue}
@@ -378,12 +381,57 @@ describe('migration from JSON (FL-04)', function (): void {
         expect(Attribute::query()->count())->toBe(0);
     });
 
+    it('shows the values that would be lost and requires an explicit confirmation to start', function (): void {
+        Queue::fake([MigrateAttributesFromJson::class]);
+        unmigrate();
+        actingAs(User::factory()->admin()->create());
+
+        foreach (range(1, 40) as $i) {
+            Product::factory()->create(['attributes' => [['name' => 'Вес, кг', 'value' => (string) $i]]]);
+        }
+
+        Product::factory()->create(['attributes' => [['name' => 'Вес, кг', 'value' => 'около тонны']]]);
+
+        $preview = Livewire::test(ListAttributes::class)->mountAction('migrate_from_json');
+
+        expect($preview->instance()->getMountedAction()?->getModalContent()?->render())
+            ->toContain(__('admin_attributes.migration.loss', ['values' => 1, 'products' => 1]))
+            ->toContain('около тонны');
+
+        // Without the checkbox nothing is queued.
+        Livewire::test(ListAttributes::class)
+            ->callAction('migrate_from_json')
+            ->assertHasActionErrors(['accept_loss']);
+        Queue::assertNothingPushed();
+
+        Livewire::test(ListAttributes::class)
+            ->callAction('migrate_from_json', ['accept_loss' => true])
+            ->assertHasNoActionErrors()
+            ->assertNotified(__('admin_attributes.migration.queued'));
+        Queue::assertPushed(MigrateAttributesFromJson::class, 1);
+    });
+
+    it('does not ask for the confirmation when nothing would be lost', function (): void {
+        Queue::fake([MigrateAttributesFromJson::class]);
+        unmigrate();
+        actingAs(User::factory()->admin()->create());
+        Product::factory()->create(['attributes' => [['name' => 'Цвет', 'value' => 'Красный']]]);
+
+        Livewire::test(ListAttributes::class)
+            ->callAction('migrate_from_json')
+            ->assertHasNoActionErrors();
+
+        Queue::assertPushed(MigrateAttributesFromJson::class, 1);
+    });
+
     it('migrates when the queued job runs and then hides the action', function (): void {
         unmigrate();
         actingAs(User::factory()->admin()->create());
         $product = Product::factory()->create(['attributes' => [['name' => 'Цвет', 'value' => 'Красный']]]);
 
         Livewire::test(ListAttributes::class)->callAction('migrate_from_json');
+        // The first run only prepares; the job queued from it runs after it on the database queue.
+        MigrateAttributesFromJson::dispatch();
 
         expect(app(AttributeMigrationState::class)->isMigrated())->toBeTrue()
             ->and(Attribute::query()->where('name', 'Цвет')->exists())->toBeTrue()

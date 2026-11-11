@@ -116,4 +116,14 @@ final class AttributeException extends RuntimeException
     {
         return new self(__('attributes.errors.duplicate_in_product', ['name' => $attribute]));
     }
+
+    public static function migrationPending(int $count): self
+    {
+        return new self(__('attributes.errors.migration_pending', ['count' => $count]), $count);
+    }
+
+    public static function legacyEditorStale(): self
+    {
+        return new self(__('attributes.errors.legacy_editor_stale'));
+    }
 }

@@ -22,7 +22,10 @@ use Illuminate\Support\Facades\DB;
  * Names are matched by the rules of FL-16 ({@see AttributeNameResolver}); types come from {@see AttributeStats}.
  * Idempotent: existing characteristics are reused, a product that already has rows in the tables is skipped (the
  * tables are the source of truth from its first write on), so a repeated or resumed run changes nothing twice.
- * Values that do not fit the type of their characteristic (a word in a number) are dropped and counted.
+ * Values that do not fit the type of their characteristic (a word in a number) are dropped and counted (D-112): the
+ * dry run lists them, the original JSON of every product is appended to a backup file before the product is written
+ * ({@see AttributeJsonBackup}) and `shop:attributes-restore-json` brings it back. The JSON of a migrated product is
+ * always rebuilt from its rows, also when all its values were dropped.
  */
 class JsonAttributeMigrator
 {
@@ -34,7 +37,11 @@ class JsonAttributeMigrator
     public function __construct(
         private readonly AttributeService $attributes,
         private readonly AttributeMigrationState $state,
+        private readonly AttributeSyncService $sync,
+        private readonly AttributeJsonBackup $backup,
     ) {}
+
+    private ?string $fallbackRunId = null;
 
     /**
      * Холостой прогон: nothing is written.
@@ -43,7 +50,7 @@ class JsonAttributeMigrator
     {
         [$plan, $products] = $this->buildPlan();
 
-        return new MigrationReport($products, $plan);
+        return new MigrationReport($products, $plan, ...$this->scanLoss($plan));
     }
 
     /**
@@ -84,6 +91,10 @@ class JsonAttributeMigrator
         $already = $ids === [] ? [] : array_flip(DB::table('product_attribute_values')->whereIn('product_id', $ids)->distinct()->pluck('product_id')->map(fn ($id): int => (int) $id)->all());
 
         $products = $migrated = $alreadyMigrated = $skipped = 0;
+        /** @var array<int, list<array{attribute: Attribute, values: list<string>}>> $groups */
+        $groups = [];
+        /** @var array<int, mixed> $originals */
+        $originals = [];
 
         foreach ($rows as $row) {
             $specs = $this->specsOf($row->attributes);
@@ -100,14 +111,32 @@ class JsonAttributeMigrator
                 continue;
             }
 
-            $items = $this->itemsOf($specs, $skipped);
+            $lost = [];
+            $groups[(int) $row->id] = $this->groupsOf($specs, fn (string $name): ?Attribute => $this->attributeFor($name), $lost);
+            $originals[(int) $row->id] = json_decode((string) $row->attributes, true);
+            $skipped += count($lost);
+        }
 
-            if ($items === []) {
+        // The original JSON goes to the backup before anything of the batch is overwritten.
+        $this->backup->append($this->runId(), $originals);
+
+        $emptied = [];
+
+        foreach ($groups as $productId => $entries) {
+            if ($entries === []) {
+                // Every value was dropped: the JSON must not stay as a stale copy that a later sync wipes silently.
+                $emptied[] = $productId;
+
                 continue;
             }
 
-            $this->attributes->setProductValues((int) $row->id, $items, true, false);
+            $items = array_map(fn (array $entry): array => ['attribute_id' => $entry['attribute']->id, 'values' => $entry['values']], $entries);
+            $this->attributes->setProductValues($productId, $items, true, false);
             $migrated++;
+        }
+
+        if ($emptied !== []) {
+            $this->sync->syncProducts($emptied, true);
         }
 
         return new MigrationBatchResult(
@@ -122,7 +151,8 @@ class JsonAttributeMigrator
 
     /**
      * Runs the whole migration: the attributes first, then batches from the stored position until the end or until
-     * `$budgetSeconds` have passed (checked between batches). Returns true when the migration is finished (the flag
+     * `$budgetSeconds` have passed (checked before each batch). With a budget the first run only prepares the attributes
+     * and counts the products. Returns true when the migration is finished (the flag
      * `attributes_migrated_at` is set), false when it has to be continued by another run.
      *
      * @param  int|null  $budgetSeconds  null = no limit (console)
@@ -135,6 +165,12 @@ class JsonAttributeMigrator
         if ($this->state->current() === null) {
             $created = $this->prepare();
             $this->state->begin($this->state->jsonProductCount(), count($created));
+
+            // Planning scans every product: with a time budget (queue job) it is a run of its own, so that no run
+            // adds a batch on top of it and exceeds the 40 s job limit.
+            if ($budgetSeconds !== null) {
+                return false;
+            }
         }
 
         do {
@@ -163,9 +199,75 @@ class JsonAttributeMigrator
         return false;
     }
 
+    /**
+     * Id of the run for the backup file name: the one of the stored progress, or one per instance (direct batches).
+     */
+    private function runId(): string
+    {
+        return $this->state->current()['run_id'] ?? ($this->fallbackRunId ??= now()->format('Ymd-His'));
+    }
+
     // ------------------------------------------------------------------
     // Planning
     // ------------------------------------------------------------------
+
+    /**
+     * Dry run of the loss: values that the real run would drop (do not fit the type, a second value of a single-value
+     * characteristic, too long). Products that already have rows are not touched by the migration and not counted.
+     *
+     * @param  list<PlannedAttribute>  $plan
+     * @return array{lostValues: int, lostProducts: int, lostExamples: list<array{product_id: int, characteristic: string, value: string}>}
+     */
+    private function scanLoss(array $plan): array
+    {
+        /** @var array<string, Attribute> $targets normalized JSON name => existing or transient attribute */
+        $targets = [];
+        /** @var array<int, Attribute> $transient plan index => transient attribute of a new characteristic */
+        $transient = [];
+
+        foreach ($plan as $index => $planned) {
+            $owner = $planned->mergedInto ?? $index;
+            $attribute = $planned->existing ?? ($transient[$owner] ??= (new Attribute)->forceFill(['name' => $plan[$owner]->name, 'type' => $plan[$owner]->inference->type, 'unit' => $plan[$owner]->unit]));
+
+            foreach ($planned->names as $name) {
+                $targets[AttributeNameResolver::normalize($name)] = $attribute;
+            }
+        }
+
+        $values = $products = 0;
+        $examples = [];
+
+        DB::table('products')->whereNotNull('attributes')->select(['id', 'attributes'])->chunkById(self::BATCH, function ($rows) use ($targets, &$values, &$products, &$examples): void {
+            $ids = $rows->pluck('id')->map(fn ($id): int => (int) $id)->all();
+            $already = array_flip(DB::table('product_attribute_values')->whereIn('product_id', $ids)->distinct()->pluck('product_id')->map(fn ($id): int => (int) $id)->all());
+
+            foreach ($rows as $row) {
+                $specs = $this->specsOf($row->attributes);
+
+                if ($specs === [] || isset($already[(int) $row->id])) {
+                    continue;
+                }
+
+                $lost = [];
+                $this->groupsOf($specs, fn (string $name): ?Attribute => $targets[AttributeNameResolver::normalize($name)] ?? null, $lost);
+
+                if ($lost === []) {
+                    continue;
+                }
+
+                $products++;
+                $values += count($lost);
+
+                foreach ($lost as $item) {
+                    if (count($examples) < MigrationReport::EXAMPLES) {
+                        $examples[] = ['product_id' => (int) $row->id, 'characteristic' => $item['name'], 'value' => $item['value']];
+                    }
+                }
+            }
+        });
+
+        return ['lostValues' => $values, 'lostProducts' => $products, 'lostExamples' => $examples];
+    }
 
     /**
      * @return array{0: list<PlannedAttribute>, 1: int} the plan and the number of products with JSON characteristics
@@ -275,60 +377,45 @@ class JsonAttributeMigrator
     }
 
     /**
-     * Items for {@see AttributeService::setProductValues()}: values grouped by the resolved attribute; the ones that
-     * do not fit the type are dropped and counted in `$skipped`.
+     * Values grouped by the resolved attribute, in the order of first appearance; values that do not fit the type of
+     * their attribute (or have none) are not in the result and are added to `$lost`.
      *
      * @param  list<array{name: string, value: string}>  $specs
-     * @return list<array{attribute_id: int, values: list<string>}>
+     * @param  Closure(string): ?Attribute  $resolve  attribute of a JSON name
+     * @param  list<array{name: string, value: string}>  $lost
+     * @return list<array{attribute: Attribute, values: list<string>}>
      */
-    private function itemsOf(array $specs, int &$skipped): array
+    private function groupsOf(array $specs, Closure $resolve, array &$lost): array
     {
-        /** @var array<int, array{attribute: Attribute, values: list<string>}> $byAttribute */
+        /** @var array<string, array{attribute: Attribute, values: list<string>}> $byAttribute */
         $byAttribute = [];
 
         foreach ($specs as $spec) {
-            $attribute = $this->attributeFor($spec['name']);
+            $attribute = $resolve($spec['name']);
 
             if ($attribute === null) {
-                $skipped++;
+                $lost[] = $spec;
 
                 continue;
             }
 
+            $key = $attribute->exists ? (string) $attribute->id : 'transient-'.spl_object_id($attribute);
             $values = $attribute->type === AttributeType::List ? AttributeValueParser::splitList($spec['value']) : [$spec['value']];
-            $byAttribute[$attribute->id] ??= ['attribute' => $attribute, 'values' => []];
+            $byAttribute[$key] ??= ['attribute' => $attribute, 'values' => []];
 
             foreach ($values as $value) {
                 // Number and boolean take one value per product: the first one wins.
-                if ($attribute->type !== AttributeType::List && $byAttribute[$attribute->id]['values'] !== []) {
-                    $skipped++;
+                if (($attribute->type !== AttributeType::List && $byAttribute[$key]['values'] !== []) || ! $this->fits($attribute, $value)) {
+                    $lost[] = ['name' => $spec['name'], 'value' => $value];
 
                     continue;
                 }
 
-                $byAttribute[$attribute->id]['values'][] = $value;
+                $byAttribute[$key]['values'][] = $value;
             }
         }
 
-        $items = [];
-
-        foreach ($byAttribute as $id => $entry) {
-            $values = [];
-
-            foreach ($entry['values'] as $value) {
-                if ($this->fits($entry['attribute'], $value)) {
-                    $values[] = $value;
-                } else {
-                    $skipped++;
-                }
-            }
-
-            if ($values !== []) {
-                $items[] = ['attribute_id' => $id, 'values' => $values];
-            }
-        }
-
-        return $items;
+        return array_values(array_filter($byAttribute, fn (array $entry): bool => $entry['values'] !== []));
     }
 
     private function fits(Attribute $attribute, string $value): bool

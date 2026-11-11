@@ -77,7 +77,7 @@ function facetProduct(Category $category, array $values = [], array $attributes 
  */
 function facetListed(Category $category, array $query = []): array
 {
-    $response = test()->withoutVite()->get(route('catalog.category', $category->slug).($query === [] ? '' : '?'.http_build_query($query)))->assertOk();
+    $response = test()->withoutVite()->followingRedirects()->get(route('catalog.category', $category->slug).($query === [] ? '' : '?'.http_build_query($query)))->assertOk();
 
     return array_map(
         fn ($card): int => $card->product->id,

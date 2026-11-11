@@ -9,12 +9,17 @@ use App\Models\AttributeValue;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\Catalog\AttributeJsonBackup;
 use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Catalog\AttributeService;
 use App\Services\Catalog\JsonAttributeMigrator;
 use App\Settings\CatalogSettings;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
+
+beforeEach(fn () => Storage::fake('local'));
 
 /**
  * FL-04: migration of the v1 JSON characteristics into the tables.
@@ -134,20 +139,103 @@ describe('migration', function (): void {
         expect($attribute->is_filterable)->toBeFalse()->and($attribute->type)->toBe(AttributeType::List);
     });
 
-    it('drops values that do not fit a number type and counts them', function (): void {
+    it('drops values that do not fit a number type, backs the original JSON up and restores it on demand', function (): void {
         foreach (range(1, 40) as $i) {
             attrJsonProduct([['Вес, кг', (string) $i]]);
         }
-        $odd = attrJsonProduct([['Вес, кг', 'около тонны']]);
+        $original = [['name' => 'Вес, кг', 'value' => 'около тонны']];
+        $odd = Product::factory()->create(['attributes' => $original]);
+        $mixed = Product::factory()->create(['attributes' => [['name' => 'Цвет', 'value' => 'Красный'], ['name' => 'Вес, кг', 'value' => 'тяжёлый']]]);
 
         attrMigrator()->run();
 
         $weight = Attribute::query()->where('name', 'Вес')->firstOrFail();
 
-        // 40 of 41 numeric (97.6%) -> number; the odd value is skipped.
+        // 41 of 42 numeric -> number; the odd values are skipped.
         expect($weight->type)->toBe(AttributeType::Number)
             ->and(ProductAttributeValue::query()->where('attribute_id', $weight->id)->count())->toBe(40)
-            ->and(ProductAttributeValue::query()->where('product_id', $odd->id)->count())->toBe(0);
+            ->and(ProductAttributeValue::query()->where('product_id', $odd->id)->count())->toBe(0)
+            // No stale JSON that a later sync would wipe silently: it is rebuilt from the rows.
+            ->and($odd->fresh()->specs())->toBe([])
+            ->and($mixed->fresh()->specs())->toBe([['name' => 'Цвет', 'value' => 'Красный']]);
+
+        // The originals are in the backup (one JSONL line per touched product).
+        $files = Storage::disk('local')->files(AttributeJsonBackup::DIRECTORY);
+        expect($files)->toHaveCount(1)->and($files[0])->toMatch('/backup-.+\.jsonl$/');
+        $lines = collect(explode("\n", trim(Storage::disk('local')->get($files[0]))))->map(fn (string $l): array => json_decode($l, true))->keyBy('product_id');
+
+        expect($lines)->toHaveCount(42)
+            ->and($lines[$odd->id]['attributes'])->toBe($original)
+            ->and($lines[$mixed->id]['attributes'])->toHaveCount(2);
+
+        // Restore one product: the JSON is back and its rows are gone, so a re-run migrates it again.
+        $this->artisan('shop:attributes-restore-json', ['--product' => $mixed->id])->assertSuccessful();
+
+        expect(json_decode((string) DB::table('products')->where('id', $mixed->id)->value('attributes'), true))->toBe($lines[$mixed->id]['attributes'])
+            ->and(ProductAttributeValue::query()->where('product_id', $mixed->id)->count())->toBe(0)
+            ->and(ProductAttributeValue::query()->count())->toBe(40);
+
+        $this->artisan('shop:attributes-restore-json')->assertSuccessful();
+
+        expect($odd->fresh()->attributes)->toBe($original)
+            ->and(ProductAttributeValue::query()->count())->toBe(0);
+
+        // The restored products migrate again; the backup keeps the first original.
+        attrMigrator()->run();
+        expect(ProductAttributeValue::query()->count())->toBe(40 + 1);
+        $again = collect(explode("\n", trim(Storage::disk('local')->get(Storage::disk('local')->files(AttributeJsonBackup::DIRECTORY)[0]))));
+        expect($again)->toHaveCount(42);
+    });
+
+    it('never overwrites a backed up product: the first original wins across runs', function (): void {
+        $product = attrJsonProduct([['Цвет', 'Красный']]);
+        $backup = new AttributeJsonBackup;
+
+        $backup->append('a', [$product->id => [['name' => 'Цвет', 'value' => 'Красный']]]);
+        // A later run sees rebuilt JSON; a new instance reads the earlier file.
+        (new AttributeJsonBackup)->append('b', [$product->id => [['name' => 'Цвет', 'value' => 'Другой']]]);
+
+        expect(Storage::disk('local')->files(AttributeJsonBackup::DIRECTORY))->toHaveCount(1)
+            ->and($backup->originals()[$product->id])->toBe([['name' => 'Цвет', 'value' => 'Красный']]);
+    });
+
+    it('reports in the dry run how many values and products would lose data, with examples', function (): void {
+        foreach (range(1, 40) as $i) {
+            attrJsonProduct([['Вес, кг', (string) $i]]);
+        }
+        $odd = attrJsonProduct([['Вес, кг', 'около тонны']]);
+        attrJsonProduct([['Цвет', 'Красный']]);
+
+        $report = attrMigrator()->dryRun();
+
+        expect($report->lostValues)->toBe(1)
+            ->and($report->lostProducts)->toBe(1)
+            ->and($report->lostExamples)->toBe([['product_id' => $odd->id, 'characteristic' => 'Вес, кг', 'value' => 'около тонны']])
+            ->and($report->toArray()['loss']['values'])->toBe(1)
+            ->and(Storage::disk('local')->files(AttributeJsonBackup::DIRECTORY))->toBe([]);
+
+        // Predicted loss equals the real one.
+        attrMigrator()->run();
+        expect(ProductAttributeValue::query()->count())->toBe(41);
+    });
+
+    it('limits the examples of the dry run to ten', function (): void {
+        foreach (range(1, 300) as $i) {
+            attrJsonProduct([['Вес, кг', (string) $i]]);
+        }
+        foreach (range(1, 12) as $i) {
+            attrJsonProduct([['Вес, кг', 'много '.$i]]);
+        }
+
+        $report = attrMigrator()->dryRun();
+
+        expect($report->lostValues)->toBe(12)->and($report->lostProducts)->toBe(12)->and($report->lostExamples)->toHaveCount(10);
+    });
+
+    it('reports no loss when every value fits', function (): void {
+        attrJsonProduct([['Цвет', 'Красный'], ['Мощность, Вт', '500']]);
+
+        expect(attrMigrator()->dryRun()->lostValues)->toBe(0);
     });
 
     it('is idempotent: a second run creates nothing and changes nothing', function (): void {
@@ -223,7 +311,7 @@ describe('batches and progress', function (): void {
         $state = app(AttributeMigrationState::class);
         $seen = [];
 
-        $done = attrMigrator()->run(0, function (array $progress) use (&$seen): void {
+        $done = attrMigrator()->run(null, function (array $progress) use (&$seen): void {
             $seen[] = $progress;
         });
 
@@ -239,6 +327,12 @@ describe('batches and progress', function (): void {
         $category = Category::factory()->create();
         Product::factory()->count(JsonAttributeMigrator::BATCH + 1)->create(['category_id' => $category->id, 'attributes' => [['name' => 'Цвет', 'value' => 'Красный']]]);
         $state = app(AttributeMigrationState::class);
+
+        // With a budget the first run only prepares the attributes and counts the products (no run is longer than 40 s).
+        expect(attrMigrator()->run(0))->toBeFalse()
+            ->and($state->current()['done'])->toBe(0)
+            ->and($state->current()['total'])->toBe(JsonAttributeMigrator::BATCH + 1)
+            ->and(ProductAttributeValue::query()->count())->toBe(0);
 
         // A zero budget lets exactly one batch run.
         expect(attrMigrator()->run(0))->toBeFalse()
@@ -296,6 +390,9 @@ describe('batches and progress', function (): void {
     it('runs through the job on the sync queue and sets the flag', function (): void {
         attrJsonProduct([['Цвет', 'Красный']]);
 
+        // The first run prepares, the second one migrates (a job queued from inside a sync job is blocked by the
+        // overlap lock, on the database queue it runs after the current one).
+        MigrateAttributesFromJson::dispatch();
         MigrateAttributesFromJson::dispatch();
 
         expect(app(AttributeMigrationState::class)->isMigrated())->toBeTrue()

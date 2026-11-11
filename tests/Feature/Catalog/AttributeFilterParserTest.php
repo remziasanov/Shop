@@ -45,8 +45,13 @@ it('normalizes the order: attributes in set order, values in dictionary order', 
 });
 
 it('yields the same URL and the same facet cache key for the same selection (FL-07, FL-11)', function (): void {
-    $first = $this->get(route('catalog.category', $this->category->slug).'?a[power][max]=900&a[material][]=linen&a[material][]=cotton&a[power][min]=500');
+    $rawUrl = route('catalog.category', $this->category->slug).'?a[power][max]=900&a[material][]=linen&a[material][]=cotton&a[power][min]=500';
     $second = $this->get(route('catalog.category', $this->category->slug).'?a[material][]=cotton&a[material][]=linen&a[power][min]=500&a[power][max]=900');
+
+    // The raw spelling (another order) is redirected to the normalized URL, which is the page of the other one.
+    $this->get($rawUrl)->assertStatus(301)->assertRedirect(route('catalog.category', $this->category->slug).'?'.http_build_query($second->viewData('filters')->toQuery()));
+
+    $first = $this->followingRedirects()->get($rawUrl);
 
     expect($first->viewData('filters')->toQuery())->toBe($second->viewData('filters')->toQuery())
         ->and($first->viewData('canonical'))->toBe($second->viewData('canonical'))

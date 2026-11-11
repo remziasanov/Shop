@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Products\Support;
 
+use App\Exceptions\AttributeException;
 use App\Models\Attribute;
 use App\Models\Product;
+use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Catalog\AttributeService;
 use App\Services\Catalog\ProductAttributeEditor;
 use Filament\Actions\BulkAction;
@@ -39,6 +41,8 @@ class RemoveAttributeBulkAction extends BulkAction
             ->modalHeading(__('admin_attributes.bulk.remove'))
             ->modalDescription(__('admin_attributes.bulk.remove_description'))
             ->visible(fn (): bool => Gate::allows('bulk', Product::class))
+            ->disabled(fn (): bool => app(AttributeMigrationState::class)->isPending())
+            ->tooltip(fn (): ?string => app(AttributeMigrationState::class)->isPending() ? __('admin_attributes.bulk.migration_pending') : null)
             ->fetchSelectedRecords(false)
             ->deselectRecordsAfterCompletion()
             ->schema([
@@ -61,7 +65,14 @@ class RemoveAttributeBulkAction extends BulkAction
                 }
 
                 $ids = array_map('intval', $livewire->getSelectedTableRecords(false)->all());
-                $count = app(AttributeService::class)->removeAttributeFromProducts($attribute, $ids);
+
+                try {
+                    $count = app(AttributeService::class)->removeAttributeFromProducts($attribute, $ids);
+                } catch (AttributeException $e) {
+                    Notification::make()->danger()->title($e->getMessage())->send();
+
+                    return;
+                }
 
                 Notification::make()->success()->title(__('admin_attributes.bulk.remove_done', ['count' => $count, 'name' => $attribute->name]))->send();
             });

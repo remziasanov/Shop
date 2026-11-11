@@ -8,6 +8,7 @@ use App\Enums\AttributeType;
 use App\Exceptions\AttributeException;
 use App\Models\Attribute;
 use App\Models\Product;
+use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Catalog\AttributeService;
 use App\Services\Catalog\ProductAttributeEditor;
 use Filament\Actions\BulkAction;
@@ -45,6 +46,8 @@ class SetAttributeBulkAction extends BulkAction
             ->modalHeading(__('admin_attributes.bulk.set'))
             ->modalDescription(__('admin_attributes.bulk.set_description'))
             ->visible(fn (): bool => Gate::allows('bulk', Product::class))
+            ->disabled(fn (): bool => app(AttributeMigrationState::class)->isPending())
+            ->tooltip(fn (): ?string => app(AttributeMigrationState::class)->isPending() ? __('admin_attributes.bulk.migration_pending') : null)
             ->fetchSelectedRecords(false)
             ->deselectRecordsAfterCompletion()
             ->schema([

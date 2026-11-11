@@ -13,6 +13,7 @@ use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Catalog\JsonAttributeMigrator;
 use App\Services\Users\PermissionService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 
@@ -50,14 +51,35 @@ class MigrateFromJsonAction extends Action
                 'existingAttributes' => Attribute::query()->count(),
                 'progress' => app(AttributeMigrationState::class)->current(),
             ]))
-            ->action(function (ListAttributes $livewire): void {
+            ->schema([
+                Checkbox::make('accept_loss')
+                    ->label(__('admin_attributes.migration.loss_confirm'))
+                    ->accepted()
+                    ->validationMessages(['accepted' => __('admin_attributes.migration.loss_unconfirmed')])
+                    ->visible(fn (ListAttributes $livewire): bool => self::lossOf($livewire) > 0),
+            ])
+            ->action(function (ListAttributes $livewire, array $data): void {
                 abort_unless(self::allowed(), 403);
+
+                if (self::lossOf($livewire) > 0 && empty($data['accept_loss'])) {
+                    Notification::make()->danger()->title(__('admin_attributes.migration.loss_unconfirmed'))->send();
+
+                    return;
+                }
 
                 $livewire->migrationReport = null;
                 MigrateAttributesFromJson::dispatch();
 
                 Notification::make()->success()->title(__('admin_attributes.migration.queued'))->send();
             });
+    }
+
+    /**
+     * Number of values the dry run found that would be dropped (confirmation is required when it is above zero).
+     */
+    private static function lossOf(ListAttributes $livewire): int
+    {
+        return (int) ($livewire->migrationReport['loss']['values'] ?? 0);
     }
 
     private static function allowed(): bool

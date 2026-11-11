@@ -14,15 +14,16 @@ use Illuminate\Queue\Middleware\WithoutOverlapping;
 
 /**
  * Background migration of characteristics from JSON (FL-04, D-076): batches of 500 products with the progress
- * kept in {@see AttributeMigrationState}. A run stops after about {@see self::BUDGET_SECONDS}
- * seconds (a batch takes a few seconds, the job limit is 40 s) and queues itself again until everything is done.
+ * kept in {@see AttributeMigrationState}. A run starts a new batch only while less than
+ * {@see self::BUDGET_SECONDS} seconds have passed (a batch takes a few seconds, the job limit is 40 s) and queues itself
+ * again until everything is done; the first run only prepares the attributes and counts the products.
  * Resumable and idempotent: a failed or repeated run continues from the stored position.
  */
 class MigrateAttributesFromJson implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
 
-    public const BUDGET_SECONDS = 25;
+    public const BUDGET_SECONDS = 20;
 
     public int $tries = 3;
 

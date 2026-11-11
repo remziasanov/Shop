@@ -166,6 +166,35 @@ describe('legacy JSON before the migration (FL-04)', function (): void {
             ->and(ProductAttributeValue::query()->count())->toBe(0);
     });
 
+    it('refuses to save a form opened in the legacy mode once the migration finished or the product got rows', function (): void {
+        actingAs(User::factory()->admin()->create());
+        $color = Attribute::factory()->create(['name' => 'Цвет']);
+        $product = Product::factory()->create(['attributes' => [['name' => 'Цвет', 'value' => 'Белый']]]);
+
+        // The product got rows after the form was opened.
+        $component = Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()])->assertSee(__('admin_attributes.product.legacy_notice'));
+        attrService()->setProductValues($product, [['attribute_id' => $color->id, 'values' => ['Красный']]]);
+
+        $component->fillForm(['name' => 'Другое имя'])->call('save')
+            ->assertNotified(__('attributes.errors.legacy_editor_stale'));
+
+        // Neither the rows nor the product are touched (the hidden typed editor would have saved an empty set).
+        expect($product->fresh()->specs())->toBe([['name' => 'Цвет', 'value' => 'Красный']])
+            ->and(ProductAttributeValue::query()->where('product_id', $product->id)->count())->toBe(1)
+            ->and($product->fresh()->name)->not->toBe('Другое имя');
+
+        // The migration finished after the form was opened.
+        $other = Product::factory()->create(['attributes' => [['name' => 'Вес', 'value' => '5 кг']]]);
+        $component = Livewire::test(EditProduct::class, ['record' => $other->getRouteKey()]);
+        attrMigrated();
+
+        $component->fillForm(['name' => 'Другое имя'])->call('save')
+            ->assertNotified(__('attributes.errors.legacy_editor_stale'));
+
+        expect($other->fresh()->specs())->toBe([['name' => 'Вес', 'value' => '5 кг']])
+            ->and($other->fresh()->name)->not->toBe('Другое имя');
+    });
+
     it('uses the typed editor for a new product and for a product that already has rows', function (): void {
         actingAs(User::factory()->admin()->create());
         $color = Attribute::factory()->create(['name' => 'Цвет']);
@@ -255,5 +284,19 @@ describe('bulk actions (FL-18)', function (): void {
         Livewire::test(ListProducts::class)
             ->assertActionVisible(TestAction::make('set_attribute')->table()->bulk())
             ->assertActionVisible(TestAction::make('remove_attribute')->table()->bulk());
+    });
+});
+
+describe('bulk actions before the JSON migration is finished (FL-04)', function (): void {
+    it('are disabled while some product only has JSON characteristics and do not touch the JSON', function (): void {
+        actingAs(User::factory()->admin()->create());
+        $color = Attribute::factory()->create(['name' => 'Цвет']);
+        $legacy = Product::factory()->create(['attributes' => [['name' => 'Вес', 'value' => '2 кг']]]);
+
+        Livewire::test(ListProducts::class)
+            ->assertActionDisabled(TestAction::make('set_attribute')->table()->bulk())
+            ->assertActionDisabled(TestAction::make('remove_attribute')->table()->bulk());
+
+        expect($legacy->fresh()->specs())->toBe([['name' => 'Вес', 'value' => '2 кг']]);
     });
 });
