@@ -111,4 +111,9 @@ final class AttributeException extends RuntimeException
     {
         return new self(__('attributes.errors.duplicate_filter'));
     }
+
+    public static function duplicateInProduct(string $attribute): self
+    {
+        return new self(__('attributes.errors.duplicate_in_product', ['name' => $attribute]));
+    }
 }

@@ -15,6 +15,7 @@ use App\Services\Age\AgeRestrictionResolver;
 use App\Services\Catalog\Breadcrumbs;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
+use App\Services\Seo\FilterSeoResolver;
 use App\Services\Seo\SeoBuilder;
 use App\Services\Seo\SeoMeta;
 use Illuminate\Contracts\View\View;
@@ -45,7 +46,7 @@ class CatalogController extends Controller
     /**
      * SF-11: category with its description, subcategory tiles and the products of it and all subcategories.
      */
-    public function category(string $slug, CatalogFilterRequest $request, CategoryTree $tree, Breadcrumbs $breadcrumbs, HtmlSanitizer $sanitizer, SeoBuilder $seo, AgeGate $ageGate, AgeRestrictionResolver $ageLevels, ViewerContext $viewer): View
+    public function category(string $slug, CatalogFilterRequest $request, CategoryTree $tree, Breadcrumbs $breadcrumbs, HtmlSanitizer $sanitizer, SeoBuilder $seo, AgeGate $ageGate, AgeRestrictionResolver $ageLevels, ViewerContext $viewer, FilterSeoResolver $filterSeo): View
     {
         $category = Category::query()->where('slug', $slug)->firstOrFail();
         abort_unless($tree->isVisible($category->id), 404);
@@ -57,17 +58,21 @@ class CatalogController extends Controller
         $ageGate->setPageLevel($ageLevels->forCategoryId($category->id));
 
         $node = $tree->node($category->id);
-        $listing = $this->listing($request, $tree->descendantIds($category->id));
+        $listing = $this->listing($request, $tree->descendantIds($category->id), categoryId: $category->id);
         $trail = $breadcrumbs->forCategory($category->id);
-        $canonical = $this->canonical(route('catalog.category', $category->slug), $listing);
+        // FL-14: pages with characteristic filters are either the indexable «single value» page or noindex.
+        $facetSeo = $filterSeo->resolve($category, $listing['filters'], $listing['paginator']->currentPage());
+        $canonical = $facetSeo !== null ? $facetSeo->canonical : $this->canonical(route('catalog.category', $category->slug), $listing);
+        $meta = $seo->category($category, $trail, $canonical, $facetSeo?->filtersText);
 
         return view('storefront.catalog.category', $listing + [
             'category' => $category,
+            'heading' => $facetSeo !== null ? $facetSeo->heading : $category->name,
             'description' => $sanitizer->sanitize($category->description),
             'tiles' => $this->tiles($node !== null ? $node->children : []),
             'breadcrumbs' => $trail,
             'canonical' => $canonical,
-            'seo' => $this->noindexForPrivate($seo->category($category, $trail, $canonical), $viewer->noindexUnlessGuestSees(fn ($guest): bool => $guest->allowsSection(StorefrontSection::Catalog) && $guest->canSeeCategory($category->id))),
+            'seo' => $this->noindexForPrivate($facetSeo?->robots !== null ? $meta->withRobots($facetSeo->robots) : $meta, $viewer->noindexUnlessGuestSees(fn ($guest): bool => $guest->allowsSection(StorefrontSection::Catalog) && $guest->canSeeCategory($category->id))),
         ]);
     }
 

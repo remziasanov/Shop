@@ -34,7 +34,16 @@ final readonly class CatalogFilters
         public array $brands = [],
         public array $flags = [],
         public int $page = 1,
+        public AttributeSelection $attributes = new AttributeSelection,
     ) {}
+
+    /**
+     * The same filters with the characteristic selection of a category (FL-07, FL-15: categories only).
+     */
+    public function withAttributes(AttributeSelection $attributes): self
+    {
+        return new self($this->sort, $this->priceFrom, $this->priceTo, $this->inStock, $this->brands, $this->flags, $this->page, $attributes);
+    }
 
     /**
      * The filters the group may use (CG-04, CG-06): hidden prices remove the price range and the price sorting, hidden
@@ -57,6 +66,7 @@ final readonly class CatalogFilters
             brands: $access->allowsSection(StorefrontSection::Brands) ? $this->brands : [],
             flags: $flags,
             page: $this->page,
+            attributes: $this->attributes,
         );
     }
 
@@ -65,11 +75,31 @@ final readonly class CatalogFilters
      */
     public function hasFilters(): bool
     {
+        return $this->hasBuiltInFilters() || ! $this->attributes->isEmpty();
+    }
+
+    /**
+     * A built-in filter of SF-13 (price, stock, brand, labels) is set.
+     */
+    public function hasBuiltInFilters(): bool
+    {
         return $this->priceFrom !== null
             || $this->priceTo !== null
             || $this->inStock
             || $this->brands !== []
             || $this->flags !== [];
+    }
+
+    /**
+     * Number of active filters for the «Фильтры (N)» button: a price range counts once, so do brands and labels.
+     */
+    public function activeCount(): int
+    {
+        return ($this->priceFrom !== null || $this->priceTo !== null ? 1 : 0)
+            + ($this->inStock ? 1 : 0)
+            + ($this->brands !== [] ? 1 : 0)
+            + ($this->flags !== [] ? 1 : 0)
+            + $this->attributes->count();
     }
 
     /**
@@ -118,7 +148,7 @@ final readonly class CatalogFilters
             $query['flags'] = $this->flags;
         }
 
-        return $query;
+        return $query + $this->attributes->toQuery();
     }
 
     private static function rubles(?int $kopecks): string

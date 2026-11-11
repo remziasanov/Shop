@@ -6,19 +6,27 @@ namespace App\Services\Export;
 
 use App\Enums\CategorySheetField;
 use App\Enums\ImportField;
+use App\Models\Attribute;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Services\Catalog\AttributeNameResolver;
+use App\Services\Catalog\AttributeValueParser;
 use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Media\ImageProcessor;
+use App\Settings\CatalogSettings;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /**
  * Catalog export to .xlsx in exactly the import template format (EX-01): the same canonical headers,
- * «Х: <name>» columns for characteristics and an optional «Категории» sheet, so the file can be edited
- * in Excel and uploaded back. Products are streamed in chunks; memory use does not depend on their count.
+ * «Х: <signature>» columns for characteristics and an optional «Категории» sheet, so the file can be edited
+ * in Excel and uploaded back. The signature is the name of the characteristic with its unit, «Х: Мощность, Вт»
+ * (FL-16): the import finds the characteristic by it, so export -> import creates no duplicates. List values are
+ * joined with «; », numbers have no unit suffix (it is in the header), booleans are «да» / «нет». Products that
+ * only have v1 JSON characteristics (migration of FL-04 not finished) are exported from the JSON. Products are streamed in chunks; memory use does not depend on their count.
  *
  * Filters: `category_id` (the category and all its descendants), `active` (all|active|inactive),
  * `product_ids` (explicit selection).
@@ -32,6 +40,8 @@ final class CatalogExporter
     public const PATH_SEPARATOR = ' / ';
 
     public const PHOTO_SEPARATOR = '; ';
+
+    public const LIST_SEPARATOR = '; ';
 
     public const ACTIVE_ALL = 'all';
 
@@ -137,8 +147,11 @@ final class CatalogExporter
                 ->select(self::COLUMNS)
                 ->with('images')
                 ->chunkById(self::CHUNK, function ($products) use ($book, $paths, $attributeNames, &$rows): void {
+                    $cells = $this->attributeCells($products->pluck('id')->map(fn ($id): int => (int) $id)->all());
+                    $legacy = $this->legacyCells($products, $cells);
+
                     foreach ($products as $product) {
-                        $book->row($this->productRow($product, $paths, $attributeNames));
+                        $book->row($this->productRow($product, $paths, $attributeNames, $cells[$product->id] ?? $legacy[$product->id] ?? []));
                         $rows++;
                     }
                 }, 'products.id', 'id');
@@ -152,8 +165,9 @@ final class CatalogExporter
     }
 
     /**
-     * Distinct characteristic names of the exported products, sorted. A lightweight pass that reads
-     * only the `attributes` column.
+     * Characteristic columns of the exported products: the signatures of the dictionary characteristics they have
+     * («Мощность, Вт») and, until the migration from JSON is finished, the JSON names of products without rows
+     * (merged into the signature of the dictionary characteristic with that name). Sorted.
      *
      * @param  Filters  $filters
      * @return list<string>
@@ -162,24 +176,123 @@ final class CatalogExporter
     {
         $names = [];
 
-        $this->query($filters)
-            ->select(['products.id', 'products.attributes'])
-            ->chunkById(1000, function ($products) use (&$names): void {
-                foreach ($products as $product) {
-                    foreach ($product->specs() as $spec) {
-                        $name = trim($spec['name']);
+        $ids = DB::table('product_attribute_values')
+            ->whereIn('product_id', $this->query($filters)->select('products.id'))
+            ->distinct()
+            ->pluck('attribute_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
 
-                        if ($name !== '') {
-                            $names[$name] = true;
+        foreach (array_chunk($ids, 500) as $chunk) {
+            foreach (Attribute::query()->whereIn('id', $chunk)->get() as $attribute) {
+                $names[$attribute->signature()] = true;
+            }
+        }
+
+        if (app(CatalogSettings::class)->attributes_migrated_at === null) {
+            $resolver = app(AttributeNameResolver::class);
+
+            $this->query($filters)
+                ->select(['products.id', 'products.attributes'])
+                ->whereNotNull('products.attributes')
+                ->chunkById(1000, function ($products) use (&$names, $resolver): void {
+                    $withRows = $this->productsWithRows($products->pluck('id')->map(fn ($id): int => (int) $id)->all());
+
+                    foreach ($products as $product) {
+                        if (isset($withRows[$product->id])) {
+                            continue;
+                        }
+
+                        foreach ($product->specs() as $spec) {
+                            $name = trim($spec['name']);
+
+                            if ($name !== '') {
+                                $names[$resolver->findByName($name)?->signature() ?? $name] = true;
+                            }
                         }
                     }
-                }
-            }, 'products.id', 'id');
+                }, 'products.id', 'id');
+        }
 
         $names = array_map('strval', array_keys($names));
         sort($names, SORT_STRING | SORT_FLAG_CASE);
 
         return $names;
+    }
+
+    /**
+     * Cells of the characteristic columns of the products: product id => signature => value.
+     *
+     * @param  list<int>  $productIds
+     * @return array<int, array<string, string|int|float>>
+     */
+    private function attributeCells(array $productIds): array
+    {
+        $cells = [];
+
+        $rows = DB::table('product_attribute_values as pav')
+            ->join('attributes as a', 'a.id', '=', 'pav.attribute_id')
+            ->leftJoin('attribute_values as v', 'v.id', '=', 'pav.attribute_value_id')
+            ->whereIn('pav.product_id', $productIds)
+            ->orderBy('pav.product_id')->orderBy('a.id')->orderBy('v.sort_order')->orderBy('v.id')
+            ->get(['pav.product_id', 'a.name', 'a.unit', 'a.type', 'v.value', 'pav.value_number', 'pav.value_bool']);
+
+        /** @var array<int, array<string, list<string>>> $lists */
+        $lists = [];
+
+        foreach ($rows as $row) {
+            $unit = $row->unit !== null ? trim((string) $row->unit) : '';
+            $signature = $unit !== '' ? $row->name.', '.$unit : (string) $row->name;
+            $productId = (int) $row->product_id;
+
+            match ($row->type) {
+                'number' => $row->value_number === null ? null : $cells[$productId][$signature] = self::numberCell((string) $row->value_number),
+                'boolean' => $row->value_bool === null ? null : $cells[$productId][$signature] = (bool) $row->value_bool ? __('attributes.boolean_yes') : __('attributes.boolean_no'),
+                default => $row->value === null ? null : $lists[$productId][$signature][] = (string) $row->value,
+            };
+        }
+
+        foreach ($lists as $productId => $bySignature) {
+            foreach ($bySignature as $signature => $values) {
+                $cells[$productId][$signature] = implode(self::LIST_SEPARATOR, $values);
+            }
+        }
+
+        return $cells;
+    }
+
+    /**
+     * Ids of the given products that have rows in the characteristic tables.
+     *
+     * @param  list<int>  $productIds
+     * @return array<int, true>
+     */
+    private function productsWithRows(array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        return array_fill_keys(
+            DB::table('product_attribute_values')->whereIn('product_id', $productIds)->distinct()->pluck('product_id')->map(fn ($id): int => (int) $id)->all(),
+            true,
+        );
+    }
+
+    /**
+     * A decimal as a number cell without trailing zeros; text when the float would not represent it exactly.
+     */
+    private static function numberCell(string $decimal): string|int|float
+    {
+        $text = AttributeValueParser::formatNumber($decimal);
+
+        if (preg_match('/^-?\d{1,15}$/', $text) === 1) {
+            return (int) $text;
+        }
+
+        $float = (float) $text;
+
+        return (string) $float === $text ? $float : $text;
     }
 
     /**
@@ -210,16 +323,11 @@ final class CatalogExporter
     /**
      * @param  array<int, string>  $paths
      * @param  list<string>  $attributeNames
+     * @param  array<string, string|int|float>  $attributes  cells of the characteristic columns of the product
      * @return list<string|int|float|bool|null>
      */
-    private function productRow(Product $product, array $paths, array $attributeNames): array
+    private function productRow(Product $product, array $paths, array $attributeNames, array $attributes): array
     {
-        $attributes = [];
-
-        foreach ($product->specs() as $spec) {
-            $attributes[trim($spec['name'])] ??= $spec['value'];
-        }
-
         $row = [
             $product->sku,
             $product->name,
@@ -249,6 +357,40 @@ final class CatalogExporter
         }
 
         return $row;
+    }
+
+    /**
+     * Cells of products that have no rows in the tables but v1 JSON characteristics (migration not finished): the
+     * JSON name is looked up in the dictionary so that it lands in the column of that characteristic.
+     *
+     * @param  iterable<Product>  $products
+     * @param  array<int, array<string, string|int|float>>  $cells
+     * @return array<int, array<string, string>>
+     */
+    private function legacyCells(iterable $products, array $cells): array
+    {
+        if (app(CatalogSettings::class)->attributes_migrated_at !== null) {
+            return [];
+        }
+
+        $resolver = app(AttributeNameResolver::class);
+        $result = [];
+
+        foreach ($products as $product) {
+            if (isset($cells[$product->id])) {
+                continue;
+            }
+
+            foreach ($product->specs() as $spec) {
+                $name = trim($spec['name']);
+
+                if ($name !== '') {
+                    $result[$product->id][$resolver->findByName($name)?->signature() ?? $name] ??= $spec['value'];
+                }
+            }
+        }
+
+        return $result;
     }
 
     private function photos(Product $product): ?string

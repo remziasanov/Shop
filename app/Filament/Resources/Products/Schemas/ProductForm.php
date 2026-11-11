@@ -5,23 +5,29 @@ declare(strict_types=1);
 namespace App\Filament\Resources\Products\Schemas;
 
 use App\Enums\AgeRestriction;
+use App\Enums\AttributeType;
 use App\Enums\SalesMode;
 use App\Filament\Resources\PriceHistory\PriceHistoryResource;
 use App\Filament\Resources\Products\Support\PhotoUpload;
 use App\Models\PriceHistory;
 use App\Models\Product;
+use App\Models\User;
 use App\Providers\AppServiceProvider;
 use App\Rules\RublesAmount;
 use App\Services\Age\AgeHint;
 use App\Services\Age\AgeRestrictionResolver;
+use App\Services\Catalog\AttributeService;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Catalog\ProductAttributeEditor;
 use App\Services\Pricing\PriceResult;
 use App\Services\Pricing\ProductPriceUpdater;
 use App\Services\Sales\SalesModeResolver;
+use App\Services\Users\PermissionService;
 use App\Support\Money;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -40,8 +46,8 @@ use InvalidArgumentException;
 /**
  * Product form with tabs (TZ 6.6).
  *
- * The characteristics list is a Repeater (not KeyValue): it keeps order and allows repeated names.
- * Its state key is `specs`; the pages map it to the model's `attributes` column.
+ * Characteristics (FL-03): the typed editor `typed_specs` saved by the pages through ProductAttributeEditor; the legacy
+ * repeater `specs` (mapped to the JSON column) only for products that were not migrated yet.
  */
 final class ProductForm
 {
@@ -252,28 +258,114 @@ final class ProductForm
             ]);
     }
 
+    /**
+     * Typed editor on the dictionary of characteristics (FL-03). A product that still has its characteristics only
+     * as v1 JSON (the migration of FL-04 is not finished) keeps the legacy key/value editor, so that saving the form
+     * never replaces the JSON with an empty set.
+     */
     private static function attributesTab(): Tab
     {
         return Tab::make(__('admin_products.tabs.attributes'))
             ->schema([
-                Repeater::make('specs')
-                    ->label(__('admin_products.fields.attributes'))
-                    ->helperText(__('admin_products.fields.attributes_hint'))
-                    ->schema([
-                        TextInput::make('name')
-                            ->label(__('admin_products.fields.attribute_name'))
-                            ->required()
-                            ->maxLength(255),
-                        TextInput::make('value')
-                            ->label(__('admin_products.fields.attribute_value'))
-                            ->maxLength(1000),
-                    ])
-                    ->columns(2)
-                    ->reorderable()
-                    ->defaultItems(0)
-                    ->addActionLabel(__('admin_products.fields.attribute_add'))
-                    ->itemLabel(fn (array $state): ?string => $state['name'] ?? null),
+                Text::make(__('admin_attributes.product.legacy_notice'))
+                    ->color('warning')
+                    ->visible(fn (?Model $record): bool => self::isLegacy($record)),
+                self::legacyRepeater()
+                    ->visible(fn (?Model $record): bool => self::isLegacy($record)),
+                self::typedRepeater()
+                    ->hidden(fn (?Model $record): bool => self::isLegacy($record)),
             ]);
+    }
+
+    private static function isLegacy(?Model $record): bool
+    {
+        return $record instanceof Product && app(ProductAttributeEditor::class)->isLegacy($record);
+    }
+
+    /**
+     * The v1 editor: a list of name/value pairs written to the JSON column as it is (state key `specs`).
+     */
+    private static function legacyRepeater(): Repeater
+    {
+        return Repeater::make('specs')
+            ->label(__('admin_products.fields.attributes'))
+            ->helperText(__('admin_products.fields.attributes_hint'))
+            ->schema([
+                TextInput::make('name')
+                    ->label(__('admin_products.fields.attribute_name'))
+                    ->required()
+                    ->maxLength(255),
+                TextInput::make('value')
+                    ->label(__('admin_products.fields.attribute_value'))
+                    ->maxLength(1000),
+            ])
+            ->columns(2)
+            ->reorderable()
+            ->defaultItems(0)
+            ->addActionLabel(__('admin_products.fields.attribute_add'))
+            ->itemLabel(fn (array $state): ?string => $state['name'] ?? null);
+    }
+
+    /**
+     * «характеристика → значение(я)» (state key `typed_specs`): a dictionary search, then an input by the type of the
+     * characteristic. Rows are saved by {@see ProductAttributeEditor}; their order is the dictionary order.
+     */
+    private static function typedRepeater(): Repeater
+    {
+        $editor = app(ProductAttributeEditor::class);
+
+        return Repeater::make('typed_specs')
+            ->label(__('admin_products.fields.attributes'))
+            ->helperText(__('admin_attributes.product.hint'))
+            ->schema([
+                Select::make('attribute_id')
+                    ->label(__('admin_attributes.product.attribute'))
+                    ->options(fn (): array => $editor->attributeOptions())
+                    ->getSearchResultsUsing(fn (string $search): array => $editor->attributeOptions($search))
+                    ->getOptionLabelUsing(fn (mixed $value): ?string => $editor->attributeLabel($value))
+                    ->searchable()
+                    ->native(false)
+                    ->required()
+                    ->live()
+                    ->distinct()
+                    ->createOptionForm(fn (): ?array => self::canCreateAttributes() ? [
+                        TextInput::make('name')->label(__('admin_attributes.fields.name'))->required()->maxLength(150),
+                        Select::make('type')->label(__('admin_attributes.fields.type'))->options(AttributeType::options())->default(AttributeType::List->value)->required()->native(false)->live(),
+                        TextInput::make('unit')->label(__('admin_attributes.fields.unit'))->maxLength(20)->visible(fn (Get $get): bool => $get('type') === AttributeType::Number->value),
+                    ] : null)
+                    ->createOptionUsing(function (array $data): int {
+                        abort_unless(self::canCreateAttributes(), 403);
+
+                        return app(AttributeService::class)->createAttribute($data + ['is_filterable' => false])->id;
+                    }),
+                TagsInput::make('list')
+                    ->label(__('admin_attributes.product.values'))
+                    ->helperText(__('admin_attributes.product.values_hint'))
+                    ->suggestions(fn (Get $get): array => $editor->valueSuggestions($get('attribute_id')))
+                    ->visible(fn (Get $get): bool => $editor->typeOf($get('attribute_id')) === AttributeType::List),
+                TextInput::make('number')
+                    ->label(__('admin_attributes.product.number'))
+                    ->inputMode('decimal')
+                    ->maxLength(30)
+                    ->suffix(fn (Get $get): ?string => $editor->unitOf($get('attribute_id')))
+                    ->visible(fn (Get $get): bool => $editor->typeOf($get('attribute_id')) === AttributeType::Number),
+                Toggle::make('boolean')
+                    ->label(__('admin_attributes.product.boolean'))
+                    ->default(true)
+                    ->visible(fn (Get $get): bool => $editor->typeOf($get('attribute_id')) === AttributeType::Boolean),
+            ])
+            ->columns(2)
+            ->reorderable(false)
+            ->defaultItems(0)
+            ->addActionLabel(__('admin_attributes.product.add'))
+            ->itemLabel(fn (array $state): ?string => $editor->attributeLabel($state['attribute_id'] ?? null));
+    }
+
+    private static function canCreateAttributes(): bool
+    {
+        $user = auth()->user();
+
+        return $user instanceof User && app(PermissionService::class)->allows($user, 'attributes.create');
     }
 
     private static function photosTab(): Tab

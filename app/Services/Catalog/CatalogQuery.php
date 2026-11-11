@@ -26,6 +26,7 @@ final class CatalogQuery
         private readonly AppearanceSettings $appearance,
         private readonly SalesSettings $sales,
         private readonly ViewerContext $viewer,
+        private readonly AttributeFilterApplier $attributeFilters,
     ) {}
 
     public function perPage(): int
@@ -56,6 +57,22 @@ final class CatalogQuery
     }
 
     /**
+     * The selection the listing shows, as a builder: visible active products of the categories with the built-in
+     * filters and the characteristic filters (TZ 20.5 `apply(base, filters)`), without sort. Facets use it with
+     * `$exceptAttributes` to count a characteristic without its own filter (FL-09, FL-21).
+     *
+     * @param  list<int>|null  $categoryIds
+     * @param  list<string>  $exceptAttributes  slugs of characteristics whose filter is left out
+     * @return Builder<Product>
+     */
+    public function selection(CatalogFilters $filters, ?array $categoryIds, ?string $search = null, array $exceptAttributes = []): Builder
+    {
+        $filters = $filters->restrictedTo($this->viewer->access());
+
+        return $this->filtered($this->base($categoryIds, $search), $filters, true, $exceptAttributes);
+    }
+
+    /**
      * @param  list<int>|null  $categoryIds
      * @return Builder<Product>
      */
@@ -76,10 +93,13 @@ final class CatalogQuery
 
     /**
      * @param  Builder<Product>  $query
+     * @param  list<string>  $exceptAttributes
      * @return Builder<Product>
      */
-    private function filtered(Builder $query, CatalogFilters $filters, bool $withBrands): Builder
+    private function filtered(Builder $query, CatalogFilters $filters, bool $withBrands, array $exceptAttributes = []): Builder
     {
+        $this->attributeFilters->apply($query, $filters->attributes, $exceptAttributes);
+
         if ($filters->priceFrom !== null || $filters->priceTo !== null) {
             // Products with a hidden price (SF-36) never match a price range.
             $query->where('price_on_request', false);

@@ -9,6 +9,7 @@ use App\Filament\Resources\Products\Pages\ListProducts;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\Products\RelationManagers\ProductImagesRelationManager;
 use App\Filament\Resources\Products\Support\PhotoUpload;
+use App\Models\Attribute;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\User;
@@ -68,12 +69,12 @@ it('renders list, create and edit pages for admin and manager', function (string
 it('creates a product through the form and sets final price from base price', function (): void {
     actingAs(User::factory()->admin()->create());
     $category = Category::factory()->create();
+    $color = Attribute::factory()->create(['name' => 'Цвет']);
 
     Livewire::test(CreateProduct::class)
         ->fillForm(validProductForm($category, [
-            'specs' => [
-                ['name' => 'Цвет', 'value' => 'Белый'],
-                ['name' => 'Цвет', 'value' => 'Чёрный'],
+            'typed_specs' => [
+                ['attribute_id' => $color->id, 'list' => ['Белый', 'Чёрный']],
             ],
         ]))
         ->call('create')
@@ -84,7 +85,7 @@ it('creates a product through the form and sets final price from base price', fu
     expect($product->base_price)->toBe('1290.50')
         ->and($product->final_price)->toBe('1290.50')
         ->and($product->slug)->not->toBe('')
-        ->and($product->specs())->toBe([['name' => 'Цвет', 'value' => 'Белый'], ['name' => 'Цвет', 'value' => 'Чёрный']]);
+        ->and($product->specs())->toBe([['name' => 'Цвет', 'value' => 'Белый, Чёрный']]);
 });
 
 it('uses the fixed price as the final price and keeps an old price', function (): void {
