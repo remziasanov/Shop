@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\System;
 
 use App\Enums\CheckStatus;
+use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Content\LegalPageStatus;
 use App\Support\TrustedHosts;
 use Closure;
@@ -85,6 +86,7 @@ class EnvironmentChecker
             'photos_size' => fn () => $this->photosSize(),
             'legal_pages' => fn () => $this->legalPages(),
             'staff_roles' => fn () => $this->staffRoles(),
+            'attribute_migration' => fn () => $this->attributeMigration(),
         ];
 
         $results = [];
@@ -433,6 +435,25 @@ class EnvironmentChecker
         }
 
         return new CheckResult('staff_roles', $label, CheckStatus::Ok, __('roles.doctor.ok'));
+    }
+
+    /**
+     * FL-04: a warning while products keep characteristics in JSON and the migration to the tables is not finished.
+     */
+    private function attributeMigration(): CheckResult
+    {
+        $state = app(AttributeMigrationState::class);
+
+        if ($state->isPending()) {
+            $progress = $state->current();
+            $value = $progress !== null
+                ? __('attributes.migration.pending').' ('.__('attributes.migration.progress', ['done' => $progress['done'], 'total' => $progress['total']]).')'
+                : __('attributes.migration.pending');
+
+            return $this->result('attribute_migration', CheckStatus::Warning, $value, __('system.hints.attribute_migration'));
+        }
+
+        return $this->result('attribute_migration', CheckStatus::Ok, $state->isMigrated() ? __('attributes.migration.done') : __('attributes.migration.not_needed'));
     }
 
     private function uploadLimit(string $key): CheckResult

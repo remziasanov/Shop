@@ -21,7 +21,10 @@ final class ProductDuplicator
 {
     private const SKU_MAX_LENGTH = 100;
 
-    public function __construct(private readonly FilesystemFactory $filesystems) {}
+    public function __construct(
+        private readonly FilesystemFactory $filesystems,
+        private readonly AttributeService $attributes,
+    ) {}
 
     public function duplicate(Product $source): Product
     {
@@ -33,6 +36,9 @@ final class ProductDuplicator
             return DB::transaction(function () use ($source, $disk, &$copiedFiles): Product {
                 $copy = new Product($this->copyAttributes($source));
                 $copy->save();
+
+                // 20.6: the normalized characteristics follow the copy (and refresh its JSON cache).
+                $this->attributes->copyProductValues($source, $copy);
 
                 foreach ($source->images()->get() as $image) {
                     $this->copyImage($image, $copy, $disk, $copiedFiles);
