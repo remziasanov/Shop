@@ -65,7 +65,7 @@ final class ProductsTable
     {
         return $table
             // Eager loads: no N+1 for the category and the main photo; the sales mode is resolved from the cached tree.
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['category:id,name', 'mainImage']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['category:id,name', 'mainImage'])->withCount('variants'))
             ->columns(self::columns())
             ->filters(self::filters())
             ->recordActions([
@@ -134,14 +134,22 @@ final class ProductsTable
                 ->searchable()
                 ->sortable()
                 ->copyable(),
+            // VR-24, 19.4: «N модификаций» for cards with variants.
+            TextColumn::make('variants_count')
+                ->label(__('admin_variants.table.variants'))
+                ->badge()
+                ->color('info')
+                ->state(fn (Product $record): ?string => $record->has_variants ? trans_choice('admin_variants.table.variants_badge', (int) $record->getAttribute('variants_count'), ['count' => (int) $record->getAttribute('variants_count')]) : null)
+                ->placeholder('—'),
             TextColumn::make('category.name')
                 ->label(__('admin_products.table.category'))
                 ->sortable(),
             TextColumn::make('final_price')
                 ->label(__('admin_products.table.price'))
                 ->sortable()
-                ->formatStateUsing(fn (string $state): string => Money::format(Money::fromRubles($state)))
-                ->description(fn (Product $record): ?string => Money::fromRubles($record->base_price) !== Money::fromRubles($record->final_price)
+                // 19.4: a card with variants shows the range «от – до» of its active variants.
+                ->formatStateUsing(fn (string $state, Product $record): string => self::priceRange($record) ?? Money::format(Money::fromRubles($state)))
+                ->description(fn (Product $record): ?string => ! $record->has_variants && Money::fromRubles($record->base_price) !== Money::fromRubles($record->final_price)
                     ? __('admin_products.table.base_price_under', ['price' => Money::format(Money::fromRubles($record->base_price))])
                     : null),
             TextColumn::make('stock_qty')
@@ -252,6 +260,10 @@ final class ProductsTable
                         ->when(in_array('featured', $values, true), fn (Builder $q) => $q->where('is_featured', true))
                         ->when(in_array('new', $values, true), fn (Builder $q) => $q->where('is_new', true));
                 }),
+            Filter::make('with_variants')
+                ->label(__('admin_variants.table.filter_with_variants'))
+                ->toggle()
+                ->query(fn (Builder $query): Builder => $query->where('products.has_variants', true)),
             Filter::make('no_photos')
                 ->label(__('admin_products.filters.no_photos'))
                 ->toggle()
@@ -439,6 +451,21 @@ final class ProductsTable
             ])
             ->default('keep')
             ->inline();
+    }
+
+    /**
+     * «1 000 ₽ – 1 500 ₽» for a card with variants whose active variants have different prices; null otherwise.
+     */
+    private static function priceRange(Product $product): ?string
+    {
+        if (! $product->has_variants || $product->final_price_max === null) {
+            return null;
+        }
+
+        $min = Money::fromRubles($product->final_price);
+        $max = Money::fromRubles($product->final_price_max);
+
+        return $min === $max ? null : Money::format($min).' – '.Money::format($max);
     }
 
     /**

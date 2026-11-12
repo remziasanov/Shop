@@ -83,6 +83,8 @@ return [
         'meta_title' => 'Meta title',
         'meta_description' => 'Meta description',
         'age' => 'Возраст',
+        'parent_sku' => 'Артикул карточки',
+        'barcode' => 'Штрихкод',
     ],
 
     'category_fields' => [

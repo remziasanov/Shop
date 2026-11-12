@@ -11,6 +11,7 @@ use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Search\SearchNormalizer;
+use App\Services\Search\VariantSearch;
 use App\Services\Stock\Stockable;
 use App\Support\Money;
 use Carbon\CarbonInterface;
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * Catalog product.
@@ -222,23 +224,39 @@ class Product extends Model implements Stockable
 
     /**
      * Search by name / SKU / brand (D-019): every word must occur in `search_text`; an exact SKU match
-     * is ordered first. Adds an ORDER BY, so apply it before other orderings when relevance matters.
+     * is ordered first. The exact article or barcode of an active variant matches too and comes before all (VR-21). Adds an ORDER BY, so apply it before other orderings when relevance matters.
      *
      * @param  Builder<Product>  $query
      */
     public function scopeSearch(Builder $query, string $term): void
     {
         $normalizer = app(SearchNormalizer::class);
+        $variants = app(VariantSearch::class);
         $words = $normalizer->words($term);
 
         if ($words === []) {
             return;
         }
 
-        foreach ($words as $word) {
-            $query->whereRaw("{$query->qualifyColumn('search_text')} like ? escape '!'", ['%'.$normalizer->escapeLike($word).'%']);
-        }
+        $column = $query->qualifyColumn('search_text');
+        $idColumn = $query->qualifyColumn('id');
+        $exact = $variants->exactTerm($term);
 
+        // VR-21: all words match the card's search text, OR the phrase is exactly the article / barcode of an active variant.
+        $query->where(function (Builder $match) use ($words, $normalizer, $column, $variants, $idColumn, $exact): void {
+            $match->where(function (Builder $like) use ($words, $normalizer, $column): void {
+                foreach ($words as $word) {
+                    $like->whereRaw("{$column} like ? escape '!'", ['%'.$normalizer->escapeLike($word).'%']);
+                }
+            });
+            $match->orWhereExists(fn (QueryBuilder $exists) => $variants->constrain($exists, $idColumn, $exact));
+        });
+
+        // Cards found by a variant article come first, then those found by the card's own article.
+        $query->orderByRaw(
+            "case when exists (select 1 from product_variants pv where pv.product_id = {$idColumn} and pv.is_active = 1 and pv.deleted_at is null and (pv.sku = ? or pv.barcode = ?)) then 0 else 1 end",
+            [$exact, $exact],
+        );
         $query->orderByRaw("case when lower({$query->qualifyColumn('sku')}) = ? then 0 else 1 end", [$normalizer->normalize($term)]);
     }
 

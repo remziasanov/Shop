@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $is_expanded
  * @property-read Category $category
  * @property-read Attribute|null $attribute
+ * @property-read OptionType|null $optionType
  */
 class CategoryFilter extends Model
 {
@@ -68,5 +69,13 @@ class CategoryFilter extends Model
     public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class);
+    }
+
+    /**
+     * @return BelongsTo<OptionType, $this>
+     */
+    public function optionType(): BelongsTo
+    {
+        return $this->belongsTo(OptionType::class);
     }
 }

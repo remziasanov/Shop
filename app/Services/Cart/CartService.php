@@ -11,10 +11,13 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
+use App\Services\Stock\Stockable;
+use App\Services\Variants\VariantLabel;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use App\Support\QtyLimit;
@@ -40,6 +43,7 @@ final class CartService
         private readonly CategoryTree $tree,
         private readonly SalesSettings $settings,
         private readonly ViewerContext $viewer,
+        private readonly VariantLabel $labels,
     ) {}
 
     /**
@@ -95,11 +99,12 @@ final class CartService
     /**
      * Adds a product (or increases its quantity). The quantity is limited to the available stock (when the
      * product is tracked and «под заказ» is off); the original `price_at_add` of an existing row is kept so that
-     * a price change stays visible.
+     * a price change stays visible. A card with variants needs the variant (VR-12): it must belong to the card and be
+     * active, the price and the stock are those of the variant.
      *
      * @throws SalesException
      */
-    public function add(Cart $cart, Product $product, int $qty = 1): CartItem
+    public function add(Cart $cart, Product $product, int $qty = 1, ?int $variantId = null): CartItem
     {
         $this->viewer->assertNotPreview();
 
@@ -109,18 +114,19 @@ final class CartService
 
         $qty = min($qty, QtyLimit::MAX);
 
-        return DB::transaction(function () use ($cart, $product, $qty): CartItem {
-            // Lock order is cart, then product, the same as in checkout (no deadlock between "add" and "checkout").
+        return DB::transaction(function () use ($cart, $product, $qty, $variantId): CartItem {
+            // Lock order is cart, product, variant, the same as in checkout (no deadlock between "add" and "checkout").
             $this->lockCart($cart);
 
             $locked = Product::query()->whereKey($product->id)->lockForUpdate()->first();
-            $actions = $locked !== null && $this->isVisible($locked) ? $this->availability->actionsFor($locked) : null;
+            $unit = $locked !== null ? $this->lockUnit($locked, $variantId) : null;
+            $actions = $unit !== null && $this->isVisible($locked) ? $this->availability->actionsFor($unit) : null;
 
-            if ($locked === null || $actions === null || ! $actions->canAddToCart) {
-                throw new SalesException(__($actions !== null && $actions->outOfStock ? 'sales.cart.out_of_stock' : 'sales.cart.not_available', ['name' => $locked->name ?? $product->name]));
+            if ($locked === null || $unit === null || $actions === null || ! $actions->canAddToCart) {
+                throw new SalesException(__($actions !== null && $actions->outOfStock ? 'sales.cart.out_of_stock' : 'sales.cart.not_available', ['name' => $unit?->stockName() ?? $product->name]));
             }
 
-            $item = CartItem::query()->where('cart_id', $cart->id)->where('product_id', $locked->id)->first();
+            $item = $this->itemOf($cart, $locked->id, $unit->stockVariantId());
             $total = min($qty + ($item->qty ?? 0), QtyLimit::MAX);
 
             if ($actions->maxQty !== null) {
@@ -131,8 +137,9 @@ final class CartService
                 $item = CartItem::query()->create([
                     'cart_id' => $cart->id,
                     'product_id' => $locked->id,
+                    'variant_id' => $unit->stockVariantId(),
                     'qty' => $total,
-                    'price_at_add' => $locked->final_price,
+                    'price_at_add' => $unit instanceof ProductVariant ? $unit->final_price : $locked->final_price,
                 ]);
             } else {
                 $item->qty = $total;
@@ -146,31 +153,73 @@ final class CartService
     }
 
     /**
+     * The row of a product (or one of its variants) in the cart.
+     */
+    private function itemOf(Cart $cart, int $productId, ?int $variantId): ?CartItem
+    {
+        return CartItem::query()
+            ->where('cart_id', $cart->id)
+            ->where('product_id', $productId)
+            ->where('variant_key', $variantId ?? 0)
+            ->first();
+    }
+
+    /**
+     * The unit that is sold under the locked card: the card itself, or its locked active variant (VR-12, VR-13). Null
+     * when a card with variants gets no variant (or one of another card, inactive or deleted) and when a card without
+     * variants gets one.
+     */
+    private function lockUnit(Product $locked, ?int $variantId): ?Stockable
+    {
+        if (! $locked->has_variants) {
+            return $variantId === null ? $locked : null;
+        }
+
+        if ($variantId === null) {
+            throw new SalesException(__('variant_storefront.errors.required', ['name' => $locked->name]));
+        }
+
+        $variant = ProductVariant::query()
+            ->whereKey($variantId)
+            ->where('product_id', $locked->id)
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->first();
+
+        if ($variant === null) {
+            throw new SalesException(__('variant_storefront.errors.unavailable', ['name' => $locked->name]));
+        }
+
+        return $variant->setRelation('product', $locked);
+    }
+
+    /**
      * Sets the quantity of a row; zero or less removes it. Limited by the available stock.
      *
      * @throws SalesException
      */
-    public function update(Cart $cart, int $productId, int $qty): ?CartItem
+    public function update(Cart $cart, int $productId, int $qty, ?int $variantId = null): ?CartItem
     {
         if ($qty < 1) {
-            $this->remove($cart, $productId);
+            $this->remove($cart, $productId, $variantId);
 
             return null;
         }
 
         $qty = min($qty, QtyLimit::MAX);
 
-        return DB::transaction(function () use ($cart, $productId, $qty): CartItem {
+        return DB::transaction(function () use ($cart, $productId, $qty, $variantId): CartItem {
             $this->lockCart($cart);
 
-            $item = CartItem::query()->where('cart_id', $cart->id)->where('product_id', $productId)->first()
+            $item = $this->itemOf($cart, $productId, $variantId)
                 ?? throw new SalesException(__('sales.cart.not_in_cart'));
 
             $product = Product::query()->whereKey($productId)->lockForUpdate()->first();
-            $actions = $product !== null && $this->isVisible($product) ? $this->availability->actionsFor($product) : null;
+            $unit = $product !== null ? $this->lockUnit($product, $variantId) : null;
+            $actions = $unit !== null && $this->isVisible($product) ? $this->availability->actionsFor($unit) : null;
 
-            if ($product === null || $actions === null || ! $actions->canAddToCart) {
-                throw new SalesException(__($actions !== null && $actions->outOfStock ? 'sales.cart.out_of_stock' : 'sales.cart.not_available', ['name' => $product->name ?? '']));
+            if ($product === null || $unit === null || $actions === null || ! $actions->canAddToCart) {
+                throw new SalesException(__($actions !== null && $actions->outOfStock ? 'sales.cart.out_of_stock' : 'sales.cart.not_available', ['name' => $unit?->stockName() ?? $product->name ?? '']));
             }
 
             $item->qty = $actions->maxQty !== null ? min($qty, $actions->maxQty) : $qty;
@@ -193,9 +242,9 @@ final class CartService
         }
     }
 
-    public function remove(Cart $cart, int $productId): void
+    public function remove(Cart $cart, int $productId, ?int $variantId = null): void
     {
-        CartItem::query()->where('cart_id', $cart->id)->where('product_id', $productId)->delete();
+        CartItem::query()->where('cart_id', $cart->id)->where('product_id', $productId)->where('variant_key', $variantId ?? 0)->delete();
         $cart->touch();
     }
 
@@ -253,7 +302,7 @@ final class CartService
                     throw new SalesException(__('sales.cart.not_available', ['name' => $item->name]));
                 }
 
-                $this->add($cart, $product, $item->qty);
+                $this->add($cart, $product, $item->qty, $item->variant_id);
                 $added++;
             } catch (SalesException) {
                 $skipped[] = $item->name;
@@ -291,9 +340,11 @@ final class CartService
      */
     public function acknowledgePrices(Cart $cart): void
     {
-        foreach ($cart->items()->with('product')->get() as $item) {
-            if ($item->product !== null && Money::fromRubles($item->price_at_add) !== Money::fromRubles($item->product->final_price)) {
-                $item->price_at_add = $item->product->final_price;
+        foreach ($cart->items()->with(['product', 'variant'])->get() as $item) {
+            $current = $item->variant_id !== null ? $item->variant?->final_price : $item->product?->final_price;
+
+            if ($current !== null && Money::fromRubles($item->price_at_add) !== Money::fromRubles($current)) {
+                $item->price_at_add = $current;
                 $item->save();
             }
         }
@@ -307,20 +358,28 @@ final class CartService
         $lines = [];
         $total = 0;
         $changes = false;
+        $items = $cart->items()->with(['product', 'variant'])->get();
+        $labels = $this->labels->forMany($items->pluck('variant')->filter());
 
-        foreach ($cart->items()->with('product')->get() as $item) {
+        foreach ($items as $item) {
             $product = $item->product;
+            $variant = $item->variant;
+            $label = $variant !== null ? ($labels[$variant->id] ?? null) : null;
             $atAdd = Money::fromRubles($item->price_at_add);
+            // The unit that is sold: a variant must exist, be live and active, and belong to the card of the row.
+            $brokenVariant = $item->variant_id !== null && ($variant === null || $variant->trashed() || ! $variant->is_active || (int) $variant->product_id !== (int) $item->product_id);
+            $missingVariant = $item->variant_id === null && $product !== null && $product->has_variants;
 
-            if ($product === null || ! $this->isVisible($product)) {
-                $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $atAdd, 0, false, true, null, __('sales.cart.issue_unavailable'));
+            if ($product === null || ! $this->isVisible($product) || $brokenVariant || $missingVariant) {
+                $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $atAdd, 0, false, true, null, __('sales.cart.issue_unavailable'), $variant, $label);
                 $changes = true;
 
                 continue;
             }
 
-            $actions = $this->availability->actionsFor($product);
-            $current = Money::fromRubles($product->final_price);
+            $unit = $variant !== null ? $variant->setRelation('product', $product) : $product;
+            $actions = $this->availability->actionsFor($unit);
+            $current = Money::fromRubles($variant !== null ? $variant->final_price : $product->final_price);
             $priceChanged = $current !== $atAdd;
             $unavailable = ! $actions->canAddToCart;
             $issue = null;
@@ -335,7 +394,7 @@ final class CartService
             $total += $lineTotal;
             $changes = $changes || $priceChanged || $issue !== null;
 
-            $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $current, $lineTotal, $priceChanged, $unavailable, $actions->maxQty, $issue);
+            $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $current, $lineTotal, $priceChanged, $unavailable, $actions->maxQty, $issue, $variant, $label);
         }
 
         $deliveries = [];

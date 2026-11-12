@@ -107,7 +107,7 @@ DB_CONNECTION=mysql php artisan migrate:fresh --seed
 - `resources/views/storefront` — шаблоны витрины, `resources/views/mail` — письма.
 - `lang/ru` — все тексты интерфейса (`__('shop.…')`).
 - `database/migrations`, `database/seeders`, `database/factories` — схема базы, начальные данные и фабрики для тестов.
-- `examples/` — шаблон импорта и демонстрационные файлы (`import-demo.xlsx`, `import-demo-photos.zip`).
+- `examples/` — шаблон импорта и демонстрационные файлы (`import-demo.xlsx`, `import-demo-photos.zip`, `import-variants.xlsx` — товар с модификациями: футболка «Цвет × Размер» и обычный товар).
 - `tests/` — тесты на Pest.
 - `.github/workflows/` — `ci.yml` (проверки и тесты) и `deploy.yml` (ручной деплой на Beget).
 
@@ -139,6 +139,7 @@ DB_CONNECTION=mysql php artisan migrate:fresh --seed
 | `shop:heartbeat` | Запись отметки времени работы планировщика (AD-11) | — |
 | `shop:make-demo-import` | Создание демонстрационного файла импорта (около 50 вымышленных товаров) и ZIP-архива с фото | `--dir=examples` |
 | `shop:make-template` | Создание шаблона импорта товаров (.xlsx) | `--path=examples/import-template.xlsx` |
+| `shop:make-variants-example` | Создание примера импорта с модификациями (футболка «Цвет × Размер» и обычный товар) | `--path=examples/import-variants.xlsx` |
 | `shop:notify-expiring-reservations` | Telegram-предупреждение о резервах, истекающих в течение 6 часов, один раз на резерв (AD-10) | — |
 | `shop:recalc-prices` | Пересчёт цен товаров в фоне (PR-02) | `--all` (все товары), `--boundaries` (правила, начавшиеся или закончившиеся), `--sync` (сразу, без очереди) |
 | `shop:sitemap` | Создание `public/sitemap.xml` (SF-82) | — |

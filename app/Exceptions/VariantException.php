@@ -64,6 +64,11 @@ final class VariantException extends RuntimeException
         return new self(__('variants.errors.stock_invalid'));
     }
 
+    public static function photoColorInvalid(): self
+    {
+        return new self(__('admin_variants.errors.photo_color_invalid'));
+    }
+
     /**
      * @param  list<string>  $orderNumbers
      */

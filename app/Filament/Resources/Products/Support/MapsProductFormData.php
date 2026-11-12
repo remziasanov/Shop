@@ -91,6 +91,15 @@ trait MapsProductFormData
      */
     protected function applyStockField(Product $product): void
     {
+        // VR-24: the stock of a card with variants is the sum over them, the field is read-only.
+        if ($product->has_variants) {
+            $product->refresh();
+            $this->loadedStockQty = $product->stock_qty;
+            $this->data['stock_qty'] = $product->stock_qty;
+
+            return;
+        }
+
         $raw = $this->form->getRawState()['stock_qty'] ?? null;
         $submitted = $raw === null || $raw === '' ? null : (int) $raw;
 

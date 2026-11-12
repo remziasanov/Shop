@@ -8,6 +8,7 @@ use App\Enums\AgeRestriction;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
+use App\Livewire\Storefront\Concerns\SelectsVariant;
 use App\Models\Product;
 use App\Services\Age\AgeGate;
 use App\Services\Orders\OrderService;
@@ -28,6 +29,7 @@ class ReservationForm extends Component
 {
     use RequiresOpenShop;
     use SalesFormSupport;
+    use SelectsVariant;
 
     #[Locked]
     public int $productId;
@@ -58,7 +60,8 @@ class ReservationForm extends Component
     protected function rules(): array
     {
         $product = $this->product();
-        $max = $product !== null ? app(AvailabilityService::class)->actionsFor($product)->maxReserveQty : null;
+        $unit = $product !== null ? ($this->unitOf($product) ?? $product) : null;
+        $max = $unit !== null ? app(AvailabilityService::class)->actionsFor($unit)->maxReserveQty : null;
 
         return $this->contactRules() + $this->ageRules() + [
             'qty' => ['required', 'integer', 'min:1', 'max:'.min($max ?? QtyLimit::MAX, QtyLimit::MAX)],
@@ -96,6 +99,12 @@ class ReservationForm extends Component
             return;
         }
 
+        if ($this->unitOf($product) === null) {
+            $this->addError('form', $this->variantError($product));
+
+            return;
+        }
+
         $this->normalizeEmailInput();
         $this->validate();
 
@@ -121,7 +130,7 @@ class ReservationForm extends Component
                 ip: $this->clientIp(),
                 userAgent: $this->clientUserAgent(),
                 ageConfirmed: $this->ageConfirmed,
-            ));
+            ), $this->selectedVariantId());
         } catch (SalesException $e) {
             $this->addError('form', $e->getMessage());
 
@@ -134,7 +143,8 @@ class ReservationForm extends Component
     public function render(AvailabilityService $availability, SalesSettings $settings): View
     {
         $product = $this->product();
-        $actions = $product !== null ? $availability->actionsFor($product) : null;
+        $unit = $product !== null ? ($this->unitOf($product) ?? $product) : null;
+        $actions = $unit !== null ? $availability->actionsFor($unit) : null;
 
         return view('livewire.storefront.reservation-form', [
             'product' => $product,

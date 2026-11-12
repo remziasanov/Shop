@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Services\Catalog;
 
 use App\Enums\AttributeType;
+use App\Enums\FilterSource;
 use App\Models\AttributeValue;
+use App\Models\OptionValue;
 use App\Services\Access\ViewerContext;
 use App\Settings\CatalogSettings;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Facets of the category filters (FL-09…FL-11, FL-21, TZ 20.5): the counters of list values and the range hints of
@@ -23,6 +26,9 @@ use Illuminate\Support\Facades\DB;
  * - The base is {@see CatalogQuery::selection()}: active products of the visible categories of the viewer's group, the
  *   same query as the listing, so hidden products never reach a counter (FL-21).
  * - Only values with a counter above zero are listed, selected values always (FL-09).
+ * - Option rows (VR-19) are counted the same way, one query per option within the same budget: the cards of the
+ *   selection without any option filter, joined to their active variants that satisfy the OTHER selected options (and
+ *   the availability switch), distinct cards per value.
  * - The result is cached in the file cache by group, category, normalized parameters and catalog version (FL-11).
  *   No window functions or CTEs (MySQL 5.7).
  */
@@ -45,6 +51,7 @@ final class FacetService
         private readonly CatalogQuery $catalog,
         private readonly ViewerContext $viewer,
         private readonly CatalogSettings $settings,
+        private readonly OptionFilterApplier $optionFilters,
     ) {}
 
     /**
@@ -114,19 +121,49 @@ final class FacetService
         /** @var array<int, array<int, int>> $counts attribute id => value id => products */
         $counts = [];
 
+        /** @var array<int, array<int, int>> $optionCounts option type id => value id => cards */
+        $optionCounts = [];
+
         foreach ($set->rows as $row) {
             $attribute = $row->attribute;
 
             if ($attribute !== null && $attribute->type === AttributeType::List && $budget > 0) {
                 $budget--;
                 $counts[$attribute->id] = $this->counts($attribute->id, $attribute->slug, $filters, $categoryIds);
+            } elseif ($row->source === FilterSource::Option && $row->optionType !== null && $budget > 0) {
+                $budget--;
+                $optionCounts[$row->optionType->id] = $this->optionCounts($row->optionType->id, $row->optionType->slug, $filters, $categoryIds);
             }
         }
 
         $labels = $this->dictionary($counts);
+        $optionLabels = $this->optionDictionary($optionCounts, $filters);
         $groups = [];
 
         foreach ($set->rows as $row) {
+            $type = $row->source === FilterSource::Option ? $row->optionType : null;
+
+            if ($type !== null) {
+                if (isset($optionCounts[$type->id])) {
+                    $group = new FacetGroup(
+                        slug: $type->slug,
+                        name: $type->name,
+                        type: AttributeType::List,
+                        unit: null,
+                        expanded: $row->is_expanded,
+                        values: $this->optionValues($optionCounts[$type->id], $optionLabels, $filters->options->get($type->slug)),
+                        source: FacetGroup::SOURCE_OPTION,
+                        display: $type->display_type->value,
+                    );
+
+                    if (! $group->isEmpty()) {
+                        $groups[] = $group;
+                    }
+                }
+
+                continue;
+            }
+
             $attribute = $row->attribute;
 
             if ($attribute === null) {
@@ -248,6 +285,91 @@ final class FacetService
         // Selected values stay visible even when the other filters leave no product with them.
         foreach ($selectedSlugs as $value) {
             $items[$value['id']] ??= ['sort' => $value['sort'], 'value' => new FacetValue($value['slug'], $value['label'], 0, true)];
+        }
+
+        uksort($items, fn (int $a, int $b): int => [$items[$a]['sort'], $a] <=> [$items[$b]['sort'], $b]);
+
+        return array_values(array_map(fn (array $item): FacetValue => $item['value'], $items));
+    }
+
+    /**
+     * facet(O): cards per value of an option, the filter of O itself left out (VR-19). Distinct cards, so a card with
+     * several variants of one colour counts once.
+     *
+     * @param  list<int>  $categoryIds
+     * @return array<int, int> value id => number of cards
+     */
+    private function optionCounts(int $typeId, string $slug, CatalogFilters $filters, array $categoryIds): array
+    {
+        $ids = $this->catalog->selection($filters, $categoryIds, null, [], true)
+            ->reorder()
+            ->select('products.id')
+            ->distinct()
+            ->toBase();
+
+        $query = DB::query()
+            ->fromSub($ids, 'sel')
+            ->crossJoin('product_variants as pv', 'pv.product_id', '=', 'sel.id')
+            ->join('product_variant_values as fv', 'fv.variant_id', '=', 'pv.id')
+            ->where('pv.is_active', true)
+            ->whereNull('pv.deleted_at')
+            ->where('fv.option_type_id', $typeId);
+
+        $this->optionFilters->constrain($query, $filters->options, [$slug]);
+
+        return $query
+            ->groupBy('fv.option_value_id')
+            ->get(['fv.option_value_id as value_id', DB::raw('count(distinct sel.id) as product_count')])
+            ->mapWithKeys(fn (object $row): array => [(int) $row->value_id => (int) $row->product_count])
+            ->all();
+    }
+
+    /**
+     * Slug, label, swatch and order of the counted option values and of the selected ones (a dictionary read).
+     *
+     * @param  array<int, array<int, int>>  $counts
+     * @return array<int, OptionValue>
+     */
+    private function optionDictionary(array $counts, CatalogFilters $filters): array
+    {
+        $ids = [];
+
+        foreach ($counts as $perValue) {
+            array_push($ids, ...array_keys($perValue));
+        }
+
+        foreach ($filters->options->filters as $filter) {
+            array_push($ids, ...$filter->valueIds());
+        }
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return OptionValue::query()->whereIn('id', array_unique($ids))->get(['id', 'slug', 'value', 'hex', 'image_path', 'sort_order'])->keyBy('id')->all();
+    }
+
+    /**
+     * Values of an option block: counted and selected values, selected ones even at zero (FL-09), in dictionary order.
+     *
+     * @param  array<int, int>  $counted
+     * @param  array<int, OptionValue>  $labels
+     * @return list<FacetValue>
+     */
+    private function optionValues(array $counted, array $labels, ?OptionFilter $selected): array
+    {
+        $selectedIds = array_flip($selected !== null ? $selected->valueIds() : []);
+        $items = [];
+
+        foreach ($counted + array_fill_keys(array_keys($selectedIds), 0) as $valueId => $count) {
+            $value = $labels[$valueId] ?? null;
+
+            if ($value === null || ($count < 1 && ! isset($selectedIds[$valueId]))) {
+                continue;
+            }
+
+            $image = $value->image_path !== null && $value->image_path !== '' ? Storage::disk('public')->url($value->image_path) : null;
+            $items[$valueId] = ['sort' => $value->sort_order, 'value' => new FacetValue($value->slug, $value->value, $counted[$valueId] ?? 0, isset($selectedIds[$valueId]), $value->hex, $image)];
         }
 
         uksort($items, fn (int $a, int $b): int => [$items[$a]['sort'], $a] <=> [$items[$b]['sort'], $b]);

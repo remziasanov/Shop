@@ -135,6 +135,10 @@ final class DemoImportBuilder
             $index * 10,
             $index % 4 === 0 ? $name.' — купить' : null,
             $index % 4 === 0 ? 'Купить «'.$name.'» с доставкой. Демонстрационный товар.' : null,
+            // Age, «Артикул карточки», «Штрихкод»: not used by the demo products.
+            null,
+            null,
+            null,
             DemoCatalogSeeder::COLORS[$index % count(DemoCatalogSeeder::COLORS)],
             $material,
             'M'.(($index % 4) + 1),

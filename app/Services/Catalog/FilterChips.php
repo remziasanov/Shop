@@ -61,6 +61,19 @@ final class FilterChips
             $chips[] = new FilterChip($label, $this->url($url, $extraQuery, $filters->withAttributes($filters->attributes->without($filter->slug))), __('storefront.filters.remove', ['filter' => $label]));
         }
 
+        // VR-19: option values are chips of their own, the availability switch too.
+        foreach ($filters->options->filters as $filter) {
+            foreach ($filter->values as $value) {
+                $label = $filter->name.': '.$value['label'];
+                $chips[] = new FilterChip($label, $this->url($url, $extraQuery, $filters->withOptions($filters->options->without($filter->slug, $value['slug']))), __('storefront.filters.remove', ['filter' => $label]));
+            }
+        }
+
+        if ($filters->options->availableOnly) {
+            $label = __('variant_storefront.filters.only_available');
+            $chips[] = new FilterChip($label, $this->url($url, $extraQuery, $filters->withOptions($filters->options->withoutAvailable())), __('storefront.filters.remove', ['filter' => $label]));
+        }
+
         return $chips;
     }
 

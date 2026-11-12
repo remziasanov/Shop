@@ -43,7 +43,7 @@ final class CategoryFilterService
 
         $byCategory = CategoryFilter::query()
             ->whereIn('category_id', $chain)
-            ->with('attribute')
+            ->with(['attribute', 'optionType'])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()

@@ -72,4 +72,12 @@ class OrderItem extends Model
     {
         return $this->belongsTo(ProductVariant::class)->withTrashed();
     }
+
+    /**
+     * The name with the variant snapshot, «Футболка (Цвет: красный, Размер: M)» (VR-12); the plain name without one.
+     */
+    public function displayName(): string
+    {
+        return $this->variant_label !== null && $this->variant_label !== '' ? $this->name.' ('.$this->variant_label.')' : $this->name;
+    }
 }

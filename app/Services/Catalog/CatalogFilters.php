@@ -35,6 +35,7 @@ final readonly class CatalogFilters
         public array $flags = [],
         public int $page = 1,
         public AttributeSelection $attributes = new AttributeSelection,
+        public OptionSelection $options = new OptionSelection,
     ) {}
 
     /**
@@ -42,7 +43,15 @@ final readonly class CatalogFilters
      */
     public function withAttributes(AttributeSelection $attributes): self
     {
-        return new self($this->sort, $this->priceFrom, $this->priceTo, $this->inStock, $this->brands, $this->flags, $this->page, $attributes);
+        return new self($this->sort, $this->priceFrom, $this->priceTo, $this->inStock, $this->brands, $this->flags, $this->page, $attributes, $this->options);
+    }
+
+    /**
+     * The same filters with the option selection of a category (VR-19, categories only like the characteristics).
+     */
+    public function withOptions(OptionSelection $options): self
+    {
+        return new self($this->sort, $this->priceFrom, $this->priceTo, $this->inStock, $this->brands, $this->flags, $this->page, $this->attributes, $options);
     }
 
     /**
@@ -67,6 +76,7 @@ final readonly class CatalogFilters
             flags: $flags,
             page: $this->page,
             attributes: $this->attributes,
+            options: $this->options,
         );
     }
 
@@ -75,7 +85,7 @@ final readonly class CatalogFilters
      */
     public function hasFilters(): bool
     {
-        return $this->hasBuiltInFilters() || ! $this->attributes->isEmpty();
+        return $this->hasBuiltInFilters() || ! $this->attributes->isEmpty() || ! $this->options->isEmpty();
     }
 
     /**
@@ -99,7 +109,8 @@ final readonly class CatalogFilters
             + ($this->inStock ? 1 : 0)
             + ($this->brands !== [] ? 1 : 0)
             + ($this->flags !== [] ? 1 : 0)
-            + $this->attributes->count();
+            + $this->attributes->count()
+            + $this->options->count();
     }
 
     /**
@@ -148,7 +159,7 @@ final readonly class CatalogFilters
             $query['flags'] = $this->flags;
         }
 
-        return $query + $this->attributes->toQuery();
+        return $query + $this->attributes->toQuery() + $this->options->toQuery();
     }
 
     private static function rubles(?int $kopecks): string

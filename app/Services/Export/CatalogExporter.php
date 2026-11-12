@@ -8,8 +8,10 @@ use App\Enums\CategorySheetField;
 use App\Enums\ImportField;
 use App\Models\Attribute;
 use App\Models\Category;
+use App\Models\OptionType;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductVariant;
 use App\Services\Catalog\AttributeNameResolver;
 use App\Services\Catalog\AttributeValueParser;
 use App\Services\Catalog\CategoryNode;
@@ -28,6 +30,12 @@ use Illuminate\Support\Facades\Storage;
  * joined with «; », numbers have no unit suffix (it is in the header), booleans are «да» / «нет». Products that
  * only have v1 JSON characteristics (migration of FL-04 not finished) are exported from the JSON. Products are streamed in chunks; memory use does not depend on their count.
  *
+ * Variants (VR-18): the row of a card with variants is followed by the rows of its variants (not deleted ones, in their
+ * order, inactive ones too): «Артикул карточки» holds the card's article, «Артикул» the variant's, one «Опция: <название>»
+ * column per option used as an axis by the exported cards is filled with the variant's value; prices and stock are the
+ * variant's own (an empty price = the card's), the photos of the variant's colour are listed on the first variant row of
+ * that colour, the card row lists the common photos. The file imports back without changes.
+ *
  * Filters: `category_id` (the category and all its descendants), `active` (all|active|inactive),
  * `product_ids` (explicit selection).
  *
@@ -36,6 +44,9 @@ use Illuminate\Support\Facades\Storage;
 final class CatalogExporter
 {
     public const CHUNK = 500;
+
+    /** Cards whose variants are loaded together while exporting. */
+    private const VARIANT_CARDS = 50;
 
     public const PATH_SEPARATOR = ' / ';
 
@@ -52,7 +63,7 @@ final class CatalogExporter
     private const COLUMNS = [
         'id', 'category_id', 'sku', 'name', 'brand', 'short_description', 'description', 'base_price', 'cost_price',
         'compare_at_price', 'price_on_request', 'stock_qty', 'unit', 'sales_mode', 'is_active', 'is_featured',
-        'is_new', 'sort_order', 'meta_title', 'meta_description', 'age_restriction', 'attributes',
+        'is_new', 'sort_order', 'meta_title', 'meta_description', 'age_restriction', 'attributes', 'has_variants',
     ];
 
     public function __construct(private readonly CategoryTree $tree) {}
@@ -98,14 +109,19 @@ final class CatalogExporter
      * Canonical header row of the «Товары» sheet.
      *
      * @param  list<string>  $attributeNames
+     * @param  list<string>  $optionNames  names of the options of variants (VR-18)
      * @return list<string>
      */
-    public static function productHeaders(array $attributeNames = []): array
+    public static function productHeaders(array $attributeNames = [], array $optionNames = []): array
     {
         $headers = array_map(fn (ImportField $field): string => $field->label(), ImportField::cases());
 
         foreach ($attributeNames as $name) {
             $headers[] = self::attributeHeader($name);
+        }
+
+        foreach ($optionNames as $name) {
+            $headers[] = self::optionHeader($name);
         }
 
         return $headers;
@@ -124,6 +140,11 @@ final class CatalogExporter
         return __('export.attribute_prefix').$name;
     }
 
+    public static function optionHeader(string $name): string
+    {
+        return __('export.option_prefix').$name;
+    }
+
     /**
      * Write the file and return the number of exported products.
      *
@@ -132,8 +153,9 @@ final class CatalogExporter
     public function export(array $filters, string $path): int
     {
         $attributeNames = $this->attributeNames($filters);
+        $options = $this->optionTypes($filters);
         $paths = $this->categoryPaths();
-        $headers = self::productHeaders($attributeNames);
+        $headers = self::productHeaders($attributeNames, array_map(fn (OptionType $type): string => $type->name, $options));
         $widths = [1 => 16, 2 => 40, 3 => 36, 12 => 50];
 
         $book = new XlsxBook($path);
@@ -146,13 +168,32 @@ final class CatalogExporter
             $this->query($filters)
                 ->select(self::COLUMNS)
                 ->with('images')
-                ->chunkById(self::CHUNK, function ($products) use ($book, $paths, $attributeNames, &$rows): void {
+                ->chunkById(self::CHUNK, function ($products) use ($book, $paths, $attributeNames, $options, &$rows): void {
                     $cells = $this->attributeCells($products->pluck('id')->map(fn ($id): int => (int) $id)->all());
                     $legacy = $this->legacyCells($products, $cells);
+                    /** @var list<Product> $variantCards */
+                    $variantCards = $products->filter(fn (Product $product): bool => $product->has_variants)->values()->all();
+                    $cardOffsets = array_flip(array_map(fn (Product $card): int => $card->id, $variantCards));
+                    $variantRows = [];
 
                     foreach ($products as $product) {
-                        $book->row($this->productRow($product, $paths, $attributeNames, $cells[$product->id] ?? $legacy[$product->id] ?? []));
+                        $book->row($this->productRow($product, $paths, $attributeNames, $cells[$product->id] ?? $legacy[$product->id] ?? [], count($options)));
                         $rows++;
+
+                        if (! $product->has_variants) {
+                            continue;
+                        }
+
+                        // VR-18: the variants of a card follow its row; they are loaded for a group of cards at a time.
+                        if (! isset($variantRows[$product->id])) {
+                            $variantRows = $this->variantRows(array_slice($variantCards, $cardOffsets[$product->id], self::VARIANT_CARDS), $options, count($attributeNames));
+                        }
+
+                        foreach ($variantRows[$product->id] ?? [] as $variantRow) {
+                            $book->row($variantRow);
+                        }
+
+                        unset($variantRows[$product->id]);
                     }
                 }, 'products.id', 'id');
 
@@ -324,9 +365,10 @@ final class CatalogExporter
      * @param  array<int, string>  $paths
      * @param  list<string>  $attributeNames
      * @param  array<string, string|int|float>  $attributes  cells of the characteristic columns of the product
+     * @param  int  $optionColumns  number of option columns (empty on a card row)
      * @return list<string|int|float|bool|null>
      */
-    private function productRow(Product $product, array $paths, array $attributeNames, array $attributes): array
+    private function productRow(Product $product, array $paths, array $attributeNames, array $attributes, int $optionColumns = 0): array
     {
         $row = [
             $product->sku,
@@ -350,10 +392,152 @@ final class CatalogExporter
             $product->meta_title,
             $product->meta_description,
             $product->age_restriction?->value,
+            // «Артикул карточки» and «Штрихкод» belong to variant rows.
+            null,
+            null,
         ];
 
         foreach ($attributeNames as $name) {
             $row[] = $attributes[$name] ?? null;
+        }
+
+        for ($i = 0; $i < $optionColumns; $i++) {
+            $row[] = null;
+        }
+
+        return $row;
+    }
+
+    /**
+     * Option types used as axes by the exported cards, in dictionary order: one column each (VR-18).
+     *
+     * @param  Filters  $filters
+     * @return list<OptionType>
+     */
+    public function optionTypes(array $filters): array
+    {
+        $ids = DB::table('product_options')
+            ->whereIn('product_id', $this->query($filters)->where('products.has_variants', true)->select('products.id'))
+            ->distinct()
+            ->pluck('option_type_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return OptionType::query()->whereIn('id', $ids)->orderBy('sort_order')->orderBy('id')->get()->all();
+    }
+
+    /**
+     * The rows of the variants of the given cards (not deleted ones, in their order), by card id.
+     *
+     * @param  list<Product>  $cards  with `images` loaded
+     * @param  list<OptionType>  $options
+     * @return array<int, list<list<string|int|float|bool|null>>>
+     */
+    private function variantRows(array $cards, array $options, int $attributeColumns): array
+    {
+        $cardIds = array_map(fn (Product $card): int => $card->id, $cards);
+        $result = array_fill_keys($cardIds, []);
+
+        $variants = ProductVariant::query()
+            ->whereIn('product_id', $cardIds)
+            ->orderBy('product_id')->orderBy('sort_order')->orderBy('id')
+            ->get()
+            ->groupBy('product_id');
+
+        $variantIds = $variants->flatten(1)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+
+        if ($variantIds === []) {
+            return $result;
+        }
+
+        /** @var array<int, array<int, string>> $texts variant id => option type id => value text */
+        $texts = [];
+        /** @var array<int, array<int, int>> $valueIds variant id => option type id => option value id */
+        $valueIds = [];
+
+        foreach (DB::table('product_variant_values as pvv')
+            ->join('option_values as ov', 'ov.id', '=', 'pvv.option_value_id')
+            ->whereIn('pvv.variant_id', $variantIds)
+            ->get(['pvv.variant_id', 'pvv.option_type_id', 'pvv.option_value_id', 'ov.value']) as $row) {
+            $texts[(int) $row->variant_id][(int) $row->option_type_id] = (string) $row->value;
+            $valueIds[(int) $row->variant_id][(int) $row->option_type_id] = (int) $row->option_value_id;
+        }
+
+        // The colour option of each card: the first axis with display type color.
+        $colorTypes = [];
+
+        foreach (DB::table('product_options as po')
+            ->join('option_types as ot', 'ot.id', '=', 'po.option_type_id')
+            ->whereIn('po.product_id', $cardIds)
+            ->where('ot.display_type', 'color')
+            ->orderBy('po.product_id')->orderBy('po.sort_order')
+            ->get(['po.product_id', 'po.option_type_id']) as $row) {
+            $colorTypes[(int) $row->product_id] ??= (int) $row->option_type_id;
+        }
+
+        foreach ($cards as $card) {
+            $images = $card->images->filter(fn (ProductImage $image): bool => $image->option_value_id !== null)->groupBy('option_value_id');
+            $written = [];
+
+            foreach ($variants->get($card->id, collect()) as $variant) {
+                $colorValue = isset($colorTypes[$card->id]) ? ($valueIds[$variant->id][$colorTypes[$card->id]] ?? null) : null;
+                $photos = null;
+
+                if ($colorValue !== null && ! isset($written[$colorValue]) && $images->has($colorValue)) {
+                    $written[$colorValue] = true;
+                    $photos = $images->get($colorValue)->map(fn (ProductImage $image): string => $image->urlLarge())->implode(self::PHOTO_SEPARATOR);
+                }
+
+                $result[$card->id][] = $this->variantRow($card, $variant, $photos, $options, $texts[$variant->id] ?? [], $attributeColumns);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  list<OptionType>  $options
+     * @param  array<int, string>  $texts  option type id => value text
+     * @return list<string|int|float|bool|null>
+     */
+    private function variantRow(Product $card, ProductVariant $variant, ?string $photos, array $options, array $texts, int $attributeColumns): array
+    {
+        $row = [
+            $variant->sku,
+            null,
+            null,
+            self::number($variant->base_price),
+            self::number($variant->cost_price),
+            self::number($variant->compare_at_price),
+            $variant->stock_qty,
+            null,
+            null,
+            null,
+            null,
+            $photos,
+            self::yesNo($variant->is_active),
+            null,
+            null,
+            null,
+            null,
+            $variant->sort_order,
+            null,
+            null,
+            null,
+            $card->sku,
+            $variant->barcode,
+        ];
+
+        for ($i = 0; $i < $attributeColumns; $i++) {
+            $row[] = null;
+        }
+
+        foreach ($options as $type) {
+            $row[] = $texts[$type->id] ?? null;
         }
 
         return $row;
@@ -395,11 +579,14 @@ final class CatalogExporter
 
     private function photos(Product $product): ?string
     {
-        if ($product->images->isEmpty()) {
+        // The photos of a colour are listed on the rows of the variants of that colour (VR-18).
+        $common = $product->images->filter(fn (ProductImage $image): bool => $image->option_value_id === null);
+
+        if ($common->isEmpty()) {
             return null;
         }
 
-        return $product->images
+        return $common
             ->map(fn (ProductImage $image): string => $image->urlLarge())
             ->implode(self::PHOTO_SEPARATOR);
     }

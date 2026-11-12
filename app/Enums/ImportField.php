@@ -31,9 +31,14 @@ enum ImportField: string
     case MetaTitle = 'meta_title';
     case MetaDescription = 'meta_description';
     case Age = 'age';
+    case ParentSku = 'parent_sku';
+    case Barcode = 'barcode';
 
     /** Prefix of mapping values that denote a characteristic column: "attr:Цвет". */
     public const ATTRIBUTE_PREFIX = 'attr:';
+
+    /** Prefix of mapping values that denote an option column of variants: "opt:Цвет" (VR-16). */
+    public const OPTION_PREFIX = 'opt:';
 
     public function label(): string
     {
@@ -70,9 +75,19 @@ enum ImportField: string
             self::MetaTitle => ['seo title'],
             self::MetaDescription => ['seo description'],
             self::Age => ['возрастное ограничение', 'age'],
+            self::ParentSku => ['родительский артикул', 'parent sku', 'карточка'],
+            self::Barcode => ['barcode', 'ean', 'gtin'],
         };
 
         return [...$own, $this->label(), $this->value];
+    }
+
+    /**
+     * Fields that only belong to a variant row (VR-16).
+     */
+    public function isVariantOnly(): bool
+    {
+        return in_array($this, [self::ParentSku, self::Barcode], true);
     }
 
     /**
@@ -115,6 +130,28 @@ enum ImportField: string
         }
 
         $name = substr($mappingValue, strlen(self::ATTRIBUTE_PREFIX));
+
+        return $name === '' ? null : $name;
+    }
+
+    /**
+     * Mapping value of an option column.
+     */
+    public static function optionKey(string $name): string
+    {
+        return self::OPTION_PREFIX.$name;
+    }
+
+    /**
+     * Option name of a mapping value ("opt:Цвет" => "Цвет"), null for everything else.
+     */
+    public static function optionName(?string $mappingValue): ?string
+    {
+        if ($mappingValue === null || ! str_starts_with($mappingValue, self::OPTION_PREFIX)) {
+            return null;
+        }
+
+        $name = substr($mappingValue, strlen(self::OPTION_PREFIX));
 
         return $name === '' ? null : $name;
     }

@@ -38,6 +38,9 @@ use Throwable;
  */
 final class ImportAnalyzer
 {
+    /** Cross-row checks of variant rows of the running pass (VR-17). */
+    private ?VariantImportChecker $checker = null;
+
     public const PREVIEW_ROWS = 20;
 
     /** Lifetime of the analysis lock; a crashed analysis blocks a new one at most this long. */
@@ -222,6 +225,8 @@ final class ImportAnalyzer
         $buffer = [];
         $offset = 0;
         $chunkSize = max(1, $import->chunk_size);
+        // VR-17: the rows of variants are checked against the card above them and the axes it got.
+        $this->checker = new VariantImportChecker;
 
         try {
             foreach ($this->reader->open($source, $sheet) as $number => $cells) {
@@ -280,12 +285,16 @@ final class ImportAnalyzer
             return;
         }
 
+        $checker = $this->checker ??= new VariantImportChecker;
+        $checker->prepare(array_map(fn (array $item): MappedRow => $item['mapped'], $buffer));
         $existing = $this->existingSkus(array_values(array_filter(array_map(fn (array $item): ?string => $this->skuOf($item['mapped']), $buffer))));
 
         foreach ($buffer as $item) {
             $mapped = $item['mapped'];
             $sku = $this->skuOf($mapped);
-            $state = $sku === null ? null : ($existing[mb_strtolower($sku, 'UTF-8')] ?? null);
+            $isVariantRow = $this->isVariantRow($mapped);
+            // A variant row «exists» when its article is a variant's, a card row when it is a product's.
+            $state = $sku === null ? null : ($isVariantRow ? ($checker->variantExists($sku) ? false : null) : ($existing[mb_strtolower($sku, 'UTF-8')] ?? null));
 
             $result = $this->validator->validate(
                 $mapped,
@@ -296,6 +305,14 @@ final class ImportAnalyzer
                 $item['row'],
             );
 
+            $found = $checker->check($result, $mapped, $options->mode);
+
+            if ($found['errors'] !== [] || $found['warnings'] !== []) {
+                $result = $result->withIssues($found['errors'], $found['warnings']);
+            }
+
+            $checker->record($result, $mapped, $item['row']);
+
             $errors = array_map(fn (RowIssue $issue): array => $this->issueToArray($this->withHeader($issue, $headers, $item['columns'])), $result->errors);
             $warnings = array_map(fn (RowIssue $issue): array => $this->issueToArray($this->withHeader($issue, $headers, $item['columns'])), $result->warnings);
 
@@ -303,6 +320,7 @@ final class ImportAnalyzer
                 'row' => $item['row'],
                 'values' => $result->values,
                 'attributes' => $result->attributes,
+                'options' => $result->options,
                 'errors' => $errors,
                 'warnings' => $warnings,
                 'action' => $result->action,
@@ -334,6 +352,7 @@ final class ImportAnalyzer
                     'row' => $item['row'],
                     'values' => $result->values,
                     'attributes' => $result->attributes,
+                    'options' => $result->options,
                     'raw' => $mapped->values,
                     'errors' => $errors,
                     'warnings' => $warnings,
@@ -366,6 +385,13 @@ final class ImportAnalyzer
         }
 
         return $found;
+    }
+
+    private function isVariantRow(MappedRow $row): bool
+    {
+        $parent = $row->get('parent_sku');
+
+        return $parent !== null && trim($parent) !== '';
     }
 
     private function skuOf(MappedRow $row): ?string

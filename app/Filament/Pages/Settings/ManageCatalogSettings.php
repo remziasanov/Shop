@@ -53,6 +53,15 @@ class ManageCatalogSettings extends SettingsPage
                 Toggle::make('create_attributes_on_import')
                     ->label(__('shop.settings.catalog.fields.create_attributes_on_import'))
                     ->helperText(__('shop.settings.catalog.hints.create_attributes_on_import')),
+                Toggle::make('create_options_on_import')
+                    ->label(__('admin_variants.settings.create_options_on_import'))
+                    ->helperText(__('admin_variants.settings.create_options_on_import_hint')),
+            ]),
+            Section::make(__('admin_variants.settings.section'))->schema([
+                TextInput::make('max_variants_per_product')
+                    ->label(__('admin_variants.settings.max_variants_per_product'))
+                    ->helperText(__('admin_variants.settings.max_variants_per_product_hint'))
+                    ->numeric()->integer()->minValue(1)->maxValue(100)->required(),
             ]),
         ])->columns(1);
     }

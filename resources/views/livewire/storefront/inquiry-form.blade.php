@@ -1,14 +1,20 @@
-<div x-data="{ open: @js((bool) ($open && $product !== null && $actions?->canInquire)) }">
-    @if ($product !== null && $actions !== null && $actions->canInquire && $mustSignIn)
+{{-- VR-14: see the reservation form; an inquiry is possible in every mode but the showcase. --}}
+@php($variantMode = $product !== null && $product->has_variants)
+@php($canInquire = $actions !== null && ($variantMode ? $actions->mode !== \App\Enums\SalesMode::Showcase : $actions->canInquire))
+<div x-data="{ open: @js((bool) ($open && $product !== null && $canInquire)) }" @if ($variantMode) x-cloak x-show="current && current.can.inquire" x-effect="$wire.variantId = current ? current.id : 0" @endif>
+    @if ($product !== null && $canInquire && $mustSignIn)
         <a href="{{ route('customer.login') }}" data-action="inquiry-login"
            class="inline-block rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('account.actions.login_to_inquire') }}</a>
-    @elseif ($product !== null && $actions !== null && $actions->canInquire)
+    @elseif ($product !== null && $canInquire)
         <button type="button" @click="open = true" aria-haspopup="dialog" data-action="inquiry"
                 class="rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.inquiry') }}</button>
 
         <x-storefront.modal id="inquiry-{{ $productId }}" :title="__('storefront_sales.inquiry.title')">
             <form wire:submit="submit" class="space-y-4" novalidate>
                 <p class="text-sm text-slate-600">{{ __('storefront_sales.inquiry.text') }}</p>
+                @if ($variantMode)
+                    <p class="text-sm font-medium" data-variant-label x-text="current ? current.label : ''"></p>
+                @endif
                 <x-storefront.form-error />
 
                 <x-storefront.field prefix="iq" name="name" :label="__('storefront_sales.fields.name')" required autocomplete="name" maxlength="150" />

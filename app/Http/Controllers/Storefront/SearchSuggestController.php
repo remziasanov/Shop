@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Services\Access\ViewerContext;
 use App\Services\Catalog\ProductPresenter;
 use App\Services\Search\SearchNormalizer;
+use App\Services\Search\VariantSearch;
 use Illuminate\Http\JsonResponse;
 
 class SearchSuggestController extends Controller
@@ -22,7 +23,7 @@ class SearchSuggestController extends Controller
     /**
      * SF-21: up to 8 products for the live search dropdown.
      */
-    public function __invoke(CatalogFilterRequest $request, SearchNormalizer $normalizer, ProductPresenter $presenter, ViewerContext $viewer): JsonResponse
+    public function __invoke(CatalogFilterRequest $request, SearchNormalizer $normalizer, ProductPresenter $presenter, ViewerContext $viewer, VariantSearch $variantSearch): JsonResponse
     {
         $term = $request->searchTerm();
 
@@ -44,7 +45,7 @@ class SearchSuggestController extends Controller
             ->get();
 
         $items = [];
-        foreach ($presenter->many($products) as $view) {
+        foreach ($presenter->many($products, true, $variantSearch->linksFor($term, $products)) as $view) {
             $items[] = [
                 'name' => $view->product->name,
                 'sku' => $view->product->sku,

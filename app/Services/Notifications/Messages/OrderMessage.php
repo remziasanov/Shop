@@ -80,7 +80,7 @@ abstract class OrderMessage
             $itemLines[] = '<b>'.$this->e(__('notifications.telegram.items')).'</b>';
 
             $budget = self::VISIBLE_LIMIT - self::visibleLength(implode("\n", [...$head, ...$itemLines, ...$tail])) - 1;
-            $lines = $order->items->map(fn (OrderItem $item): string => '• '.$this->e($this->clip($item->name)).' × '.$this->e($item->qty).$this->itemPrice($item))->all();
+            $lines = $order->items->map(fn (OrderItem $item): string => '• '.$this->e($this->clip($item->displayName())).' × '.$this->e($item->qty).$this->itemPrice($item))->all();
             $total = array_sum(array_map(fn (string $line): int => self::visibleLength($line) + 1, $lines));
             $shown = 0;
 

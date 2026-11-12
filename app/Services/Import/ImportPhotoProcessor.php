@@ -203,6 +203,9 @@ final class ImportPhotoProcessor
         }
 
         $mode = PhotoMode::tryFrom((string) ($task['mode'] ?? '')) ?? PhotoMode::Replace;
+        // VR-11, VR-17: the photos of a variant row belong to the colour value of the variant; a card row (or a product
+        // without variants) only works with the common photos.
+        $colorValueId = isset($task['option_value_id']) ? (int) $task['option_value_id'] : null;
         /** @var list<string> $refs */
         $refs = array_values(array_map('strval', (array) ($task['refs'] ?? [])));
 
@@ -290,7 +293,7 @@ final class ImportPhotoProcessor
 
         if ($mode === PhotoMode::Replace && $sequence !== []) {
             foreach ($product->images()->get() as $image) {
-                if (! isset($keepIds[$image->id])) {
+                if (! isset($keepIds[$image->id]) && $image->option_value_id === $colorValueId) {
                     $image->delete();
                     $changed = true;
                 }
@@ -335,9 +338,20 @@ final class ImportPhotoProcessor
             }
         }
 
+        if ($colorValueId !== null && $order !== []) {
+            $bound = ProductImage::query()
+                ->whereIn('id', $order)
+                ->where(fn ($query) => $query->whereNull('option_value_id')->orWhere('option_value_id', '!=', $colorValueId))
+                ->update(['option_value_id' => $colorValueId]);
+
+            if ($bound > 0) {
+                $changed = true;
+            }
+        }
+
         $persistChanged();
 
-        if ($mode === PhotoMode::Replace && $this->reorder($product, $order)) {
+        if ($mode === PhotoMode::Replace && $colorValueId === null && $this->reorder($product, $order)) {
             $changed = true;
         }
 

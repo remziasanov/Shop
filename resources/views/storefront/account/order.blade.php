@@ -39,7 +39,7 @@
             <ul class="divide-y divide-slate-200 rounded-lg border border-slate-200">
                 @foreach ($order->items as $item)
                     <li class="flex flex-wrap items-baseline justify-between gap-2 p-3 text-sm">
-                        <span>{{ $item->name }} <span class="text-slate-500">× {{ $item->qty }} {{ $item->unit }}</span></span>
+                        <span>{{ $item->displayName() }} <span class="text-slate-500">× {{ $item->qty }} {{ $item->unit }}</span></span>
                         <span class="font-medium">
                             @if ($item->price !== null)
                                 {{ \App\Support\Money::format(\App\Support\Money::fromRubles($item->price)) }} → {{ \App\Support\Money::format(\App\Support\Money::fromRubles((string) $item->total)) }}

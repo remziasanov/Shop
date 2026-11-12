@@ -33,8 +33,11 @@
                         <input type="hidden" name="product_id" value="{{ $product->id }}">
                         <button type="submit" data-action="cart" :disabled="busy" class="w-full rounded bg-primary px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></button>
                     </form>
+                @elseif ($action['key'] === 'select')
+                    {{-- VR-08: a card with variants cannot be bought from a list; «Выбрать» opens the card. --}}
+                    <a href="{{ $view->url }}" data-action="select" class="rounded bg-primary px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
                 @else
-                    <a href="{{ $view->url }}?{{ $action['key'] === 'inquiry' ? 'inquiry' : 'reserve' }}=1" class="rounded px-3 py-2 text-center text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
+                    <a href="{{ $view->url }}{{ str_contains($view->url, '?') ? '&' : '?' }}{{ $action['key'] === 'inquiry' ? 'inquiry' : 'reserve' }}=1" class="rounded px-3 py-2 text-center text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
                 @endif
             @endforeach
         </div>

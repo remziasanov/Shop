@@ -90,6 +90,14 @@
                 @include('storefront.partials.attribute-filters', ['facets' => $facets])
             @endif
 
+            @if ($optionToggle ?? false)
+                {{-- VR-19: only cards that have an available variant (with the selected options). --}}
+                <label class="flex min-h-11 items-center gap-2 border-t border-slate-200 pt-1 text-sm">
+                    <input type="checkbox" name="{{ \App\Services\Catalog\OptionSelection::AVAILABLE_PARAM }}" value="1" @checked($filters->options->availableOnly) class="h-5 w-5 flex-none rounded border-slate-300 accent-primary">
+                    {{ __('variant_storefront.filters.only_available') }}
+                </label>
+            @endif
+
             <div class="flex gap-2 max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:-mb-4 max-md:bg-white max-md:p-4 max-md:shadow-[0_-1px_0_0_rgb(226_232_240)]">
                 <button type="submit" class="min-h-11 flex-1 rounded bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                     <span class="md:hidden">{{ trans_choice('storefront.filters.show_products', $paginator->total()) }}</span>

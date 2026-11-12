@@ -1,18 +1,24 @@
-<div x-data="{ open: @js((bool) ($open && $product !== null && $actions?->canReserve)) }">
-    @if ($product !== null && $actions !== null && $actions->canReserve && $mustSignIn)
+{{-- VR-14: for a card with variants the button exists whenever the mode has a reservation; the picker of the page (`current`) shows it for the variants that can be reserved, the server decides again on submit. --}}
+@php($variantMode = $product !== null && $product->has_variants)
+@php($canReserve = $actions !== null && ($variantMode ? $actions->hasReservationButton() : $actions->canReserve))
+<div x-data="{ open: @js((bool) ($open && $product !== null && $canReserve)) }" @if ($variantMode) x-cloak x-show="current && current.can.reserve" x-effect="$wire.variantId = current ? current.id : 0" @endif>
+    @if ($product !== null && $canReserve && $mustSignIn)
         <a href="{{ route('customer.login') }}" data-action="reservation-login"
            class="inline-block rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('account.actions.login_to_reserve') }}</a>
-    @elseif ($product !== null && $actions !== null && $actions->canReserve)
+    @elseif ($product !== null && $canReserve)
         <button type="button" @click="open = true" aria-haspopup="dialog" data-action="reservation"
                 class="rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.reservation') }}</button>
 
         <x-storefront.modal id="reservation-{{ $productId }}" :title="__('storefront_sales.reservation.title')">
             <form wire:submit="submit" class="space-y-4" novalidate>
                 <p class="text-sm text-slate-600">{{ __('storefront_sales.reservation.text', ['date' => $reservedUntil->format('d.m.Y H:i')]) }}</p>
+                @if ($variantMode)
+                    <p class="text-sm font-medium" data-variant-label x-text="current ? current.label : ''"></p>
+                @endif
                 <x-storefront.form-error />
 
-                <x-storefront.field prefix="rs" name="qty" type="number" :label="__('storefront_sales.fields.qty')" required min="1" :max="$actions->maxReserveQty"
-                                    :hint="$actions->maxReserveQty !== null ? __('storefront_sales.reservation.qty_max', ['max' => $actions->maxReserveQty]) : null" />
+                <x-storefront.field prefix="rs" name="qty" type="number" :label="__('storefront_sales.fields.qty')" required min="1" :max="$variantMode ? null : $actions->maxReserveQty"
+                                    :hint="! $variantMode && $actions->maxReserveQty !== null ? __('storefront_sales.reservation.qty_max', ['max' => $actions->maxReserveQty]) : null" />
                 <x-storefront.field prefix="rs" name="name" :label="__('storefront_sales.fields.name')" required autocomplete="name" maxlength="150" />
                 <x-storefront.field prefix="rs" name="phone" type="tel" :label="__('storefront_sales.fields.phone')" required autocomplete="tel" inputmode="tel"
                                     :placeholder="__('storefront_sales.checkout.phone_placeholder')" x-data="phoneMask" x-on:input="format($event)" />

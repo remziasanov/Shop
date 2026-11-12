@@ -1,5 +1,22 @@
 <div class="flex flex-col gap-2" data-add-to-cart>
-    @if ($product !== null && $actions !== null)
+    @if ($product !== null && $actions !== null && $product->has_variants)
+        {{-- VR-09: the variant picker around this component (Alpine `variantPicker`) decides what is shown; the selected id goes to the server with the next click, which checks it again. --}}
+        <div x-effect="$wire.variantId = current ? current.id : 0" x-cloak x-show="current && current.can.cart" class="flex flex-wrap items-end gap-2">
+            @if ($showQty)
+                <div>
+                    <label for="qty-{{ $productId }}" class="mb-1 block text-sm font-medium">{{ __('storefront_sales.add.qty') }}</label>
+                    <input id="qty-{{ $productId }}" type="number" inputmode="numeric" min="1" :max="current && current.max !== null ? current.max : null"
+                           wire:model="qty" wire:keydown.enter="add"
+                           class="w-24 rounded border border-slate-300 px-3 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                </div>
+            @endif
+            <button type="button" wire:click="add" wire:loading.attr="disabled" data-action="cart"
+                    class="rounded bg-primary px-6 py-3 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">
+                <span x-text="current ? current.cartLabel : ''">{{ $actions->backorder ? __('sales.actions.backorder') : __('storefront.actions.cart') }}</span><span class="sr-only">: {{ $product->name }}</span>
+            </button>
+        </div>
+        <button type="button" disabled x-cloak x-show="current && current.can.out" data-action="unavailable" class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500">{{ __('sales.actions.out_of_stock') }}</button>
+    @elseif ($product !== null && $actions !== null)
         @if ($actions->canAddToCart)
             <div class="flex flex-wrap items-end gap-2">
                 @if ($showQty)

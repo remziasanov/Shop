@@ -13,7 +13,9 @@ use App\Services\Catalog\Breadcrumbs;
 use App\Services\Catalog\ProductPresenter;
 use App\Services\Catalog\SpecLinker;
 use App\Services\Seo\SeoBuilder;
+use App\Services\Variants\VariantPicker;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
@@ -23,7 +25,7 @@ class ProductController extends Controller
      * SF-30…SF-32, SF-34…SF-36. Inactive or soft-deleted products and products of invisible
      * categories are 404 (SF-16); the redirect handler may still turn that into a 301 (SF-80).
      */
-    public function show(string $slug, ProductPresenter $presenter, Breadcrumbs $breadcrumbs, SeoBuilder $seo, AgeGate $ageGate, ViewerContext $viewer, SpecLinker $specLinks): View
+    public function show(string $slug, Request $request, VariantPicker $variants, ProductPresenter $presenter, Breadcrumbs $breadcrumbs, SeoBuilder $seo, AgeGate $ageGate, ViewerContext $viewer, SpecLinker $specLinks): View
     {
         $viewer->requireSection(StorefrontSection::Catalog);
 
@@ -45,7 +47,12 @@ class ProductController extends Controller
             ->limit(self::SIMILAR_LIMIT)
             ->get();
 
-        $view = $presenter->present($product);
+        // VR-09, VR-10: a card with variants opens on the requested (`?variant=`) or the first available variant. The
+        // canonical URL below is always the card itself; the sitemap lists no `?variant=` URLs (VR-10).
+        $requested = $request->query('variant');
+        $picker = $product->has_variants ? $variants->build($product, is_string($requested) && ctype_digit($requested) ? (int) $requested : null) : null;
+        $view = $presenter->present($product, true, $picker?->selected);
+        $gallery = $presenter->gallery($product);
 
         // AG-04: the overlay of the «restricted» mode asks for the effective level of this product.
         $ageGate->setPageLevel($view->age);
@@ -54,14 +61,15 @@ class ProductController extends Controller
         return view('storefront.product.show', [
             'product' => $product,
             'view' => $view,
-            'gallery' => $presenter->gallery($product),
+            'gallery' => $gallery,
+            'picker' => $picker,
             'specs' => $specLinks->link($product, $product->category, $product->specs()),
             'description' => $product->safeDescription(),
             'similar' => $presenter->many($similar),
             'breadcrumbs' => $trail,
             'seo' => $viewer->noindexUnlessGuestSees(fn ($guest): bool => $guest->canSeeProduct($product))
-                ? $seo->product($product, $view, $trail)->withRobots('noindex,nofollow')
-                : $seo->product($product, $view, $trail),
+                ? $seo->product($product, $view, $trail, $picker)->withRobots('noindex,nofollow')
+                : $seo->product($product, $view, $trail, $picker),
         ]);
     }
 }

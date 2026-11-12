@@ -42,6 +42,9 @@ final class ImageProcessor
     /** Longest side of a category image, px (tiles and banners). */
     public const CATEGORY_SIZE = 800;
 
+    /** Longest side of an option swatch image, px (VR-01). */
+    public const SWATCH_SIZE = 160;
+
     /** Width of the large / small banner variants of the home page, px. */
     public const BANNER_LARGE = 1600;
 
@@ -151,6 +154,43 @@ final class ImageProcessor
         $extension = $this->outputExtension();
         $size = self::CATEGORY_SIZE;
         $path = 'categories/'.$category->id.'/'.Str::uuid()->toString()."-{$size}.{$extension}";
+        $disk = $this->disk();
+
+        try {
+            $image = $this->manager()->read($sourceAbsolutePath);
+        } catch (Throwable $e) {
+            throw ImageProcessingException::corrupt($e);
+        }
+
+        try {
+            $stored = $disk->put($path, $this->encode($image->scaleDown($size, $size), $extension));
+        } catch (Throwable $e) {
+            $disk->delete($path);
+
+            throw ImageProcessingException::corrupt($e);
+        }
+
+        if (! $stored) {
+            throw ImageProcessingException::storageFailed();
+        }
+
+        return $path;
+    }
+
+    /**
+     * Create the swatch image of an option value (long side 160 px, never upscaled) and return its path on the
+     * "public" disk: `options/{uuid}-160.webp` (JPEG without WebP in GD). The same NF-11 checks as for every other
+     * image (type, size, pixels) apply; the source file is not stored and not touched.
+     *
+     * @throws ImageProcessingException
+     */
+    public function processSwatchImage(string $sourceAbsolutePath): string
+    {
+        $this->assertReadable($sourceAbsolutePath);
+
+        $extension = $this->outputExtension();
+        $size = self::SWATCH_SIZE;
+        $path = 'options/'.Str::uuid()->toString()."-{$size}.{$extension}";
         $disk = $this->disk();
 
         try {

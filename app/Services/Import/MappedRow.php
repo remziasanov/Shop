@@ -13,10 +13,12 @@ final readonly class MappedRow
      * @param  array<string, string|null>  $values  field key => raw cell text (null = blank cell). Only mapped
      *                                              fields are present, so "column absent" and "cell blank" differ.
      * @param  list<array{name: string, value: string}>  $attributes  characteristics with a non-blank value
+     * @param  list<array{name: string, value: string}>  $options  option cells («Опция: Цвет») with a non-blank value, in column order
      */
     public function __construct(
         public array $values,
         public array $attributes = [],
+        public array $options = [],
     ) {}
 
     public function get(string $field): ?string

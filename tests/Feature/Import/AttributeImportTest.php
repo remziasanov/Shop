@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\AttributeType;
+use App\Enums\ImportField;
 use App\Enums\ImportStatus;
 use App\Jobs\ProcessImportChunk;
 use App\Jobs\ProcessImportPhotos;
@@ -241,7 +242,7 @@ it('exports headers as signatures and round-trips without duplicates or changes 
     $headers = $rows[0];
     $first = array_combine($headers, array_pad($rows[1], count($headers), null));
 
-    expect(array_slice($headers, 21))->toBe(['Х: Влагозащита', 'Х: Мощность, Вт', 'Х: Размер, см', 'Х: Цвет'])
+    expect(array_slice($headers, count(ImportField::cases())))->toBe(['Х: Влагозащита', 'Х: Мощность, Вт', 'Х: Размер, см', 'Х: Цвет'])
         ->and($first['Х: Цвет'])->toBe('Красный; Синий')
         ->and($first['Х: Мощность, Вт'])->toBe(900.5)
         ->and($first['Х: Влагозащита'])->toBe('да')

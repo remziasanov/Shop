@@ -36,6 +36,12 @@ final class RowValidator
 
     public const MAX_ATTRIBUTE_VALUE = 1000;
 
+    public const MAX_BARCODE = 32;
+
+    public const MAX_OPTION_NAME = 100;
+
+    public const MAX_OPTION_VALUE = 150;
+
     public function __construct(private readonly ValueParser $parser = new ValueParser) {}
 
     /**
@@ -54,6 +60,11 @@ final class RowValidator
         string $categorySeparator = '/',
         int $rowNumber = 0,
     ): RowValidationResult {
+        // VR-16: a row with «Артикул карточки» is a variant of that card; `$productExists` then means the variant exists.
+        if ($this->text($row->get('parent_sku')) !== null) {
+            return $this->validateVariant($row, $mode, $productExists, $seenSkus, $rowNumber);
+        }
+
         $errors = [];
         $warnings = [];
         $values = [];
@@ -177,6 +188,113 @@ final class RowValidator
         }
 
         return new RowValidationResult($errors, $warnings, $values, $attributes, $this->action($errors, $productExists, $mode));
+    }
+
+    /**
+     * Validate a variant row (VR-16): its own article, the card's article, barcode, option cells, prices, stock,
+     * activity, order and photos. Name, category and the other card fields are inherited from the card (VR-17), whatever
+     * the row contains in them. Whether the card exists, the axes and the kind of the article are checked by the analyzer
+     * ({@see VariantImportChecker}), which knows the file and the database.
+     *
+     * @param  bool  $variantExists  a variant (also a soft-deleted one) with this article is already in the catalog
+     * @param  array<string, int>  $seenSkus  by reference, see {@see validate()}
+     */
+    private function validateVariant(MappedRow $row, ImportMode $mode, bool $variantExists, array &$seenSkus, int $rowNumber): RowValidationResult
+    {
+        $errors = [];
+        $warnings = [];
+        $values = [];
+        $pricesOnly = $mode === ImportMode::PricesStock;
+
+        $error = function (ImportField $field, string $message, ?string $value = null) use (&$errors): void {
+            $errors[] = new RowIssue($field->value, $field->label(), $message, $value);
+        };
+
+        $sku = $this->text($row->get('sku'));
+
+        if ($sku === null) {
+            $error(ImportField::Sku, __('import.errors.required', ['field' => ImportField::Sku->label()]));
+        } else {
+            $values['sku'] = $sku;
+
+            if (mb_strlen($sku) > self::MAX_SKU) {
+                $error(ImportField::Sku, __('import.errors.too_long', ['field' => ImportField::Sku->label(), 'max' => self::MAX_SKU]), $sku);
+            }
+
+            $key = mb_strtolower($sku, 'UTF-8');
+
+            if (isset($seenSkus[$key])) {
+                $error(ImportField::Sku, __('import.errors.duplicate_sku', ['row' => $seenSkus[$key]]), $sku);
+            } else {
+                $seenSkus[$key] = $rowNumber;
+            }
+        }
+
+        $parent = (string) $this->text($row->get('parent_sku'));
+        $values['parent_sku'] = $parent;
+
+        if (mb_strlen($parent) > self::MAX_SKU) {
+            $error(ImportField::ParentSku, __('import.errors.too_long', ['field' => ImportField::ParentSku->label(), 'max' => self::MAX_SKU]), $parent);
+        } elseif ($sku !== null && mb_strtolower($parent, 'UTF-8') === mb_strtolower($sku, 'UTF-8')) {
+            $error(ImportField::ParentSku, __('admin_variants.import.parent_is_self'), $parent);
+        }
+
+        $price = $this->parsed($row, ImportField::Price, fn (?string $v): ?int => $this->parser->price($v), $values, $errors);
+        $this->parsed($row, ImportField::CostPrice, fn (?string $v): ?int => $this->parser->price($v), $values, $errors);
+        $oldPrice = $this->parsed($row, ImportField::OldPrice, fn (?string $v): ?int => $this->parser->price($v), $values, $errors);
+        $this->parsed($row, ImportField::Stock, fn (?string $v): ?int => $this->parser->stock($v), $values, $errors);
+
+        if ($price !== null && $oldPrice !== null && $oldPrice > 0 && $oldPrice <= $price) {
+            $warnings[] = new RowIssue(ImportField::OldPrice->value, ImportField::OldPrice->label(), __('import.warnings.old_price_not_greater'), $row->get('old_price'));
+        }
+
+        if ($pricesOnly) {
+            if ($variantExists && ! $this->hasAny($row, [ImportField::Price, ImportField::CostPrice, ImportField::OldPrice, ImportField::Stock])) {
+                $warnings[] = new RowIssue('', '', __('import.warnings.nothing_to_update'));
+            }
+
+            return new RowValidationResult($errors, $warnings, $values, [], $this->action($errors, $variantExists, $mode));
+        }
+
+        if ($row->has('barcode')) {
+            $barcode = $this->text($row->get('barcode'));
+
+            if ($barcode !== null && mb_strlen($barcode) > self::MAX_BARCODE) {
+                $error(ImportField::Barcode, __('import.errors.too_long', ['field' => ImportField::Barcode->label(), 'max' => self::MAX_BARCODE]), $barcode);
+            } else {
+                $values['barcode'] = $barcode;
+            }
+        }
+
+        foreach ([ImportField::Active] as $field) {
+            $this->parsed($row, $field, fn (?string $v): ?bool => $this->parser->bool($v), $values, $errors);
+        }
+
+        $this->parsed($row, ImportField::Sort, fn (?string $v): ?int => $this->parser->integer($v), $values, $errors);
+        $this->photos($row, $values, $errors);
+
+        $options = [];
+
+        foreach ($row->options as $cell) {
+            $name = trim($cell['name']);
+            $value = trim($cell['value']);
+
+            if (mb_strlen($name) > self::MAX_OPTION_NAME || mb_strlen($value) > self::MAX_OPTION_VALUE) {
+                $max = mb_strlen($name) > self::MAX_OPTION_NAME ? self::MAX_OPTION_NAME : self::MAX_OPTION_VALUE;
+                $errors[] = new RowIssue(
+                    ImportField::optionKey($cell['name']),
+                    ColumnMapper::fieldLabel(ImportField::optionKey($cell['name'])),
+                    __('import.errors.too_long', ['field' => $name, 'max' => $max]),
+                    $value,
+                );
+
+                continue;
+            }
+
+            $options[] = ['name' => $name, 'value' => $value];
+        }
+
+        return new RowValidationResult($errors, $warnings, $values, [], $this->action($errors, $variantExists, $mode), $options);
     }
 
     /**

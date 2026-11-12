@@ -264,13 +264,13 @@
                                                 if (($error['field'] ?? '') === '') {
                                                     $rowLevelErrors[] = $error;
                                                 } else {
-                                                    $errorsByField[str_starts_with($error['field'], 'attr:') ? 'attributes' : $error['field']][] = $error;
+                                                    $errorsByField[str_starts_with($error['field'], 'attr:') ? 'attributes' : (str_starts_with($error['field'], 'opt:') ? 'options' : $error['field'])][] = $error;
                                                 }
                                             }
                                             $warningsByField = [];
                                             foreach ($row['warnings'] ?? [] as $warning) {
                                                 if (($warning['field'] ?? '') !== '') {
-                                                    $warningsByField[str_starts_with($warning['field'], 'attr:') ? 'attributes' : $warning['field']][] = $warning;
+                                                    $warningsByField[str_starts_with($warning['field'], 'attr:') ? 'attributes' : (str_starts_with($warning['field'], 'opt:') ? 'options' : $warning['field'])][] = $warning;
                                                 }
                                             }
                                         @endphp

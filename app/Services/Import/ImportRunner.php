@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Pricing\PriceRuleRecalculator;
 use App\Services\Users\PermissionService;
+use App\Services\Variants\VariantService;
 use Carbon\CarbonImmutable;
 use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -327,7 +328,9 @@ final class ImportRunner
 
             if (! $import->importOptions()->dryRun) {
                 if ($import->mode === ImportMode::FullSync) {
-                    $result['deactivated'] = $this->deactivateMissing($import);
+                    $deactivated = $this->deactivateMissing($import);
+                    $result['deactivated'] = $deactivated['cards'];
+                    $result['deactivated_variants'] = $deactivated['variants'];
                 }
 
                 $this->prices->dispatch($this->touchedIds($import));
@@ -702,53 +705,81 @@ final class ImportRunner
     // ------------------------------------------------------------------ full sync
 
     /**
-     * Lower-cased SKUs of every staged row (rows with errors included: their products stay active).
+     * Lower-cased articles of the cards of the file (rows with errors included: their products stay active): the
+     * articles of plain rows and of cards, and the «Артикул карточки» of variant rows.
      *
      * @return array<string, true>
      */
     private function fileSkus(Import $import): array
     {
+        return $this->fileEntities($import)['cards'];
+    }
+
+    /**
+     * What the staged rows name: card articles and variant articles, lower-cased (VR-17).
+     *
+     * @return array{cards: array<string, true>, variants: array<string, true>}
+     */
+    private function fileEntities(Import $import): array
+    {
+        $entities = ['cards' => [], 'variants' => []];
+
         if ($import->staging_path === null) {
-            return [];
+            return $entities;
         }
 
         $path = Storage::disk('local')->path($import->staging_path);
         $handle = is_file($path) ? fopen($path, 'rb') : false;
 
         if ($handle === false) {
-            return [];
+            return $entities;
         }
-
-        $skus = [];
 
         try {
             while (($line = fgets($handle)) !== false) {
                 $decoded = json_decode($line, true);
-                $sku = is_array($decoded) ? ($decoded['values']['sku'] ?? null) : null;
+                $values = is_array($decoded) && is_array($decoded['values'] ?? null) ? $decoded['values'] : [];
+                $sku = $values['sku'] ?? null;
+                $parent = $values['parent_sku'] ?? null;
 
-                if (is_string($sku) && $sku !== '') {
-                    $skus[mb_strtolower($sku, 'UTF-8')] = true;
+                if (is_string($parent) && $parent !== '') {
+                    $entities['cards'][mb_strtolower($parent, 'UTF-8')] = true;
+
+                    if (is_string($sku) && $sku !== '') {
+                        $entities['variants'][mb_strtolower($sku, 'UTF-8')] = true;
+                    }
+                } elseif (is_string($sku) && $sku !== '') {
+                    $entities['cards'][mb_strtolower($sku, 'UTF-8')] = true;
                 }
             }
         } finally {
             fclose($handle);
         }
 
-        return $skus;
+        return $entities;
     }
 
-    private function deactivateMissing(Import $import): int
+    /**
+     * Full synchronization (IM-04, VR-17): cards that are not in the file become inactive together with their variants;
+     * of the cards that are in the file the variants that the file does not name are deactivated.
+     *
+     * @return array{cards: int, variants: int}
+     */
+    private function deactivateMissing(Import $import): array
     {
-        $skus = $this->fileSkus($import);
+        $entities = $this->fileEntities($import);
+        $skus = $entities['cards'];
 
         // An empty file must never switch the whole catalog off.
         if ($skus === []) {
-            return 0;
+            return ['cards' => 0, 'variants' => 0];
         }
 
         $count = 0;
+        $variantIds = [];
+        $variants = app(VariantService::class);
 
-        Product::query()->where('is_active', true)->select(['id', 'sku'])->chunkById(1000, function ($products) use ($skus, &$count): void {
+        Product::query()->where('is_active', true)->select(['id', 'sku'])->chunkById(1000, function ($products) use ($skus, &$count, &$variantIds): void {
             $ids = [];
 
             foreach ($products as $product) {
@@ -760,10 +791,36 @@ final class ImportRunner
             if ($ids !== []) {
                 DB::table('products')->whereIn('id', $ids)->update(['is_active' => false, 'updated_at' => now()]);
                 $count += count($ids);
+
+                foreach (DB::table('product_variants')->whereIn('product_id', $ids)->whereNull('deleted_at')->where('is_active', true)->pluck('id') as $id) {
+                    $variantIds[] = (int) $id;
+                }
             }
         });
 
-        return $count;
+        // Variants of the cards that are in the file but not named by it.
+        DB::table('product_variants as pv')
+            ->join('products as p', 'p.id', '=', 'pv.product_id')
+            ->whereNull('pv.deleted_at')
+            ->where('pv.is_active', true)
+            ->where('p.is_active', true)
+            ->select(['pv.id', 'pv.sku'])
+            ->orderBy('pv.id')
+            ->chunkById(1000, function ($rows) use ($entities, &$variantIds): void {
+                foreach ($rows as $row) {
+                    if (! isset($entities['variants'][mb_strtolower((string) $row->sku, 'UTF-8')])) {
+                        $variantIds[] = (int) $row->id;
+                    }
+                }
+            }, 'pv.id', 'id');
+
+        $variantIds = array_values(array_unique($variantIds));
+
+        if ($variantIds !== []) {
+            $variants->bulkSetActive($variantIds, false);
+        }
+
+        return ['cards' => $count, 'variants' => count($variantIds)];
     }
 
     // ------------------------------------------------------------------ notification

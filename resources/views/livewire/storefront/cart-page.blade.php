@@ -31,7 +31,7 @@
                 <p class="mt-1 text-sm">{{ __('storefront_sales.cart.changed_text') }}</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
                     @foreach ($priceChanges as $line)
-                        <li>{{ __('storefront_sales.cart.price_changed', ['name' => $line->product?->name, 'old' => \App\Support\Money::format($line->priceAtAdd), 'new' => \App\Support\Money::format($line->currentPrice)]) }}</li>
+                        <li>{{ __('storefront_sales.cart.price_changed', ['name' => $line->product?->name.($line->variantLabel ? ' ('.$line->variantLabel.')' : ''), 'old' => \App\Support\Money::format($line->priceAtAdd), 'new' => \App\Support\Money::format($line->currentPrice)]) }}</li>
                     @endforeach
                 </ul>
                 <button type="button" wire:click="acknowledge" class="mt-3 rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-800">{{ __('storefront_sales.cart.understood') }}</button>
@@ -48,7 +48,7 @@
             <ul class="divide-y divide-slate-200 rounded-lg border border-slate-200" aria-label="{{ __('storefront_sales.cart.title') }}">
                 @foreach ($summary->lines as $line)
                     @php($product = $line->product)
-                    @php($pid = $line->item->product_id)
+                    @php($pid = $line->item->product_id.'_'.$line->item->variant_key)
                     <li wire:key="line-{{ $pid }}" class="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap sm:gap-4 sm:p-4 {{ $line->unavailable ? 'bg-slate-50' : '' }}" data-cart-line>
                         @php($age = $product !== null ? app(\App\Services\Age\AgeRestrictionResolver::class)->forProduct($product) : null)
                         <div class="age-media h-20 w-20 flex-none overflow-hidden rounded bg-slate-50" @if ($age) data-age="{{ $age->value }}" @endif>
@@ -58,9 +58,12 @@
                         </div>
                         <div class="min-w-0 flex-1 basis-40">
                             @if ($product !== null && ! $line->unavailable)
-                                <a href="{{ route('product.show', $product->slug) }}" class="font-medium hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ $product->name }}</a>
+                                <a href="{{ route('product.show', array_filter(['slug' => $product->slug, 'variant' => $line->variant?->id])) }}" class="font-medium hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ $product->name }}</a>
                             @else
                                 <span class="font-medium text-slate-600">{{ $product?->name ?? __('storefront_sales.cart.unavailable') }}</span>
+                            @endif
+                            @if ($line->variantLabel)
+                                <p class="mt-0.5 text-sm text-slate-600" data-variant-label>{{ $line->variantLabel }}</p>
                             @endif
                             @if ($line->priceChanged && ! $line->unavailable)
                                 <p class="mt-1 text-sm"><s class="text-slate-500">{{ \App\Support\Money::format($line->priceAtAdd) }}</s> <span class="font-semibold">{{ \App\Support\Money::format($line->currentPrice) }}</span></p>
@@ -80,7 +83,7 @@
                             </div>
                             <p class="w-28 text-right font-semibold">{{ \App\Support\Money::format($line->lineTotal) }}</p>
                         @endunless
-                        <button type="button" wire:click="remove({{ $pid }})" class="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                        <button type="button" wire:click="remove({{ $line->item->product_id }}, {{ $line->item->variant_key }})" class="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                                 aria-label="{{ __('storefront_sales.cart.remove_label', ['name' => $product?->name ?? '']) }}">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18"/></svg>
                         </button>

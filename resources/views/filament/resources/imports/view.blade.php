@@ -181,6 +181,9 @@
                         @if (isset($result['deactivated']))
                             <div class="imp-stat"><div class="imp-stat-value">{{ $result['deactivated'] }}</div><div class="imp-stat-label">{{ __('import_ui.report.deactivated') }}</div></div>
                         @endif
+                        @if (! empty($result['deactivated_variants']))
+                            <div class="imp-stat"><div class="imp-stat-value">{{ $result['deactivated_variants'] }}</div><div class="imp-stat-label">{{ __('admin_variants.import.deactivated_variants') }}</div></div>
+                        @endif
                     </div>
 
                     @if (! $this->sourceFileExists($import))

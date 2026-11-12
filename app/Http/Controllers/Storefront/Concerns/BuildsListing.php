@@ -15,8 +15,10 @@ use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\FacetService;
 use App\Services\Catalog\FilterChips;
+use App\Services\Catalog\OptionFilterParser;
 use App\Services\Catalog\ProductPresenter;
 use App\Services\Catalog\StorefrontFilterSets;
+use App\Services\Search\VariantSearch;
 use App\Settings\AppearanceSettings;
 use Illuminate\Support\Facades\Storage;
 
@@ -26,7 +28,7 @@ use Illuminate\Support\Facades\Storage;
 trait BuildsListing
 {
     /**
-     * Characteristic filters (FL-07) exist only on category pages (FL-15): pass `$categoryId` there, the filters of
+     * Characteristic and option filters (FL-07, VR-19) exist only on category pages (FL-15): pass `$categoryId` there, the filters of
      * the category's set are parsed from the query string (more than 10 of them answer 404) and the facets built.
      *
      * @param  list<int>|null  $categoryIds
@@ -46,7 +48,8 @@ trait BuildsListing
         $set = $categoryId !== null ? app(StorefrontFilterSets::class)->for($categoryId) : null;
 
         if ($categoryId !== null) {
-            $filters = $filters->withAttributes(app(AttributeFilterParser::class)->parse($request->query(), $categoryId, $set));
+            $filters = $filters->withAttributes(app(AttributeFilterParser::class)->parse($request->query(), $categoryId, $set))
+                ->withOptions(app(OptionFilterParser::class)->parse($request->query(), $categoryId, $set));
         }
 
         $filters = $filters->restrictedTo($access);
@@ -55,7 +58,8 @@ trait BuildsListing
         $chips = app(FilterChips::class);
 
         return [
-            'cards' => app(ProductPresenter::class)->many($result->products),
+            // VR-21: a card found by the article or barcode of one variant opens on that variant.
+            'cards' => app(ProductPresenter::class)->many($result->products, true, $search !== null ? app(VariantSearch::class)->linksFor($search, $result->products->getCollection()) : []),
             'paginator' => $result->products,
             'brands' => $result->brands,
             'filters' => $filters,
@@ -66,6 +70,7 @@ trait BuildsListing
             'formAction' => $request->url(),
             'extraQuery' => $extraQuery,
             'facets' => $facets,
+            'optionToggle' => $set !== null && $set->hasOptions(),
             'chips' => $chips->build($filters, $request->url(), $extraQuery),
             'resetUrl' => $chips->resetUrl($request->url(), $extraQuery),
         ];

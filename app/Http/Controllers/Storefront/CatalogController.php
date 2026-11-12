@@ -15,6 +15,8 @@ use App\Services\Age\AgeRestrictionResolver;
 use App\Services\Catalog\AttributeFilterParser;
 use App\Services\Catalog\Breadcrumbs;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Catalog\OptionFilterParser;
+use App\Services\Catalog\OptionSelection;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Seo\FilterSeoResolver;
 use App\Services\Seo\SeoBuilder;
@@ -86,21 +88,23 @@ class CatalogController extends Controller
     }
 
     /**
-     * FL-07: the normalized URL of a category request with characteristic filters (`a[...]`) when its query string is
+     * FL-07: the normalized URL of a category request with characteristic or option filters (`a[...]`, `o[...]`, VR-19) when its query string is
      * not the normalized one (raw `a[x][]=…`, empty min/max, another order, a value of a built-in parameter written
      * differently); null when it already is, when `a[...]` holds no valid filter, or for anything but GET. Other parameters (utm_*, …) are kept as they are.
      * The group's restrictions are not applied: a permanent redirect must not depend on who asks.
      */
     private function normalizedUrl(CatalogFilterRequest $request, Category $category): ?string
     {
-        if (! $request->isMethod('GET') || ! $request->query->has('a')) {
+        if (! $request->isMethod('GET') || ! ($request->query->has('a') || $request->query->has('o') || $request->query->has(OptionSelection::AVAILABLE_PARAM))) {
             return null;
         }
 
-        $filters = $request->filters()->withAttributes(app(AttributeFilterParser::class)->parse($request->query(), $category->id));
+        $filters = $request->filters()
+            ->withAttributes(app(AttributeFilterParser::class)->parse($request->query(), $category->id))
+            ->withOptions(app(OptionFilterParser::class)->parse($request->query(), $category->id));
 
-        // Nothing valid in `a[...]` (unknown slugs, no set yet): the page shows the whole category, nothing to normalize.
-        if ($filters->attributes->isEmpty()) {
+        // Nothing valid in `a[...]` / `o[...]` (unknown slugs, no set yet): the page shows the whole category, nothing to normalize.
+        if ($filters->attributes->isEmpty() && $filters->options->isEmpty()) {
             return null;
         }
 
@@ -110,7 +114,7 @@ class CatalogController extends Controller
             $normalized['page'] = $filters->page;
         }
 
-        $known = ['sort', 'price_from', 'price_to', 'in_stock', 'brands', 'flags', 'page', 'a'];
+        $known = ['sort', 'price_from', 'price_to', 'in_stock', 'brands', 'flags', 'page', 'a', 'o', OptionSelection::AVAILABLE_PARAM];
         $raw = $request->query();
         $rawKnown = array_intersect_key($raw, array_flip($known));
 
