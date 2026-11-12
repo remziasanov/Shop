@@ -26,6 +26,12 @@ class CatalogSettings extends Settings
     /** FL-04: when the migration from the JSON characteristics finished (ISO 8601); null = not finished. Not edited by hand. */
     public ?string $attributes_migrated_at;
 
+    /** VR-02: the most variants one card may have. */
+    public int $max_variants_per_product;
+
+    /** VR-16: the import creates options and option values that are missing in the dictionary. */
+    public bool $create_options_on_import;
+
     public static function group(): string
     {
         return 'catalog';

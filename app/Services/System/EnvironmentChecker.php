@@ -7,6 +7,8 @@ namespace App\Services\System;
 use App\Enums\CheckStatus;
 use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Content\LegalPageStatus;
+use App\Services\Variants\SkuGuard;
+use App\Services\Variants\VariantAggregator;
 use App\Support\TrustedHosts;
 use Closure;
 use Illuminate\Support\Carbon;
@@ -87,6 +89,8 @@ class EnvironmentChecker
             'legal_pages' => fn () => $this->legalPages(),
             'staff_roles' => fn () => $this->staffRoles(),
             'attribute_migration' => fn () => $this->attributeMigration(),
+            'variant_skus' => fn () => $this->variantSkus(),
+            'variant_aggregates' => fn () => $this->variantAggregates(),
         ];
 
         $results = [];
@@ -454,6 +458,38 @@ class EnvironmentChecker
         }
 
         return $this->result('attribute_migration', CheckStatus::Ok, $state->isMigrated() ? __('attributes.migration.done') : __('attributes.migration.not_needed'));
+    }
+
+    /**
+     * VR-04, D-087: an article used by both a product and a variant (a race between two writes).
+     */
+    private function variantSkus(): CheckResult
+    {
+        $collisions = app(SkuGuard::class)->collisions();
+
+        if ($collisions === []) {
+            return $this->result('variant_skus', CheckStatus::Ok, __('variants.doctor.skus_ok'));
+        }
+
+        return $this->result('variant_skus', CheckStatus::Error, __('variants.doctor.skus_found', ['count' => count($collisions)]),
+            __('variants.doctor.skus_hint', ['skus' => implode(', ', array_slice($collisions, 0, 10))]));
+    }
+
+    /**
+     * VR-06: stock and price aggregates of cards that differ from their variants (`shop:variants-rollup` fixes them).
+     */
+    private function variantAggregates(): CheckResult
+    {
+        $rows = app(VariantAggregator::class)->discrepancies(200);
+
+        if ($rows === []) {
+            return $this->result('variant_aggregates', CheckStatus::Ok, __('variants.doctor.aggregates_ok'));
+        }
+
+        $cards = count(array_unique(array_column($rows, 'product_id')));
+
+        return $this->result('variant_aggregates', CheckStatus::Warning, __('variants.doctor.aggregates_found', ['count' => $cards]),
+            __('variants.doctor.aggregates_hint'));
     }
 
     private function uploadLimit(string $key): CheckResult

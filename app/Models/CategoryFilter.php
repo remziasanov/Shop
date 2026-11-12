@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A row of the filter set of a category (FL-05). `option_type_id` has no foreign key until stage 11 (see the migration).
+ * A row of the filter set of a category (FL-05). `option_type_id` references `option_types` (stage 11, VR-19).
  *
  * @property int $id
  * @property int $category_id

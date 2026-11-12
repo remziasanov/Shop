@@ -18,6 +18,7 @@ use App\Services\Pricing\PriceChangeContext;
 use App\Services\Pricing\PriceRuleRepository;
 use App\Services\Sales\CartAvailability;
 use App\Services\Users\PermissionService;
+use App\Services\Variants\VariantAggregator;
 use App\View\Composers\StorefrontComposer;
 use Filament\Auth\Http\Controllers\LogoutController as FilamentLogoutController;
 use Filament\Forms\Components\DateTimePicker;
@@ -50,6 +51,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CategoryTree::class);
         $this->app->singleton(PriceRuleRepository::class);
         $this->app->singleton(PriceChangeContext::class);
+        // Holds the deferred-refresh state of bulk variant operations (VR-06).
+        $this->app->singleton(VariantAggregator::class);
         $this->app->singleton(HtmlSanitizer::class);
         $this->app->singleton(PermissionService::class);
         $this->app->singleton(ImageProcessor::class);

@@ -7,6 +7,7 @@ use App\Exceptions\AttributeException;
 use App\Models\Attribute;
 use App\Models\Category;
 use App\Models\CategoryFilter;
+use App\Models\OptionType;
 use App\Services\Catalog\CatalogVersion;
 use App\Services\Catalog\CategoryFilterService;
 use App\Settings\CatalogSettings;
@@ -127,11 +128,12 @@ describe('limit and usable rows', function (): void {
 
     it('keeps option rows (stage 11)', function (): void {
         $category = Category::factory()->create();
-        CategoryFilter::factory()->create(['category_id' => $category->id, 'source' => FilterSource::Option, 'attribute_id' => null, 'option_type_id' => 7]);
+        $optionType = OptionType::factory()->create();
+        CategoryFilter::factory()->create(['category_id' => $category->id, 'source' => FilterSource::Option, 'attribute_id' => null, 'option_type_id' => $optionType->id]);
 
         $row = attrFilters()->resolve($category->id)->rows->first();
 
-        expect($row->source)->toBe(FilterSource::Option)->and($row->option_type_id)->toBe(7);
+        expect($row->source)->toBe(FilterSource::Option)->and($row->option_type_id)->toBe($optionType->id);
     });
 });
 

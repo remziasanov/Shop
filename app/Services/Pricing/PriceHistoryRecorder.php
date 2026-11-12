@@ -6,7 +6,9 @@ namespace App\Services\Pricing;
 
 use App\Models\PriceHistory;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Support\Money;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Writes price history rows for changes of the price inputs of a product (PR-06, D-028).
@@ -25,6 +27,19 @@ final class PriceHistoryRecorder
      */
     public function recordUpdate(Product $product): int
     {
+        return $this->record($product, $product->id, null);
+    }
+
+    /**
+     * Same for a variant (VR-22): the rows carry the card id and the variant id.
+     */
+    public function recordVariantUpdate(ProductVariant $variant): int
+    {
+        return $this->record($variant, $variant->product_id, $variant->id);
+    }
+
+    private function record(Model $product, int $productId, ?int $variantId): int
+    {
         $rows = [];
         $now = now();
 
@@ -41,7 +56,8 @@ final class PriceHistoryRecorder
             }
 
             $rows[] = [
-                'product_id' => $product->id,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
                 'field' => $field,
                 'old_value' => $old !== null ? Money::toRubles($old) : null,
                 'new_value' => $new !== null ? Money::toRubles($new) : null,

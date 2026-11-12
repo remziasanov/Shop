@@ -11,6 +11,7 @@ use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Search\SearchNormalizer;
+use App\Services\Stock\Stockable;
 use App\Support\Money;
 use Carbon\CarbonInterface;
 use Database\Factories\ProductFactory;
@@ -20,6 +21,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -47,11 +49,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $compare_at_price
  * @property string|null $fixed_price
  * @property bool $price_on_request
- * @property string $final_price
+ * @property string $final_price with variants: the minimum over the active variants (VR-07)
+ * @property string|null $final_price_max with variants: the maximum over the active variants; null without variants
+ * @property bool $has_variants the card works with variants (VR-02); toggled by VariantService only
  * @property string|null $display_old_price
  * @property CarbonInterface|null $price_calculated_at
- * @property int|null $stock_qty
- * @property int $reserved_qty
+ * @property int|null $stock_qty with variants: an aggregate over the active variants (VR-06)
+ * @property int $reserved_qty with variants: an aggregate over the active variants (VR-06)
  * @property string $unit
  * @property SalesMode|null $sales_mode
  * @property AgeRestriction|null $age_restriction own level only; the effective one comes from AgeRestrictionResolver
@@ -66,12 +70,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, ProductImage> $images
  * @property-read ProductImage|null $mainImage
  * @property-read Collection<int, ProductAttributeValue> $attributeValues
+ * @property-read Collection<int, ProductVariant> $variants
+ * @property-read Collection<int, OptionType> $options axes of the card in order
  */
 #[ObservedBy(ProductObserver::class)]
-class Product extends Model
+class Product extends Model implements Stockable
 {
     /** @use HasFactory<ProductFactory> */
     use HasFactory, SoftDeletes;
+
+    /** New products work without variants (VR-02); written through VariantService. */
+    protected $attributes = ['has_variants' => false];
 
     protected $fillable = [
         'category_id',
@@ -111,6 +120,8 @@ class Product extends Model
             'compare_at_price' => 'decimal:2',
             'fixed_price' => 'decimal:2',
             'final_price' => 'decimal:2',
+            'final_price_max' => 'decimal:2',
+            'has_variants' => 'boolean',
             'display_old_price' => 'decimal:2',
             'price_on_request' => 'boolean',
             'price_calculated_at' => 'datetime',
@@ -161,6 +172,28 @@ class Product extends Model
     public function attributeValues(): HasMany
     {
         return $this->hasMany(ProductAttributeValue::class);
+    }
+
+    /**
+     * Live variants in display order (VR-03).
+     *
+     * @return HasMany<ProductVariant, $this>
+     */
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /**
+     * Axes of the card: option types in axis order (VR-02).
+     *
+     * @return BelongsToMany<OptionType, $this>
+     */
+    public function options(): BelongsToMany
+    {
+        return $this->belongsToMany(OptionType::class, 'product_options')
+            ->withPivot('sort_order')
+            ->orderBy('product_options.sort_order');
     }
 
     /**
@@ -234,10 +267,31 @@ class Product extends Model
 
     /**
      * Stock that can still be sold: stock_qty - reserved_qty, or null when stock is not tracked.
+     * For a card with variants this is the aggregate; decisions about availability use the variant.
      */
     public function availableQty(): ?int
     {
         return $this->stock_qty === null ? null : $this->stock_qty - $this->reserved_qty;
+    }
+
+    public function stockProduct(): Product
+    {
+        return $this;
+    }
+
+    public function stockProductId(): int
+    {
+        return $this->id;
+    }
+
+    public function stockVariantId(): ?int
+    {
+        return null;
+    }
+
+    public function stockName(): string
+    {
+        return (string) $this->name;
     }
 
     /**

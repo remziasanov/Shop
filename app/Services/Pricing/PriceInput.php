@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Pricing;
 
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Support\Money;
 
 /**
@@ -46,6 +47,28 @@ final readonly class PriceInput
             costPrice: self::kopecks($product->cost_price),
             compareAtPrice: self::kopecks($product->compare_at_price),
             fixedPrice: self::kopecks($product->fixed_price),
+            categoryPathIds: $categoryPathIds,
+        );
+    }
+
+    /**
+     * Input of a variant (VR-07, 19.5): its own prices, falling back to the card's; the rule scope (category, brand,
+     * flags, product id) is always the card's. The path is the card category's path.
+     *
+     * @param  list<int>  $categoryPathIds  category id + ancestor ids of the card
+     */
+    public static function fromVariant(ProductVariant $variant, Product $card, array $categoryPathIds = []): self
+    {
+        return new self(
+            productId: $card->exists ? $card->id : null,
+            categoryId: (int) $card->category_id ?: null,
+            brand: $card->brand !== null && trim($card->brand) !== '' ? $card->brand : null,
+            isFeatured: (bool) $card->is_featured,
+            isNew: (bool) $card->is_new,
+            basePrice: self::kopecks($variant->base_price ?? $card->base_price) ?? 0,
+            costPrice: self::kopecks($variant->cost_price ?? $card->cost_price),
+            compareAtPrice: self::kopecks($variant->compare_at_price ?? $card->compare_at_price),
+            fixedPrice: self::kopecks($variant->fixed_price ?? $card->fixed_price),
             categoryPathIds: $categoryPathIds,
         );
     }

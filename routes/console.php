@@ -34,7 +34,10 @@ Schedule::command('shop:anonymize-customers')->dailyAt('03:30')->withoutOverlapp
 Schedule::command('shop:purge-unverified-customers')->dailyAt('03:50')->withoutOverlapping(10);
 Schedule::command('shop:purge-customer-codes')->dailyAt('04:05')->withoutOverlapping(10);
 
+// VR-06: reconcile card aggregates (stock, prices) with their variants; staggered after the nightly price rebuild.
+Schedule::command('shop:variants-rollup')->dailyAt('03:40')->withoutOverlapping(10);
+
 // Failed queue jobs are kept for a week (TZ section 8).
 // schedule:run executes due tasks one after another within a minute, so the heavy daily tasks are staggered
-// (03:10, 04:20, 04:40, 04:50), each within ~50 s (D-059).
+// (03:10, 03:40, 04:20, 04:40, 04:50), each within ~50 s (D-059).
 Schedule::command('queue:prune-failed --hours=168')->dailyAt('04:50')->withoutOverlapping(10);

@@ -6,9 +6,9 @@ namespace App\Services\Sales;
 
 use App\Enums\SalesMode;
 use App\Enums\SalesModeSource;
-use App\Models\Product;
 use App\Services\Access\AccessSet;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Stock\Stockable;
 use App\Settings\SalesSettings;
 
 /**
@@ -32,8 +32,13 @@ final class SalesModeResolver
         private readonly SalesSettings $settings,
     ) {}
 
-    public function resolve(Product $product, ?AccessSet $access = null): ResolvedSalesMode
+    /**
+     * The mode of a product, or of a variant (VR-13): always the one of the card.
+     */
+    public function resolve(Stockable $stockable, ?AccessSet $access = null): ResolvedSalesMode
     {
+        $product = $stockable->stockProduct();
+
         return $this->resolveFor($product->sales_mode, $product->category_id, $product->price_on_request, $access);
     }
 
