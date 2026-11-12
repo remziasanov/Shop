@@ -79,6 +79,18 @@ return [
         'labels' => 'Метки',
         'apply' => 'Применить',
         'reset' => 'Сбросить',
+        // Characteristic filters (FL-13).
+        'open' => 'Фильтры (:count)',
+        'close' => 'Закрыть фильтры',
+        'show_products' => 'Показать :count товар|Показать :count товара|Показать :count товаров',
+        'reset_all' => 'Сбросить всё',
+        'active' => 'Выбранные фильтры',
+        'remove' => 'Убрать фильтр: :filter',
+        'from' => ':name, от',
+        'to' => ':name, до',
+        'range_between' => 'от :min до :max',
+        'range_from' => 'от :value',
+        'range_to' => 'до :value',
     ],
 
     'labels' => [

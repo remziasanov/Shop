@@ -21,7 +21,8 @@ use RuntimeException;
 use XMLWriter;
 
 /**
- * Writes public/sitemap.xml (SF-82, D-056): home, catalog, visible categories, active products and active pages.
+ * Writes public/sitemap.xml (SF-82, D-056): home, catalog, visible categories, their indexable single-value filter pages
+ * (FL-14 «б»), active products and active pages.
  * Built for the «Гость» group only (CG-15): what a guest cannot see is not listed.
  * The XML is streamed with XMLWriter into a temporary file in the target directory and renamed over the old one,
  * so a crawler never sees a half-written file. With more than 50 000 URLs a sitemap index and parts are written.
@@ -37,6 +38,7 @@ final class SitemapGenerator
     public function __construct(
         private readonly CategoryTree $tree,
         private readonly CatalogAccess $access,
+        private readonly IndexableFilterPages $filterPages,
     ) {}
 
     public static function directory(): string
@@ -175,6 +177,11 @@ final class SitemapGenerator
 
                 foreach ($categories as $category) {
                     yield [route('catalog.category', $category->slug, false), $category->updated_at, 'weekly', '0.8'];
+
+                    // FL-14 «б»: single-value filter pages with enough products.
+                    foreach ($this->filterPages->pathsFor($category, $access) as $path) {
+                        yield [$path, $category->updated_at, 'weekly', '0.5'];
+                    }
                 }
             }
         }

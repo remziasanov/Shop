@@ -15,7 +15,8 @@ use Illuminate\Support\Str;
 
 /**
  * Builds {@see SeoMeta} for storefront pages (SF-81, SF-83): manual meta values win, otherwise the templates of
- * SeoSettings with the placeholders {name}, {price}, {category}, {shop} (plus {brand}, {sku}, {short_description}).
+ * SeoSettings with the placeholders {name}, {price}, {category}, {shop} (plus {brand}, {sku}, {short_description}; category templates also get {filters}, the selected
+ * characteristic values, FL-14).
  */
 final class SeoBuilder
 {
@@ -82,12 +83,21 @@ final class SeoBuilder
     /**
      * @param  list<array{name: string, url: string|null}>  $breadcrumbs
      */
-    public function category(Category $category, array $breadcrumbs, string $canonical): SeoMeta
+    public function category(Category $category, array $breadcrumbs, string $canonical, ?string $filters = null): SeoMeta
     {
-        $values = ['name' => $category->name, 'category' => $category->name, 'price' => '', 'brand' => '', 'sku' => '', 'short_description' => ''];
+        $filters = $filters !== null ? trim($filters) : '';
+        $values = ['name' => $category->name, 'category' => $category->name, 'price' => '', 'brand' => '', 'sku' => '', 'short_description' => '', 'filters' => $filters];
 
-        $title = $this->text($category->meta_title)
-            ?: $this->fill($this->seo->category_title_template, $values)
+        $manualTitle = $this->text($category->meta_title);
+        $titleTemplate = $this->seo->category_title_template;
+
+        if ($filters !== '' && $manualTitle === '' && ! str_contains($titleTemplate, '{filters}')) {
+            // FL-14 (б): the page title is «{категория} — {значение}» even when the template knows no {filters}.
+            $values['name'] = $values['category'] = $category->name.' — '.$filters;
+        }
+
+        $title = ($manualTitle !== '' && $filters !== '' ? $manualTitle.' — '.$filters : $manualTitle)
+            ?: $this->fill($titleTemplate, $values)
             ?: $category->name.' — '.$this->shop();
         $description = $this->text($category->meta_description)
             ?: $this->fill($this->seo->category_description_template, $values)

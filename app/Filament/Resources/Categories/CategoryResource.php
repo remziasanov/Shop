@@ -10,6 +10,7 @@ use App\Exceptions\CategoryTreeException;
 use App\Filament\Resources\Categories\Pages\CreateCategory;
 use App\Filament\Resources\Categories\Pages\EditCategory;
 use App\Filament\Resources\Categories\Pages\ListCategories;
+use App\Filament\Resources\Categories\Support\CategoryFiltersTab;
 use App\Filament\Resources\Products\Support\PhotoUpload;
 use App\Models\Category;
 use App\Models\Product;
@@ -33,6 +34,8 @@ use Filament\Infolists\Components\ImageEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -77,85 +80,90 @@ class CategoryResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make(__('admin_categories.sections.main'))->schema([
-                TextInput::make('name')
-                    ->label(__('admin_categories.fields.name'))
-                    ->required()
-                    ->maxLength(255),
-                TextInput::make('slug')
-                    ->label(__('admin_categories.fields.slug'))
-                    ->helperText(__('admin_categories.fields.slug_hint'))
-                    ->maxLength(240),
-                Select::make('parent_id')
-                    ->label(__('admin_categories.fields.parent'))
-                    ->placeholder(__('admin_categories.fields.parent_placeholder'))
-                    ->options(fn (?Category $record): array => app(CategoryTree::class)->parentOptions($record))
-                    ->searchable()
-                    ->native(false),
-                Select::make('sales_mode')
-                    ->label(__('admin_categories.fields.sales_mode'))
-                    ->placeholder(__('admin_categories.fields.sales_mode_inherit'))
-                    ->options(SalesMode::options())
-                    ->native(false),
-                // AG-12: only the category itself is saved; subcategories and products inherit on the fly.
-                Select::make('age_restriction')
-                    ->label(__('age_gate.admin.field'))
-                    ->placeholder(__('age_gate.admin.none'))
-                    ->options(AgeRestriction::options())
-                    ->native(false)
-                    ->live()
-                    ->helperText(fn (Get $get): string => AgeHint::text(
-                        app(AgeRestrictionResolver::class)->describeFor(
-                            AgeRestriction::tryFrom((string) $get('age_restriction')),
-                            filled($get('parent_id')) ? (int) $get('parent_id') : null,
-                        ),
-                        forCategory: true,
-                    )),
-                Toggle::make('is_active')
-                    ->label(__('admin_categories.fields.is_active'))
-                    ->default(true),
-                TextInput::make('sort_order')
-                    ->label(__('admin_categories.fields.sort_order'))
-                    ->helperText(__('admin_categories.fields.sort_order_hint'))
-                    ->numeric()
-                    ->integer()
-                    ->minValue(-1_000_000)
-                    ->maxValue(1_000_000)
-                    ->default(0)
-                    ->required(),
-                RichEditor::make('description')
-                    ->label(__('admin_categories.fields.description'))
-                    ->dehydrateStateUsing(fn (mixed $state): ?string => self::sanitize($state))
-                    ->columnSpanFull(),
-                // Current image (edit page only): the upload below is processed on save (AD-31).
-                ImageEntry::make('image_path')
-                    ->label(__('admin_categories.fields.image_current'))
-                    ->disk('public')
-                    ->visible(fn (?Category $record): bool => filled($record?->image_path)),
-                Toggle::make('remove_image')
-                    ->label(__('admin_categories.fields.image_remove'))
-                    ->default(false)
-                    ->visible(fn (?Category $record): bool => filled($record?->image_path)),
-                FileUpload::make('new_image')
-                    ->label(__('admin_categories.fields.image'))
-                    ->helperText(__('admin_categories.fields.image_hint'))
-                    ->image()
-                    ->disk(CategoryImageImporter::TEMP_DISK)
-                    ->directory(CategoryImageImporter::TEMP_DIRECTORY)
-                    ->visibility('private')
-                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-                    ->maxSize(intdiv(PhotoUpload::effectiveMaxBytes(), 1024))
-                    ->columnSpanFull(),
-            ])->columns(2),
-            Section::make(__('admin_categories.sections.seo'))->schema([
-                TextInput::make('meta_title')
-                    ->label(__('admin_categories.fields.meta_title'))
-                    ->maxLength(255),
-                Textarea::make('meta_description')
-                    ->label(__('admin_categories.fields.meta_description'))
-                    ->rows(3)
-                    ->maxLength(255),
-            ])->columns(1)->collapsible(),
+            Tabs::make('category')->columnSpanFull()->persistTabInQueryString()->tabs([
+                Tab::make(__('admin_attributes.category.tab_main'))->schema([
+                    Section::make(__('admin_categories.sections.main'))->schema([
+                        TextInput::make('name')
+                            ->label(__('admin_categories.fields.name'))
+                            ->required()
+                            ->maxLength(255),
+                        TextInput::make('slug')
+                            ->label(__('admin_categories.fields.slug'))
+                            ->helperText(__('admin_categories.fields.slug_hint'))
+                            ->maxLength(240),
+                        Select::make('parent_id')
+                            ->label(__('admin_categories.fields.parent'))
+                            ->placeholder(__('admin_categories.fields.parent_placeholder'))
+                            ->options(fn (?Category $record): array => app(CategoryTree::class)->parentOptions($record))
+                            ->searchable()
+                            ->native(false),
+                        Select::make('sales_mode')
+                            ->label(__('admin_categories.fields.sales_mode'))
+                            ->placeholder(__('admin_categories.fields.sales_mode_inherit'))
+                            ->options(SalesMode::options())
+                            ->native(false),
+                        // AG-12: only the category itself is saved; subcategories and products inherit on the fly.
+                        Select::make('age_restriction')
+                            ->label(__('age_gate.admin.field'))
+                            ->placeholder(__('age_gate.admin.none'))
+                            ->options(AgeRestriction::options())
+                            ->native(false)
+                            ->live()
+                            ->helperText(fn (Get $get): string => AgeHint::text(
+                                app(AgeRestrictionResolver::class)->describeFor(
+                                    AgeRestriction::tryFrom((string) $get('age_restriction')),
+                                    filled($get('parent_id')) ? (int) $get('parent_id') : null,
+                                ),
+                                forCategory: true,
+                            )),
+                        Toggle::make('is_active')
+                            ->label(__('admin_categories.fields.is_active'))
+                            ->default(true),
+                        TextInput::make('sort_order')
+                            ->label(__('admin_categories.fields.sort_order'))
+                            ->helperText(__('admin_categories.fields.sort_order_hint'))
+                            ->numeric()
+                            ->integer()
+                            ->minValue(-1_000_000)
+                            ->maxValue(1_000_000)
+                            ->default(0)
+                            ->required(),
+                        RichEditor::make('description')
+                            ->label(__('admin_categories.fields.description'))
+                            ->dehydrateStateUsing(fn (mixed $state): ?string => self::sanitize($state))
+                            ->columnSpanFull(),
+                        // Current image (edit page only): the upload below is processed on save (AD-31).
+                        ImageEntry::make('image_path')
+                            ->label(__('admin_categories.fields.image_current'))
+                            ->disk('public')
+                            ->visible(fn (?Category $record): bool => filled($record?->image_path)),
+                        Toggle::make('remove_image')
+                            ->label(__('admin_categories.fields.image_remove'))
+                            ->default(false)
+                            ->visible(fn (?Category $record): bool => filled($record?->image_path)),
+                        FileUpload::make('new_image')
+                            ->label(__('admin_categories.fields.image'))
+                            ->helperText(__('admin_categories.fields.image_hint'))
+                            ->image()
+                            ->disk(CategoryImageImporter::TEMP_DISK)
+                            ->directory(CategoryImageImporter::TEMP_DIRECTORY)
+                            ->visibility('private')
+                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+                            ->maxSize(intdiv(PhotoUpload::effectiveMaxBytes(), 1024))
+                            ->columnSpanFull(),
+                    ])->columns(2),
+                    Section::make(__('admin_categories.sections.seo'))->schema([
+                        TextInput::make('meta_title')
+                            ->label(__('admin_categories.fields.meta_title'))
+                            ->maxLength(255),
+                        Textarea::make('meta_description')
+                            ->label(__('admin_categories.fields.meta_description'))
+                            ->rows(3)
+                            ->maxLength(255),
+                    ])->columns(1)->collapsible(),
+                ]),
+                CategoryFiltersTab::make(),
+            ]),
         ]);
     }
 

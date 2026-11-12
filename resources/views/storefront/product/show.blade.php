@@ -158,7 +158,15 @@
                         @foreach ($specs as $spec)
                             <tr class="border-b border-slate-100 odd:bg-slate-50">
                                 <th scope="row" class="w-1/3 px-3 py-2 text-left font-normal text-slate-600">{{ $spec['name'] }}</th>
-                                <td class="px-3 py-2">{{ $spec['value'] }}</td>
+                                <td class="px-3 py-2">
+                                    @if ($spec['links'] !== [])
+                                        @foreach ($spec['links'] as $link)
+                                            <a href="{{ $link['url'] }}" class="text-primary underline">{{ $link['text'] }}</a>@if (! $loop->last), @endif
+                                        @endforeach
+                                    @else
+                                        {{ $spec['value'] }}
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

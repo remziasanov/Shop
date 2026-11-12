@@ -12,12 +12,15 @@ use App\Models\Category;
 use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Age\AgeRestrictionResolver;
+use App\Services\Catalog\AttributeFilterParser;
 use App\Services\Catalog\Breadcrumbs;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
+use App\Services\Seo\FilterSeoResolver;
 use App\Services\Seo\SeoBuilder;
 use App\Services\Seo\SeoMeta;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 
 class CatalogController extends Controller
 {
@@ -45,7 +48,7 @@ class CatalogController extends Controller
     /**
      * SF-11: category with its description, subcategory tiles and the products of it and all subcategories.
      */
-    public function category(string $slug, CatalogFilterRequest $request, CategoryTree $tree, Breadcrumbs $breadcrumbs, HtmlSanitizer $sanitizer, SeoBuilder $seo, AgeGate $ageGate, AgeRestrictionResolver $ageLevels, ViewerContext $viewer): View
+    public function category(string $slug, CatalogFilterRequest $request, CategoryTree $tree, Breadcrumbs $breadcrumbs, HtmlSanitizer $sanitizer, SeoBuilder $seo, AgeGate $ageGate, AgeRestrictionResolver $ageLevels, ViewerContext $viewer, FilterSeoResolver $filterSeo): View|RedirectResponse
     {
         $category = Category::query()->where('slug', $slug)->firstOrFail();
         abort_unless($tree->isVisible($category->id), 404);
@@ -56,19 +59,69 @@ class CatalogController extends Controller
         // AG-04: the overlay of the «restricted» mode asks for the effective level of this category.
         $ageGate->setPageLevel($ageLevels->forCategoryId($category->id));
 
+        // FL-07: one URL per selection; a raw or differently ordered query string goes to the normalized one.
+        $normalized = $this->normalizedUrl($request, $category);
+
+        if ($normalized !== null) {
+            return redirect()->to($normalized, 301);
+        }
+
         $node = $tree->node($category->id);
-        $listing = $this->listing($request, $tree->descendantIds($category->id));
+        $listing = $this->listing($request, $tree->descendantIds($category->id), categoryId: $category->id);
         $trail = $breadcrumbs->forCategory($category->id);
-        $canonical = $this->canonical(route('catalog.category', $category->slug), $listing);
+        // FL-14: pages with characteristic filters are either the indexable «single value» page or noindex.
+        $facetSeo = $filterSeo->resolve($category, $listing['filters'], $listing['paginator']->currentPage(), $listing['paginator']->total());
+        $canonical = $facetSeo !== null ? $facetSeo->canonical : $this->canonical(route('catalog.category', $category->slug), $listing);
+        $meta = $seo->category($category, $trail, $canonical, $facetSeo?->filtersText);
 
         return view('storefront.catalog.category', $listing + [
             'category' => $category,
+            'heading' => $facetSeo !== null ? $facetSeo->heading : $category->name,
             'description' => $sanitizer->sanitize($category->description),
             'tiles' => $this->tiles($node !== null ? $node->children : []),
             'breadcrumbs' => $trail,
             'canonical' => $canonical,
-            'seo' => $this->noindexForPrivate($seo->category($category, $trail, $canonical), $viewer->noindexUnlessGuestSees(fn ($guest): bool => $guest->allowsSection(StorefrontSection::Catalog) && $guest->canSeeCategory($category->id))),
+            'seo' => $this->noindexForPrivate($facetSeo?->robots !== null ? $meta->withRobots($facetSeo->robots) : $meta, $viewer->noindexUnlessGuestSees(fn ($guest): bool => $guest->allowsSection(StorefrontSection::Catalog) && $guest->canSeeCategory($category->id))),
         ]);
+    }
+
+    /**
+     * FL-07: the normalized URL of a category request with characteristic filters (`a[...]`) when its query string is
+     * not the normalized one (raw `a[x][]=…`, empty min/max, another order, a value of a built-in parameter written
+     * differently); null when it already is, when `a[...]` holds no valid filter, or for anything but GET. Other parameters (utm_*, …) are kept as they are.
+     * The group's restrictions are not applied: a permanent redirect must not depend on who asks.
+     */
+    private function normalizedUrl(CatalogFilterRequest $request, Category $category): ?string
+    {
+        if (! $request->isMethod('GET') || ! $request->query->has('a')) {
+            return null;
+        }
+
+        $filters = $request->filters()->withAttributes(app(AttributeFilterParser::class)->parse($request->query(), $category->id));
+
+        // Nothing valid in `a[...]` (unknown slugs, no set yet): the page shows the whole category, nothing to normalize.
+        if ($filters->attributes->isEmpty()) {
+            return null;
+        }
+
+        $normalized = $filters->toQuery(true);
+
+        if ($filters->page > 1) {
+            $normalized['page'] = $filters->page;
+        }
+
+        $known = ['sort', 'price_from', 'price_to', 'in_stock', 'brands', 'flags', 'page', 'a'];
+        $raw = $request->query();
+        $rawKnown = array_intersect_key($raw, array_flip($known));
+
+        if (http_build_query($rawKnown) === http_build_query($normalized)) {
+            return null;
+        }
+
+        $query = $normalized + array_diff_key($raw, array_flip($known));
+        $url = route('catalog.category', $category->slug);
+
+        return $query === [] ? $url : $url.'?'.http_build_query($query);
     }
 
     private function noindexForPrivate(SeoMeta $meta, bool $private): SeoMeta

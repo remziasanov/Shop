@@ -9,6 +9,8 @@ use App\Enums\SalesMode;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\Products\Support\BulkPriceChangeAction;
 use App\Filament\Resources\Products\Support\ExportSelectedAction;
+use App\Filament\Resources\Products\Support\RemoveAttributeBulkAction;
+use App\Filament\Resources\Products\Support\SetAttributeBulkAction;
 use App\Models\Product;
 use App\Services\Age\AgeGate;
 use App\Services\Age\AgeRestrictionResolver;
@@ -373,6 +375,8 @@ final class ProductsTable
                 ],
                 affectsPrice: true,
             ),
+            SetAttributeBulkAction::make(),
+            RemoveAttributeBulkAction::make(),
             BulkPriceChangeAction::make(),
             ExportSelectedAction::make(),
             DeleteBulkAction::make()->chunkSelectedRecords(self::CHUNK),

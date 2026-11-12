@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Import;
 
 use App\Enums\AgeRestriction;
+use App\Enums\AttributeType;
 use App\Enums\EmptyCellPolicy;
 use App\Enums\ImportField;
 use App\Enums\ImportIssueLevel;
@@ -12,14 +13,23 @@ use App\Enums\ImportMode;
 use App\Enums\PhotoMode;
 use App\Enums\PriceChangeSource;
 use App\Enums\SalesMode;
+use App\Exceptions\AttributeException;
 use App\Exceptions\CategoryTreeException;
 use App\Exceptions\ImportRowException;
+use App\Models\Attribute;
 use App\Models\Import;
 use App\Models\Product;
+use App\Services\Catalog\AttributeMigrationState;
+use App\Services\Catalog\AttributeNameResolver;
+use App\Services\Catalog\AttributeService;
+use App\Services\Catalog\AttributeStats;
+use App\Services\Catalog\AttributeValueParser;
+use App\Services\Catalog\CatalogVersion;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Stock\StockService;
+use App\Settings\CatalogSettings;
 use App\Support\Money;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -37,9 +47,13 @@ use Throwable;
  *    old price and stock of existing products, unknown SKUs are skipped);
  *  - blank cells follow the empty-cell policy: "keep" leaves the field, "clear" empties nullable fields
  *    (brand, short description, description, cost, old price, stock, sales mode, meta); required ones never;
- *  - characteristics: when characteristic columns are mapped, the product gets the file's non-empty values in
- *    column order, existing characteristics of unmapped names are kept, blank cells keep or drop the old value
- *    per policy; with no characteristic column mapped they are not touched;
+ *  - characteristics (FL-16): the «Х: …» headers are resolved to the dictionary by the rules (1)-(3) of
+ *    {@see AttributeNameResolver}; a missing one is created (not filterable, type by the
+ *    values of the chunk) unless the catalog setting forbids it; values are written by AttributeService (a list cell
+ *    holds several values separated by «;»); other characteristics of the product are kept, a blank cell keeps or
+ *    drops the old value per policy; with no characteristic column mapped they are not touched. Until the migration
+ *    from JSON (FL-04) is finished, a product that only has v1 JSON keeps being merged as JSON so that nothing is
+ *    lost, the migration converts it later;
  *  - price changes run inside a {@see PriceChangeContext} (source "import", import id, starter);
  *  - every row has its own savepoint: a row that fails with a domain error is reported and the chunk goes on;
  *  - issues and the import counters (rows_processed, created/updated/skipped/error/warning counts, chunks_done)
@@ -53,6 +67,22 @@ final class RowImporter
     private const CLEARABLE_TEXT = ['brand', 'short_description', 'meta_title', 'meta_description'];
 
     private const REQUIRED_TEXT = ['name', 'unit'];
+
+    /** Dictionary service of the running chunk: a fresh instance per chunk, so a rolled back dry run leaves no stale cache. */
+    private ?AttributeService $attributes = null;
+
+    /** @var array<string, Attribute|null> characteristic column name => attribute of the running chunk */
+    private array $columnAttributes = [];
+
+    /** @var list<string> */
+    private array $columnNames = [];
+
+    private bool $migrated = true;
+
+    /** @var array<int, true> products of the running chunk that already have rows in the tables */
+    private array $productsWithRows = [];
+
+    private bool $attributesWritten = false;
 
     public function __construct(
         private readonly PriceChangeContext $context,
@@ -91,6 +121,10 @@ final class RowImporter
                 $this->persistReport($import, $lines, $issues, $result);
                 DB::commit();
 
+                if ($this->attributesWritten) {
+                    CatalogVersion::bump();
+                }
+
                 if ($resolver->createdCount() > 0) {
                     $this->tree->flush();
                 }
@@ -116,6 +150,7 @@ final class RowImporter
 
         $products = $this->loadProducts($lines);
         $attributeColumns = $this->attributeColumns($import);
+        $this->prepareAttributes($lines, $products, $attributeColumns, $issues, $warnings);
 
         foreach ($lines as $line) {
             $row = (int) ($line['row'] ?? 0);
@@ -157,9 +192,10 @@ final class RowImporter
                     ? $this->create($values, $fileAttributes, $options, $resolver)
                     : $this->update($product, $values, $fileAttributes, $attributeColumns, $options, $resolver, $changed);
                 DB::commit();
-            } catch (ImportRowException|CategoryTreeException|UniqueConstraintViolationException|InvalidArgumentException $e) {
+            } catch (ImportRowException|CategoryTreeException|AttributeException|UniqueConstraintViolationException|InvalidArgumentException $e) {
                 DB::rollBack();
-                $message = $e instanceof ImportRowException || $e instanceof CategoryTreeException ? $e->getMessage() : __('import_process.errors.row_failed');
+                $resolver->reset();
+                $message = $e instanceof ImportRowException || $e instanceof CategoryTreeException || $e instanceof AttributeException ? $e->getMessage() : __('import_process.errors.row_failed');
                 $issues->add($row, ImportIssueLevel::Error, null, $message, $sku);
                 $errors++;
 
@@ -296,18 +332,14 @@ final class RowImporter
             $data['age_restriction'] = AgeRestriction::fromAge($values['age']);
         }
 
-        $attributes = $this->mergeAttributes([], $fileAttributes, $this->fileNames($fileAttributes), false);
-
-        if ($attributes !== []) {
-            $data['attributes'] = $attributes;
-        }
-
         $product = Product::query()->create($data);
 
         // Stock is written only by StockService (D-046).
         if (isset($values['stock']) && is_int($values['stock'])) {
             $this->stock->setStock($product, $values['stock']);
         }
+
+        $this->writeAttributes($product, $fileAttributes, false);
 
         return $product;
     }
@@ -323,6 +355,7 @@ final class RowImporter
     {
         $clear = $options->emptyCellPolicy === EmptyCellPolicy::Clear;
         $changes = [];
+        $writeAttributes = false;
 
         // Money: price is required (never cleared); cost and old price follow the policy.
         $this->money($product, $values, 'price', 'base_price', false, $clear, $changes);
@@ -412,10 +445,15 @@ final class RowImporter
             }
 
             if ($attributeColumns !== []) {
-                $merged = $this->mergeAttributes($product->specs(), $fileAttributes, $attributeColumns, $clear);
+                if ($this->isJsonOnly($product)) {
+                    // Not migrated yet: keep the v1 JSON merge, the migration (FL-04) converts the product later.
+                    $merged = $this->mergeAttributes($product->specs(), $fileAttributes, $attributeColumns, $clear);
 
-                if ($merged !== $product->specs()) {
-                    $changes['attributes'] = $merged;
+                    if ($merged !== $product->specs()) {
+                        $changes['attributes'] = $merged;
+                    }
+                } else {
+                    $writeAttributes = true;
                 }
             }
         }
@@ -435,6 +473,10 @@ final class RowImporter
 
         if ($stockChanged) {
             $this->stock->setStock($product, $newStock);
+        }
+
+        if ($writeAttributes && $this->writeAttributes($product, $fileAttributes, $clear)) {
+            $changed = true;
         }
 
         return $product;
@@ -495,6 +537,137 @@ final class RowImporter
     }
 
     /**
+     * Resolves the characteristic columns of the chunk to dictionary attributes (FL-16): an existing one by the rules
+     * (1)-(3), a missing one is created when the file has values for it and the setting allows (type and unit from the
+     * values of this chunk, not filterable); otherwise the column is skipped with one warning.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @param  array<string, Product>  $products
+     * @param  list<string>  $columns
+     */
+    private function prepareAttributes(array $lines, array $products, array $columns, IssueBatch $issues, int &$warnings): void
+    {
+        $this->attributes = app(AttributeService::class);
+        $this->columnNames = array_values(array_unique($columns));
+        $this->columnAttributes = [];
+        $this->productsWithRows = [];
+        $this->attributesWritten = false;
+        $this->migrated = app(AttributeMigrationState::class)->isMigrated();
+
+        if ($this->columnNames === []) {
+            return;
+        }
+
+        if (! $this->migrated && $products !== []) {
+            $ids = array_values(array_map(fn (Product $product): int => $product->id, $products));
+            $this->productsWithRows = array_fill_keys(
+                DB::table('product_attribute_values')->whereIn('product_id', $ids)->distinct()->pluck('product_id')->map(fn ($id): int => (int) $id)->all(),
+                true,
+            );
+        }
+
+        $samples = [];
+        $firstRow = [];
+
+        foreach ($lines as $line) {
+            if (! empty($line['errors'])) {
+                continue;
+            }
+
+            foreach ((array) ($line['attributes'] ?? []) as $attribute) {
+                $name = (string) ($attribute['name'] ?? '');
+                $samples[$name][] = (string) ($attribute['value'] ?? '');
+                $firstRow[$name] ??= (int) ($line['row'] ?? 0);
+            }
+        }
+
+        $create = app(CatalogSettings::class)->create_attributes_on_import;
+
+        foreach ($this->columnNames as $name) {
+            $attribute = $this->attributes->findOrCreateByHeader($name, [], false, false);
+
+            if ($attribute === null && isset($samples[$name])) {
+                if ($create) {
+                    $attribute = $this->attributes->findOrCreateByHeader($name, AttributeStats::from($samples[$name]), false, true);
+                    $this->attributesWritten = true;
+                } else {
+                    $issues->add($firstRow[$name], ImportIssueLevel::Warning, ColumnMapper::fieldLabel(ImportField::attributeKey($name)), __('admin_attributes.import.skipped', ['name' => $name]));
+                    $warnings++;
+                }
+            }
+
+            $this->columnAttributes[$name] = $attribute;
+        }
+    }
+
+    /**
+     * The product only has v1 JSON characteristics and the migration is not finished (FL-04).
+     */
+    private function isJsonOnly(Product $product): bool
+    {
+        return ! $this->migrated && $product->specs() !== [] && ! isset($this->productsWithRows[$product->id]);
+    }
+
+    /**
+     * Writes the characteristic cells of one row through AttributeService, keeping the characteristics of other
+     * columns. A blank cell of a mapped column drops the old value only with the "clear" policy. Returns whether the
+     * product's characteristics changed.
+     *
+     * @param  list<array{name: string, value: string}>  $file  non-blank cells of the row
+     *
+     * @throws AttributeException
+     */
+    private function writeAttributes(Product $product, array $file, bool $clear): bool
+    {
+        if ($this->attributes === null || $this->columnNames === []) {
+            return false;
+        }
+
+        $cells = [];
+
+        foreach ($file as $cell) {
+            $cells[$cell['name']] ??= $cell['value'];
+        }
+
+        /** @var array<int, array{attribute_id: int, values: mixed}> $items */
+        $items = [];
+
+        foreach ($this->columnNames as $name) {
+            $attribute = $this->columnAttributes[$name] ?? null;
+
+            if ($attribute === null || ! isset($cells[$name])) {
+                continue;
+            }
+
+            $values = $attribute->type === AttributeType::List ? AttributeValueParser::splitList($cells[$name]) : $cells[$name];
+
+            if ($values !== []) {
+                $items[$attribute->id] = ['attribute_id' => $attribute->id, 'values' => $values];
+            }
+        }
+
+        if ($clear) {
+            foreach ($this->columnNames as $name) {
+                $attribute = $this->columnAttributes[$name] ?? null;
+
+                if ($attribute !== null && ! isset($items[$attribute->id])) {
+                    $items[$attribute->id] = ['attribute_id' => $attribute->id, 'values' => []];
+                }
+            }
+        }
+
+        if ($items === []) {
+            return false;
+        }
+
+        $before = $product->specs();
+        $this->attributes->setProductValues($product, array_values($items), false, false);
+        $this->attributesWritten = true;
+
+        return $before !== $product->specs();
+    }
+
+    /**
      * @param  list<array{name: string, value: string}>  $existing
      * @param  list<array{name: string, value: string}>  $file  non-empty characteristics of the row
      * @param  list<string>  $columns  names of the mapped characteristic columns, in column order
@@ -538,15 +711,6 @@ final class RowImporter
         }
 
         return $result;
-    }
-
-    /**
-     * @param  list<array{name: string, value: string}>  $attributes
-     * @return list<string>
-     */
-    private function fileNames(array $attributes): array
-    {
-        return array_map(fn (array $attribute): string => $attribute['name'], $attributes);
     }
 
     /**

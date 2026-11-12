@@ -9,6 +9,7 @@ use App\Filament\Resources\Products\Support\MapsProductFormData;
 use App\Filament\Resources\Products\Support\PhotoUpload;
 use App\Models\Product;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Database\Eloquent\Model;
 
 class CreateProduct extends CreateRecord
 {
@@ -28,6 +29,14 @@ class CreateProduct extends CreateRecord
         $this->newPhotoNames = (array) ($data['file_names'] ?? []);
 
         return $this->prepareProductData($data);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function handleRecordCreation(array $data): Model
+    {
+        return $this->saveWithAttributes(fn (): Model => parent::handleRecordCreation($data));
     }
 
     protected function afterCreate(): void

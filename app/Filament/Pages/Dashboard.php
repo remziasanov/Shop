@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\AttributeMigrationWidget;
 use App\Filament\Widgets\CronWarningWidget;
 use App\Filament\Widgets\LastImportWidget;
 use App\Filament\Widgets\LegalTemplatesWidget;
@@ -65,6 +66,7 @@ class Dashboard extends BaseDashboard
         return [
             CronWarningWidget::class,
             LegalTemplatesWidget::class,
+            AttributeMigrationWidget::class,
             RequestsStatsWidget::class,
             NewCustomersWidget::class,
             WholesaleApplicationsWidget::class,

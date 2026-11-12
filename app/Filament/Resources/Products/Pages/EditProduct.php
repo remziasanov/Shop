@@ -16,6 +16,7 @@ use Filament\Actions\RestoreAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Model;
 use Throwable;
 
 class EditProduct extends EditRecord
@@ -68,6 +69,14 @@ class EditProduct extends EditRecord
         $product = $this->getRecord();
 
         $this->applyStockField($product);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function handleRecordUpdate(Model $record, array $data): Model
+    {
+        return $this->saveWithAttributes(fn (): Model => parent::handleRecordUpdate($record, $data), $record);
     }
 
     protected function mutateFormDataBeforeSave(array $data): array

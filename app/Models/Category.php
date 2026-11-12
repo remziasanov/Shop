@@ -42,6 +42,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Category|null $parent
  * @property-read Collection<int, Category> $children
  * @property-read Collection<int, Product> $products
+ * @property-read Collection<int, CategoryFilter> $filters
  */
 #[ObservedBy(CategoryObserver::class)]
 class Category extends Model
@@ -122,6 +123,16 @@ class Category extends Model
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
+    }
+
+    /**
+     * Own rows of the filter set (FL-05) in display order; an empty set means "inherited" (FL-06).
+     *
+     * @return HasMany<CategoryFilter, $this>
+     */
+    public function filters(): HasMany
+    {
+        return $this->hasMany(CategoryFilter::class)->orderBy('sort_order')->orderBy('id');
     }
 
     /**

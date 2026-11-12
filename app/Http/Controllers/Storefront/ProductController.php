@@ -11,6 +11,7 @@ use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Catalog\Breadcrumbs;
 use App\Services\Catalog\ProductPresenter;
+use App\Services\Catalog\SpecLinker;
 use App\Services\Seo\SeoBuilder;
 use Illuminate\Contracts\View\View;
 
@@ -22,7 +23,7 @@ class ProductController extends Controller
      * SF-30…SF-32, SF-34…SF-36. Inactive or soft-deleted products and products of invisible
      * categories are 404 (SF-16); the redirect handler may still turn that into a 301 (SF-80).
      */
-    public function show(string $slug, ProductPresenter $presenter, Breadcrumbs $breadcrumbs, SeoBuilder $seo, AgeGate $ageGate, ViewerContext $viewer): View
+    public function show(string $slug, ProductPresenter $presenter, Breadcrumbs $breadcrumbs, SeoBuilder $seo, AgeGate $ageGate, ViewerContext $viewer, SpecLinker $specLinks): View
     {
         $viewer->requireSection(StorefrontSection::Catalog);
 
@@ -54,7 +55,7 @@ class ProductController extends Controller
             'product' => $product,
             'view' => $view,
             'gallery' => $presenter->gallery($product),
-            'specs' => $product->specs(),
+            'specs' => $specLinks->link($product, $product->category, $product->specs()),
             'description' => $product->safeDescription(),
             'similar' => $presenter->many($similar),
             'breadcrumbs' => $trail,

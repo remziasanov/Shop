@@ -65,6 +65,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Category $category
  * @property-read Collection<int, ProductImage> $images
  * @property-read ProductImage|null $mainImage
+ * @property-read Collection<int, ProductAttributeValue> $attributeValues
  */
 #[ObservedBy(ProductObserver::class)]
 class Product extends Model
@@ -150,6 +151,16 @@ class Product extends Model
     public function mainImage(): HasOne
     {
         return $this->hasOne(ProductImage::class)->ofMany(['sort_order' => 'min', 'id' => 'min']);
+    }
+
+    /**
+     * Normalized characteristic values (FL-03); written only through AttributeService.
+     *
+     * @return HasMany<ProductAttributeValue, $this>
+     */
+    public function attributeValues(): HasMany
+    {
+        return $this->hasMany(ProductAttributeValue::class);
     }
 
     /**

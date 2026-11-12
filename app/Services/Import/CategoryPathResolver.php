@@ -68,6 +68,15 @@ final class CategoryPathResolver
     }
 
     /**
+     * Forget the memo after a rolled back row: categories created by that row no longer exist, the next
+     * lookup reads the table again.
+     */
+    public function reset(): void
+    {
+        $this->index = null;
+    }
+
+    /**
      * Number of categories created through this instance.
      */
     public function createdCount(): int
