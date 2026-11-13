@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Observers\ProductVariantObserver;
+use App\Services\Pricing\Priceable;
 use App\Services\Stock\Stockable;
 use App\Services\Variants\VariantLabel;
+use App\Support\Money;
 use Carbon\CarbonInterface;
 use Database\Factories\ProductVariantFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -43,7 +45,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, ProductVariantValue> $values
  */
 #[ObservedBy(ProductVariantObserver::class)]
-class ProductVariant extends Model implements Stockable
+class ProductVariant extends Model implements Priceable, Stockable
 {
     /** @use HasFactory<ProductVariantFactory> */
     use HasFactory, SoftDeletes;
@@ -110,6 +112,26 @@ class ProductVariant extends Model implements Stockable
         }
 
         return $this->product;
+    }
+
+    public function priceProductId(): int
+    {
+        return $this->product_id;
+    }
+
+    public function priceVariantId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function retailPriceKopecks(): int
+    {
+        return Money::fromRubles((string) $this->final_price);
+    }
+
+    public function retailOldPriceKopecks(): ?int
+    {
+        return $this->display_old_price !== null ? Money::fromRubles((string) $this->display_old_price) : null;
     }
 
     public function stockProductId(): int

@@ -87,6 +87,7 @@ final class PriceRulePreview
             productIds: $rule->productIds,
             brands: $rule->brands,
             flags: $rule->flags,
+            groupIds: $rule->groupIds,
         );
     }
 }

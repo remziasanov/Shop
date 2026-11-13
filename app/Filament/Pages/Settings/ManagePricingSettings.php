@@ -31,7 +31,7 @@ class ManagePricingSettings extends SettingsPage
     protected static ?int $navigationSort = 40;
 
     /** Settings that change the calculated price (the show_* toggles only affect the storefront output). */
-    private const PRICE_FIELDS = ['rounding_step', 'rounding_direction', 'rounding_scope', 'psychological_price'];
+    private const PRICE_FIELDS = ['rounding_step', 'rounding_direction', 'rounding_scope', 'psychological_price', 'group_prices_rounding'];
 
     /** @var array<string, mixed> */
     private array $priceFieldsBefore = [];

@@ -10,6 +10,7 @@ use App\Observers\ProductObserver;
 use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
+use App\Services\Pricing\Priceable;
 use App\Services\Search\SearchNormalizer;
 use App\Services\Search\VariantSearch;
 use App\Services\Stock\Stockable;
@@ -76,7 +77,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * @property-read Collection<int, OptionType> $options axes of the card in order
  */
 #[ObservedBy(ProductObserver::class)]
-class Product extends Model implements Stockable
+class Product extends Model implements Priceable, Stockable
 {
     /** @use HasFactory<ProductFactory> */
     use HasFactory, SoftDeletes;
@@ -300,6 +301,26 @@ class Product extends Model implements Stockable
     public function stockProductId(): int
     {
         return $this->id;
+    }
+
+    public function priceProductId(): int
+    {
+        return $this->id;
+    }
+
+    public function priceVariantId(): ?int
+    {
+        return null;
+    }
+
+    public function retailPriceKopecks(): int
+    {
+        return Money::fromRubles((string) $this->final_price);
+    }
+
+    public function retailOldPriceKopecks(): ?int
+    {
+        return $this->display_old_price !== null ? Money::fromRubles((string) $this->display_old_price) : null;
     }
 
     public function stockVariantId(): ?int

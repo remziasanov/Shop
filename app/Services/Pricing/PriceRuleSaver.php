@@ -19,8 +19,8 @@ use InvalidArgumentException;
  * {@see PriceRuleRecalculator} to recalculate the affected products (PR-02).
  *
  * Form state keys: name, is_active, action, value, scope, include_subcategories, priority, starts_at, ends_at,
- * show_as_discount, stop_processing, category_ids, product_ids, brands, flags. Only the targets that belong
- * to the chosen scope are stored.
+ * show_as_discount, stop_processing, category_ids, product_ids, brands, flags, group_ids (GP-04: customer groups
+ * the rule is bound to; none = for everyone). Only the targets that belong to the chosen scope are stored.
  */
 final class PriceRuleSaver
 {
@@ -32,7 +32,7 @@ final class PriceRuleSaver
     public function save(?PriceRule $rule, array $state): PriceRule
     {
         $normalized = $this->normalize($state);
-        $before = $rule?->exists ? PriceRuleData::fromModel($rule->loadMissing('targets')) : null;
+        $before = $rule?->exists ? PriceRuleData::fromModel($rule->loadMissing(['targets', 'groups'])) : null;
 
         $rule = DB::transaction(function () use ($rule, $normalized): PriceRule {
             $rule ??= new PriceRule;
@@ -53,6 +53,7 @@ final class PriceRuleSaver
             $rule->save();
 
             $rule->targets()->delete();
+            $rule->groups()->sync($normalized['group_ids']);
 
             foreach ($this->targetRows($normalized) as $row) {
                 $rule->targets()->create($row);
@@ -62,7 +63,8 @@ final class PriceRuleSaver
         });
 
         $rule->unsetRelation('targets');
-        $rule->load('targets');
+        $rule->unsetRelation('groups');
+        $rule->load(['targets', 'groups']);
 
         $this->recalculator->ruleChanged($before, PriceRuleData::fromModel($rule));
 
@@ -71,7 +73,7 @@ final class PriceRuleSaver
 
     public function delete(PriceRule $rule): void
     {
-        $before = PriceRuleData::fromModel($rule->loadMissing('targets'));
+        $before = PriceRuleData::fromModel($rule->loadMissing(['targets', 'groups']));
 
         $rule->delete();
 
@@ -83,7 +85,7 @@ final class PriceRuleSaver
      */
     public function toggled(PriceRule $rule): void
     {
-        $data = PriceRuleData::fromModel($rule->loadMissing('targets'));
+        $data = PriceRuleData::fromModel($rule->loadMissing(['targets', 'groups']));
 
         $this->recalculator->ruleChanged($data, $data);
     }
@@ -115,6 +117,7 @@ final class PriceRuleSaver
             productIds: $n['product_ids'],
             brands: array_map(PriceRuleData::normalizeBrand(...), $n['brands']),
             flags: $n['flags'],
+            groupIds: $n['group_ids'],
         );
     }
 
@@ -125,7 +128,7 @@ final class PriceRuleSaver
      */
     public function formState(PriceRule $rule): array
     {
-        $rule->loadMissing('targets');
+        $rule->loadMissing(['targets', 'groups']);
 
         $value = (string) $rule->value;
 
@@ -145,12 +148,13 @@ final class PriceRuleSaver
             'product_ids' => $rule->productIds(),
             'brands' => $rule->brands(),
             'flags' => array_map(fn (ProductFlag $flag): string => $flag->value, $rule->flags()),
+            'group_ids' => $rule->groupIds(),
         ];
     }
 
     /**
      * @param  array<string, mixed>  $state
-     * @return array{name: string, is_active: bool, action: PriceRuleAction, value: string, scope: PriceRuleScope, include_subcategories: bool, priority: int, starts_at: ?string, ends_at: ?string, show_as_discount: bool, stop_processing: bool, category_ids: list<int>, product_ids: list<int>, brands: list<string>, flags: list<ProductFlag>}
+     * @return array{name: string, is_active: bool, action: PriceRuleAction, value: string, scope: PriceRuleScope, include_subcategories: bool, priority: int, starts_at: ?string, ends_at: ?string, show_as_discount: bool, stop_processing: bool, category_ids: list<int>, product_ids: list<int>, brands: list<string>, flags: list<ProductFlag>, group_ids: list<int>}
      */
     private function normalize(array $state): array
     {
@@ -197,6 +201,7 @@ final class PriceRuleSaver
             'product_ids' => $scope === PriceRuleScope::Products ? $ids($state['product_ids'] ?? []) : [],
             'brands' => $scope === PriceRuleScope::Brands ? array_values($brands) : [],
             'flags' => $scope === PriceRuleScope::Flags ? $flags : [],
+            'group_ids' => array_values(array_filter($ids($state['group_ids'] ?? []), fn (int $id): bool => $id > 0)),
         ];
     }
 

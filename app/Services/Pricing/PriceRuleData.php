@@ -22,6 +22,7 @@ final readonly class PriceRuleData
      * @param  list<int>  $productIds
      * @param  list<string>  $brands  lowercase
      * @param  list<ProductFlag>  $flags
+     * @param  list<int>  $groupIds  customer groups the rule is bound to (GP-04); empty = for everyone
      */
     public function __construct(
         public int $id,
@@ -39,6 +40,7 @@ final readonly class PriceRuleData
         public array $productIds = [],
         public array $brands = [],
         public array $flags = [],
+        public array $groupIds = [],
     ) {}
 
     /**
@@ -62,6 +64,7 @@ final readonly class PriceRuleData
             productIds: $rule->productIds(),
             brands: self::normalizeBrands($rule->brands()),
             flags: $rule->flags(),
+            groupIds: $rule->groupIds(),
         );
     }
 
@@ -91,6 +94,16 @@ final readonly class PriceRuleData
     {
         return ($this->startsAt === null || $this->startsAt->lte($now))
             && ($this->endsAt === null || $this->endsAt->gt($now));
+    }
+
+    /**
+     * Whether the rule takes part in the price of a customer group (GP-04): a rule without groups applies to
+     * everyone, a rule with groups only to those groups. `$groupId` null is the retail price (no group context), which
+     * rules bound to groups never touch.
+     */
+    public function appliesToGroup(?int $groupId): bool
+    {
+        return $this->groupIds === [] || ($groupId !== null && in_array($groupId, $this->groupIds, true));
     }
 
     /**
@@ -150,6 +163,7 @@ final readonly class PriceRuleData
             'product_ids' => $this->productIds,
             'brands' => $this->brands,
             'flags' => array_map(fn (ProductFlag $flag): string => $flag->value, $this->flags),
+            'group_ids' => $this->groupIds,
         ];
     }
 
@@ -166,6 +180,9 @@ final readonly class PriceRuleData
         $brands = $data['brands'];
         /** @var list<string> $flags */
         $flags = $data['flags'];
+        // Entries cached before stage 12 have no groups.
+        /** @var list<int> $groupIds */
+        $groupIds = $data['group_ids'] ?? [];
 
         return new self(
             id: (int) $data['id'],
@@ -183,6 +200,7 @@ final readonly class PriceRuleData
             productIds: $productIds,
             brands: $brands,
             flags: array_map(fn (string $flag): ProductFlag => ProductFlag::from($flag), $flags),
+            groupIds: array_map('intval', $groupIds),
         );
     }
 }

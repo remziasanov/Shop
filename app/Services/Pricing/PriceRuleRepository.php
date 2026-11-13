@@ -37,7 +37,7 @@ final class PriceRuleRepository
         $rows = $this->cache->rememberForever(self::CACHE_KEY, function (): array {
             return PriceRule::query()
                 ->active()
-                ->with('targets')
+                ->with(['targets', 'groups'])
                 ->orderBy('id')
                 ->get()
                 ->map(fn (PriceRule $rule): array => PriceRuleData::fromModel($rule)->toArray())

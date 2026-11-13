@@ -38,7 +38,22 @@ class CustomerGroupFactory extends Factory
             'allowed_delivery_codes' => null,
             'allowed_payment_codes' => null,
             'stock_display' => GroupStockDisplay::Inherit,
+            'default_discount_percent' => '0.00',
+            'show_retail_price' => false,
         ];
+    }
+
+    /**
+     * GP-01: discount from the retail price, percent.
+     */
+    public function discount(string|int|float $percent): static
+    {
+        return $this->state(fn (): array => ['default_discount_percent' => (string) $percent]);
+    }
+
+    public function showRetailPrice(bool $show = true): static
+    {
+        return $this->state(fn (): array => ['show_retail_price' => $show]);
     }
 
     /**

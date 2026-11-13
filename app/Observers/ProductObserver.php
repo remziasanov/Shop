@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Services\Catalog\RedirectService;
 use App\Services\Catalog\SlugService;
 use App\Services\Media\ImageProcessor;
+use App\Services\Pricing\GroupPriceRecalculator;
 use App\Services\Pricing\PriceHistoryRecorder;
 use App\Services\Pricing\ProductPriceUpdater;
 use App\Services\Search\SearchNormalizer;
@@ -29,6 +30,7 @@ final class ProductObserver
         private readonly ImageProcessor $images,
         private readonly SkuGuard $skus,
         private readonly VariantAggregator $aggregator,
+        private readonly GroupPriceRecalculator $groupPrices,
     ) {}
 
     public function saving(Product $product): void
@@ -57,6 +59,11 @@ final class ProductObserver
         // VR-07: the variants inherit the card's prices and rule scope, so a change of those recalculates them.
         if ($this->prices->variantsNeedUpdate($product)) {
             $this->prices->recalculateVariantsOf($product);
+        }
+
+        // GP-07: the prices of the customer groups follow the retail price and the rule scope of the product.
+        if ($product->wasRecentlyCreated || $product->wasChanged(GroupPriceRecalculator::PRODUCT_FIELDS)) {
+            $this->groupPrices->recalculate([$product->id]);
         }
     }
 

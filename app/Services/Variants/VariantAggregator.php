@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Variants;
 
+use App\Services\Pricing\GroupPriceRecalculator;
 use App\Services\Pricing\ProductPriceUpdater;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -26,7 +27,10 @@ final class VariantAggregator
     /** @var array<int, int> */
     private array $pending = [];
 
-    public function __construct(private readonly ProductPriceUpdater $prices) {}
+    public function __construct(
+        private readonly ProductPriceUpdater $prices,
+        private readonly GroupPriceRecalculator $groupPrices,
+    ) {}
 
     /**
      * Run $callback and refresh every card touched through {@see refresh()} once at the end (bulk operations).
@@ -209,6 +213,8 @@ final class VariantAggregator
             if ($card !== null) {
                 $this->writeStock($card);
                 $this->prices->aggregatePrices($productId);
+                // GP-06: the card row of the group prices is the minimum over the variants.
+                $this->groupPrices->recalculate([$productId]);
             }
         });
     }
