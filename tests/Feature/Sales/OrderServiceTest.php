@@ -79,7 +79,7 @@ it('makes delivery free from the threshold (SF-45)', function () {
 });
 
 it('rejects products whose effective mode has no cart (SF-41)', function () {
-    $product = sellable(['sales_mode' => SalesMode::Reservation]);
+    $product = sellable(['sales_mode' => SalesMode::Inquiry]);
     $cart = cartWith($product);
 
     try {

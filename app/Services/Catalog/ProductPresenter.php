@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Catalog;
 
+use App\Enums\CartLineKind;
 use App\Enums\PriceDisplayMode;
 use App\Enums\StockDisplay;
 use App\Enums\StorefrontSection;
@@ -189,13 +190,14 @@ final class ProductPresenter
      * `kop`, `tiers` and `retail` are the viewer group's own price data (GP-10): the unit price at quantity 1 in kopecks,
      * the tiers `[min_qty, kopecks]` and the struck-through retail price; none of them exists for a group without prices.
      *
-     * @return array{price: string, old: string|null, discount: int|null, kop: int|null, tiers: list<array{int, int}>, retail: string|null, stock: array{text: string, state: string}|null, can: array{cart: bool, reserve: bool, inquire: bool, out: bool}, cartLabel: string, backorder: bool, max: int|null}
+     * @return array{price: string, old: string|null, discount: int|null, kop: int|null, tiers: list<array{int, int}>, retail: string|null, stock: array{text: string, state: string}|null, can: array{cart: bool, reserve: bool, inquire: bool, out: bool}, cartLabel: string, backorder: bool, reserveRow: bool, max: int|null}
      */
     public function variantState(Product $product, ProductVariant $variant, ?PriceBook $book = null): array
     {
         $access = $this->viewer->access();
         $variant->setRelation('product', $product);
         $actions = $this->availability->actionsFor($variant);
+        $kind = $actions->cartKind($this->sales->reservation_via_cart);
         $onRequest = $product->price_on_request || ! $access->showsPrices();
         $viewerPrice = null;
 
@@ -220,14 +222,15 @@ final class ProductPresenter
             'retail' => $viewerPrice !== null && $viewerPrice->retailStrike !== null ? Money::format($viewerPrice->retailStrike) : null,
             'stock' => $this->availability($variant, $access),
             'can' => [
-                'cart' => $actions->hasCartButton() && $actions->canAddToCart,
+                'cart' => $kind !== null,
                 'reserve' => $actions->hasReservationButton() && $actions->canReserve,
                 'inquire' => $actions->canInquire,
                 'out' => $actions->outOfStock,
             ],
-            'cartLabel' => $actions->backorder ? __('sales.actions.backorder') : __('storefront.actions.cart'),
+            'cartLabel' => self::cartLabel($actions, $kind),
             'backorder' => $actions->backorder,
-            'max' => $actions->maxQty,
+            'reserveRow' => $kind === CartLineKind::Reservation,
+            'max' => $actions->cartMaxQty($kind),
         ];
     }
 
@@ -320,7 +323,7 @@ final class ProductPresenter
     /**
      * Buttons by the effective mode adjusted by stock (5.6). A disabled button is shown but not clickable.
      *
-     * @return list<array{key: string, label: string, primary: bool, disabled: bool}>
+     * @return list<array{key: string, label: string, primary: bool, disabled: bool, single?: bool}>
      */
     private function actions(ProductActions $actions): array
     {
@@ -330,17 +333,23 @@ final class ProductPresenter
             // Cart / reservation buttons are inactive with the «Нет в наличии» caption (one is enough).
             $buttons[] = ['key' => 'unavailable', 'label' => __('sales.actions.out_of_stock'), 'primary' => true, 'disabled' => true];
         } else {
-            if ($actions->hasCartButton() && $actions->canAddToCart) {
+            // MR-03: with «Резерв через корзину» a reservation product gets «В резерв» (adds to the cart) as its main button.
+            $kind = $actions->cartKind($this->sales->reservation_via_cart);
+
+            if ($kind !== null) {
                 $buttons[] = [
                     'key' => 'cart',
-                    'label' => $actions->backorder ? __('sales.actions.backorder') : __('storefront.actions.cart'),
+                    'label' => self::cartLabel($actions, $kind),
                     'primary' => true,
                     'disabled' => false,
                 ];
             }
 
             if ($actions->hasReservationButton() && $actions->canReserve) {
-                $buttons[] = ['key' => 'reservation', 'label' => __('storefront.actions.reservation'), 'primary' => $buttons === [], 'disabled' => false];
+                // The old one-product form stays reachable as a link; cards of listings leave it out (`single`).
+                $buttons[] = $this->sales->reservation_via_cart && $kind !== null
+                    ? ['key' => 'reservation', 'label' => __('storefront.actions.reservation_single'), 'primary' => false, 'disabled' => false, 'single' => true]
+                    : ['key' => 'reservation', 'label' => __('storefront.actions.reservation'), 'primary' => $buttons === [], 'disabled' => false];
             }
         }
 
@@ -349,6 +358,19 @@ final class ProductPresenter
         }
 
         return $buttons;
+    }
+
+    /**
+     * Caption of the add-to-cart button: «В резерв» for a reservation row, «Заказать (под заказ)» for a back-ordered
+     * product, «В корзину» otherwise (a `flexible` product is added as «В корзину», the choice is made at checkout).
+     */
+    public static function cartLabel(ProductActions $actions, ?CartLineKind $kind): string
+    {
+        return match (true) {
+            $kind === CartLineKind::Reservation => __('storefront.actions.reserve_to_cart'),
+            $actions->backorder => __('sales.actions.backorder'),
+            default => __('storefront.actions.cart'),
+        };
     }
 
     /**
@@ -363,7 +385,7 @@ final class ProductPresenter
 
         if ($actions->outOfStock) {
             $buttons[] = ['key' => 'unavailable', 'label' => __('sales.actions.out_of_stock'), 'primary' => true, 'disabled' => true];
-        } elseif (($actions->hasCartButton() && $actions->canAddToCart) || ($actions->hasReservationButton() && $actions->canReserve)) {
+        } elseif ($actions->cartKind($this->sales->reservation_via_cart) !== null || ($actions->hasReservationButton() && $actions->canReserve)) {
             $buttons[] = ['key' => 'select', 'label' => __('variant_storefront.choose'), 'primary' => true, 'disabled' => false];
         }
 

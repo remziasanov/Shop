@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Enums\OrderType;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Account\RegisterController;
 use App\Models\Order;
@@ -42,8 +43,13 @@ class OrderThanksController extends Controller
             request()->session()->put(RegisterController::THANKS_ORDER_KEY, $order->uuid);
         }
 
+        // MR-11: the other request of the same checkout (the order and the reservation point at each other), order first.
+        $related = $order->related_order_id !== null ? Order::query()->whereKey($order->related_order_id)->with('items')->first() : null;
+        $orders = $related === null ? [$order] : collect([$order, $related])->sortBy(fn (Order $request): int => $request->type === OrderType::Order ? 0 : 1)->values()->all();
+
         return view('storefront.order-thanks', [
             'order' => $order,
+            'orders' => $orders,
             'offerAccount' => $offerAccount,
             'thanksText' => $text !== null && trim($text) !== '' ? $text : __('storefront_sales.thanks.default_'.$order->type->value),
         ]);

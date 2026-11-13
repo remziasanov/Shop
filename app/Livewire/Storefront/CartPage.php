@@ -70,6 +70,23 @@ class CartPage extends Component
         }
     }
 
+    /**
+     * «Уменьшить до доступного» (MR-07): the rows a reservation was short of at the last checkout attempt are cut to the stock.
+     */
+    public function reduceShortages(): void
+    {
+        $this->resetErrorBag();
+        $cart = app(CartService::class)->current(request());
+        $ids = array_values(array_filter(array_map('intval', (array) session('cart_shortages', []))));
+
+        if ($cart !== null && $ids !== []) {
+            app(CartService::class)->reduceToAvailable($cart, $ids);
+        }
+
+        session()->forget('cart_shortages');
+        $this->dispatch('cart-updated');
+    }
+
     public function render(CartService $carts): View
     {
         $cart = $carts->current(request());
@@ -91,8 +108,20 @@ class CartPage extends Component
             $this->qtys[$line->item->product_id.'_'.$line->item->variant_key] = $line->qty;
         }
 
+        $shortIds = array_map('intval', (array) session('cart_shortages', []));
+        $shortLines = array_values(array_filter(
+            $summary->lines,
+            fn ($line): bool => in_array($line->item->id, $shortIds, true) && $line->maxReserveQty !== null && $line->qty > $line->maxReserveQty,
+        ));
+
         return view('livewire.storefront.cart-page', [
             'summary' => $summary,
+            'shortLines' => $shortLines,
+            'checkoutLabel' => match (true) {
+                $summary->hasReservation && $summary->hasOrder => __('storefront_sales.cart.checkout_both'),
+                $summary->hasReservation && ! $summary->hasFlexible => __('storefront_sales.cart.checkout_reserve'),
+                default => __('storefront_sales.cart.checkout'),
+            },
             // PM-13: the promo code of the cart (the cookie code of a promo link is tried first, PM-23).
             'promo' => $this->promoState($cart, $summary),
             'changedReasons' => session('cart_changed', []),

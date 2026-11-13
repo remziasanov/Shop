@@ -6,9 +6,11 @@ namespace App\Providers;
 
 use App\Events\CustomerAnonymizing;
 use App\Events\CustomerEmailVerified;
+use App\Events\OrderItemsChanged;
 use App\Events\OrderStatusChanged;
 use App\Listeners\EraseWholesaleApplicationData;
 use App\Listeners\LinkGuestOrders;
+use App\Listeners\NotifyCustomerOfOrderChange;
 use App\Listeners\NotifyCustomerOfStatusChange;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -26,5 +28,6 @@ class CustomerServiceProvider extends ServiceProvider
         Event::listen(CustomerEmailVerified::class, [LinkGuestOrders::class, 'onEmailVerified']);
         Event::listen(CustomerAnonymizing::class, [EraseWholesaleApplicationData::class, 'onAnonymizing']);
         Event::listen(OrderStatusChanged::class, [NotifyCustomerOfStatusChange::class, 'onStatusChanged']);
+        Event::listen(OrderItemsChanged::class, [NotifyCustomerOfOrderChange::class, 'onItemsChanged']);
     }
 }

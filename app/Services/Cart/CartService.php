@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Cart;
 
+use App\Enums\CartLineKind;
+use App\Enums\CheckoutChoice;
 use App\Exceptions\SalesException;
 use App\Models\Cart;
 use App\Models\CartItem;
@@ -127,16 +129,19 @@ final class CartService
             $locked = Product::query()->whereKey($product->id)->lockForUpdate()->first();
             $unit = $locked !== null ? $this->lockUnit($locked, $variantId) : null;
             $actions = $unit !== null && $this->isVisible($locked) ? $this->availability->actionsFor($unit) : null;
+            // MR-01: the row kind decides (reservation products only while the setting is on); inquiry / showcase never.
+            $kind = $actions?->cartKind($this->settings->reservation_via_cart);
 
-            if ($locked === null || $unit === null || $actions === null || ! $actions->canAddToCart) {
+            if ($locked === null || $unit === null || $actions === null || $kind === null) {
                 throw new SalesException(__($actions !== null && $actions->outOfStock ? 'sales.cart.out_of_stock' : 'sales.cart.not_available', ['name' => $unit?->stockName() ?? $product->name]));
             }
 
             $item = $this->itemOf($cart, $locked->id, $unit->stockVariantId());
             $total = min($qty + ($item->qty ?? 0), QtyLimit::MAX);
+            $limit = $actions->cartMaxQty($kind);
 
-            if ($actions->maxQty !== null) {
-                $total = min($total, $actions->maxQty);
+            if ($limit !== null) {
+                $total = min($total, $limit);
             }
 
             // GP-11: the unit price of the row follows the quantity (tiers of the viewer's group).
@@ -178,7 +183,7 @@ final class CartService
      * when a card with variants gets no variant (or one of another card, inactive or deleted) and when a card without
      * variants gets one.
      */
-    private function lockUnit(Product $locked, ?int $variantId): ?Stockable
+    private function lockUnit(Product $locked, ?int $variantId, bool $lock = true): ?Stockable
     {
         if (! $locked->has_variants) {
             return $variantId === null ? $locked : null;
@@ -192,7 +197,7 @@ final class CartService
             ->whereKey($variantId)
             ->where('product_id', $locked->id)
             ->where('is_active', true)
-            ->lockForUpdate()
+            ->when($lock, fn ($query) => $query->lockForUpdate())
             ->first();
 
         if ($variant === null) {
@@ -226,12 +231,14 @@ final class CartService
             $product = Product::query()->whereKey($productId)->lockForUpdate()->first();
             $unit = $product !== null ? $this->lockUnit($product, $variantId) : null;
             $actions = $unit !== null && $this->isVisible($product) ? $this->availability->actionsFor($unit) : null;
+            $kind = $actions?->cartKind($this->settings->reservation_via_cart);
 
-            if ($product === null || $unit === null || $actions === null || ! $actions->canAddToCart) {
+            if ($product === null || $unit === null || $actions === null || $kind === null) {
                 throw new SalesException(__($actions !== null && $actions->outOfStock ? 'sales.cart.out_of_stock' : 'sales.cart.not_available', ['name' => $unit?->stockName() ?? $product->name ?? '']));
             }
 
-            $this->moveQty($item, $unit, $actions->maxQty !== null ? min($qty, $actions->maxQty) : $qty);
+            $limit = $actions->cartMaxQty($kind);
+            $this->moveQty($item, $unit, $limit !== null ? min($qty, $limit) : $qty);
             $item->save();
             $cart->touch();
 
@@ -425,10 +432,11 @@ final class CartService
     /**
      * Everything the cart page needs (SF-42, SF-43, SF-45).
      */
-    public function summary(Cart $cart): CartSummary
+    public function summary(Cart $cart, CheckoutChoice $choice = CheckoutChoice::Order): CartSummary
     {
         $lines = [];
         $total = 0;
+        $reservationTotal = 0;
         $changes = false;
         $items = $cart->items()->with(['product', 'variant'])->get();
         $labels = $this->labels->forMany($items->pluck('variant')->filter());
@@ -457,20 +465,40 @@ final class CartService
             $resolved = $this->resolver->resolve($unit, $group, $item->qty, $book);
             $current = $resolved->unitPrice;
             $priceChanged = $current !== $atAdd;
-            $unavailable = ! $actions->canAddToCart;
+            // MR-02: the kind is resolved again on every load (the mode or the stock may have changed in the admin panel).
+            $kind = $actions->cartKind($this->settings->reservation_via_cart);
+            $unavailable = $kind === null;
+            $limit = $actions->cartMaxQty($kind);
             $issue = null;
 
             if ($unavailable) {
                 $issue = __($actions->outOfStock ? 'sales.cart.out_of_stock' : 'sales.cart.issue_unavailable', ['name' => $product->name]);
-            } elseif ($actions->maxQty !== null && $item->qty > $actions->maxQty) {
-                $issue = __('sales.cart.issue_exceeds', ['max' => $actions->maxQty]);
+            } elseif ($limit !== null && $item->qty > $limit) {
+                $issue = __('sales.cart.issue_exceeds', ['max' => $limit]);
             }
 
+            $target = $kind?->target($choice);
             $lineTotal = $unavailable ? 0 : $current * $item->qty;
-            $total += $lineTotal;
+
+            if ($target === CheckoutChoice::Reservation) {
+                $reservationTotal += $lineTotal;
+            } else {
+                $total += $lineTotal;
+            }
+
             $changes = $changes || $priceChanged || $issue !== null;
 
-            $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $current, $lineTotal, $priceChanged, $unavailable, $actions->maxQty, $issue, $variant, $label, $unavailable ? null : $this->resolver->tierHint($resolved, $item->qty), $resolved->source, $resolved->tierMinQty, PromoLine::oldPriceOf($resolved));
+            $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $current, $lineTotal, $priceChanged, $unavailable, $limit, $issue, $variant, $label, $unavailable ? null : $this->resolver->tierHint($resolved, $item->qty), $resolved->source, $resolved->tierMinQty, PromoLine::oldPriceOf($resolved), $kind, $target, $actions->maxReserveQty);
+        }
+
+        $hasOrder = false;
+        $hasReservation = false;
+        $hasFlexible = false;
+
+        foreach ($lines as $line) {
+            $hasOrder = $hasOrder || $line->target === CheckoutChoice::Order;
+            $hasReservation = $hasReservation || $line->target === CheckoutChoice::Reservation;
+            $hasFlexible = $hasFlexible || $line->kind === CartLineKind::Flexible;
         }
 
         $deliveries = [];
@@ -482,9 +510,59 @@ final class CartService
 
         // CG-08: the group's minimum replaces the shop-wide one.
         $min = $this->viewer->access()->minOrderAmount ?? $this->settings->min_order_amount;
-        $missing = $min > 0 ? max($min - $total, 0) : 0;
+        // MR-08: the minimum belongs to the order part; a reservation has none.
+        $missing = $min > 0 && ($hasOrder || ! $hasReservation) ? max($min - $total, 0) : 0;
 
-        return new CartSummary($lines, $total, $deliveries, $min, $missing, $changes, $lines !== [] && $missing === 0);
+        return new CartSummary($lines, $total, $deliveries, $min, $missing, $changes, $lines !== [] && $missing === 0, $reservationTotal, $hasOrder, $hasReservation, $hasFlexible);
+    }
+
+    /**
+     * «Уменьшить до доступного» (MR-07): the given rows are cut down to what a reservation can hold now (a row with
+     * nothing available leaves the cart). Quantities are decided here, from the live stock, never taken from the browser.
+     *
+     * @param  list<int>  $itemIds  ids of the rows of this cart
+     * @return int number of rows that were changed
+     */
+    public function reduceToAvailable(Cart $cart, array $itemIds): int
+    {
+        return DB::transaction(function () use ($cart, $itemIds): int {
+            $this->lockCart($cart);
+            $changed = 0;
+
+            foreach (CartItem::query()->where('cart_id', $cart->id)->whereIn('id', $itemIds)->orderBy('id')->get() as $item) {
+                // No row locks here: this never writes stock and checkout re-checks it under its own ordered locks (19.5).
+                $product = Product::query()->whereKey($item->product_id)->first();
+
+                if ($product === null) {
+                    continue;
+                }
+
+                try {
+                    $unit = $this->lockUnit($product, $item->variant_id, false);
+                } catch (SalesException) {
+                    continue;
+                }
+
+                $available = $this->settings->stock_tracking ? $unit?->availableQty() : null;
+
+                if ($unit === null || $available === null || $available >= $item->qty) {
+                    continue;
+                }
+
+                if ($available < 1) {
+                    $item->delete();
+                } else {
+                    $this->moveQty($item, $unit, $available);
+                    $item->save();
+                }
+
+                $changed++;
+            }
+
+            $cart->touch();
+
+            return $changed;
+        });
     }
 
     /**

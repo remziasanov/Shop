@@ -27,10 +27,29 @@ class OrderPlacedCustomerMail extends Mailable
 
     public function envelope(): Envelope
     {
+        $related = $this->related();
+
+        if ($related !== null) {
+            // MR-11: one letter for both requests of the checkout.
+            return new Envelope(subject: __('notifications.mail.placed_subject_many', [
+                'numbers' => $this->order->number.' '.__('notifications.mail.and').' '.$related->number,
+            ]));
+        }
+
         return new Envelope(subject: __('notifications.mail.placed_subject', [
             'type' => $this->order->type->label(),
             'number' => $this->order->number,
         ]));
+    }
+
+    /**
+     * The other request of the same checkout (MR-05, MR-11) that this letter also lists; null for a single request.
+     */
+    private function related(): ?Order
+    {
+        $related = $this->order->related_order_id !== null ? Order::query()->find($this->order->related_order_id) : null;
+
+        return $related !== null && $related->customer_email === $this->order->customer_email ? $related : null;
     }
 
     public function content(): Content
@@ -42,8 +61,11 @@ class OrderPlacedCustomerMail extends Mailable
             OrderType::Inquiry => $sales->thanks_inquiry_text,
         };
 
+        $related = $this->related();
+
         return new Content(markdown: 'mail.order-placed', with: [
             'order' => $this->order->loadMissing('items'),
+            'requests' => $related === null ? [$this->order] : [$this->order, $related->loadMissing('items')],
             'thanks' => filled($thanks) ? $thanks : __('notifications.mail.default_thanks.'.$this->order->type->value),
             'general' => app(GeneralSettings::class),
         ]);

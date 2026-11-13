@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Stock;
 
 use App\Enums\OrderType;
+use App\Exceptions\EditStockShortageException;
 use App\Exceptions\InsufficientStockException;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -368,6 +369,172 @@ final class StockService
 
             $order->syncOriginalAttribute('stock_applied');
         });
+    }
+
+    /**
+     * Stock part of an order edit (OE-04, 24.5): the only write of stock when the items of an order are edited. Locks
+     * the order, the products and the variants (ascending ids) and counts the change per line from its old quantity:
+     * no change in quantity touches nothing; an increase deducts (order) / holds (reservation) what is available - all of
+     * it, or without «под заказ» a shortage rejects the whole edit; a decrease first drops the part of the line that was
+     * never applied and returns / releases only the rest; a removed line (`newQty` 0) returns what it had applied. A
+     * request whose `stock_applied` flag is off, and a unit with `stock_qty IS NULL`, are not counted at all.
+     *
+     * Returns one effect per change, in the order of `$changes`; the caller stores `appliedQty` on the lines.
+     *
+     * @param  list<StockChange>  $changes
+     * @return list<StockEffect>
+     *
+     * @throws EditStockShortageException
+     */
+    public function applyItemChanges(Order $order, array $changes): array
+    {
+        return DB::transaction(function () use ($order, $changes): array {
+            /** @var Order $fresh */
+            $fresh = Order::withTrashed()->whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+
+            // 19.5: products first (also the cards of variants), then variants, each ascending by id.
+            $products = $this->lockProducts(array_map(fn (StockChange $change): int => $change->productId, $changes));
+            $variants = $this->lockVariants(array_values(array_filter(array_map(fn (StockChange $change): ?int => $change->variantId, $changes))));
+            $effects = $this->planItemChanges($fresh, $changes, $products, $variants);
+
+            $shortages = [];
+
+            foreach ($effects as $effect) {
+                if ($effect->shortage !== null) {
+                    $shortages[$effect->name] = $effect->shortage;
+                }
+            }
+
+            if ($shortages !== []) {
+                throw new EditStockShortageException($shortages);
+            }
+
+            foreach ([...$products->all(), ...$variants->all()] as $model) {
+                if ($model->isDirty()) {
+                    $model->saveQuietly();
+                }
+            }
+
+            foreach (collect($changes)->filter(fn (StockChange $change): bool => $change->variantId !== null)->pluck('productId')->unique() as $productId) {
+                $this->aggregator->rollupStock((int) $productId);
+            }
+
+            $this->forgetHomePage();
+
+            return $effects;
+        });
+    }
+
+    /**
+     * The same plan as {@see applyItemChanges()} without locks and without writing anything (the preview of the editor,
+     * OE-10). A shortage is reported in the effect instead of thrown.
+     *
+     * @param  list<StockChange>  $changes
+     * @return list<StockEffect>
+     */
+    public function previewItemChanges(Order $order, array $changes): array
+    {
+        $fresh = Order::withTrashed()->whereKey($order->getKey())->first() ?? $order;
+        $products = Product::withTrashed()->whereIn('id', array_values(array_unique(array_map(fn (StockChange $change): int => $change->productId, $changes))))->get()->keyBy('id');
+        $variantIds = array_values(array_unique(array_filter(array_map(fn (StockChange $change): ?int => $change->variantId, $changes))));
+        $variants = $variantIds === [] ? new Collection : ProductVariant::withTrashed()->whereIn('id', $variantIds)->get()->keyBy('id');
+
+        return $this->planItemChanges($fresh, $changes, $products, $variants);
+    }
+
+    /**
+     * Counts the effects and applies them to the given models in memory (the caller saves them or throws them away).
+     *
+     * @param  list<StockChange>  $changes
+     * @param  Collection<int, Product>  $products
+     * @param  Collection<int, ProductVariant>  $variants
+     * @return list<StockEffect>
+     */
+    private function planItemChanges(Order $order, array $changes, Collection $products, Collection $variants): array
+    {
+        foreach ($variants as $variant) {
+            $card = $products->get($variant->product_id);
+
+            if ($card !== null) {
+                $variant->setRelation('product', $card);
+            }
+        }
+
+        $reservation = $order->type === OrderType::Reservation;
+        $backorder = ! $reservation && $this->settings->allow_backorder;
+        $effects = [];
+
+        foreach ($changes as $change) {
+            // The unit: a variant, or a product without variants (a card with variants has no stock of its own).
+            if ($change->variantId !== null) {
+                $unit = $variants->get($change->variantId);
+            } else {
+                $card = $products->get($change->productId);
+                $unit = $card !== null && ! $card->has_variants ? $card : null;
+            }
+
+            $name = $unit?->stockName() ?? (string) ($products->get($change->productId)->name ?? '');
+            $applied = min($change->appliedQty, $change->newQty);
+
+            // A reservation line whose unit lost its stock figure after the hold (stock_qty NULL now) still gives back
+            // what it holds when it shrinks or goes away, like releaseReservation() does (D-051 spirit).
+            if ($reservation && $order->stock_applied && $unit !== null && $unit->stock_qty === null
+                && $change->newQty < $change->oldQty && $change->appliedQty > 0) {
+                $give = $change->oldQty - $change->newQty;
+                $toReturn = $give - min($give, $change->oldQty - $change->appliedQty);
+                $applied = min($change->appliedQty - $toReturn, $change->newQty);
+                $release = min($change->appliedQty - $applied, $unit->reserved_qty);
+                $unit->reserved_qty -= $release;
+                $effects[] = new StockEffect($change->key, $name, $applied, reservedDelta: -$release, tracked: true);
+
+                continue;
+            }
+
+            if (! $order->stock_applied || $unit === null || $unit->stock_qty === null) {
+                $effects[] = new StockEffect($change->key, $name, $applied);
+
+                continue;
+            }
+
+            if ($change->newQty === $change->oldQty) {
+                $effects[] = new StockEffect($change->key, $name, $applied, tracked: true);
+
+                continue;
+            }
+
+            $delta = 0;
+
+            if ($change->newQty > $change->oldQty) {
+                $take = $change->newQty - $change->oldQty;
+                $available = max($unit->stock_qty - $unit->reserved_qty, 0);
+
+                if ($take > $available && ! $backorder) {
+                    $effects[] = new StockEffect($change->key, $name, $applied, shortage: $available, tracked: true);
+
+                    continue;
+                }
+
+                $taken = $backorder ? min($take, $available) : $take;
+                $delta = $taken;
+                $applied = min($change->appliedQty + $taken, $change->newQty);
+            } else {
+                $give = $change->oldQty - $change->newQty;
+                $fromUnapplied = min($give, $change->oldQty - $change->appliedQty);
+                $toReturn = $give - $fromUnapplied;
+                $delta = -$toReturn;
+                $applied = min($change->appliedQty - $toReturn, $change->newQty);
+            }
+
+            if ($reservation) {
+                $unit->reserved_qty = max($unit->reserved_qty + $delta, 0);
+                $effects[] = new StockEffect($change->key, $name, $applied, reservedDelta: $delta, tracked: true);
+            } else {
+                $unit->stock_qty = max($unit->stock_qty - $delta, 0);
+                $effects[] = new StockEffect($change->key, $name, $applied, stockDelta: -$delta, tracked: true);
+            }
+        }
+
+        return $effects;
     }
 
     /**

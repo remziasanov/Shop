@@ -155,7 +155,9 @@ it('shows the prices of the viewer group only: no other group price in HTML (21.
     gpSignInAs($this, $this->group);
     $html = $this->get(route('product.show', $this->middle->slug))->assertOk()->getContent();
 
-    expect($html)->toContain('55555')->not->toContain('12345')->not->toContain('123,45')->not->toContain('350');
+    expect($html)->toContain('55555')->not->toContain('12345')->not->toContain('123,45')
+        // Match price forms only: random tokens and asset hashes may contain "350".
+        ->not->toContain("350\u{00A0}₽")->not->toContain('35000')->not->toContain('350.00');
 });
 
 it('keeps prices out of listings, suggestions and JSON-LD of a group without price display (GP-20, CG-06)', function (): void {

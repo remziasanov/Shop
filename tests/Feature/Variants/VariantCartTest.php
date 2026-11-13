@@ -229,7 +229,7 @@ it('drops a cart row whose variant was deactivated or deleted before checkout (V
 
 it('takes the sales mode from the card while availability comes from the variant (VR-13)', function (): void {
     $this->carts->add($this->cart, $this->shirt['card'], 1, $this->shirt['redS']->id);
-    $this->shirt['card']->update(['sales_mode' => SalesMode::Reservation]);
+    $this->shirt['card']->update(['sales_mode' => SalesMode::Inquiry]);
 
     expect(fn () => $this->orders->createFromCart($this->cart, checkoutData()))->toThrow(CartChangedException::class);
 });

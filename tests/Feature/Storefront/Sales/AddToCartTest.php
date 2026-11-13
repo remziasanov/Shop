@@ -40,7 +40,7 @@ it('refuses a product without a cart mode even when the UI is bypassed (SF-41)',
         ->assertNotDispatched('cart-updated');
 
     expect(CartItem::query()->count())->toBe(0);
-})->with([SalesMode::Reservation, SalesMode::Inquiry, SalesMode::Showcase]);
+})->with([SalesMode::Inquiry, SalesMode::Showcase]);
 
 it('refuses a quantity above the stock with an inline message', function () {
     $product = sellable(['sales_mode' => SalesMode::Cart, 'stock_qty' => 2]);
@@ -97,7 +97,7 @@ it('adds from a product card through the plain form endpoint (JSON and no-JS red
 });
 
 it('rejects a non cart product on the card endpoint', function () {
-    $product = sellable(['sales_mode' => SalesMode::Reservation]);
+    $product = sellable(['sales_mode' => SalesMode::Inquiry]);
 
     $this->postJson(route('cart.add'), ['product_id' => $product->id])->assertStatus(422)->assertJsonStructure(['message']);
     $this->from(route('catalog.index'))->post(route('cart.add'), ['product_id' => $product->id])->assertSessionHas('cart_error');

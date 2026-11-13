@@ -41,7 +41,9 @@ final class OrdersTable
                     ->label(__('admin_orders.table.number'))
                     ->searchable()
                     ->sortable()
-                    ->weight('bold'),
+                    ->weight('bold')
+                    // MR-12: «связан с Z-00045» next to the number.
+                    ->description(fn (Order $record): ?string => $record->relatedOrder === null ? null : __('admin_orders.table.related', ['number' => $record->relatedOrder->number])),
                 TextColumn::make('type')
                     ->label(__('admin_orders.table.type'))
                     ->badge()
@@ -78,6 +80,7 @@ final class OrdersTable
                     ->sortable()
                     ->color(fn (Order $record): ?string => self::isUrgent($record) ? 'danger' : null),
             ])
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('relatedOrder:id,number,type'))
             ->searchUsing(fn (Builder $query, string $search) => OrderQuery::search($query, $search))
             ->filters([
                 SelectFilter::make('type')
@@ -112,6 +115,10 @@ final class OrdersTable
 
                         return $indicators;
                     }),
+                Filter::make('reserved_via_cart')
+                    ->label(__('admin_orders.filters.reserved_via_cart'))
+                    ->toggle()
+                    ->query(fn (Builder $query, array $data): Builder => OrderQuery::apply($query, ['reserved_via_cart' => (bool) ($data['isActive'] ?? false)])),
                 SelectFilter::make('delivery_method')
                     ->label(__('admin_orders.filters.delivery'))
                     ->options(fn (): array => Order::query()

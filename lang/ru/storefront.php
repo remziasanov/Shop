@@ -109,6 +109,8 @@ return [
     'actions' => [
         'cart' => 'В корзину',
         'reservation' => 'Зарезервировать',
+        'reservation_single' => 'Зарезервировать только этот товар',
+        'reserve_to_cart' => 'В резерв',
         'inquiry' => 'Оставить заявку',
     ],
 

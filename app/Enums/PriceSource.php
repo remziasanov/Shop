@@ -13,6 +13,8 @@ enum PriceSource: string
     case GroupPrice = 'group_price';
     case GroupDiscount = 'group_discount';
     case Retail = 'retail';
+    /** OE-03: a price typed in by a manager in the order editor. */
+    case Manual = 'manual';
 
     public function label(): string
     {

@@ -16,9 +16,9 @@ use Throwable;
  * all build their queries from the same serializable parameter array.
  *
  * Parameters (all optional): `tab` and `type` (order|reservation|inquiry, both apply), `status`,
- * `created_from` / `created_until` (Y-m-d, inclusive), `delivery_method` (snapshot name), `search`.
+ * `created_from` / `created_until` (Y-m-d, inclusive), `delivery_method` (snapshot name), `search`, `reserved_via_cart` (true: only reservations made from the cart, MR-12).
  *
- * @phpstan-type Params array{tab?: string|null, type?: string|null, status?: string|null, created_from?: string|null, created_until?: string|null, delivery_method?: string|null, search?: string|null}
+ * @phpstan-type Params array{tab?: string|null, type?: string|null, status?: string|null, created_from?: string|null, created_until?: string|null, delivery_method?: string|null, search?: string|null, reserved_via_cart?: bool|null}
  */
 final class OrderQuery
 {
@@ -49,6 +49,11 @@ final class OrderQuery
 
         if (($until = self::date($params['created_until'] ?? null)) !== null) {
             $query->where('orders.created_at', '<=', $until->endOfDay());
+        }
+
+        // MR-12: reservations made from the cart.
+        if (($params['reserved_via_cart'] ?? false) === true) {
+            $query->where('orders.reserved_via_cart', true);
         }
 
         if (filled($params['delivery_method'] ?? null)) {

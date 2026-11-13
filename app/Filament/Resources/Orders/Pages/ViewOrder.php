@@ -11,6 +11,7 @@ use App\Filament\Resources\Orders\OrderResource;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Orders\NewRequestsCounter;
+use App\Services\Orders\OrderEditor;
 use App\Services\Orders\OrderService;
 use App\Services\Orders\StatusTransitions;
 use App\Settings\SalesSettings;
@@ -52,6 +53,8 @@ class ViewOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->editContentsAction(),
+            $this->createOrderFromInquiryAction(),
             $this->changeStatusAction(),
             $this->extendAction(),
             $this->managerCommentAction(),
@@ -70,6 +73,35 @@ class ViewOrder extends ViewRecord
                 })
                 ->successRedirectUrl(fn (): string => OrderResource::getUrl('index')),
         ];
+    }
+
+    /**
+     * OE-01: «Редактировать состав» before the handover; in other statuses it stays visible but disabled, with the reason.
+     */
+    private function editContentsAction(): Action
+    {
+        return Action::make('edit_contents')
+            ->label(__('order_edit.actions.edit'))
+            ->icon(Heroicon::OutlinedPencilSquare)
+            ->visible(fn (): bool => $this->record->type !== OrderType::Inquiry && Gate::allows('editItems', $this->record))
+            ->disabled(fn (): bool => ! OrderEditor::isEditable($this->record))
+            ->tooltip(fn (): ?string => OrderEditor::blockReason($this->record))
+            ->url(fn (): ?string => OrderEditor::isEditable($this->record) ? OrderResource::getUrl('edit-contents', ['record' => $this->record]) : null);
+    }
+
+    /**
+     * OE-12: «Создать заказ из заявки» on an open inquiry that has no order yet.
+     */
+    private function createOrderFromInquiryAction(): Action
+    {
+        return Action::make('create_order')
+            ->label(__('order_edit.actions.create_order'))
+            ->icon(Heroicon::OutlinedShoppingBag)
+            ->visible(fn (): bool => $this->record->type === OrderType::Inquiry
+                && in_array($this->record->status, [OrderStatus::New, OrderStatus::InProgress], true)
+                && Gate::allows('createFromInquiry', $this->record)
+                && ! Order::query()->where('source_order_id', $this->record->id)->exists())
+            ->url(fn (): string => OrderResource::getUrl('edit-contents', ['record' => $this->record]));
     }
 
     private function changeStatusAction(): Action
@@ -178,7 +210,11 @@ class ViewOrder extends ViewRecord
                 abort_unless(Gate::allows('update', $this->record), 403);
 
                 $comment = trim((string) ($data['manager_comment'] ?? ''));
-                $this->record->forceFill(['manager_comment' => $comment === '' ? null : $comment])->save();
+                // OE-07/OE-08: one transaction moves the comment, the version and the change log.
+                $actor = $this->actor();
+                abort_if($actor === null, 403);
+                app(OrderEditor::class)->saveManagerComment($this->record->id, $comment === '' ? null : $comment, $actor);
+                $this->record->refresh();
 
                 Notification::make()->success()->title(__('admin_orders.actions.manager_comment_saved'))->send();
             });

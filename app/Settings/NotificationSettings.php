@@ -37,6 +37,12 @@ class NotificationSettings extends Settings
     /** Status changes (confirmed, ready, cancelled, reservation confirmed): email to the customer. */
     public bool $notify_customer_status;
 
+    /** OE-09: default of the «Уведомить покупателя» checkbox of the order editor (email to the customer). */
+    public bool $notify_customer_order_changed;
+
+    /** OE-10: the editor warns when the manager's discount is above this share of the items total (percent, 0 = never). */
+    public int $order_discount_warning_percent;
+
     /** New wholesale application (CG-21): email to the shop. */
     public bool $notify_wholesale_email;
 

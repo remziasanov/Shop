@@ -20,6 +20,8 @@ return [
 
     'mail' => [
         'placed_subject' => ':type :number принят',
+        'placed_subject_many' => 'Ваши заявки приняты: :numbers',
+        'and' => 'и',
         'new_subject' => 'Новый запрос: :type :number',
         'status_subject' => ':type :number: статус «:status»',
         'test_subject' => 'Тестовое письмо',

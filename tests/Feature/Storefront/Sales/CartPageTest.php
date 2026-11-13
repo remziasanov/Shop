@@ -48,7 +48,7 @@ it('shows no notice when prices are unchanged', function () {
 
 it('disables checkout and explains the minimum order amount (SF-43)', function () {
     sales(['min_order_amount' => 300000]);
-    $cart = cartWith(sellable(['base_price' => '1000.00']));
+    $cart = cartWith(sellable(['base_price' => '1000.00', 'sales_mode' => SalesMode::Cart]));
 
     livewireWithCart(CartPage::class, $cart)
         ->assertSeeHtml('data-checkout-disabled')

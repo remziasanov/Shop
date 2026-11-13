@@ -7,6 +7,7 @@ namespace App\Filament\Resources\Orders\Schemas;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\PriceSource;
+use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\PromoCodes\PromoCodeResource;
@@ -18,7 +19,10 @@ use App\Support\Money;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\ViewEntry;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Gate;
 
@@ -57,6 +61,18 @@ final class OrderInfolist
                             ->date('d.m.Y')
                             ->placeholder('—')
                             ->visible(fn (Order $record): bool => $record->type === OrderType::Reservation),
+                        // MR-12: the other request of the same checkout.
+                        TextEntry::make('related_order_id')
+                            ->label(__('admin_orders.view.related'))
+                            ->state(fn (Order $record): ?string => $record->relatedOrder === null ? null : $record->relatedOrder->type->label().' '.$record->relatedOrder->number)
+                            ->url(fn (Order $record): ?string => $record->relatedOrder === null ? null : OrderResource::getUrl('view', ['record' => $record->relatedOrder]))
+                            ->visible(fn (Order $record): bool => $record->relatedOrder !== null),
+                        TextEntry::make('reserved_via_cart')
+                            ->label(__('admin_orders.view.reserved_via_cart'))
+                            ->state(fn (): string => __('admin_orders.view.reserved_via_cart_value'))
+                            ->badge()
+                            ->color('gray')
+                            ->visible(fn (Order $record): bool => $record->reserved_via_cart),
                     ]),
 
                 Section::make(__('admin_orders.view.section_customer'))
@@ -177,23 +193,32 @@ final class OrderInfolist
                         TextEntry::make('manager_comment')->label(__('admin_orders.view.manager_comment'))->placeholder(__('admin_orders.view.no_comment')),
                     ]),
 
-                Section::make(__('admin_orders.view.section_history'))
-                    ->schema([
-                        RepeatableEntry::make('statusHistory')
-                            ->hiddenLabel()
-                            ->table([
-                                TableColumn::make(__('admin_orders.view.history_when')),
-                                TableColumn::make(__('admin_orders.view.history_change')),
-                                TableColumn::make(__('admin_orders.view.history_who')),
-                                TableColumn::make(__('admin_orders.view.history_comment')),
-                            ])
-                            ->schema([
-                                TextEntry::make('created_at')->dateTime('d.m.Y H:i'),
-                                TextEntry::make('change')->state(fn (OrderStatusHistory $record): string => self::change($record)),
-                                TextEntry::make('actor')->state(fn (OrderStatusHistory $record): string => $record->user->name ?? __('admin_orders.view.actor_system')),
-                                TextEntry::make('comment')->placeholder('—'),
-                            ]),
-                    ]),
+                // OE-07: the status history and the merged «История изменений» timeline are two tabs of the card.
+                Tabs::make('history')->tabs([
+                    Tab::make(__('admin_orders.view.section_history'))
+                        ->schema([
+                            RepeatableEntry::make('statusHistory')
+                                ->hiddenLabel()
+                                ->table([
+                                    TableColumn::make(__('admin_orders.view.history_when')),
+                                    TableColumn::make(__('admin_orders.view.history_change')),
+                                    TableColumn::make(__('admin_orders.view.history_who')),
+                                    TableColumn::make(__('admin_orders.view.history_comment')),
+                                ])
+                                ->schema([
+                                    TextEntry::make('created_at')->dateTime('d.m.Y H:i'),
+                                    TextEntry::make('change')->state(fn (OrderStatusHistory $record): string => self::change($record)),
+                                    TextEntry::make('actor')->state(fn (OrderStatusHistory $record): string => $record->user->name ?? __('admin_orders.view.actor_system')),
+                                    TextEntry::make('comment')->placeholder('—'),
+                                ]),
+                        ]),
+                    Tab::make(__('order_edit.timeline.tab'))
+                        ->schema([
+                            ViewEntry::make('edit_log')
+                                ->hiddenLabel()
+                                ->view('filament.orders.change-timeline'),
+                        ]),
+                ])->columnSpanFull(),
             ]);
     }
 

@@ -65,6 +65,7 @@ return [
         'group_price' => 'Точная цена группы',
         'group_discount' => 'Скидка группы',
         'retail' => 'Розничная цена',
+        'manual' => 'Цена вручную',
     ],
 
     // Validation of tiers and exact group prices (GP-14). :price is a formatted amount.

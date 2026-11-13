@@ -151,6 +151,7 @@ class ReservationForm extends Component
             'product' => $product,
             'actions' => $actions,
             'reservedUntil' => now()->addHours($settings->reservation_hours),
+            'viaCart' => $settings->reservation_via_cart,
             'consentLink' => $this->consentLink(),
             'ageLevel' => $this->ageLevel(),
             'mustSignIn' => $this->mustSignIn(),

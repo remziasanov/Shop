@@ -29,6 +29,8 @@
     @if ($view->actions !== [])
         <div class="mt-3 flex flex-col gap-2">
             @foreach ($view->actions as $action)
+                {{-- MR-03: a «Резерв» card has «В резерв» already; a «Корзина и резерв» card keeps the quick link to the one-product form. --}}
+                @continue(($action['single'] ?? false) && $view->mode === \App\Enums\SalesMode::Reservation)
                 @if ($action['disabled'])
                     <span aria-disabled="true" class="cursor-not-allowed rounded bg-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-500">{{ $action['label'] }}</span>
                 @elseif ($action['key'] === 'cart')
@@ -41,7 +43,7 @@
                     {{-- VR-08: a card with variants cannot be bought from a list; «Выбрать» opens the card. --}}
                     <a href="{{ $view->url }}" data-action="select" class="rounded bg-primary px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
                 @else
-                    <a href="{{ $view->url }}{{ str_contains($view->url, '?') ? '&' : '?' }}{{ $action['key'] === 'inquiry' ? 'inquiry' : 'reserve' }}=1" class="rounded px-3 py-2 text-center text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
+                    <a href="{{ $view->url }}{{ str_contains($view->url, '?') ? '&' : '?' }}{{ $action['key'] === 'inquiry' ? 'inquiry' : 'reserve' }}=1" class="rounded px-3 py-2 text-center text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}">{{ ($action['single'] ?? false) ? __('storefront.actions.reservation') : $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
                 @endif
             @endforeach
         </div>
