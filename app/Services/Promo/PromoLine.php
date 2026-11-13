@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Promo;
 
+use App\Enums\CheckoutChoice;
 use App\Models\Product;
 use App\Services\Cart\CartLine;
 use App\Services\Pricing\ResolvedPrice;
@@ -31,7 +32,8 @@ final readonly class PromoLine
      */
     public static function fromCartLine(CartLine $line): ?self
     {
-        if ($line->unavailable || $line->product === null) {
+        // MR-08: a row that goes to the reservation takes no promo code.
+        if ($line->unavailable || $line->product === null || $line->target === CheckoutChoice::Reservation) {
             return null;
         }
 

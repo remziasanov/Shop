@@ -8,6 +8,7 @@ use App\Enums\PromoFailure;
 use App\Enums\PromoScope;
 use App\Enums\PromoTargetType;
 use App\Enums\PromoType;
+use App\Models\Order;
 use App\Models\PromoCode;
 use App\Models\PromoRedemption;
 use App\Services\Catalog\CategoryTree;
@@ -82,6 +83,36 @@ final class PromoService
             return PromoResult::failed($code, PromoFailure::MinOrder, __('promo.messages.min_order', ['min' => Money::format($min)]));
         }
 
+        return $this->price($lines, $code);
+    }
+
+    /**
+     * OE-06: the promo code of an order on its edited rows. The code is not «claimed» again, so the period, the limits,
+     * the group, «только для зарегистрированных» and the minimum amount are not checked; the scope and the promotion
+     * flags (PM-05, PM-06) apply as at checkout and a fixed amount never exceeds the base of the rows. An order without
+     * a code (or whose code was deleted) gets an empty result. A code that no longer takes anything off reads as failed
+     * (the discount is then zero). Changes nothing in the database.
+     *
+     * @param  list<PromoLine>  $lines  the rows of the order after the edit
+     */
+    public function recalculateForOrder(Order $order, array $lines): PromoResult
+    {
+        $code = $order->promo_code_id === null ? null : PromoCode::query()->find($order->promo_code_id);
+
+        if ($code === null) {
+            return new PromoResult(null, null, null, [], 0, false);
+        }
+
+        return $this->price($lines, $code);
+    }
+
+    /**
+     * The rows of the code's scope and the discount of each, once the code itself is accepted.
+     *
+     * @param  list<PromoLine>  $lines
+     */
+    private function price(array $lines, PromoCode $code): PromoResult
+    {
         $items = $this->items($lines, $code);
 
         if ($items === []) {

@@ -46,6 +46,17 @@ return [
         'unavailable' => 'Недоступно',
         'delivery_hint' => 'Стоимость доставки рассчитывается при оформлении.',
         'qty_error' => 'Не удалось изменить количество.',
+        'kind_reservation' => 'Резерв',
+        'kind_flexible' => 'Заказ или резерв',
+        'block_order' => 'Заказ',
+        'block_reservation' => 'Резерв',
+        'order_total' => 'Заказ',
+        'reservation_total' => 'Резерв',
+        'checkout_both' => 'Оформить заказ и резерв',
+        'checkout_reserve' => 'Зарезервировать',
+        'shortage_title' => 'Не хватает товара для резерва',
+        'shortage_line' => '«:name»: доступно :available из :qty.',
+        'reduce_to_available' => 'Уменьшить до доступного',
     ],
 
     'checkout' => [
@@ -64,6 +75,19 @@ return [
         'phone_placeholder' => '+7 (___) ___-__-__',
         'consent_link' => 'Подробнее',
         'sending' => 'Отправляем…',
+        'choice_legend' => 'Товары «Корзина и резерв»',
+        'choice_hint' => 'Для этих товаров выберите, что сделать.',
+        'choice_order' => 'Оформить заказ',
+        'choice_reservation' => 'Зарезервировать',
+        'block_order' => 'Заказ',
+        'block_reservation' => 'Резерв',
+        'mixed_note' => 'Часть товаров будет оформлена как заказ, часть — как резерв. Вы получите два номера.',
+        'reservation_text' => 'Резерв действует до :date. Доставка и оплата не нужны: товар забирается самовывозом.',
+        'reservation_total' => 'Резерв',
+        'order_total' => 'Заказ',
+        'submit_reserve' => 'Подтвердить резерв',
+        'submit_both' => 'Подтвердить заказ и резерв',
+        'min_order' => 'Минимальная сумма заказа — :min. Добавьте товаров в заказ ещё на :missing или зарезервируйте их.',
     ],
 
     'fields' => [
@@ -124,6 +148,9 @@ return [
         'price_on_request' => 'Цена по запросу',
         'to_catalog' => 'Продолжить покупки',
         'contacts' => 'Контакты',
+        'requests_title' => 'Оформлено заявок: :count',
+        'two_numbers' => 'Вы получили два номера: :numbers.',
+        'request_heading' => ':type :number',
     ],
 
 ];

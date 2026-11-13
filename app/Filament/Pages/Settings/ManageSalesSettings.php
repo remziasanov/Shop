@@ -67,6 +67,16 @@ class ManageSalesSettings extends SettingsPage
                     ->minValue(1)
                     ->maxValue(8760)
                     ->required(),
+                Toggle::make('reservation_via_cart')
+                    ->label(__('shop.settings.sales.fields.reservation_via_cart'))
+                    ->helperText(__('shop.settings.sales.fields.reservation_via_cart_help')),
+                TextInput::make('reservation_max_items')
+                    ->label(__('shop.settings.sales.fields.reservation_max_items'))
+                    ->numeric()
+                    ->integer()
+                    ->minValue(1)
+                    ->maxValue(200)
+                    ->required(),
                 TextInput::make('min_order_amount')
                     ->label(__('shop.settings.sales.fields.min_order_amount'))
                     ->inputMode('decimal')
@@ -204,6 +214,8 @@ class ManageSalesSettings extends SettingsPage
         $data['stock_display'] = StockDisplay::from((string) $data['stock_display']);
         $data['low_stock_threshold'] = (int) $data['low_stock_threshold'];
         $data['reservation_hours'] = (int) $data['reservation_hours'];
+        $data['reservation_via_cart'] = (bool) ($data['reservation_via_cart'] ?? false);
+        $data['reservation_max_items'] = max(1, (int) $data['reservation_max_items']);
         $data['min_order_amount'] = Money::fromRubles($data['min_order_amount']);
 
         // Not a SalesSettings property: saved into PromoSettings (PM-12).

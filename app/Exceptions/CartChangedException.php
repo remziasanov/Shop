@@ -12,8 +12,9 @@ final class CartChangedException extends SalesException
 {
     /**
      * @param  list<string>  $reasons  Russian, human readable
+     * @param  list<int>  $shortages  MR-07: ids of the cart rows a reservation could not hold in full (offered «Уменьшить до доступного»)
      */
-    public function __construct(public readonly array $reasons)
+    public function __construct(public readonly array $reasons, public readonly array $shortages = [])
     {
         parent::__construct(__('sales.checkout.changed_intro'));
     }

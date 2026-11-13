@@ -57,8 +57,14 @@ use Illuminate\Support\Str;
  * @property string $promo_discount PM-18: discount of the promo code (decimal string)
  * @property string $manual_discount discount typed in by a manager (decimal string)
  * @property int|null $promo_link_id PM-24: the promo link the order is attributed to (last click)
+ * @property int|null $related_order_id MR-05: the other request (order or reservation) of the same checkout
+ * @property bool $reserved_via_cart MR-12: a reservation made from the cart
+ * @property int $version OE-08: optimistic lock of the order editor, moved by every edit and status change
+ * @property int|null $source_order_id OE-12: the inquiry this order was created from
+ * @property int|null $updated_by_user_id the staff member of the last edit or status change (OE-08)
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
+ * @property-read Collection<int, OrderChange> $editLog
  * @property-read Collection<int, OrderItem> $items
  * @property-read Collection<int, OrderStatusHistory> $statusHistory
  */
@@ -129,6 +135,11 @@ class Order extends Model
             'promo_discount' => 'decimal:2',
             'manual_discount' => 'decimal:2',
             'promo_link_id' => 'integer',
+            'related_order_id' => 'integer',
+            'reserved_via_cart' => 'boolean',
+            'version' => 'integer',
+            'source_order_id' => 'integer',
+            'updated_by_user_id' => 'integer',
         ];
     }
 
@@ -148,6 +159,16 @@ class Order extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * The order / reservation made by the same checkout (MR-05); null for a single request.
+     *
+     * @return BelongsTo<Order, $this>
+     */
+    public function relatedOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'related_order_id');
     }
 
     /**
@@ -180,6 +201,26 @@ class Order extends Model
     public function statusHistory(): HasMany
     {
         return $this->hasMany(OrderStatusHistory::class)->orderBy('id');
+    }
+
+    /**
+     * The change log of the order editor (OE-07), oldest first.
+     *
+     * @return HasMany<OrderChange, $this>
+     */
+    public function editLog(): HasMany
+    {
+        return $this->hasMany(OrderChange::class)->orderBy('id');
+    }
+
+    /**
+     * The inquiry this order was created from (OE-12).
+     *
+     * @return BelongsTo<Order, $this>
+     */
+    public function sourceOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'source_order_id')->withTrashed();
     }
 
     /**

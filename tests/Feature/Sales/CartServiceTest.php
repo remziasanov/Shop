@@ -33,12 +33,19 @@ it('refuses products without a cart mode, price on request, showcase and inactiv
     expect(fn () => $this->carts->add($this->cart, $product))->toThrow(SalesException::class)
         ->and($this->cart->items()->count())->toBe(0);
 })->with([
-    'reservation only' => [['sales_mode' => SalesMode::Reservation]],
     'inquiry' => [['sales_mode' => SalesMode::Inquiry]],
     'showcase' => [['sales_mode' => SalesMode::Showcase]],
     'price on request' => [['price_on_request' => true]],
     'inactive' => [['is_active' => false]],
 ]);
+
+it('refuses a reservation only product when the reservation via cart is off (MR-01, v1 behaviour)', function () {
+    sales(['reservation_via_cart' => false]);
+    $product = sellable(['sales_mode' => SalesMode::Reservation]);
+
+    expect(fn () => $this->carts->add($this->cart, $product))->toThrow(SalesException::class)
+        ->and($this->cart->items()->count())->toBe(0);
+});
 
 it('refuses an out of stock product but accepts it with backorder', function () {
     $product = sellable(['stock_qty' => 0]);

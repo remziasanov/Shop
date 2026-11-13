@@ -304,7 +304,7 @@ document.addEventListener('alpine:init', () => {
                 s: variant.s,
                 st: variant.st,
                 max: variant.m,
-                cartLabel: variant.bo ? this.labels.backorder : this.labels.cart,
+                cartLabel: variant.br ? this.labels.reserve : (variant.bo ? this.labels.backorder : this.labels.cart),
                 can: { cart: (variant.c & 1) > 0, reserve: (variant.c & 2) > 0, inquire: (variant.c & 4) > 0, out: (variant.c & 8) > 0 },
                 label: this.axes.map((axis, i) => {
                     const value = axis.values.find((item) => item.id === variant.v[i]);

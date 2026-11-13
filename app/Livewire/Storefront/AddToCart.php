@@ -10,14 +10,16 @@ use App\Livewire\Storefront\Concerns\SelectsVariant;
 use App\Models\Product;
 use App\Services\Access\ViewerContext;
 use App\Services\Cart\CartService;
+use App\Services\Catalog\ProductPresenter;
 use App\Services\Sales\AvailabilityService;
+use App\Settings\SalesSettings;
 use App\Support\QtyLimit;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
- * «В корзину» / «Заказать (под заказ)» of the product page (SF-33, SF-41). Product cards of listings use a plain
+ * «В корзину» / «В резерв» / «Заказать (под заказ)» of the product page (SF-33, SF-41). Product cards of listings use a plain
  * form instead of this component (NF-02, see CartController::add). The cart is created lazily on the first add.
  */
 class AddToCart extends Component
@@ -33,7 +35,7 @@ class AddToCart extends Component
 
     public int|string $qty = 1;
 
-    public function add(CartService $carts, AvailabilityService $availability): void
+    public function add(CartService $carts, AvailabilityService $availability, SalesSettings $settings): void
     {
         $this->resetErrorBag();
         $qty = max(1, (int) $this->qty);
@@ -60,7 +62,8 @@ class AddToCart extends Component
             return;
         }
 
-        $max = $availability->actionsFor($unit)->maxQty;
+        $actions = $availability->actionsFor($unit);
+        $max = $actions->cartMaxQty($actions->cartKind($settings->reservation_via_cart));
 
         if ($max !== null && $max > 0 && $qty > $max) {
             $this->qty = $max;
@@ -83,14 +86,19 @@ class AddToCart extends Component
         $this->dispatch('cart-toast', message: __('storefront_sales.toast.added'));
     }
 
-    public function render(AvailabilityService $availability): View
+    public function render(AvailabilityService $availability, SalesSettings $settings): View
     {
         $product = $this->product();
         $unit = $product !== null ? ($this->unitOf($product) ?? $product) : null;
+        $actions = $unit !== null ? $availability->actionsFor($unit) : null;
+        // MR-03: «В резерв» for a reservation product, the row kind is decided again by the server on every add.
+        $kind = $actions?->cartKind($settings->reservation_via_cart);
 
         return view('livewire.storefront.add-to-cart', [
             'product' => $product,
-            'actions' => $unit !== null ? $availability->actionsFor($unit) : null,
+            'actions' => $actions,
+            'kind' => $kind,
+            'cartLabel' => $actions !== null ? ProductPresenter::cartLabel($actions, $kind) : '',
         ]);
     }
 

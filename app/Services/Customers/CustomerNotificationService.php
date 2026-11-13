@@ -9,6 +9,7 @@ use App\Enums\OrderStatus;
 use App\Models\Customer;
 use App\Models\CustomerNotification;
 use App\Models\Order;
+use App\Support\Money;
 
 /**
  * Notifications of the customer cabinet (CA-18): created next to the e-mails, shown in the cabinet with an unread
@@ -81,6 +82,29 @@ final class CustomerNotificationService
             __('account.notifications.status_title', ['type' => $order->type->label(), 'number' => $order->number]),
             __('account.notifications.status_body', ['status' => $to->label($order->type)]),
             route('customer.orders.show', $order->uuid, false),
+        );
+    }
+
+    /**
+     * OE-09: the positions of a request were changed in the admin. One notification per saved edit (`$batchUuid`).
+     */
+    public function notifyOrderChanged(Order $order, string $batchUuid): ?CustomerNotification
+    {
+        $customer = $this->ownerOf($order);
+
+        if ($customer === null) {
+            return null;
+        }
+
+        $order->loadMissing('items');
+
+        return $this->notify(
+            $customer,
+            CustomerNotificationType::OrderChanged,
+            __('order_edit.cabinet.title', ['type' => $order->type->label(), 'number' => $order->number]),
+            __('order_edit.cabinet.body', ['count' => $order->items->count(), 'total' => $order->total === null ? '—' : Money::format(Money::fromRubles($order->total))]),
+            route('customer.orders.show', $order->uuid, false),
+            'changed:'.$order->id.':'.$batchUuid,
         );
     }
 

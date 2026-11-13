@@ -95,6 +95,16 @@ class ManageNotificationSettings extends SettingsPage
                     ->label(__('shop.settings.notifications.fields.notify_customer_new')),
                 Toggle::make('notify_customer_status')
                     ->label(__('shop.settings.notifications.fields.notify_customer_status')),
+                Toggle::make('notify_customer_order_changed')
+                    ->label(__('shop.settings.notifications.fields.notify_customer_order_changed')),
+                TextInput::make('order_discount_warning_percent')
+                    ->label(__('shop.settings.notifications.fields.order_discount_warning_percent'))
+                    ->helperText(__('shop.settings.notifications.fields.order_discount_warning_percent_help'))
+                    ->numeric()
+                    ->integer()
+                    ->minValue(0)
+                    ->maxValue(100)
+                    ->required(),
                 Toggle::make('notify_reservation_expiring')
                     ->label(__('shop.settings.notifications.fields.notify_reservation_expiring')),
                 Toggle::make('notify_reservation_expired')

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Livewire\Storefront\Concerns;
 
+use App\Enums\CheckoutChoice;
 use App\Models\Cart;
 use App\Services\Cart\CartService;
 use App\Services\Cart\CartSummary;
@@ -62,7 +63,7 @@ trait HandlesPromoCode
         }
 
         $guard->hit($ip, $session);
-        $outcome = app(PromoCartService::class)->apply($cart, $carts->summary($cart), $input);
+        $outcome = app(PromoCartService::class)->apply($cart, $carts->summary($cart, $this->summaryChoice()), $input);
 
         if ($outcome->result->isApplied()) {
             $guard->succeeded($ip, $session);
@@ -77,6 +78,14 @@ trait HandlesPromoCode
         }
 
         $this->dispatch('cart-updated');
+    }
+
+    /**
+     * MR-04: the choice for the `flexible` rows the promo code is evaluated with (the checkout page overrides it).
+     */
+    protected function summaryChoice(): CheckoutChoice
+    {
+        return CheckoutChoice::Order;
     }
 
     public function removePromo(): void

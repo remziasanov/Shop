@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Cart;
 
+use App\Enums\CartLineKind;
+use App\Enums\CheckoutChoice;
 use App\Enums\PriceSource;
 use App\Models\CartItem;
 use App\Models\Product;
@@ -32,5 +34,11 @@ final readonly class CartLine
         public ?PriceSource $priceSource = null,
         public ?int $tierMinQty = null,
         public ?int $promoOldPrice = null,
+        /** MR-02: how the row can be checked out (null for an unavailable row). */
+        public ?CartLineKind $kind = null,
+        /** MR-04: the part the row goes to for the choice the summary was built with (null for an unavailable row). */
+        public ?CheckoutChoice $target = null,
+        /** MR-07: the quantity a reservation of the row can hold now (null = stock not tracked). */
+        public ?int $maxReserveQty = null,
     ) {}
 }

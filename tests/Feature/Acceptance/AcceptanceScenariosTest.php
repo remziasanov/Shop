@@ -203,7 +203,8 @@ function artisanQuietly(string $command, array $parameters = []): void
 // ---------------------------------------------------------------------------------------------
 
 it('Режимы: cart by default, reservation in «Мебель», inquiry for a price-on-request product', function (): void {
-    sales(['default_mode' => SalesMode::Cart, 'stock_tracking' => true, 'allow_backorder' => false]);
+    // The v1 behaviour (reservation of one product only); the cart variant is covered by ReservationViaCartTest.
+    sales(['default_mode' => SalesMode::Cart, 'stock_tracking' => true, 'allow_backorder' => false, 'reservation_via_cart' => false]);
 
     $furniture = Category::factory()->salesMode(SalesMode::Reservation)->create(['name' => 'Мебель']);
     $other = Category::factory()->create(['name' => 'Посуда']);

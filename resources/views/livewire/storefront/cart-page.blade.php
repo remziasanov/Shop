@@ -17,6 +17,19 @@
         </div>
     @endif
 
+    {{-- MR-07: a reservation is short of stock; the rows stay, the customer reduces them with one click. --}}
+    @if ($shortLines !== [])
+        <div role="alert" class="mb-4 rounded-lg border border-amber-400 bg-amber-50 p-4 text-amber-900" data-reserve-shortage>
+            <p class="font-semibold">{{ __('storefront_sales.cart.shortage_title') }}</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
+                @foreach ($shortLines as $short)
+                    <li>{{ __('storefront_sales.cart.shortage_line', ['name' => $short->product?->name.($short->variantLabel ? ' ('.$short->variantLabel.')' : ''), 'available' => $short->maxReserveQty, 'qty' => $short->qty]) }}</li>
+                @endforeach
+            </ul>
+            <button type="button" wire:click="reduceShortages" data-reduce-shortage class="mt-3 rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-800">{{ __('storefront_sales.cart.reduce_to_available') }}</button>
+        </div>
+    @endif
+
     @if ($summary->isEmpty())
         <div class="rounded-lg border border-slate-200 p-8 text-center" data-cart-empty>
             <p class="text-lg text-slate-700">{{ __('storefront_sales.cart.empty') }}</p>
@@ -45,8 +58,21 @@
         </div>
 
         <div class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+            @php($groups = $summary->hasReservation
+                ? array_filter([
+                    'order' => array_values(array_filter($summary->lines, fn ($l) => $l->target !== \App\Enums\CheckoutChoice::Reservation)),
+                    'reservation' => array_values(array_filter($summary->lines, fn ($l) => $l->target === \App\Enums\CheckoutChoice::Reservation)),
+                ])
+                : ['all' => $summary->lines])
+            <div class="space-y-4">
+            @foreach ($groups as $groupKey => $groupLines)
+            <section data-cart-block="{{ $groupKey }}">
+            @if ($summary->hasReservation)
+                {{-- MR-04: the blocks «Заказ» and «Резерв» of a mixed cart. --}}
+                <h2 class="mb-2 text-lg font-semibold">{{ __('storefront_sales.cart.block_'.$groupKey) }}</h2>
+            @endif
             <ul class="divide-y divide-slate-200 rounded-lg border border-slate-200" aria-label="{{ __('storefront_sales.cart.title') }}">
-                @foreach ($summary->lines as $line)
+                @foreach ($groupLines as $line)
                     @php($product = $line->product)
                     @php($pid = $line->item->product_id.'_'.$line->item->variant_key)
                     <li wire:key="line-{{ $pid }}" class="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap sm:gap-4 sm:p-4 {{ $line->unavailable ? 'bg-slate-50' : '' }}" data-cart-line>
@@ -64,6 +90,11 @@
                             @endif
                             @if ($line->variantLabel)
                                 <p class="mt-0.5 text-sm text-slate-600" data-variant-label>{{ $line->variantLabel }}</p>
+                            @endif
+                            @if ($line->kind === \App\Enums\CartLineKind::Reservation)
+                                <p class="mt-1"><span class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900" data-line-kind="reservation">{{ __('storefront_sales.cart.kind_reservation') }}</span></p>
+                            @elseif ($line->kind === \App\Enums\CartLineKind::Flexible)
+                                <p class="mt-1"><span class="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700" data-line-kind="flexible">{{ __('storefront_sales.cart.kind_flexible') }}</span></p>
                             @endif
                             @if ($line->priceChanged && ! $line->unavailable)
                                 <p class="mt-1 text-sm"><s class="text-slate-500">{{ \App\Support\Money::format($line->priceAtAdd) }}</s> <span class="font-semibold">{{ \App\Support\Money::format($line->currentPrice) }}</span></p>
@@ -103,10 +134,16 @@
                     </li>
                 @endforeach
             </ul>
+            </section>
+            @endforeach
+            </div>
 
             <aside class="h-fit rounded-lg border border-slate-200 p-4" aria-label="{{ __('storefront_sales.checkout.your_order') }}">
                 @php($promoShown = $promo['applied'] && ($promo['discount'] > 0 || $promo['freeDelivery']))
-                <p class="flex justify-between {{ $promoShown ? 'text-sm' : 'text-lg font-semibold' }}"><span>{{ __('storefront_sales.cart.items_total') }}</span> <span data-items-total>{{ \App\Support\Money::format($summary->itemsTotal) }}</span></p>
+                <p class="flex justify-between {{ $promoShown ? 'text-sm' : 'text-lg font-semibold' }}"><span>{{ __($summary->hasReservation ? 'storefront_sales.cart.order_total' : 'storefront_sales.cart.items_total') }}</span> <span data-items-total>{{ \App\Support\Money::format($summary->itemsTotal) }}</span></p>
+                @if ($summary->hasReservation)
+                    <p class="mt-1 flex justify-between text-sm" data-reservation-total><span>{{ __('storefront_sales.cart.reservation_total') }}</span> <span>{{ \App\Support\Money::format($summary->reservationTotal) }}</span></p>
+                @endif
                 @if ($promoShown)
                     @if ($promo['discount'] > 0)
                         <p class="mt-1 flex justify-between text-sm text-emerald-800" data-promo-discount><span>{{ __('promo.box.discount', ['code' => $promo['code']]) }}</span> <span>−{{ \App\Support\Money::format($promo['discount']) }}</span></p>
@@ -130,13 +167,13 @@
                     </p>
                 @endif
 
-                @if ($summary->canCheckout && $mustSignIn)
+                @if ($summary->canProceed() && $mustSignIn)
                     <p class="mt-4 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900" data-login-required>{{ __('account.errors.login_required_to_order') }}</p>
                     <a href="{{ route('customer.login', ['back' => 'checkout']) }}" class="mt-3 block rounded bg-primary px-4 py-3 text-center font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-checkout-login>{{ __('account.actions.login_to_order') }}</a>
-                @elseif ($summary->canCheckout)
-                    <a href="{{ route('checkout') }}" class="mt-4 block rounded bg-primary px-4 py-3 text-center font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-checkout>{{ __('storefront_sales.cart.checkout') }}</a>
+                @elseif ($summary->canProceed())
+                    <a href="{{ route('checkout') }}" class="mt-4 block rounded bg-primary px-4 py-3 text-center font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-checkout>{{ $checkoutLabel }}</a>
                 @else
-                    <span aria-disabled="true" @if ($summary->minOrderMissing > 0) aria-describedby="min-order-note" @endif class="mt-4 block cursor-not-allowed rounded bg-slate-200 px-4 py-3 text-center font-medium text-slate-500" data-checkout-disabled>{{ __('storefront_sales.cart.checkout') }}</span>
+                    <span aria-disabled="true" @if ($summary->minOrderMissing > 0) aria-describedby="min-order-note" @endif class="mt-4 block cursor-not-allowed rounded bg-slate-200 px-4 py-3 text-center font-medium text-slate-500" data-checkout-disabled>{{ $checkoutLabel }}</span>
                 @endif
 
                 <a href="{{ route('catalog.index') }}" class="mt-3 block text-center text-sm text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.cart.continue') }}</a>

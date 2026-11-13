@@ -74,7 +74,10 @@ class SendOrderNotifications implements ShouldQueue
     {
         $jobs = [];
 
-        if ($settings->notify_customer_new && filled($order->customer_email)) {
+        // MR-11: the two requests of one checkout get ONE letter, sent for the earlier one (it lists both).
+        $sentByRelated = $order->related_order_id !== null && $order->related_order_id < $order->id;
+
+        if ($settings->notify_customer_new && filled($order->customer_email) && ! $sentByRelated) {
             $jobs[] = new SendMailNotification($order->id, SendMailNotification::CUSTOMER_PLACED);
         }
 

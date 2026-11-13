@@ -108,6 +108,7 @@ final class VariantPicker
                 'c' => $can,
                 'm' => $state['max'],
                 'bo' => $state['backorder'] ? 1 : 0,
+                'br' => $state['reserveRow'] ? 1 : 0,
             ] + ($state['kop'] !== null ? ['k' => $state['kop']] : [])
               + ($state['tiers'] !== [] ? ['t' => $state['tiers']] : [])
               + ($state['retail'] !== null ? ['r' => $state['retail']] : []);

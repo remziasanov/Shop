@@ -83,7 +83,7 @@
         @endif
         @php($tierPairs = array_map(fn (array $tier): array => [$tier['min'], $tier['kopecks']], $view->tiers))
         {{-- GP-10: the quantity field of the buy block feeds the tier table, the unit price and the total (Alpine, no request). --}}
-        <div @if ($picker !== null) x-data="variantPicker(@js(['unavailable' => __('variant_storefront.unavailable'), 'cart' => __('storefront.actions.cart'), 'backorder' => __('sales.actions.backorder'), 'pair' => __('variants.label.pair', ['option' => ':option', 'value' => ':value']), 'separator' => __('variants.label.separator')]))" @input="onQty($event)" @cart-updated.window="resetQty()" @elseif ($view->tiers !== []) x-data="tierPrice(@js($view->unitKopecks), @js($tierPairs))" @input="onQty($event)" @cart-updated.window="reset()" @endif>
+        <div @if ($picker !== null) x-data="variantPicker(@js(['unavailable' => __('variant_storefront.unavailable'), 'cart' => __('storefront.actions.cart'), 'backorder' => __('sales.actions.backorder'), 'reserve' => __('storefront.actions.reserve_to_cart'), 'pair' => __('variants.label.pair', ['option' => ':option', 'value' => ':value']), 'separator' => __('variants.label.separator')]))" @input="onQty($event)" @cart-updated.window="resetQty()" @elseif ($view->tiers !== []) x-data="tierPrice(@js($view->unitKopecks), @js($tierPairs))" @input="onQty($event)" @cart-updated.window="reset()" @endif>
             @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mb-2'])
             <h1 class="text-2xl font-bold md:text-3xl">{{ $product->name }}</h1>
 
@@ -156,7 +156,7 @@
                 @php($pa = $view->productActions)
                 @if ($pa->mode !== \App\Enums\SalesMode::Showcase)
                     <div class="mt-6 flex flex-wrap items-end gap-2">
-                        @if ($pa->hasCartButton())
+                        @if ($pa->hasCartButton() || ($pa->hasReservationButton() && app(\App\Settings\SalesSettings::class)->reservation_via_cart))
                             <livewire:storefront.add-to-cart :product-id="$product->id" :show-qty="true" :variant-id="$picker->selected->id" :key="'cart-'.$product->id" />
                         @else
                             <button type="button" disabled x-cloak x-show="current && current.can.out" class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="unavailable">{{ __('sales.actions.out_of_stock') }}</button>

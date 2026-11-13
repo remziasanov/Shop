@@ -13,7 +13,7 @@ use Illuminate\Contracts\Cache\Repository;
 
 /**
  * Whether the cart exists anywhere in the shop (SF-01, SF-03): the shop default mode, any category or any
- * active product allows the cart. The flag is cached (10 minutes) and dropped when sales settings, categories
+ * active product allows the cart (a reservation mode counts while the reservation goes through the cart, MR-01). The flag is cached (10 minutes) and dropped when sales settings, categories
  * or the sales mode of a product change, so the header icon appears and disappears without waiting.
  */
 final class CartAvailability
@@ -36,7 +36,7 @@ final class CartAvailability
         // The shop-wide flag is cached; the viewer's group may still take the cart away (CG-07, CG-06).
         return (bool) $this->cache->remember(self::CACHE_KEY, self::TTL_SECONDS, fn (): bool => $this->compute())
             && $access->showsPrices()
-            && $access->allowsMode(SalesMode::Cart);
+            && ($access->allowsMode(SalesMode::Cart) || ($this->settings->reservation_via_cart && $access->allowsMode(SalesMode::Reservation)));
     }
 
     public function forget(): void
@@ -56,14 +56,21 @@ final class CartAvailability
             }
         }
 
+        $modes = [SalesMode::Cart->value, SalesMode::Both->value];
+
+        // MR-01, 23.6: with the reservation through the cart a «Резерв» product needs the cart, too.
+        if ($this->settings->reservation_via_cart) {
+            $modes[] = SalesMode::Reservation->value;
+        }
+
         return Product::query()
             ->where('is_active', true)
-            ->whereIn('sales_mode', [SalesMode::Cart->value, SalesMode::Both->value])
+            ->whereIn('sales_mode', $modes)
             ->exists();
     }
 
     private function allowsCart(?SalesMode $mode): bool
     {
-        return $mode === SalesMode::Cart || $mode === SalesMode::Both;
+        return $mode === SalesMode::Cart || $mode === SalesMode::Both || ($mode === SalesMode::Reservation && $this->settings->reservation_via_cart);
     }
 }

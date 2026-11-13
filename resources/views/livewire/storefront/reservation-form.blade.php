@@ -6,8 +6,14 @@
         <a href="{{ route('customer.login') }}" data-action="reservation-login"
            class="inline-block rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('account.actions.login_to_reserve') }}</a>
     @elseif ($product !== null && $canReserve)
-        <button type="button" @click="open = true" aria-haspopup="dialog" data-action="reservation"
-                class="rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.reservation') }}</button>
+        @if ($viaCart)
+            {{-- MR-03: the main button is «В резерв» (the cart); this link keeps the one-product form (SF-50). --}}
+            <button type="button" @click="open = true" aria-haspopup="dialog" data-action="reservation"
+                    class="self-center text-sm text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.reservation_single') }}</button>
+        @else
+            <button type="button" @click="open = true" aria-haspopup="dialog" data-action="reservation"
+                    class="rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.reservation') }}</button>
+        @endif
 
         <x-storefront.modal id="reservation-{{ $productId }}" :title="__('storefront_sales.reservation.title')">
             <form wire:submit="submit" class="space-y-4" novalidate>

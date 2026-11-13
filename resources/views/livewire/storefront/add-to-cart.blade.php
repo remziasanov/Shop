@@ -12,24 +12,24 @@
             @endif
             <button type="button" wire:click="add" wire:loading.attr="disabled" data-action="cart"
                     class="rounded bg-primary px-6 py-3 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">
-                <span x-text="current ? current.cartLabel : ''">{{ $actions->backorder ? __('sales.actions.backorder') : __('storefront.actions.cart') }}</span><span class="sr-only">: {{ $product->name }}</span>
+                <span x-text="current ? current.cartLabel : ''">{{ $cartLabel }}</span><span class="sr-only">: {{ $product->name }}</span>
             </button>
         </div>
         <button type="button" disabled x-cloak x-show="current && current.can.out" data-action="unavailable" class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500">{{ __('sales.actions.out_of_stock') }}</button>
     @elseif ($product !== null && $actions !== null)
-        @if ($actions->canAddToCart)
+        @if ($kind !== null)
             <div class="flex flex-wrap items-end gap-2">
                 @if ($showQty)
                     <div>
                         <label for="qty-{{ $productId }}" class="mb-1 block text-sm font-medium">{{ __('storefront_sales.add.qty') }}</label>
-                        <input id="qty-{{ $productId }}" type="number" inputmode="numeric" min="1" @if ($actions->maxQty !== null) max="{{ $actions->maxQty }}" @endif
+                        <input id="qty-{{ $productId }}" type="number" inputmode="numeric" min="1" @if (($limit = $actions->cartMaxQty($kind)) !== null) max="{{ $limit }}" @endif
                                wire:model="qty" wire:keydown.enter="add"
                                class="w-24 rounded border border-slate-300 px-3 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                     </div>
                 @endif
                 <button type="button" wire:click="add" wire:loading.attr="disabled" data-action="cart"
                         class="rounded bg-primary px-6 py-3 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">
-                    {{ $actions->backorder ? __('sales.actions.backorder') : __('storefront.actions.cart') }}<span class="sr-only">: {{ $product->name }}</span>
+                    {{ $cartLabel }}<span class="sr-only">: {{ $product->name }}</span>
                 </button>
             </div>
         @else
