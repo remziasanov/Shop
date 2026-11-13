@@ -7,6 +7,7 @@ namespace App\Livewire\Storefront;
 use App\Enums\AgeRestriction;
 use App\Exceptions\CartChangedException;
 use App\Exceptions\SalesException;
+use App\Livewire\Storefront\Concerns\HandlesPromoCode;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
 use App\Services\Access\ViewerContext;
@@ -26,6 +27,7 @@ use Livewire\Component;
  */
 class CheckoutForm extends Component
 {
+    use HandlesPromoCode;
     use RequiresOpenShop;
     use SalesFormSupport;
 
@@ -163,6 +165,7 @@ class CheckoutForm extends Component
                 ip: $this->clientIp(),
                 userAgent: $this->clientUserAgent(),
                 ageConfirmed: $this->ageConfirmed,
+                promoLinkId: $this->promoLinkId(),
             ));
         } catch (CartChangedException $e) {
             // SF-46: the cart was already corrected; the customer re-checks it and confirms again.
@@ -185,7 +188,9 @@ class CheckoutForm extends Component
         $customer = app(ViewerContext::class)->customer();
         $summary = $cart !== null ? $carts->summary($cart) : null;
         $selected = $methods->delivery($this->delivery);
-        $deliveryPrice = $selected !== null && $summary !== null ? $selected->priceFor($summary->itemsTotal) : 0;
+        $promo = $this->promoState($cart, $summary);
+        // PM-02: a free delivery code zeroes the price; PM-18: total = items - promo discount + delivery.
+        $deliveryPrice = $selected !== null && $summary !== null && ! $promo['freeDelivery'] ? $selected->priceFor($summary->itemsTotal) : 0;
 
         return view('livewire.storefront.checkout-form', [
             'summary' => $summary,
@@ -193,7 +198,8 @@ class CheckoutForm extends Component
             'payments' => $methods->payments(),
             'selectedDelivery' => $selected,
             'deliveryPrice' => $deliveryPrice,
-            'total' => ($summary !== null ? $summary->itemsTotal : 0) + $deliveryPrice,
+            'promo' => $promo,
+            'total' => ($summary !== null ? $summary->itemsTotal : 0) - $promo['discount'] + $deliveryPrice,
             'consentLink' => $this->consentLink(),
             'ageLevel' => $this->ageLevel(),
             'savedAddresses' => $customer !== null ? app(CustomerAddressService::class)->listFor($customer) : [],

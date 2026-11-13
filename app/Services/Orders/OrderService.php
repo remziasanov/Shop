@@ -25,6 +25,10 @@ use App\Services\Customers\EmailNormalizer;
 use App\Services\Pricing\Priceable;
 use App\Services\Pricing\PriceResolver;
 use App\Services\Pricing\ResolvedPrice;
+use App\Services\Promo\PromoLine;
+use App\Services\Promo\PromoRedemptionService;
+use App\Services\Promo\PromoResult;
+use App\Services\Promo\PromoViewer;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
 use App\Services\Stock\Stockable;
@@ -65,6 +69,7 @@ final class OrderService
         private readonly ViewerContext $viewer,
         private readonly OrderItemSnapshot $snapshots,
         private readonly PriceResolver $resolver,
+        private readonly PromoRedemptionService $promos,
     ) {}
 
     /**
@@ -96,7 +101,9 @@ final class OrderService
         // which a rolled back attempt discards, so a repeat is safe.
         $result = DB::transaction(function () use ($cart, $data, $phone, $delivery, $payment, $address): Order|array {
             // First lock of the transaction: a second checkout of the same cart waits here and then sees it empty.
-            if (Cart::query()->whereKey($cart->id)->lockForUpdate()->first() === null) {
+            $lockedCart = Cart::query()->whereKey($cart->id)->lockForUpdate()->first();
+
+            if ($lockedCart === null) {
                 throw new SalesException(__('sales.errors.cart_empty'));
             }
 
@@ -203,7 +210,30 @@ final class OrderService
                 ]));
             }
 
-            $deliveryPrice = $delivery->priceFor($itemsTotal);
+            // PM-11: the promo code is locked after the products and variants, validated again and counted atomically.
+            $promoViewer = PromoViewer::fromContext($this->viewer, $this->canonicalEmail($data->email), $phone);
+            $promo = null;
+
+            if ($lockedCart->promo_code !== null && $lockedCart->promo_code !== '') {
+                $promoLines = array_map(
+                    fn (array $line): PromoLine => PromoLine::make(self::promoKey($line['product'], $line['variant']), $line['product'], $line['variant']?->id, $line['qty'], $line['price'], PromoLine::oldPriceOf($line['resolved'])),
+                    $lines,
+                );
+                $promo = $this->promos->claim($lockedCart->promo_code, $promoLines, $promoViewer);
+
+                if (! $promo->isApplied()) {
+                    // Back to the cart with the reason; the code leaves the cart, nothing was counted.
+                    $lockedCart->promo_code = null;
+                    $lockedCart->promo_applied_manually = false;
+                    $lockedCart->save();
+
+                    return [(string) $promo->message];
+                }
+            }
+
+            $promoDiscount = $promo === null ? 0 : $promo->discount;
+            // PM-02: the free-delivery code zeroes the price over the «free from» rule of the method (SF-45).
+            $deliveryPrice = $promo?->freeDelivery ? 0 : $delivery->priceFor($itemsTotal);
 
             $order = $this->createRecord(OrderType::Order, [
                 'customer_name' => trim($data->name),
@@ -214,10 +244,20 @@ final class OrderService
                 'delivery_price' => Money::toRubles($deliveryPrice),
                 'payment_method' => $payment->name,
                 'items_total' => Money::toRubles($itemsTotal),
-                'total' => Money::toRubles($itemsTotal + $deliveryPrice),
+                // PM-18: items_total - promo_discount - manual_discount (0 at creation) + delivery_price.
+                'total' => Money::toRubles($itemsTotal - $promoDiscount + $deliveryPrice),
                 'customer_comment' => $this->blankToNull($data->comment),
                 'age_confirmed_level' => $ageLevel,
-            ], $data->ip, $data->userAgent, $lines);
+            ], $data->ip, $data->userAgent, $lines, [
+                'promo_code_id' => $promo?->code?->id,
+                'promo_code' => $promo?->code?->code,
+                'promo_discount' => Money::toRubles($promoDiscount),
+                'promo_link_id' => $this->promos->validLinkId($data->promoLinkId),
+            ], $promo);
+
+            if ($promo !== null) {
+                $this->promos->record($order, $promo, $promoViewer);
+            }
 
             $this->stock->deductForOrder($order);
             CartItem::query()->where('cart_id', $cart->id)->delete();
@@ -293,7 +333,10 @@ final class OrderService
                 'reserved_until' => $reservedUntil,
                 'desired_date' => $data->desiredDate?->copy()->startOfDay(),
                 'age_confirmed_level' => $ageLevel,
-            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price, 'resolved' => $resolved]]);
+            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price, 'resolved' => $resolved]], [
+                // PM-07, PM-24: no promo code, but the order is attributed to the promo link.
+                'promo_link_id' => $this->promos->validLinkId($data->promoLinkId),
+            ]);
 
             $this->stock->holdForReservation($order);
 
@@ -338,7 +381,9 @@ final class OrderService
                 'items_total' => $total,
                 'total' => $total,
                 'customer_comment' => $this->blankToNull($data->comment),
-            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price, 'resolved' => $resolved]]);
+            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price, 'resolved' => $resolved]], [
+                'promo_link_id' => $this->promos->validLinkId($data->promoLinkId),
+            ]);
 
             return $this->finishCreate($order);
         }, self::DEADLOCK_ATTEMPTS);
@@ -410,6 +455,12 @@ final class OrderService
             }
 
             $this->stock->settleForDeletion($fresh);
+
+            // A deleted active request gives its promo code back, like its stock (PM-12).
+            if (! $fresh->status->isFinal()) {
+                $this->promos->release($fresh);
+            }
+
             $this->history($fresh, $fresh->status, $fresh->status, $user, __('sales.history.deleted'));
             $fresh->delete();
         });
@@ -496,6 +547,11 @@ final class OrderService
                 default => null,
             };
 
+            // PM-12: the promo code goes back last (order, products, variants, promo code).
+            if (in_array($to, [OrderStatus::Cancelled, OrderStatus::Expired], true)) {
+                $this->promos->release($fresh);
+            }
+
             $fresh->status = $to;
             $fresh->save();
 
@@ -576,8 +632,9 @@ final class OrderService
     /**
      * @param  array<string, mixed>  $attributes
      * @param  list<array{product: Product, variant: ProductVariant|null, qty: int, price: int|null, resolved: ResolvedPrice|null}>  $lines
+     * @param  array<string, mixed>  $promoFields  promo snapshot and attribution (PM-18, PM-24), not mass-assignable
      */
-    private function createRecord(OrderType $type, array $attributes, string $ip, ?string $userAgent, array $lines): Order
+    private function createRecord(OrderType $type, array $attributes, string $ip, ?string $userAgent, array $lines, array $promoFields = [], ?PromoResult $promo = null): Order
     {
         $order = new Order($attributes);
         $order->uuid = (string) Str::uuid();
@@ -599,7 +656,7 @@ final class OrderService
         }
 
         $order->user_agent = $userAgent === null ? null : Str::limit($userAgent, 500, '');
-        $order->save();
+        $order->forceFill($promoFields)->save();
 
         foreach ($lines as $line) {
             // VR-12: the snapshot keeps the article, barcode and label of the variant even when it is deleted later.
@@ -611,10 +668,20 @@ final class OrderService
                 'price_source' => $line['resolved']?->source,
                 'tier_min_qty' => $line['resolved']?->tierMinQty,
                 'retail_price' => $line['resolved'] === null ? null : Money::toRubles($line['resolved']->retailPrice),
+                // PM-18: the share of the promo discount of this line.
+                'promo_discount' => Money::toRubles($promo?->discountFor(self::promoKey($line['product'], $line['variant'])) ?? 0),
             ]);
         }
 
         return $order->load('items');
+    }
+
+    /**
+     * The key of an order line in {@see PromoLine} and {@see PromoResult::$lineDiscounts}: card and variant id.
+     */
+    private static function promoKey(Product $product, ?ProductVariant $variant): string
+    {
+        return $product->id.':'.($variant === null ? 0 : $variant->id);
     }
 
     private function finishCreate(Order $order): Order

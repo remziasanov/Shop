@@ -103,6 +103,12 @@ final class CartMerger
             }
         }
 
+        // PM-07, 22.7: the promo code of the guest cart survives the merge unless the customer cart has its own.
+        if (($own->promo_code === null || $own->promo_code === '') && $guest->promo_code !== null && $guest->promo_code !== '') {
+            $own->promo_code = $guest->promo_code;
+            $own->promo_applied_manually = $guest->promo_applied_manually;
+        }
+
         $own->touch();
         Cart::query()->whereKey($guest->id)->delete();
     }

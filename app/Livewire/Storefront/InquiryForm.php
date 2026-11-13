@@ -102,6 +102,7 @@ class InquiryForm extends Component
                 consent: $this->consent,
                 ip: $this->clientIp(),
                 userAgent: $this->clientUserAgent(),
+                promoLinkId: $this->promoLinkId(),
             ), $this->selectedVariantId());
         } catch (SalesException $e) {
             $this->addError('form', $e->getMessage());

@@ -61,6 +61,10 @@
     @include('storefront.partials.header')
 
     <main id="content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
+        {{-- PM-22: a promo link that leads nowhere. --}}
+        @if (session('promo_link_notice'))
+            <p role="status" class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900" data-promo-link-notice>{{ session('promo_link_notice') }}</p>
+        @endif
         @yield('content')
     </main>
 

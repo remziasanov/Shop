@@ -23,5 +23,7 @@ final readonly class ReservationData
         public ?string $userAgent = null,
         /** AG-11: the «Мне исполнилось N лет» checkbox. */
         public bool $ageConfirmed = false,
+        /** PM-24: the promo link of the `shop_pl` cookie (last click). */
+        public ?int $promoLinkId = null,
     ) {}
 }

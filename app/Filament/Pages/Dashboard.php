@@ -10,6 +10,7 @@ use App\Filament\Widgets\LastImportWidget;
 use App\Filament\Widgets\LegalTemplatesWidget;
 use App\Filament\Widgets\NewCustomersWidget;
 use App\Filament\Widgets\ProductsStatsWidget;
+use App\Filament\Widgets\PromoTopWidget;
 use App\Filament\Widgets\RequestsChartWidget;
 use App\Filament\Widgets\RequestsStatsWidget;
 use App\Filament\Widgets\WholesaleApplicationsWidget;
@@ -73,6 +74,7 @@ class Dashboard extends BaseDashboard
             ProductsStatsWidget::class,
             RequestsChartWidget::class,
             LastImportWidget::class,
+            PromoTopWidget::class,
         ];
     }
 

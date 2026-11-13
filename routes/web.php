@@ -30,6 +30,7 @@ use App\Http\Controllers\Storefront\OrderThanksController;
 use App\Http\Controllers\Storefront\PageController;
 use App\Http\Controllers\Storefront\PriceListController;
 use App\Http\Controllers\Storefront\ProductController;
+use App\Http\Controllers\Storefront\PromoLinkController;
 use App\Http\Controllers\Storefront\RobotsController;
 use App\Http\Controllers\Storefront\SearchController;
 use App\Http\Controllers\Storefront\SearchSuggestController;
@@ -146,6 +147,9 @@ Route::get('/cart', [CartController::class, 'show'])->name('cart');
 Route::post('/cart/add', [CartController::class, 'add'])->middleware('throttle:60,1')->name('cart.add');
 Route::get('/checkout', CheckoutController::class)->name('checkout');
 Route::get('/order/{uuid}', OrderThanksController::class)->name('order.thanks');
+
+// Promo links (stage 13, PM-21…PM-25): 302 to an internal target, attribution and promo code cookies; noindex.
+Route::get('/go/{slug}', PromoLinkController::class)->where('slug', '[A-Za-z0-9-]{1,64}')->middleware('throttle:120,1')->name('promo-link');
 
 // Admin file endpoints (exports, import template): panel authentication, administrators and managers only.
 Route::middleware([FilamentAuthenticate::class])

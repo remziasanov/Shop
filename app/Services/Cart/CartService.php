@@ -18,6 +18,7 @@ use App\Services\Pricing\Priceable;
 use App\Services\Pricing\PriceBook;
 use App\Services\Pricing\PriceResolver;
 use App\Services\Pricing\ResolvedPrice;
+use App\Services\Promo\PromoLine;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
 use App\Services\Stock\Stockable;
@@ -469,7 +470,7 @@ final class CartService
             $total += $lineTotal;
             $changes = $changes || $priceChanged || $issue !== null;
 
-            $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $current, $lineTotal, $priceChanged, $unavailable, $actions->maxQty, $issue, $variant, $label, $unavailable ? null : $this->resolver->tierHint($resolved, $item->qty), $resolved->source, $resolved->tierMinQty);
+            $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $current, $lineTotal, $priceChanged, $unavailable, $actions->maxQty, $issue, $variant, $label, $unavailable ? null : $this->resolver->tierHint($resolved, $item->qty), $resolved->source, $resolved->tierMinQty, PromoLine::oldPriceOf($resolved));
         }
 
         $deliveries = [];

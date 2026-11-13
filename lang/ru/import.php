@@ -46,6 +46,7 @@ return [
     'export_types' => [
         'catalog' => 'Каталог',
         'orders' => 'Обращения',
+        'promo_batch' => 'Коды партии',
     ],
 
     'export_statuses' => [

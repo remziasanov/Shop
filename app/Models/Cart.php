@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $id
  * @property string $token
  * @property int|null $customer_id the owner of a customer cart (CA-15; unique); null for a guest cart (cookie token)
+ * @property string|null $promo_code PM-13: the applied promo code (normalized text)
+ * @property bool $promo_applied_manually PM-23: the customer typed the code (an auto-applied one removed by hand is not re-applied)
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property-read Collection<int, CartItem> $items
@@ -28,6 +30,14 @@ class Cart extends Model
     use HasFactory;
 
     protected $fillable = ['token'];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['promo_applied_manually' => 'boolean'];
+    }
 
     /**
      * @return BelongsTo<Customer, $this>

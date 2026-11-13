@@ -85,7 +85,16 @@
                                        wire:model.live.debounce.600ms="qtys.{{ $pid }}"
                                        class="w-20 rounded border border-slate-300 px-2 py-2 text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                             </div>
-                            <p class="w-28 text-right font-semibold">{{ \App\Support\Money::format($line->lineTotal) }}</p>
+                            @php($lineDiscount = $promo['applied'] ? $promo['result']->discountFor($line->item->id) : 0)
+                            <p class="w-28 text-right font-semibold" data-line-total>
+                                @if ($lineDiscount > 0)
+                                    {{-- PM-13: the price of the row before and after the promo code. --}}
+                                    <s class="block text-sm font-normal text-slate-500" data-line-old>{{ \App\Support\Money::format($line->lineTotal) }}</s>
+                                    <span data-line-new>{{ \App\Support\Money::format($line->lineTotal - $lineDiscount) }}</span>
+                                @else
+                                    {{ \App\Support\Money::format($line->lineTotal) }}
+                                @endif
+                            </p>
                         @endunless
                         <button type="button" wire:click="remove({{ $line->item->product_id }}, {{ $line->item->variant_key }})" class="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                                 aria-label="{{ __('storefront_sales.cart.remove_label', ['name' => $product?->name ?? '']) }}">
@@ -96,8 +105,24 @@
             </ul>
 
             <aside class="h-fit rounded-lg border border-slate-200 p-4" aria-label="{{ __('storefront_sales.checkout.your_order') }}">
-                <p class="flex justify-between text-lg font-semibold"><span>{{ __('storefront_sales.cart.items_total') }}</span> <span data-items-total>{{ \App\Support\Money::format($summary->itemsTotal) }}</span></p>
-                <p class="mt-1 text-sm text-slate-500">{{ __('storefront_sales.cart.delivery_hint') }}</p>
+                @php($promoShown = $promo['applied'] && ($promo['discount'] > 0 || $promo['freeDelivery']))
+                <p class="flex justify-between {{ $promoShown ? 'text-sm' : 'text-lg font-semibold' }}"><span>{{ __('storefront_sales.cart.items_total') }}</span> <span data-items-total>{{ \App\Support\Money::format($summary->itemsTotal) }}</span></p>
+                @if ($promoShown)
+                    @if ($promo['discount'] > 0)
+                        <p class="mt-1 flex justify-between text-sm text-emerald-800" data-promo-discount><span>{{ __('promo.box.discount', ['code' => $promo['code']]) }}</span> <span>−{{ \App\Support\Money::format($promo['discount']) }}</span></p>
+                    @endif
+                    @if ($promo['freeDelivery'])
+                        <p class="mt-1 flex justify-between text-sm text-emerald-800" data-promo-free-delivery><span>{{ __('storefront_sales.checkout.delivery_price') }}</span> <span>{{ __('promo.box.free_delivery') }}</span></p>
+                    @endif
+                    <p class="mt-2 flex justify-between border-t border-slate-200 pt-2 text-lg font-semibold"><span>{{ __('promo.box.total') }}</span> <span data-promo-total>{{ \App\Support\Money::format($summary->itemsTotal - $promo['discount']) }}</span></p>
+                @endif
+                @unless ($promo['freeDelivery'])
+                    <p class="mt-1 text-sm text-slate-500">{{ __('storefront_sales.cart.delivery_hint') }}</p>
+                @endunless
+
+                <div class="mt-3">
+                    @include('livewire.storefront.partials.promo-box')
+                </div>
 
                 @if ($summary->minOrderMissing > 0)
                     <p class="mt-3 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900" id="min-order-note" data-min-order>

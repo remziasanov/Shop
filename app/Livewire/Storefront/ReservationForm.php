@@ -130,6 +130,7 @@ class ReservationForm extends Component
                 ip: $this->clientIp(),
                 userAgent: $this->clientUserAgent(),
                 ageConfirmed: $this->ageConfirmed,
+                promoLinkId: $this->promoLinkId(),
             ), $this->selectedVariantId());
         } catch (SalesException $e) {
             $this->addError('form', $e->getMessage());

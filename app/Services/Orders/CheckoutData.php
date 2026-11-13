@@ -24,5 +24,7 @@ final readonly class CheckoutData
         public ?string $userAgent = null,
         /** AG-11: the «Мне исполнилось N лет» checkbox. */
         public bool $ageConfirmed = false,
+        /** PM-24: the promo link of the `shop_pl` cookie (last click), checked by the service. */
+        public ?int $promoLinkId = null,
     ) {}
 }

@@ -75,12 +75,27 @@
         @if ($summary !== null)
             <ul class="space-y-1 text-sm">
                 @foreach ($summary->lines as $line)
-                    <li class="flex justify-between gap-3"><span>{{ $line->product?->name }} × {{ $line->qty }}</span> <span class="flex-none">{{ \App\Support\Money::format($line->lineTotal) }}</span></li>
+                    @php($lineDiscount = $promo['applied'] ? $promo['result']->discountFor($line->item->id) : 0)
+                    <li class="flex justify-between gap-3"><span>{{ $line->product?->name }} × {{ $line->qty }}</span>
+                        <span class="flex-none text-right">
+                            @if ($lineDiscount > 0)
+                                <s class="block text-slate-500" data-line-old>{{ \App\Support\Money::format($line->lineTotal) }}</s>
+                                <span data-line-new>{{ \App\Support\Money::format($line->lineTotal - $lineDiscount) }}</span>
+                            @else
+                                {{ \App\Support\Money::format($line->lineTotal) }}
+                            @endif
+                        </span></li>
                 @endforeach
             </ul>
         @endif
+        @if ($summary !== null)
+            @include('livewire.storefront.partials.promo-box')
+        @endif
         <dl class="space-y-1 border-t border-slate-200 pt-3 text-sm" aria-live="polite">
             <div class="flex justify-between"><dt>{{ __('storefront_sales.cart.items_total') }}</dt><dd>{{ \App\Support\Money::format($summary !== null ? $summary->itemsTotal : 0) }}</dd></div>
+            @if ($promo['applied'] && $promo['discount'] > 0)
+                <div class="flex justify-between text-emerald-800" data-promo-discount><dt>{{ __('promo.box.discount', ['code' => $promo['code']]) }}</dt><dd>−{{ \App\Support\Money::format($promo['discount']) }}</dd></div>
+            @endif
             <div class="flex justify-between"><dt>{{ __('storefront_sales.checkout.delivery_price') }}</dt><dd data-delivery-price>{{ $deliveryPrice === 0 ? __('storefront_sales.checkout.free') : \App\Support\Money::format($deliveryPrice) }}</dd></div>
             <div class="flex justify-between border-t border-slate-200 pt-2 text-lg font-semibold"><dt>{{ __('storefront_sales.checkout.total') }}</dt><dd data-total>{{ \App\Support\Money::format($total) }}</dd></div>
         </dl>

@@ -28,8 +28,8 @@ final class RobotsBuilder
             $text = "User-agent: *\nDisallow: /cart\nDisallow: /checkout\nDisallow: /search";
         }
 
-        // The admin path is configurable (ADMIN_PATH): always keep it disallowed, plus the order pages.
-        $paths = [$admin, '/order/'];
+        // The admin path is configurable (ADMIN_PATH): always keep it disallowed, plus the order pages and the promo links (PM-22).
+        $paths = [$admin, '/order/', '/go/'];
 
         // CG-15: built for the «Гость» group; when it has no catalog section, crawlers are told to stay out of it.
         if (! $this->access->guest()->allowsSection(StorefrontSection::Catalog)) {

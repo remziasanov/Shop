@@ -44,6 +44,7 @@ class AdminPanelProvider extends PanelProvider
                 __('shop.navigation.sales'),
                 __('shop.navigation.catalog'),
                 __('shop.navigation.prices'),
+                __('promo_admin.navigation.group'),
                 __('shop.navigation.content'),
                 __('shop.navigation.settings'),
                 __('shop.navigation.system'),
