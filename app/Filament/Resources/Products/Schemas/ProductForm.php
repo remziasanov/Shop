@@ -8,6 +8,7 @@ use App\Enums\AgeRestriction;
 use App\Enums\AttributeType;
 use App\Enums\SalesMode;
 use App\Filament\Resources\PriceHistory\PriceHistoryResource;
+use App\Filament\Resources\Products\Support\GroupPricesEditor;
 use App\Filament\Resources\Products\Support\PhotoUpload;
 use App\Models\PriceHistory;
 use App\Models\Product;
@@ -60,6 +61,7 @@ final class ProductForm
                 ->tabs([
                     self::mainTab(),
                     self::priceTab(),
+                    self::groupPricesTab(),
                     self::stockTab(),
                     self::variantsTab(),
                     self::salesTab(),
@@ -170,6 +172,19 @@ final class ProductForm
                     ]),
                 ]),
             ]);
+    }
+
+    /**
+     * «Цены для групп» (GP-17): exact prices and quantity tiers per customer group. A card with variants has them on its
+     * variants (VR-20): the tab then only explains where to set them.
+     */
+    private static function groupPricesTab(): Tab
+    {
+        return Tab::make(__('admin_group_prices.tab.title'))
+            ->visibleOn('edit')
+            ->schema(fn (?Model $record): array => $record instanceof Product && $record->has_variants
+                ? [Text::make(__('admin_group_prices.tab.variants_notice'))]
+                : GroupPricesEditor::components(fn (): ?Product => $record instanceof Product ? $record : null));
     }
 
     private static function stockTab(): Tab
@@ -542,6 +557,7 @@ final class ProductForm
         }
 
         $rows = PriceHistory::query()
+            ->with('group:id,name')
             ->where('product_id', $record->id)
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -549,7 +565,7 @@ final class ProductForm
             ->get()
             ->map(fn (PriceHistory $row): array => [
                 'date' => $row->created_at?->format(AppServiceProvider::DATE_TIME_FORMAT) ?? '',
-                'field' => PriceHistoryResource::fieldLabel($row->field),
+                'field' => PriceHistoryResource::fieldLabel($row->field).($row->group !== null ? ' · '.$row->group->name.($row->min_qty !== null && $row->min_qty > 1 ? ', '.__('admin_group_prices.history.from_qty', ['qty' => $row->min_qty]) : '') : ''),
                 'change' => PriceHistoryResource::change($row),
                 'source' => $row->source->label(),
             ])

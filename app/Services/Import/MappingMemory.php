@@ -103,7 +103,7 @@ final class MappingMemory
 
     private function isValidTarget(?string $target): bool
     {
-        return $target === null || ImportField::tryFrom($target) !== null || ImportField::attributeName($target) !== null || ImportField::optionName($target) !== null;
+        return $target === null || ImportField::tryFrom($target) !== null || ImportField::attributeName($target) !== null || ImportField::optionName($target) !== null || ImportField::groupPriceTarget($target) !== null;
     }
 
     /**

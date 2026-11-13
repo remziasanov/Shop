@@ -106,6 +106,9 @@ final class RowImporter
 
     private ?VariantService $variantService = null;
 
+    /** Group price writer of the running chunk (GP-15): a fresh instance per chunk, like the other caches. */
+    private ?GroupPriceImporter $groupPrices = null;
+
     public function __construct(
         private readonly PriceChangeContext $context,
         private readonly HtmlSanitizer $sanitizer,
@@ -185,6 +188,7 @@ final class RowImporter
         $this->prepareAttributes($lines, $products, $attributeColumns, $issues, $warnings);
         $this->optionService = app(OptionService::class);
         $this->variantService = app(VariantService::class);
+        $this->groupPrices = app(GroupPriceImporter::class);
 
         foreach ($lines as $line) {
             $row = (int) ($line['row'] ?? 0);
@@ -277,6 +281,7 @@ final class RowImporter
                 $saved = $product === null
                     ? $this->create($values, $fileAttributes, $options, $resolver)
                     : $this->update($product, $values, $fileAttributes, $attributeColumns, $options, $resolver, $changed);
+                $groupWarnings = $this->writeGroupPrices($saved, $values, $options, $changed);
                 DB::commit();
             } catch (ImportRowException|CategoryTreeException|AttributeException|UniqueConstraintViolationException|InvalidArgumentException $e) {
                 DB::rollBack();
@@ -298,6 +303,11 @@ final class RowImporter
 
             $touched[$saved->id] = $saved->id;
             $products[mb_strtolower($sku, 'UTF-8')] = $saved;
+
+            foreach ($groupWarnings as $message) {
+                $issues->add($row, ImportIssueLevel::Warning, null, $message, $sku);
+                $warnings++;
+            }
 
             $photos = $values['photos'] ?? [];
             $hasPhotos = $options->photoMode !== PhotoMode::Skip && $options->mode !== ImportMode::PricesStock && is_array($photos) && $photos !== [];
@@ -879,7 +889,9 @@ final class RowImporter
                 $this->variantService->update($variant, $data);
             }
 
-            return ['status' => $data === [] ? 'unchanged' : 'updated', 'card_id' => $card->id, 'task' => null];
+            $groupsChanged = $this->writeVariantGroupPrices($variant, $values, $options, $row, $sku, $issues, $warnings);
+
+            return ['status' => $data === [] && ! $groupsChanged ? 'unchanged' : 'updated', 'card_id' => $card->id, 'task' => null];
         }
 
         [$resolved, $colorValueId] = $this->resolveOptions($cells);
@@ -888,7 +900,8 @@ final class RowImporter
         $valueIds = array_map(fn (int $typeId): int => $resolved[$typeId], $axisIds);
 
         if ($variant === null) {
-            $this->variantService->create($card, $this->variantCreateData($values, $sku, $valueIds));
+            $created = $this->variantService->create($card, $this->variantCreateData($values, $sku, $valueIds));
+            $this->writeVariantGroupPrices($created, $values, $options, $row, $sku, $issues, $warnings);
             $status = 'created';
         } else {
             $restored = false;
@@ -904,7 +917,8 @@ final class RowImporter
                 $this->variantService->update($variant, $data);
             }
 
-            $status = $data !== [] || $restored ? 'updated' : 'unchanged';
+            $groupsChanged = $this->writeVariantGroupPrices($variant, $values, $options, $row, $sku, $issues, $warnings);
+            $status = $data !== [] || $restored || $groupsChanged ? 'updated' : 'unchanged';
         }
 
         $task = null;
@@ -920,6 +934,57 @@ final class RowImporter
         }
 
         return ['status' => $status, 'card_id' => $card->id, 'task' => $task];
+    }
+
+    /**
+     * Group prices of a product row (GP-15) inside the row's transaction.
+     *
+     * @param  array<string, mixed>  $values
+     * @param  bool  $changed  by reference: set when the prices changed
+     * @return list<string> warnings of the saved sets
+     *
+     * @throws ImportRowException
+     */
+    private function writeGroupPrices(Product $product, array $values, ImportOptions $options, bool &$changed): array
+    {
+        $cells = array_values((array) ($values['group_prices'] ?? []));
+
+        if ($cells === [] || $this->groupPrices === null) {
+            return [];
+        }
+
+        $result = $this->groupPrices->apply($product, $cells, $options->emptyCellPolicy === EmptyCellPolicy::Clear);
+        $changed = $changed || $result['changed'];
+
+        return $result['warnings'];
+    }
+
+    /**
+     * Group prices of a variant row (GP-15); the warnings become row warnings.
+     *
+     * @param  array<string, mixed>  $values
+     * @return bool whether the prices changed
+     *
+     * @throws ImportRowException
+     */
+    private function writeVariantGroupPrices(ProductVariant $variant, array $values, ImportOptions $options, int $row, string $sku, IssueBatch $issues, int &$warnings): bool
+    {
+        $cells = array_values((array) ($values['group_prices'] ?? []));
+
+        if ($cells === [] || $this->groupPrices === null) {
+            return false;
+        }
+
+        // The variant row may have changed its prices: the tiers are validated against the current retail price.
+        $variant->refresh();
+        $result = $this->groupPrices->apply($variant, $cells, $options->emptyCellPolicy === EmptyCellPolicy::Clear);
+
+        foreach ($result['warnings'] as $message) {
+            $issues->add($row, ImportIssueLevel::Warning, null, $message, $sku);
+            $warnings++;
+        }
+
+        return $result['changed'];
     }
 
     /**

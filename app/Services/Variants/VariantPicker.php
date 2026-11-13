@@ -6,8 +6,11 @@ namespace App\Services\Variants;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\Access\ViewerContext;
 use App\Services\Catalog\ProductPresenter;
+use App\Services\Pricing\ViewerPrices;
 use App\Settings\CatalogSettings;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -21,6 +24,8 @@ final class VariantPicker
     public function __construct(
         private readonly ProductPresenter $presenter,
         private readonly CatalogSettings $settings,
+        private readonly ViewerPrices $prices,
+        private readonly ViewerContext $viewer,
     ) {}
 
     /**
@@ -79,8 +84,11 @@ final class VariantPicker
         $records = [];
         $offers = [];
 
+        // GP-10: tiers and group prices of all variants of the card at once; GP-20: none for a group that sees no prices.
+        $book = $product->price_on_request || ! $this->viewer->access()->showsPrices() ? null : $this->prices->preload($variants, $this->viewer->group());
+
         foreach ($variants as $variant) {
-            $state = $this->presenter->variantState($product, $variant);
+            $state = $this->presenter->variantState($product, $variant, $book);
             $can = ($state['can']['cart'] ? VariantPickerData::CAN_CART : 0)
                 | ($state['can']['reserve'] ? VariantPickerData::CAN_RESERVE : 0)
                 | ($state['can']['inquire'] ? VariantPickerData::CAN_INQUIRE : 0)
@@ -100,10 +108,13 @@ final class VariantPicker
                 'c' => $can,
                 'm' => $state['max'],
                 'bo' => $state['backorder'] ? 1 : 0,
-            ];
+            ] + ($state['kop'] !== null ? ['k' => $state['kop']] : [])
+              + ($state['tiers'] !== [] ? ['t' => $state['tiers']] : [])
+              + ($state['retail'] !== null ? ['r' => $state['retail']] : []);
 
             $offers[] = [
-                'price' => (string) $variant->final_price,
+                // The offer carries the viewer's price (the page of a group is private); a group without prices has none to hide.
+                'price' => $state['kop'] !== null ? Money::toRubles($state['kop']) : (string) $variant->final_price,
                 'available' => ! $state['can']['out'],
                 'backorder' => $state['backorder'],
                 'sku' => $variant->sku,

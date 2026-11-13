@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\Products\Pages;
 
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\Products\Support\GroupPricesEditor;
 use App\Filament\Resources\Products\Support\MapsProductFormData;
 use App\Filament\Resources\Products\Support\VariantSwitchActions;
 use App\Filament\Resources\Products\Tables\ProductsTable;
@@ -62,7 +63,17 @@ class EditProduct extends EditRecord
         $product = $this->getRecord();
         $this->rememberLoadedStock($product);
 
-        return $this->fillSpecs($product, $data);
+        $data = $this->fillSpecs($product, $data);
+
+        return $product->has_variants ? $data : $data + GroupPricesEditor::fillState($product);
+    }
+
+    protected function beforeSave(): void
+    {
+        /** @var Product $product */
+        $product = $this->getRecord();
+
+        $this->validateGroupPrices($product);
     }
 
     protected function afterSave(): void
@@ -71,6 +82,12 @@ class EditProduct extends EditRecord
         $product = $this->getRecord();
 
         $this->applyStockField($product);
+        $this->notifyGroupPriceWarnings();
+
+        if ($this->groupPrices !== null && ! $product->has_variants) {
+            // The rows are shown as they were stored (sorted, normalized).
+            $this->data = array_merge($this->data, GroupPricesEditor::fillState($product));
+        }
     }
 
     /**

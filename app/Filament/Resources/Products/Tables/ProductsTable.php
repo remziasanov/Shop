@@ -9,6 +9,7 @@ use App\Enums\SalesMode;
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\Products\Support\BulkPriceChangeAction;
 use App\Filament\Resources\Products\Support\ExportSelectedAction;
+use App\Filament\Resources\Products\Support\GroupPriceBulkAction;
 use App\Filament\Resources\Products\Support\RemoveAttributeBulkAction;
 use App\Filament\Resources\Products\Support\SetAttributeBulkAction;
 use App\Models\Product;
@@ -390,6 +391,7 @@ final class ProductsTable
             SetAttributeBulkAction::make(),
             RemoveAttributeBulkAction::make(),
             BulkPriceChangeAction::make(),
+            GroupPriceBulkAction::make(),
             ExportSelectedAction::make(),
             DeleteBulkAction::make()->chunkSelectedRecords(self::CHUNK),
             RestoreBulkAction::make()->chunkSelectedRecords(self::CHUNK),

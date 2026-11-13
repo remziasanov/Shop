@@ -228,7 +228,7 @@ final class ViewerContext
         $previewId = $this->previewGroupId();
 
         if ($previewId !== null) {
-            $group = CustomerGroup::query()->find($previewId);
+            $group = CustomerGroup::query()->withPriceData()->find($previewId);
 
             if ($group !== null) {
                 return $group;
@@ -238,7 +238,7 @@ final class ViewerContext
         $customer = $this->customer();
 
         if ($customer !== null) {
-            $group = CustomerGroup::query()->find($customer->customer_group_id);
+            $group = CustomerGroup::query()->withPriceData()->find($customer->customer_group_id);
 
             // CG-16: a deactivated group sends its customers to «Розница».
             return $group !== null && $group->is_active ? $group : CustomerGroup::retail();

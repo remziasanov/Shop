@@ -22,6 +22,9 @@ final class ColumnMapper
     /** Matches «Опция: Цвет», «Вариант: Цвет» and «Option: Цвет» (VR-16). */
     private const OPTION_PATTERN = '/^\s*(?:опция|вариант|option)\s*:\s*(.*?)\s*$/iu';
 
+    /** Matches «Цена: opt», «Цена: opt от 10», «price: opt from 10» (GP-15): the group code and the optional quantity. */
+    private const GROUP_PRICE_PATTERN = '/^\s*(?:цена|price)\s*:\s*([a-z0-9][a-z0-9-]*)(?:\s+(?:от|from)\s+(\d{1,9}))?\s*$/iu';
+
     /** @var array<string, string>|null normalized synonym => ImportField key */
     private ?array $productLookup = null;
 
@@ -122,6 +125,7 @@ final class ColumnMapper
         $values = [];
         $attributes = [];
         $options = [];
+        $groupPrices = [];
 
         foreach ($mapping as $index => $target) {
             if ($target === null || $target === '') {
@@ -129,6 +133,14 @@ final class ColumnMapper
             }
 
             $cell = $row[(int) $index] ?? null;
+            $groupPrice = ImportField::groupPriceTarget($target);
+
+            if ($groupPrice !== null) {
+                $groupPrices[] = ['key' => $target, 'code' => $groupPrice['code'], 'qty' => $groupPrice['qty'], 'value' => $cell === null || trim($cell) === '' ? null : trim($cell)];
+
+                continue;
+            }
+
             $optionName = ImportField::optionName($target);
 
             if ($optionName !== null) {
@@ -152,7 +164,7 @@ final class ColumnMapper
             $values[$target] = $cell === '' ? null : $cell;
         }
 
-        return new MappedRow($values, $attributes, $options);
+        return new MappedRow($values, $attributes, $options, $groupPrices);
     }
 
     /**
@@ -213,10 +225,38 @@ final class ColumnMapper
     }
 
     /**
+     * Mapping value of a group price header («Цена: opt от 10» => "gp:opt:10"), null when it is not one (GP-15).
+     */
+    public static function groupPriceKeyFromHeader(string $header): ?string
+    {
+        if (preg_match(self::GROUP_PRICE_PATTERN, $header, $m) !== 1) {
+            return null;
+        }
+
+        return ImportField::groupPriceKey($m[1], isset($m[2]) ? (int) $m[2] : null);
+    }
+
+    /**
+     * Header of a group price column as the export writes it: «Цена: opt», «Цена: opt от 10».
+     */
+    public static function groupPriceHeader(string $code, ?int $qty = null): string
+    {
+        return $qty === null || $qty <= 1
+            ? __('admin_group_prices.import.column', ['code' => $code])
+            : __('admin_group_prices.import.column_tier', ['code' => $code, 'qty' => $qty]);
+    }
+
+    /**
      * Human-readable label of a mapping target for messages.
      */
     public static function fieldLabel(string $target): string
     {
+        $groupPrice = ImportField::groupPriceTarget($target);
+
+        if ($groupPrice !== null) {
+            return self::groupPriceHeader($groupPrice['code'], $groupPrice['qty']);
+        }
+
         $option = ImportField::optionName($target);
 
         if ($option !== null) {
@@ -238,6 +278,12 @@ final class ColumnMapper
 
         if ($option !== null) {
             return ImportField::optionKey($option);
+        }
+
+        $groupPrice = self::groupPriceKeyFromHeader($header);
+
+        if ($groupPrice !== null) {
+            return $groupPrice;
         }
 
         $name = self::attributeNameFromHeader($header);

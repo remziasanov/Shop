@@ -28,6 +28,7 @@ use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
 use App\Http\Controllers\Storefront\OrderThanksController;
 use App\Http\Controllers\Storefront\PageController;
+use App\Http\Controllers\Storefront\PriceListController;
 use App\Http\Controllers\Storefront\ProductController;
 use App\Http\Controllers\Storefront\RobotsController;
 use App\Http\Controllers\Storefront\SearchController;
@@ -122,6 +123,9 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         Route::post('/security/delete/confirm', [SecurityController::class, 'confirmDeletion'])->name('customer.security.delete.confirm');
         Route::post('/security/delete/resend', [SecurityController::class, 'resendDeletionCode'])->name('customer.security.delete.resend');
 
+        // CG-17: the wholesale price list of the customer's group, 10 downloads per hour.
+        Route::get('/price-list', [PriceListController::class, 'account'])->middleware('throttle:10,60')->name('customer.price-list');
+
         // CG-20: wholesale access application (stage 9, part B).
         Route::post('/wholesale', [WholesaleApplicationController::class, 'store'])->name('customer.wholesale.store');
     });
@@ -129,6 +133,9 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
     // CG-20: a guest sees an invitation to register, a signed-in customer the application form or its status.
     Route::get('/wholesale', [WholesaleApplicationController::class, 'show'])->name('customer.wholesale');
 });
+
+// CG-17: the price list of «Гость», only while that group sees the section; 10 downloads per hour.
+Route::get('/price-list.xlsx', [PriceListController::class, 'guest'])->middleware('throttle:10,60')->name('price-list.guest');
 
 // CG-18: staff look at the storefront as a customer group (a flag of the staff session, not a customer login); POST so that CSRF protects it.
 Route::post('/preview-as/exit', [ViewerPreviewController::class, 'exit'])->name('viewer.preview.exit');

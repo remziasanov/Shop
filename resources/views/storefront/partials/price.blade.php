@@ -12,6 +12,10 @@
                 <s class="text-sm text-slate-500"><span class="sr-only">{{ __('storefront.labels.sale') }}:</span> {{ $view->oldPrice }}</s>
                 <span class="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">{{ __('storefront.product.discount', ['percent' => $view->discount]) }}</span>
             @endif
+            @if ($view->retailPrice)
+                {{-- GP-09: the retail price of a group with «показывать розничную цену». --}}
+                <s class="text-sm text-slate-500" data-retail-price><span class="sr-only">{{ __('group_prices.retail_price') }}:</span> {{ $view->retailPrice }}</s>
+            @endif
         </p>
     @endif
 </div>

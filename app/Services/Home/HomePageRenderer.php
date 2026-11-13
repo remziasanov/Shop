@@ -14,6 +14,7 @@ use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\ProductPresenter;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Media\ImageProcessor;
+use App\Services\Pricing\GroupPriceSql;
 use App\Settings\AppearanceSettings;
 use App\Settings\HomePageSettings;
 use Illuminate\Database\Eloquent\Builder;
@@ -332,7 +333,8 @@ final class HomePageRenderer
                 $query->where('is_new', true);
                 break;
             case 'discounted':
-                $query->whereNotNull('display_old_price');
+                // GP-09: the old price is the viewer's own.
+                $query->whereRaw('('.GroupPriceSql::oldPrice($this->viewerGroupId()).') IS NOT NULL');
                 break;
             case 'category':
                 $categoryId = (int) ($data['category_id'] ?? 0);
@@ -378,11 +380,21 @@ final class HomePageRenderer
     private function sort(Builder $query, string $sort, bool $manual): void
     {
         match ($sort) {
-            'price_asc' => $query->orderBy('final_price')->orderBy('id'),
-            'price_desc' => $query->orderByDesc('final_price')->orderBy('id'),
+            'price_asc' => $query->orderByRaw(GroupPriceSql::price($this->viewerGroupId()).' asc')->orderBy('id'),
+            'price_desc' => $query->orderByRaw(GroupPriceSql::price($this->viewerGroupId()).' desc')->orderBy('id'),
             'new' => $query->orderByDesc('is_new')->orderByDesc('created_at')->orderByDesc('id'),
             default => $manual ? $query->orderBy('id') : $query->orderBy('sort_order')->orderByDesc('created_at')->orderByDesc('id'),
         };
+    }
+
+    /**
+     * The viewer's group for price sorting (GP-08); null for a group that is not stored.
+     */
+    private function viewerGroupId(): ?int
+    {
+        $group = app(ViewerContext::class)->group();
+
+        return $group->exists ? $group->id : null;
     }
 
     /**

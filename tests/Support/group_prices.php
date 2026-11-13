@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Models\ProductPriceTier;
@@ -9,6 +10,7 @@ use App\Models\ProductVariant;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
 
 /**
  * A product with a base price (no rules, no rounding): final_price equals it.
@@ -70,4 +72,47 @@ function gpRow(Product|ProductVariant|null $item, CustomerGroup $group): ?array
 function gpUniqueIndexes(string $table): array
 {
     return collect(Schema::getIndexes($table))->filter(fn (array $index): bool => $index['unique'] && ! $index['primary'])->map(fn (array $index): array => $index['columns'])->values()->all();
+}
+
+/**
+ * Makes the following requests of the test come from a signed-in customer of the group.
+ */
+function gpSignInAs(TestCase $test, CustomerGroup $group): Customer
+{
+    return signInCustomer($test, makeCustomer(['customer_group_id' => $group->id]));
+}
+
+/**
+ * Names of the cards of an HTML page in the order they are listed (links `>name</a>`).
+ *
+ * @param  list<string>  $names
+ * @return list<string>
+ */
+function gpListedNames(string $html, array $names): array
+{
+    $positions = [];
+
+    foreach ($names as $name) {
+        $position = strpos($html, '>'.$name.'</a>');
+
+        if ($position !== false) {
+            $positions[$position] = $name;
+        }
+    }
+
+    ksort($positions);
+
+    return array_values($positions);
+}
+
+/**
+ * The embedded JSON of the variant picker of a product page.
+ *
+ * @return array<string, mixed>
+ */
+function gpVariantData(string $html): array
+{
+    preg_match('#<script type="application/json" id="variant-data">(.*?)</script>#s', $html, $match);
+
+    return json_decode($match[1] ?? '{}', true, 512, JSON_THROW_ON_ERROR);
 }

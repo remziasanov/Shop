@@ -114,6 +114,30 @@ class CustomerGroup extends Model
     }
 
     /**
+     * Loads the `has_price_data` flag with the group row (no extra query, GP-08): whether the group has any tiers or
+     * stored group prices. The storefront reads the viewer's group once per request and uses the flag to skip every price
+     * query for a group that pays the retail price.
+     *
+     * @param  Builder<CustomerGroup>  $query
+     */
+    public function scopeWithPriceData(Builder $query): void
+    {
+        $table = $query->qualifyColumn('id');
+
+        $query->select($query->qualifyColumn('*'))->selectRaw(
+            '(exists (select 1 from product_group_prices_final gp where gp.customer_group_id = '.$table.') or exists (select 1 from product_price_tiers pt where pt.customer_group_id = '.$table.')) as has_price_data',
+        );
+    }
+
+    /**
+     * The `has_price_data` flag when the group was loaded with {@see scopeWithPriceData()}, otherwise null (unknown).
+     */
+    public function hasPriceDataFlag(): ?bool
+    {
+        return array_key_exists('has_price_data', $this->attributes) ? (bool) $this->attributes['has_price_data'] : null;
+    }
+
+    /**
      * Price rules bound to the group (GP-04).
      *
      * @return BelongsToMany<PriceRule, $this>
@@ -139,12 +163,12 @@ class CustomerGroup extends Model
      */
     public static function guest(): self
     {
-        return self::query()->where('code', self::GUEST)->first() ?? self::fallback(self::GUEST, 'Гость');
+        return self::query()->withPriceData()->where('code', self::GUEST)->first() ?? self::fallback(self::GUEST, 'Гость');
     }
 
     public static function retail(): self
     {
-        return self::query()->where('code', self::RETAIL)->first() ?? self::fallback(self::RETAIL, 'Розница');
+        return self::query()->withPriceData()->where('code', self::RETAIL)->first() ?? self::fallback(self::RETAIL, 'Розница');
     }
 
     /**

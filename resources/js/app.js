@@ -194,6 +194,63 @@ document.addEventListener('alpine:init', () => {
     const Alpine = window.Alpine;
 
     /**
+     * Money like Money::format() on the server: «1 290,50 ₽» with a narrow no-break space between thousands (GP-10).
+     */
+    const formatKopecks = (kopecks) => {
+        const rubles = String(Math.floor(kopecks / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
+        const fraction = kopecks % 100;
+
+        return rubles + (fraction ? ',' + String(fraction).padStart(2, '0') : '') + '\u00A0\u20BD';
+    };
+
+    /** Unit price for a quantity: the last tier [min_qty, kopecks] reached, otherwise the base price (GP-10). */
+    const tierUnit = (base, tiers, qty) => tiers.reduce((price, [min, tierPrice]) => (min <= qty ? tierPrice : price), base);
+
+    /** The quantity typed into the quantity field of the buy block (`qty-{product}`), or null for other fields. */
+    const typedQty = (event) => {
+        const field = event.target;
+
+        if (!(field instanceof HTMLInputElement) || !field.id.startsWith('qty-')) {
+            return null;
+        }
+
+        const qty = parseInt(field.value, 10);
+
+        return Number.isFinite(qty) && qty >= 1 ? qty : 1;
+    };
+
+    /**
+     * Quantity tiers of the product page of a card without variants (GP-10): the unit price and the total follow the
+     * quantity field; the data hold the viewer group's tiers only. Cards with variants use `variantPicker` instead.
+     */
+    Alpine.data('tierPrice', (base, tiers) => ({
+        base,
+        tiers,
+        qty: 1,
+        format: formatKopecks,
+
+        unit() {
+            return tierUnit(this.base, this.tiers, this.qty);
+        },
+
+        total() {
+            return this.unit() * this.qty;
+        },
+
+        onQty(event) {
+            const qty = typedQty(event);
+
+            if (qty !== null) {
+                this.qty = qty;
+            }
+        },
+
+        reset() {
+            this.qty = 1;
+        },
+    }));
+
+    /**
      * Variant picker of the product page (VR-09, VR-10): reads the variants from <script id="variant-data"> and keeps one
      * selected value per axis. Choosing a value changes price, availability, article, buttons and photos locally, with no
      * request; the address gets `?variant=` through history.replaceState (the canonical link stays the card).
@@ -206,6 +263,8 @@ document.addEventListener('alpine:init', () => {
         selection: {},
         colorType: null,
         current: null,
+        qty: 1,
+        format: formatKopecks,
 
         init() {
             const data = JSON.parse(document.getElementById('variant-data')?.textContent ?? '{}');
@@ -239,6 +298,9 @@ document.addEventListener('alpine:init', () => {
                 p: variant.p,
                 o: variant.o,
                 d: variant.d,
+                k: variant.k ?? null,
+                t: variant.t ?? [],
+                r: variant.r ?? null,
                 s: variant.s,
                 st: variant.st,
                 max: variant.m,
@@ -292,6 +354,27 @@ document.addEventListener('alpine:init', () => {
 
             candidates.sort((a, b) => (((a.c & 8) > 0) - ((b.c & 8) > 0)) || (score(b) - score(a)));
             this.apply(candidates[0]);
+        },
+
+        /** GP-10: unit price in kopecks of the selected variant for the typed quantity (null without group prices). */
+        unitKop() {
+            return this.current && this.current.k !== null ? tierUnit(this.current.k, this.current.t, this.qty) : null;
+        },
+
+        totalKop() {
+            return this.unitKop() === null ? null : this.unitKop() * this.qty;
+        },
+
+        onQty(event) {
+            const qty = typedQty(event);
+
+            if (qty !== null) {
+                this.qty = qty;
+            }
+        },
+
+        resetQty() {
+            this.qty = 1;
         },
 
         /** Shaded: choosing this value (other axes unchanged) gives a variant without stock or none at all. */

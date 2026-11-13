@@ -104,6 +104,14 @@ final class ImportTemplateBuilder
             __('export.template.option_format'),
         ]);
 
+        // GP-15: group prices.
+        $book->row([
+            __('admin_group_prices.import.template.name'),
+            __('export.template.required.no'),
+            __('admin_group_prices.import.template.synonyms'),
+            __('admin_group_prices.import.template.format'),
+        ]);
+
         $book->row([]);
         $book->row([__('export.template.categories_heading'), null, null, __('export.template.categories_note')]);
 

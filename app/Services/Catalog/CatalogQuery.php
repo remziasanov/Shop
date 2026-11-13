@@ -8,6 +8,7 @@ use App\Enums\CatalogSort;
 use App\Enums\StorefrontSection;
 use App\Models\Product;
 use App\Services\Access\ViewerContext;
+use App\Services\Pricing\GroupPriceSql;
 use App\Settings\AppearanceSettings;
 use App\Settings\SalesSettings;
 use App\Support\Money;
@@ -111,14 +112,19 @@ final class CatalogQuery
             $query->where('price_on_request', false);
         }
 
+        // GP-08: the range is checked against the price of the viewer's group.
+        $groupId = $this->groupId();
+
         if ($filters->priceFrom !== null) {
-            // VR-07: a card with variants spans `final_price` … `final_price_max`; it matches when its dearest variant reaches the bound.
+            // VR-07: a card with variants spans its cheapest … dearest variant; it matches when its dearest variant reaches the bound.
             $from = Money::toRubles($filters->priceFrom);
-            $query->where(fn (Builder $price) => $price->where('final_price', '>=', $from)->orWhere('final_price_max', '>=', $from));
+            $query->where(fn (Builder $price) => $price
+                ->whereRaw(GroupPriceSql::price($groupId).' >= CAST(? AS DECIMAL(12,2))', [$from])
+                ->orWhereRaw(GroupPriceSql::variantAtLeast($groupId), [$from]));
         }
 
         if ($filters->priceTo !== null) {
-            $query->where('final_price', '<=', Money::toRubles($filters->priceTo));
+            $query->whereRaw(GroupPriceSql::price($groupId).' <= CAST(? AS DECIMAL(12,2))', [Money::toRubles($filters->priceTo)]);
         }
 
         if ($filters->inStock && $this->sales->stock_tracking) {
@@ -138,7 +144,7 @@ final class CatalogQuery
                     match ($flag) {
                         CatalogFilters::FLAG_HIT => $flags->orWhere('is_featured', true),
                         CatalogFilters::FLAG_NEW => $flags->orWhere('is_new', true),
-                        CatalogFilters::FLAG_SALE => $flags->orWhereNotNull('display_old_price'),
+                        CatalogFilters::FLAG_SALE => $flags->orWhereRaw('('.GroupPriceSql::oldPrice($this->groupId()).') IS NOT NULL'),
                         default => null,
                     };
                 }
@@ -155,11 +161,21 @@ final class CatalogQuery
     {
         match ($sort) {
             CatalogSort::Default => $query->orderBy('sort_order')->orderByDesc('created_at')->orderByDesc('id'),
-            CatalogSort::PriceAsc => $query->orderBy('final_price')->orderBy('id'),
-            CatalogSort::PriceDesc => $query->orderByDesc('final_price')->orderBy('id'),
+            CatalogSort::PriceAsc => $query->orderByRaw(GroupPriceSql::price($this->groupId()).' asc')->orderBy('id'),
+            CatalogSort::PriceDesc => $query->orderByRaw(GroupPriceSql::price($this->groupId()).' desc')->orderBy('id'),
             CatalogSort::Name => $query->orderBy('name')->orderBy('id'),
             CatalogSort::New => $query->orderByDesc('is_new')->orderByDesc('created_at')->orderByDesc('id'),
         };
+    }
+
+    /**
+     * The id of the viewer's group for the price expressions (GP-08); null for a group that is not stored.
+     */
+    private function groupId(): ?int
+    {
+        $group = $this->viewer->group();
+
+        return $group->exists ? $group->id : null;
     }
 
     /**

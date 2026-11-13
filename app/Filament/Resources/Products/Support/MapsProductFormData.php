@@ -8,6 +8,7 @@ use App\Exceptions\AttributeException;
 use App\Models\Product;
 use App\Services\Catalog\ProductAttributeEditor;
 use App\Services\Content\HtmlSanitizer;
+use App\Services\Pricing\GroupPriceEditor;
 use App\Services\Stock\StockService;
 use App\Services\Variants\SkuGuard;
 use Closure;
@@ -37,6 +38,20 @@ trait MapsProductFormData
      * @var list<array<string, mixed>>|null
      */
     protected ?array $typedSpecs = null;
+
+    /**
+     * Rows of the «Цены для групп» tab of the submitted form by group key (GP-17); null when the tab was not submitted.
+     *
+     * @var array<string, mixed>|null
+     */
+    protected ?array $groupPrices = null;
+
+    /**
+     * Warnings (GP-14) of the group prices saved by the last save, shown after it.
+     *
+     * @var list<string>
+     */
+    protected array $groupPriceWarnings = [];
 
     /**
      * The form was filled in the legacy JSON mode (FL-04). The mode is decided again on every request, so after the
@@ -73,6 +88,10 @@ trait MapsProductFormData
                     app(ProductAttributeEditor::class)->save($record, $this->typedSpecs);
                 }
 
+                if ($this->groupPrices !== null && $record instanceof Product && ! $record->has_variants) {
+                    $this->groupPriceWarnings = app(GroupPriceEditor::class)->save($record, $this->groupPrices);
+                }
+
                 return $record;
             });
         } catch (AttributeException $e) {
@@ -91,6 +110,38 @@ trait MapsProductFormData
 
             throw new Halt;
         }
+    }
+
+    /**
+     * Refuses the save with form errors on the «Цены для групп» tab when a set of rows is invalid (GP-14); warnings do
+     * not block and are shown after the save.
+     */
+    protected function validateGroupPrices(Product $product): void
+    {
+        // `beforeSave` runs before the state is dehydrated into `$this->groupPrices`: read the raw state.
+        $rows = $this->form->getRawState()[GroupPricesEditor::STATE] ?? null;
+
+        if (! is_array($rows) || $product->has_variants) {
+            return;
+        }
+
+        $exception = GroupPricesEditor::errors($product, $rows);
+
+        if ($exception !== null) {
+            Notification::make()->danger()->title(__('admin_group_prices.editor.invalid'))->body(collect($exception->errors())->flatten()->implode("\n"))->send();
+
+            throw $exception;
+        }
+    }
+
+    protected function notifyGroupPriceWarnings(): void
+    {
+        if ($this->groupPriceWarnings === []) {
+            return;
+        }
+
+        Notification::make()->warning()->title(__('admin_group_prices.editor.saved_with_warnings'))->body(implode("\n", $this->groupPriceWarnings))->send();
+        $this->groupPriceWarnings = [];
     }
 
     protected function rememberLoadedStock(Product $product): void
@@ -169,11 +220,12 @@ trait MapsProductFormData
         }
 
         $this->typedSpecs = array_key_exists('typed_specs', $data) ? array_values((array) $data['typed_specs']) : null;
+        $this->groupPrices = array_key_exists(GroupPricesEditor::STATE, $data) ? (array) $data[GroupPricesEditor::STATE] : null;
         $data['description'] = app(HtmlSanitizer::class)->sanitize($data['description'] ?? null) ?: null;
         $data['slug'] = trim((string) ($data['slug'] ?? ''));
         $data['unit'] = trim((string) ($data['unit'] ?? '')) ?: 'шт';
 
-        unset($data['specs'], $data['typed_specs'], $data['new_photos'], $data['file_names']);
+        unset($data['specs'], $data['typed_specs'], $data['new_photos'], $data['file_names'], $data[GroupPricesEditor::STATE], $data[GroupPricesEditor::QTY_STATE]);
 
         return $data;
     }

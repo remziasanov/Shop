@@ -284,6 +284,11 @@ final class ImportWizard
         // Repeated targets found by the automatic mapping are dropped from the mapping but must be reported.
         $warnings = $mapping === null ? $this->mapper->autoMapWithWarnings($headers)->warnings($headers) : $result->warnings($headers);
 
+        // GP-15: columns of unknown customer groups are ignored with a warning.
+        $groupColumns = (new GroupPriceColumns)->filter($result->mapping, $headers);
+        $result = new MappingResult($groupColumns['mapping'], $result->duplicates);
+        $warnings = [...$warnings, ...$groupColumns['warnings']];
+
         $samples = [];
 
         foreach ($sample['rows'] as $number => $row) {
@@ -316,8 +321,17 @@ final class ImportWizard
         $attributes = [];
 
         $variantOptions = [];
+        $groupPrices = [];
 
         foreach ($headers as $header) {
+            $groupKey = ColumnMapper::groupPriceKeyFromHeader($header);
+
+            if ($groupKey !== null) {
+                $groupPrices[$groupKey] = true;
+
+                continue;
+            }
+
             $optionName = ColumnMapper::optionNameFromHeader($header);
 
             if ($optionName !== null) {
@@ -341,6 +355,10 @@ final class ImportWizard
             if (ImportField::optionName($target) !== null) {
                 $variantOptions[$target] = true;
             }
+
+            if (ImportField::groupPriceTarget($target) !== null) {
+                $groupPrices[$target] = true;
+            }
         }
 
         foreach (array_keys($attributes) as $key) {
@@ -350,6 +368,11 @@ final class ImportWizard
         // VR-16: «Опция: <название>» columns of variant rows.
         foreach (array_keys($variantOptions) as $key) {
             $options[$key] = __('admin_variants.import.option_column', ['name' => (string) ImportField::optionName($key)]);
+        }
+
+        // GP-15: «Цена: <код группы>» and «Цена: <код группы> от <N>» columns.
+        foreach (array_keys($groupPrices) as $key) {
+            $options[$key] = ColumnMapper::fieldLabel($key);
         }
 
         return $options;
@@ -380,7 +403,8 @@ final class ImportWizard
 
             $valid = ImportField::tryFrom($target) !== null
                 || (ImportField::attributeName($target) !== null && mb_strlen($target) <= 255)
-                || (ImportField::optionName($target) !== null && mb_strlen($target) <= 255);
+                || (ImportField::optionName($target) !== null && mb_strlen($target) <= 255)
+                || ImportField::groupPriceTarget($target) !== null;
 
             if (! $valid) {
                 throw ValidationException::withMessages([

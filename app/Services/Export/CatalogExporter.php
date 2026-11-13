@@ -16,6 +16,7 @@ use App\Services\Catalog\AttributeNameResolver;
 use App\Services\Catalog\AttributeValueParser;
 use App\Services\Catalog\CategoryNode;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Import\ColumnMapper;
 use App\Services\Media\ImageProcessor;
 use App\Settings\CatalogSettings;
 use Illuminate\Database\Eloquent\Builder;
@@ -35,6 +36,10 @@ use Illuminate\Support\Facades\Storage;
  * column per option used as an axis by the exported cards is filled with the variant's value; prices and stock are the
  * variant's own (an empty price = the card's), the photos of the variant's colour are listed on the first variant row of
  * that colour, the card row lists the common photos. The file imports back without changes.
+ *
+ * Group prices (GP-15): one column «Цена: <код группы>» (exact price) and «Цена: <код группы> от <N>» per tier quantity for
+ * every group that has such prices among the exported products; a variant's prices are on its row, a card with variants
+ * has none of its own.
  *
  * Filters: `category_id` (the category and all its descendants), `active` (all|active|inactive),
  * `product_ids` (explicit selection).
@@ -110,9 +115,10 @@ final class CatalogExporter
      *
      * @param  list<string>  $attributeNames
      * @param  list<string>  $optionNames  names of the options of variants (VR-18)
+     * @param  list<array{code: string, qty: int}>  $groupColumns  group price columns (GP-15)
      * @return list<string>
      */
-    public static function productHeaders(array $attributeNames = [], array $optionNames = []): array
+    public static function productHeaders(array $attributeNames = [], array $optionNames = [], array $groupColumns = []): array
     {
         $headers = array_map(fn (ImportField $field): string => $field->label(), ImportField::cases());
 
@@ -122,6 +128,10 @@ final class CatalogExporter
 
         foreach ($optionNames as $name) {
             $headers[] = self::optionHeader($name);
+        }
+
+        foreach ($groupColumns as $column) {
+            $headers[] = ColumnMapper::groupPriceHeader($column['code'], $column['qty']);
         }
 
         return $headers;
@@ -155,7 +165,8 @@ final class CatalogExporter
         $attributeNames = $this->attributeNames($filters);
         $options = $this->optionTypes($filters);
         $paths = $this->categoryPaths();
-        $headers = self::productHeaders($attributeNames, array_map(fn (OptionType $type): string => $type->name, $options));
+        $groupColumns = $this->groupPriceColumns($filters);
+        $headers = self::productHeaders($attributeNames, array_map(fn (OptionType $type): string => $type->name, $options), array_map(fn (array $column): array => ['code' => $column['code'], 'qty' => $column['qty']], $groupColumns));
         $widths = [1 => 16, 2 => 40, 3 => 36, 12 => 50];
 
         $book = new XlsxBook($path);
@@ -168,16 +179,20 @@ final class CatalogExporter
             $this->query($filters)
                 ->select(self::COLUMNS)
                 ->with('images')
-                ->chunkById(self::CHUNK, function ($products) use ($book, $paths, $attributeNames, $options, &$rows): void {
+                ->chunkById(self::CHUNK, function ($products) use ($book, $paths, $attributeNames, $options, $groupColumns, &$rows): void {
                     $cells = $this->attributeCells($products->pluck('id')->map(fn ($id): int => (int) $id)->all());
                     $legacy = $this->legacyCells($products, $cells);
                     /** @var list<Product> $variantCards */
                     $variantCards = $products->filter(fn (Product $product): bool => $product->has_variants)->values()->all();
                     $cardOffsets = array_flip(array_map(fn (Product $card): int => $card->id, $variantCards));
                     $variantRows = [];
+                    $groupPrices = $groupColumns === [] ? [] : $this->groupPriceCells($products->pluck('id')->map(fn ($id): int => (int) $id)->all());
 
                     foreach ($products as $product) {
-                        $book->row($this->productRow($product, $paths, $attributeNames, $cells[$product->id] ?? $legacy[$product->id] ?? [], count($options)));
+                        $book->row([
+                            ...$this->productRow($product, $paths, $attributeNames, $cells[$product->id] ?? $legacy[$product->id] ?? [], count($options)),
+                            ...$this->groupCells($groupColumns, $groupPrices[$product->id][0] ?? []),
+                        ]);
                         $rows++;
 
                         if (! $product->has_variants) {
@@ -186,7 +201,7 @@ final class CatalogExporter
 
                         // VR-18: the variants of a card follow its row; they are loaded for a group of cards at a time.
                         if (! isset($variantRows[$product->id])) {
-                            $variantRows = $this->variantRows(array_slice($variantCards, $cardOffsets[$product->id], self::VARIANT_CARDS), $options, count($attributeNames));
+                            $variantRows = $this->variantRows(array_slice($variantCards, $cardOffsets[$product->id], self::VARIANT_CARDS), $options, count($attributeNames), $groupColumns, $groupPrices);
                         }
 
                         foreach ($variantRows[$product->id] ?? [] as $variantRow) {
@@ -435,9 +450,11 @@ final class CatalogExporter
      *
      * @param  list<Product>  $cards  with `images` loaded
      * @param  list<OptionType>  $options
+     * @param  list<array{group_id: int, code: string, qty: int}>  $groupColumns
+     * @param  array<int, array<int, array<string, float>>>  $groupPrices
      * @return array<int, list<list<string|int|float|bool|null>>>
      */
-    private function variantRows(array $cards, array $options, int $attributeColumns): array
+    private function variantRows(array $cards, array $options, int $attributeColumns, array $groupColumns = [], array $groupPrices = []): array
     {
         $cardIds = array_map(fn (Product $card): int => $card->id, $cards);
         $result = array_fill_keys($cardIds, []);
@@ -492,7 +509,10 @@ final class CatalogExporter
                     $photos = $images->get($colorValue)->map(fn (ProductImage $image): string => $image->urlLarge())->implode(self::PHOTO_SEPARATOR);
                 }
 
-                $result[$card->id][] = $this->variantRow($card, $variant, $photos, $options, $texts[$variant->id] ?? [], $attributeColumns);
+                $result[$card->id][] = [
+                    ...$this->variantRow($card, $variant, $photos, $options, $texts[$variant->id] ?? [], $attributeColumns),
+                    ...$this->groupCells($groupColumns, $groupPrices[$card->id][$variant->id] ?? []),
+                ];
             }
         }
 
@@ -541,6 +561,58 @@ final class CatalogExporter
         }
 
         return $row;
+    }
+
+    /**
+     * Group price columns of the exported products: every (group, quantity) that has a price, groups in list order, then
+     * by quantity (GP-15).
+     *
+     * @param  Filters  $filters
+     * @return list<array{group_id: int, code: string, qty: int}>
+     */
+    public function groupPriceColumns(array $filters): array
+    {
+        $rows = DB::table('product_price_tiers as t')
+            ->join('customer_groups as g', 'g.id', '=', 't.customer_group_id')
+            ->whereIn('t.product_id', $this->query($filters)->select('products.id'))
+            ->distinct()
+            ->orderBy('g.sort_order')->orderBy('g.id')->orderBy('t.min_qty')
+            ->get(['g.id', 'g.code', 'g.sort_order', 't.min_qty']);
+
+        $columns = [];
+
+        foreach ($rows as $row) {
+            $columns[] = ['group_id' => (int) $row->id, 'code' => (string) $row->code, 'qty' => (int) $row->min_qty];
+        }
+
+        return $columns;
+    }
+
+    /**
+     * Prices of the given products and their variants: product id => variant id (0 = the card itself) => "group:qty" => rubles.
+     *
+     * @param  list<int>  $productIds
+     * @return array<int, array<int, array<string, float>>>
+     */
+    private function groupPriceCells(array $productIds): array
+    {
+        $cells = [];
+
+        foreach (DB::table('product_price_tiers')->whereIn('product_id', $productIds)->get(['product_id', 'variant_key', 'customer_group_id', 'min_qty', 'price']) as $row) {
+            $cells[(int) $row->product_id][(int) $row->variant_key][$row->customer_group_id.':'.$row->min_qty] = (float) $row->price;
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @param  list<array{group_id: int, code: string, qty: int}>  $columns
+     * @param  array<string, float>  $prices
+     * @return list<float|null>
+     */
+    private function groupCells(array $columns, array $prices): array
+    {
+        return array_map(fn (array $column): ?float => $prices[$column['group_id'].':'.$column['qty']] ?? null, $columns);
     }
 
     /**

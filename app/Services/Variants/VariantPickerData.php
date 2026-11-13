@@ -23,7 +23,7 @@ final readonly class VariantPickerData
 
     /**
      * @param  list<array{id: int, name: string, display: string, values: list<array{id: int, text: string, hex: string|null, image: string|null}>}>  $axes  only values used by an active variant
-     * @param  list<array<string, mixed>>  $variants  compact records: id, sku, bc, v (value ids in axis order), p, o, d, s, st, c, m, bo
+     * @param  list<array<string, mixed>>  $variants  compact records: id, sku, bc, v (value ids in axis order), p, o, d, s, st, c, m, bo and, when the viewer's group sees prices, k (unit price in kopecks), t (tiers [min_qty, kopecks] of the viewer's group only), r (retail price struck through)
      * @param  int  $selectedId  the variant the page opens with
      * @param  bool  $requested  the selection comes from `?variant=` (schema.org Offer of that variant, VR-28)
      * @param  list<array{price: string, available: bool, backorder: bool, sku: string}>  $offers  for the schema.org summary, in display order

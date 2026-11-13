@@ -7,6 +7,7 @@ namespace App\Filament\Resources\PriceRules\Schemas;
 use App\Enums\PriceRuleAction;
 use App\Enums\PriceRuleScope;
 use App\Enums\ProductFlag;
+use App\Models\CustomerGroup;
 use App\Models\PriceRule;
 use App\Models\Product;
 use App\Rules\PositiveAmount;
@@ -149,6 +150,18 @@ final class PriceRuleForm
                         ->visible(fn (Get $get): bool => $get('scope') === PriceRuleScope::Flags->value),
                 ]),
 
+            Section::make(__('admin_group_prices.rules.section'))
+                ->description(__('admin_group_prices.rules.section_hint'))
+                ->schema([
+                    Select::make('group_ids')
+                        ->label(__('admin_group_prices.rules.groups'))
+                        ->helperText(__('admin_group_prices.rules.groups_hint'))
+                        ->placeholder(__('admin_group_prices.rules.groups_all'))
+                        ->options(fn (): array => CustomerGroup::query()->ordered()->pluck('name', 'id')->all())
+                        ->multiple()
+                        ->native(false),
+                ]),
+
             Section::make(__('admin_pricing.rules.sections.period'))
                 ->description(__('admin_pricing.rules.sections.period_hint'))
                 ->schema([
@@ -167,6 +180,13 @@ final class PriceRuleForm
                 ->description(__('admin_pricing.preview.hint'))
                 ->hiddenOn('view')
                 ->schema([
+                    // PR-04, GP-04: the preview shows the prices of the chosen group (not saved with the rule).
+                    Select::make('preview_group_id')
+                        ->label(__('admin_group_prices.rules.preview_group'))
+                        ->placeholder(__('admin_group_prices.rules.preview_retail'))
+                        ->options(fn (): array => CustomerGroup::query()->ordered()->pluck('name', 'id')->all())
+                        ->native(false)
+                        ->dehydrated(false),
                     Actions::make([
                         Action::make('preview')
                             ->label(__('admin_pricing.preview.button'))
@@ -176,7 +196,7 @@ final class PriceRuleForm
                             ->modalSubmitAction(false)
                             ->modalCancelActionLabel(__('admin_pricing.preview.close'))
                             ->modalWidth('4xl')
-                            ->modalContent(fn (Get $get, ?Model $record) => self::previewView(self::state($get), $record)),
+                            ->modalContent(fn (Get $get, ?Model $record) => self::previewView(self::state($get), $record, filled($get('preview_group_id')) ? (int) $get('preview_group_id') : null)),
                     ])->key('preview_actions'),
                 ]),
         ]);
@@ -187,7 +207,7 @@ final class PriceRuleForm
      *
      * @param  array<string, mixed>  $state
      */
-    public static function previewView(array $state, ?Model $record): View
+    public static function previewView(array $state, ?Model $record, ?int $groupId = null): View
     {
         try {
             $draft = app(PriceRuleSaver::class)->toData($state, $record instanceof PriceRule ? $record->id : PHP_INT_MAX);
@@ -195,10 +215,11 @@ final class PriceRuleForm
             return view('filament.pricing.preview-table', ['empty' => __('admin_pricing.preview.incomplete')]);
         }
 
-        $preview = app(PriceRulePreview::class)->preview($draft);
+        $group = $groupId !== null ? CustomerGroup::query()->find($groupId) : null;
+        $preview = app(PriceRulePreview::class)->preview($draft, $group);
 
         return view('filament.pricing.preview-table', [
-            'summary' => __('admin_pricing.preview.count', ['count' => $preview['count']]),
+            'summary' => __('admin_pricing.preview.count', ['count' => $preview['count']]).($group !== null ? ' '.__('admin_group_prices.rules.preview_for_group', ['group' => $group->name]) : ''),
             'empty' => __('admin_pricing.preview.none'),
             'rows' => array_map(fn (array $row): array => [
                 'name' => $row['name'],
@@ -218,7 +239,7 @@ final class PriceRuleForm
 
         foreach ([
             'name', 'action', 'value', 'scope', 'include_subcategories', 'priority', 'starts_at', 'ends_at',
-            'show_as_discount', 'stop_processing', 'category_ids', 'product_ids', 'brands', 'flags',
+            'show_as_discount', 'stop_processing', 'category_ids', 'product_ids', 'brands', 'flags', 'group_ids',
         ] as $key) {
             $state[$key] = $get($key);
         }

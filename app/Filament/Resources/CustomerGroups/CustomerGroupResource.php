@@ -90,6 +90,9 @@ class CustomerGroupResource extends Resource
                 TextColumn::make('price_display')
                     ->label(__('customer_groups.fields.price_display'))
                     ->state(fn (CustomerGroup $record): string => $record->price_display->label()),
+                TextColumn::make('default_discount_percent')
+                    ->label(__('admin_group_prices.group.discount_column'))
+                    ->state(fn (CustomerGroup $record): string => bccomp((string) $record->default_discount_percent, '0', 2) > 0 ? rtrim(rtrim((string) $record->default_discount_percent, '0'), '.').' %' : '—'),
                 IconColumn::make('is_active')
                     ->label(__('customer_groups.fields.is_active'))
                     ->boolean(),

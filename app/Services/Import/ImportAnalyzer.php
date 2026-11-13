@@ -236,12 +236,14 @@ final class ImportAnalyzer
                     $result = $given === null || $given === []
                         ? $this->mapper->autoMapWithWarnings($headers)
                         : $this->mapper->dedupe($given, $headers);
-                    $mapping = $result->mapping;
+                    // GP-15: columns of unknown groups are ignored with a warning.
+                    $groupColumns = (new GroupPriceColumns)->filter($result->mapping, $headers);
+                    $mapping = $groupColumns['mapping'];
 
                     // The mapping may be wider than the header row (blank trailing headers): keep indices.
                     $stats['headers'] = $headers;
                     $stats['mapping'] = $mapping;
-                    $stats['mapping_warnings'] = $result->warnings($headers);
+                    $stats['mapping_warnings'] = [...$result->warnings($headers), ...$groupColumns['warnings']];
 
                     if (! in_array('sku', $mapping, true)) {
                         throw new ImportFileException(__('import.errors.no_sku_column'));

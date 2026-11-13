@@ -31,7 +31,7 @@ final class PriceRulesTable
     {
         return $table
             // Targets are read for the scope summary; the category names come from the cached tree.
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('targets'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['targets', 'groups']))
             ->columns([
                 TextColumn::make('name')
                     ->label(__('admin_pricing.rules.fields.name'))
@@ -47,6 +47,12 @@ final class PriceRulesTable
                     ->state(fn (PriceRule $record): string => PriceRuleSummary::scope($record, app(CategoryTree::class)))
                     ->wrap()
                     ->sortable(),
+                TextColumn::make('groups')
+                    ->label(__('admin_group_prices.rules.groups'))
+                    ->state(fn (PriceRule $record): string => $record->groups->isEmpty()
+                        ? __('admin_group_prices.rules.groups_all')
+                        : $record->groups->pluck('name')->implode(', '))
+                    ->wrap(),
                 TextColumn::make('priority')
                     ->label(__('admin_pricing.rules.fields.priority'))
                     ->numeric()

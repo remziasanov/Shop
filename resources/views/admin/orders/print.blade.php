@@ -76,6 +76,9 @@
         @if ($order->customer_email)
             <dt>{{ __('admin_orders.view.email') }}</dt><dd>{{ $order->customer_email }}</dd>
         @endif
+        @if ($order->customer_group_name)
+            <dt>{{ __('admin_group_prices.order.group') }}</dt><dd>{{ $order->customer_group_name }}</dd>
+        @endif
         @if ($order->delivery_method)
             <dt>{{ __('admin_orders.print.delivery') }}</dt><dd>{{ $order->delivery_method }}@if ($order->delivery_address), {{ $order->delivery_address }}@endif</dd>
         @endif
@@ -108,6 +111,9 @@
                     @endif
                     @if ($item->barcode)
                         <br><small>{{ __('admin_variants.order.barcode', ['barcode' => $item->barcode]) }}</small>
+                    @endif
+                    @if ($priceSource = \App\Filament\Resources\Orders\Schemas\OrderInfolist::priceSourceLine($item))
+                        <br><small>{{ $priceSource }}</small>
                     @endif
                 </td>
                 <td class="num">{{ $item->qty }} {{ $item->unit }}</td>

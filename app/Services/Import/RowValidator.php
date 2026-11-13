@@ -9,6 +9,7 @@ use App\Enums\ImportField;
 use App\Enums\ImportMode;
 use App\Enums\SalesMode;
 use App\Models\Category;
+use App\Support\Money;
 
 /**
  * Row checks of the import (IM-07). Pure: knows nothing about the database; whether the product exists
@@ -101,6 +102,8 @@ final class RowValidator
         $this->parsed($row, ImportField::CostPrice, fn (?string $v): ?int => $this->parser->price($v), $values, $errors);
         $oldPrice = $this->parsed($row, ImportField::OldPrice, fn (?string $v): ?int => $this->parser->price($v), $values, $errors);
         $this->parsed($row, ImportField::Stock, fn (?string $v): ?int => $this->parser->stock($v), $values, $errors);
+
+        $this->groupPrices($row, $values, $errors);
 
         if ($price !== null && $oldPrice !== null && $oldPrice > 0 && $oldPrice <= $price) {
             $warnings[] = new RowIssue(ImportField::OldPrice->value, ImportField::OldPrice->label(), __('import.warnings.old_price_not_greater'), $row->get('old_price'));
@@ -243,6 +246,8 @@ final class RowValidator
         $this->parsed($row, ImportField::CostPrice, fn (?string $v): ?int => $this->parser->price($v), $values, $errors);
         $oldPrice = $this->parsed($row, ImportField::OldPrice, fn (?string $v): ?int => $this->parser->price($v), $values, $errors);
         $this->parsed($row, ImportField::Stock, fn (?string $v): ?int => $this->parser->stock($v), $values, $errors);
+
+        $this->groupPrices($row, $values, $errors);
 
         if ($price !== null && $oldPrice !== null && $oldPrice > 0 && $oldPrice <= $price) {
             $warnings[] = new RowIssue(ImportField::OldPrice->value, ImportField::OldPrice->label(), __('import.warnings.old_price_not_greater'), $row->get('old_price'));
@@ -497,6 +502,79 @@ final class RowValidator
         }
 
         $values['photos'] = $photos;
+    }
+
+    /**
+     * Group price cells (GP-15): `values['group_prices']` is a list of `{code, qty, op: keep|delete|set, price?}`; a blank
+     * cell is `keep` (the importer decides by the empty-cell policy), «-» is `delete`, an amount is `set` (kopecks, > 0).
+     * Prices of one group must not grow with the quantity (GP-14); what depends on the stored rows is checked on apply.
+     *
+     * @param  array<string, mixed>  $values
+     * @param  list<RowIssue>  $errors
+     */
+    private function groupPrices(MappedRow $row, array &$values, array &$errors): void
+    {
+        if ($row->groupPrices === []) {
+            return;
+        }
+
+        $cells = [];
+        /** @var array<string, array<int, array{price: int, key: string, raw: string}>> $sets */
+        $sets = [];
+
+        foreach ($row->groupPrices as $cell) {
+            $label = ColumnMapper::fieldLabel($cell['key']);
+            $entry = ['code' => $cell['code'], 'qty' => $cell['qty']];
+
+            if ($cell['value'] === null) {
+                $cells[] = $entry + ['op' => 'keep'];
+
+                continue;
+            }
+
+            if ($cell['value'] === __('admin_group_prices.import.delete_marker')) {
+                $cells[] = $entry + ['op' => 'delete'];
+
+                continue;
+            }
+
+            try {
+                $price = $this->parser->price($cell['value']);
+            } catch (ValueParseException $e) {
+                $errors[] = new RowIssue($cell['key'], $label, $e->getMessage(), $cell['value']);
+
+                continue;
+            }
+
+            if ($price === null || $price <= 0) {
+                $errors[] = new RowIssue($cell['key'], $label, __('admin_group_prices.import.price_zero'), $cell['value']);
+
+                continue;
+            }
+
+            $cells[] = $entry + ['op' => 'set', 'price' => $price];
+            $sets[$cell['code']][$cell['qty']] = ['price' => $price, 'key' => $cell['key'], 'raw' => $cell['value']];
+        }
+
+        foreach ($sets as $byQty) {
+            ksort($byQty);
+            $previous = null;
+
+            foreach ($byQty as $qty => $set) {
+                if ($previous !== null && $set['price'] > $previous['price']) {
+                    $errors[] = new RowIssue($set['key'], ColumnMapper::fieldLabel($set['key']), __('pricing.tiers.errors.price_grows', [
+                        'qty' => $qty,
+                        'price' => Money::format($set['price']),
+                        'previous_qty' => $previous['qty'],
+                        'previous_price' => Money::format($previous['price']),
+                    ]), $set['raw']);
+                }
+
+                $previous = ['qty' => $qty, 'price' => $set['price']];
+            }
+        }
+
+        $values['group_prices'] = $cells;
     }
 
     /**

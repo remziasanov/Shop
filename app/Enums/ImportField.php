@@ -40,6 +40,9 @@ enum ImportField: string
     /** Prefix of mapping values that denote an option column of variants: "opt:Цвет" (VR-16). */
     public const OPTION_PREFIX = 'opt:';
 
+    /** Prefix of mapping values that denote a group price column: "gp:opt" (exact price) or "gp:opt:10" (tier from 10 pcs), GP-15. */
+    public const GROUP_PRICE_PREFIX = 'gp:';
+
     public function label(): string
     {
         return __('import.fields.'.$this->value);
@@ -154,5 +157,32 @@ enum ImportField: string
         $name = substr($mappingValue, strlen(self::OPTION_PREFIX));
 
         return $name === '' ? null : $name;
+    }
+
+    /**
+     * Mapping value of a group price column: `gp:<code>` for the exact price (`$qty` 1 or null), `gp:<code>:<N>` for a tier.
+     * The code is lower-cased: group codes are compared without regard to case.
+     */
+    public static function groupPriceKey(string $code, ?int $qty = null): string
+    {
+        $key = self::GROUP_PRICE_PREFIX.mb_strtolower($code, 'UTF-8');
+
+        return $qty === null || $qty <= 1 ? $key : $key.':'.$qty;
+    }
+
+    /**
+     * Group code and minimum quantity (1 = the exact price) of a mapping value, null for everything else.
+     *
+     * @return array{code: string, qty: int}|null
+     */
+    public static function groupPriceTarget(?string $mappingValue): ?array
+    {
+        if ($mappingValue === null || preg_match('/^gp:([a-z0-9][a-z0-9-]*)(?::(\d{1,9}))?$/', $mappingValue, $match) !== 1) {
+            return null;
+        }
+
+        $qty = isset($match[2]) ? (int) $match[2] : 1;
+
+        return $qty >= 1 ? ['code' => $match[1], 'qty' => $qty] : null;
     }
 }
