@@ -19,4 +19,5 @@ enum PromoFailure: string
     case PerCustomerLimit = 'per_customer_limit';
     case MinOrder = 'min_order';
     case NoEligibleItems = 'no_eligible_items';
+    case NoDiscount = 'no_discount';
 }

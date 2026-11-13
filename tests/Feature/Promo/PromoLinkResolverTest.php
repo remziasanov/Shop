@@ -176,3 +176,31 @@ it('recognizes bots by the User-Agent (PM-25)', function (): void {
         expect(BotDetector::isBot($ua))->toBeFalse($ua);
     }
 });
+
+it('checks the category of a catalog filter link, while plain /catalog stays available (PM-22)', function (): void {
+    $category = Category::factory()->create(['slug' => 'obuv']);
+    $filter = PromoLink::factory()->toCatalogFilter('/catalog/obuv?sort=price_asc')->create();
+    $plain = PromoLink::factory()->toCatalogFilter('/catalog?sort=price_asc')->create();
+    $unknown = PromoLink::factory()->toCatalogFilter('/catalog/net-takoy?brand=nike')->create();
+
+    expect($this->resolver->resolve($filter)->ok)->toBeTrue();
+
+    $category->update(['is_active' => false]);
+
+    expect($this->resolver->resolve($filter)->reason)->toBe('target_unavailable')
+        ->and($this->resolver->resolve($plain)->ok)->toBeTrue()
+        ->and($this->resolver->resolve($unknown)->reason)->toBe('target_unavailable');
+});
+
+it('checks the category of a catalog filter link against the viewer group (PM-22, CG-14)', function (): void {
+    $open = Category::factory()->create(['slug' => 'open']);
+    $closed = Category::factory()->create(['slug' => 'closed']);
+    $group = CustomerGroup::factory()->create(['name' => 'Опт']);
+    configureGuest(['name' => 'Гость'], CategoryAccessMode::Only, [$open]);
+
+    $link = PromoLink::factory()->toCatalogFilter('/catalog/closed?sort=price_asc')->create();
+
+    expect($this->resolver->resolve($link)->reason)->toBe('target_unavailable')
+        ->and($this->resolver->resolve($link, $group)->ok)->toBeTrue()
+        ->and($this->resolver->resolve(PromoLink::factory()->toCatalogFilter('/catalog/open?x=1')->create())->ok)->toBeTrue();
+});

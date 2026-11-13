@@ -191,6 +191,27 @@ it('sends the customer back to the cart with the reason and without the code whe
         ->and(session('cart_changed'))->toContain('Промокод исчерпан');
 });
 
+it('does not re-apply the cookie code after the checkout refused it (PM-10, PM-23)', function (): void {
+    PromoCode::factory()->percent(10)->create(['code' => 'ONCE10', 'per_customer_limit' => 1]);
+    promoCheckout(promoCart($this->product, 1, 'ONCE10'), email: 'ivan@example.com', phone: '8 (900) 123-45-67');
+    expect(Order::query()->count())->toBe(1);
+
+    $cart = promoCart($this->product, 1);
+    Livewire::withCookie('shop_promo', 'ONCE10');
+    // The guest got the code from the cookie, the same contact data is over the per-customer limit at checkout.
+    livewireWithCart(CartPage::class, $cart)->assertSee('Промокод ONCE10 применён');
+
+    $form = livewireWithCart(CheckoutForm::class, $cart);
+    $this->travel(5)->seconds();
+    fillCheckout($form)->call('submit')->assertRedirect(route('cart'));
+
+    expect(Order::query()->count())->toBe(1)->and($cart->refresh()->promo_code)->toBeNull()->and($cart->promo_applied_manually)->toBeTrue();
+
+    livewireWithCart(CartPage::class, $cart)->assertDontSee('Промокод ONCE10 применён');
+
+    expect($cart->refresh()->promo_code)->toBeNull();
+});
+
 it('does not show the promo box on the reservation and inquiry forms (PM-07)', function (): void {
     $product = sellable(['stock_qty' => 5]);
 

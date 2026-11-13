@@ -138,6 +138,21 @@ it('carries a changed template over to the unused codes only (PM-15)', function 
         ->and($fresh->usage_limit)->toBe(1);
 });
 
+it('leaves individually deactivated codes inactive and skips a code redeemed meanwhile when applying the template (PM-15)', function (): void {
+    $batch = makeBatch(4, 8);
+    [$off, $redeemed] = PromoCode::query()->where('batch_id', $batch->id)->orderBy('id')->get()->all();
+    $off->forceFill(['is_active' => false])->save();
+    // Redeemed with a redemption row although the counter was not bumped (e.g. read before the claim committed).
+    PromoRedemption::factory()->create(['promo_code_id' => $redeemed->id, 'order_id' => Order::factory()->create()->id]);
+
+    $updated = app(PromoBatchService::class)->applyTemplate($batch, ['type' => 'percent', 'value' => '30.00', 'is_active' => true]);
+
+    expect($updated)->toBe(3)
+        ->and($off->refresh()->value)->toBe('30.00')->and($off->is_active)->toBeFalse()
+        ->and($redeemed->refresh()->value)->toBe('15.00')
+        ->and(PromoCode::query()->where('batch_id', $batch->id)->where('is_active', true)->count())->toBe(3);
+});
+
 it('exports the codes of a batch with status, date and order number through the exports journal (PM-16, EX-03)', function (): void {
     Storage::fake('local');
     $batch = makeBatch(3, 6, 'EXP-');

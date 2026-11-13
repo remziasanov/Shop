@@ -144,6 +144,18 @@ final class PromoLinkResolver
 
                 return $id > 0 && $this->tree->isVisible($id) && $access->canSeeCategory($id);
 
+            case PromoLinkTargetType::CatalogFilter:
+                // `/catalog/{slug}?…`: the category of the path must be visible too; plain `/catalog` is always open.
+                $path = (string) parse_url((string) $link->target_url, PHP_URL_PATH);
+
+                if (preg_match('~^/catalog/([^/]+)/?$~', $path, $m) !== 1) {
+                    return true;
+                }
+
+                $id = Category::query()->where('slug', rawurldecode($m[1]))->value('id');
+
+                return $id !== null && $this->tree->isVisible((int) $id) && $access->canSeeCategory((int) $id);
+
             default:
                 return true;
         }

@@ -222,9 +222,10 @@ final class OrderService
                 $promo = $this->promos->claim($lockedCart->promo_code, $promoLines, $promoViewer);
 
                 if (! $promo->isApplied()) {
-                    // Back to the cart with the reason; the code leaves the cart, nothing was counted.
+                    // Back to the cart with the reason; the code leaves the cart, nothing was counted. The flag stops the
+                    // `shop_promo` cookie code from being re-applied (and refused again) — the customer must retype it.
                     $lockedCart->promo_code = null;
-                    $lockedCart->promo_applied_manually = false;
+                    $lockedCart->promo_applied_manually = true;
                     $lockedCart->save();
 
                     return [(string) $promo->message];

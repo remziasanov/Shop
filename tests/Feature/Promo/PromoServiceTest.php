@@ -10,6 +10,7 @@ use App\Models\PromoCode;
 use App\Models\PromoRedemption;
 use App\Services\Promo\PromoCustomerHash;
 use App\Services\Promo\PromoLine;
+use App\Services\Promo\PromoRedemptionService;
 use App\Services\Promo\PromoViewer;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
@@ -284,9 +285,35 @@ it('gives the better of the promotion and the code price when the code does not 
     // Old 1 000, promotion 800, code price 700: the code wins, discount against the paid price is 100.
     $wins = evaluatePromo([pline(80_000, old: 100_000, key: 1)], $code);
     // 10 %: code price 900 > promotion 800: the buyer keeps 800, no extra discount.
-    $loses = evaluatePromo([pline(80_000, old: 100_000, key: 1)], PromoCode::factory()->percent(10)->create(['applies_to_discounted' => true]));
+    $loses = evaluatePromo([pline(80_000, old: 100_000, key: 1), pline(100_000, product: 2, key: 2)], PromoCode::factory()->percent(10)->create(['applies_to_discounted' => true]));
 
-    expect($wins->lineDiscounts)->toBe([1 => 10_000])->and($loses->lineDiscounts)->toBe([1 => 0])->and($loses->discount)->toBe(0);
+    expect($wins->lineDiscounts)->toBe([1 => 10_000])->and($loses->lineDiscounts[1])->toBe(0)->and($loses->discount)->toBe(10_000);
+});
+
+it('refuses a percent / fixed code that takes nothing off, with a clear message (PM-05, PM-06)', function (): void {
+    $percent = PromoCode::factory()->percent(10)->create(['applies_to_discounted' => true, 'stackable_with_promotions' => false]);
+    $fixed = PromoCode::factory()->fixed('50.00')->create(['applies_to_discounted' => true, 'stackable_with_promotions' => false]);
+    $lines = [pline(80_000, old: 100_000, key: 1)];
+
+    foreach ([$percent, $fixed] as $code) {
+        $result = evaluatePromo($lines, $code);
+
+        expect($result->isApplied())->toBeFalse()->and($result->failure)->toBe(PromoFailure::NoDiscount)
+            ->and($result->message)->toBe('Промокод не даёт дополнительной скидки на товары в корзине');
+    }
+});
+
+it('does not burn a use on a code with a zero discount, but free delivery is unaffected (PM-11)', function (): void {
+    $code = PromoCode::factory()->percent(10)->create(['applies_to_discounted' => true, 'usage_limit' => 5]);
+    $free = PromoCode::factory()->freeDelivery()->create(['usage_limit' => 5]);
+    $lines = [pline(80_000, old: 100_000, key: 1)];
+    $redemptions = app(PromoRedemptionService::class);
+
+    $result = $redemptions->claim($code->code, $lines, guestPromoViewer());
+    $freeResult = $redemptions->claim($free->code, [pline(100_000, key: 1)], guestPromoViewer());
+
+    expect($result->failure)->toBe(PromoFailure::NoDiscount)->and($code->refresh()->usage_count)->toBe(0)
+        ->and($freeResult->isApplied())->toBeTrue()->and($free->refresh()->usage_count)->toBe(1);
 });
 
 it('keeps a fixed discount smaller than its face value when the promotion price is better (PM-06)', function (): void {

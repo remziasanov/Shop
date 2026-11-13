@@ -80,7 +80,9 @@ final class PromoBatchService
 
     /**
      * PM-15: stores a new template (when given) and applies the template of the batch to all its UNUSED codes (no use
-     * counted); used codes keep the conditions they were used under. Returns the number of updated codes.
+     * counted, no redemption, re-checked inside the UPDATE); used codes keep the conditions they were used under.
+     * `is_active` is not carried over, so individually deactivated codes stay as they are. Returns the number of
+     * updated codes.
      *
      * @param  Template|null  $template
      */
@@ -102,12 +104,28 @@ final class PromoBatchService
             ->chunkById(500, function ($codes) use ($template, &$updated): void {
                 $ids = $codes->pluck('id')->map(fn ($id): int => (int) $id)->all();
 
-                DB::transaction(function () use ($ids, $template): void {
-                    DB::table('promo_codes')->whereIn('id', $ids)->update($this->columns($template) + ['updated_at' => now()]);
-                    $this->replaceRelations($ids, $template);
-                });
+                $columns = $this->columns($template);
+                unset($columns['is_active']);
 
-                $updated += count($ids);
+                DB::transaction(function () use ($ids, $columns, $template, &$updated): void {
+                    // Unused is re-checked here: a code redeemed since the selection must not be changed.
+                    $ids = DB::table('promo_codes')
+                        ->whereIn('id', $ids)
+                        ->where('usage_count', 0)
+                        ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('promo_redemptions')->whereColumn('promo_redemptions.promo_code_id', 'promo_codes.id'))
+                        ->lockForUpdate()
+                        ->pluck('id')
+                        ->map(fn ($id): int => (int) $id)
+                        ->all();
+
+                    if ($ids === []) {
+                        return;
+                    }
+
+                    DB::table('promo_codes')->whereIn('id', $ids)->where('usage_count', 0)->update($columns + ['updated_at' => now()]);
+                    $this->replaceRelations($ids, $template);
+                    $updated += count($ids);
+                });
             });
 
         return $updated;

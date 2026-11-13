@@ -92,7 +92,14 @@ final class PromoService
             return PromoResult::applied($code, [], true);
         }
 
-        return PromoResult::applied($code, $this->discounts($items, $code), false);
+        $discounts = $this->discounts($items, $code);
+
+        // A percent / fixed code that takes nothing off (the promotion price is already the best) is not «applied»: no use is burnt.
+        if (array_sum($discounts) <= 0) {
+            return PromoResult::failed($code, PromoFailure::NoDiscount, __('promo.messages.no_discount'));
+        }
+
+        return PromoResult::applied($code, $discounts, false);
     }
 
     /**
