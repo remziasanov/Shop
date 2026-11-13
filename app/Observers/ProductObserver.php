@@ -13,6 +13,7 @@ use App\Services\Pricing\PriceHistoryRecorder;
 use App\Services\Pricing\ProductPriceUpdater;
 use App\Services\Search\SearchNormalizer;
 use App\Services\Variants\SkuGuard;
+use App\Services\Variants\VariantAggregator;
 
 /**
  * Thin glue: slug, redirects, search text, price columns, price history and photo files.
@@ -27,6 +28,7 @@ final class ProductObserver
         private readonly PriceHistoryRecorder $history,
         private readonly ImageProcessor $images,
         private readonly SkuGuard $skus,
+        private readonly VariantAggregator $aggregator,
     ) {}
 
     public function saving(Product $product): void
@@ -91,6 +93,17 @@ final class ProductObserver
             ->where('deleted_at', $product->deleted_at)
             ->toBase()
             ->update(['deleted_at' => null]);
+    }
+
+    /**
+     * The variants came back in {@see restoring()}: the stock aggregate follows them (a trashed card is never rolled
+     * up, so it may be stale). Prices were recalculated by saved().
+     */
+    public function restored(Product $product): void
+    {
+        if ($product->has_variants) {
+            $this->aggregator->rollupStock($product->id);
+        }
     }
 
     /**

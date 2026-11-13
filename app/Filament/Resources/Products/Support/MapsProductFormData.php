@@ -9,10 +9,12 @@ use App\Models\Product;
 use App\Services\Catalog\ProductAttributeEditor;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Stock\StockService;
+use App\Services\Variants\SkuGuard;
 use Closure;
 use Filament\Notifications\Notification;
 use Filament\Support\Exceptions\Halt;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
 
@@ -75,6 +77,17 @@ trait MapsProductFormData
             });
         } catch (AttributeException $e) {
             Notification::make()->danger()->title($e->getMessage())->send();
+
+            throw new Halt;
+        } catch (UniqueConstraintViolationException $e) {
+            // D-087: two parallel saves of one SKU: show the ordinary error instead of a 500.
+            $error = app(SkuGuard::class)->translate($e);
+
+            if ($error === null) {
+                throw $e;
+            }
+
+            Notification::make()->danger()->title((string) collect($error->errors())->flatten()->first())->send();
 
             throw new Halt;
         }

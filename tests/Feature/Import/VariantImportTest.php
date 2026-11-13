@@ -24,6 +24,7 @@ use App\Services\Import\ColumnMapper;
 use App\Services\Import\ImportReader;
 use App\Services\Import\ImportRunner;
 use App\Services\Import\ImportWizard;
+use App\Services\Variants\VariantAggregator;
 use App\Services\Variants\VariantService;
 use App\Settings\CatalogSettings;
 use Illuminate\Support\Facades\Queue;
@@ -668,6 +669,60 @@ describe('import modes (IM-04, VR-17)', function (): void {
             ->and($card->refresh()->is_active)->toBeTrue()
             ->and(ProductVariant::query()->where('sku', 'CARD-M')->value('is_active'))->toBeFalse()
             ->and(ProductVariant::query()->where('sku', 'CARD-S')->value('is_active'))->toBeTrue();
+    });
+
+    it('full synchronization that deactivates every variant of a card leaves it sold out with rolled-up aggregates (D-114)', function (): void {
+        sales(['stock_tracking' => true]);
+        $size = optionWith('Размер', ['S', 'M']);
+        $card = variantCard(['sku' => 'CARD'], $size);
+        $s = variantOf($card, [$size->values[0]], ['sku' => 'CARD-S', 'stock_qty' => 5]);
+        variantOf($card, [$size->values[1]], ['sku' => 'CARD-M', 'stock_qty' => null]);
+        Product::factory()->create(['sku' => 'KEEP']);
+        expect($card->fresh()->stock_qty)->toBeNull();
+
+        $import = runVariantCsv([
+            ['Артикул', 'Артикул карточки', 'Название', 'Категория', 'Цена'],
+            ['CARD', '', 'Карточка', 'Раздел', '100'],
+            ['KEEP', '', 'Товар', 'Раздел', '10'],
+        ], ['mode' => ImportMode::FullSync->value]);
+
+        expect($import->analysis['result']['deactivated_variants'])->toBe(2)
+            ->and($card->fresh()->is_active)->toBeTrue()
+            ->and($s->fresh()->is_active)->toBeFalse()
+            ->and($card->fresh()->stock_qty)->toBe(0)
+            ->and($card->fresh()->reserved_qty)->toBe(0)
+            ->and(app(VariantAggregator::class)->discrepancies())->toBe([]);
+    });
+
+    it('full synchronization works in chunks and continues after the time budget ran out', function (): void {
+        $size = optionWith('Размер', ['S', 'M']);
+        $gone = variantCard(['sku' => 'GONE'], $size);
+        variantOf($gone, [$size->values[0]], ['sku' => 'GONE-S', 'stock_qty' => 3]);
+        $partial = variantCard(['sku' => 'PART'], $size);
+        variantOf($partial, [$size->values[0]], ['sku' => 'PART-S', 'stock_qty' => 3]);
+        variantOf($partial, [$size->values[1]], ['sku' => 'PART-M', 'stock_qty' => 3]);
+
+        $import = analyzeVariantCsv([
+            ['Артикул', 'Артикул карточки', 'Цена', 'Опция: Размер'],
+            ['PART-S', 'PART', '100', 'S'],
+        ], ['mode' => ImportMode::FullSync->value]);
+        $method = new ReflectionMethod(ImportRunner::class, 'deactivateMissing');
+
+        // No time left: nothing is done, and the caller is told to come back.
+        $none = $method->invoke(app(ImportRunner::class), $import, microtime(true) - 1);
+        expect($none)->toBe(['cards' => 0, 'variants' => 0, 'done' => false])
+            ->and(ProductVariant::query()->where('is_active', true)->count())->toBe(3);
+
+        $all = $method->invoke(app(ImportRunner::class), $import, microtime(true) + 30);
+
+        expect($all)->toBe(['cards' => 1, 'variants' => 2, 'done' => true])
+            ->and($gone->fresh()->stock_qty)->toBe(0)
+            ->and($partial->fresh()->stock_qty)->toBe(3)
+            ->and($partial->fresh()->final_price)->not->toBeNull()
+            ->and(app(VariantAggregator::class)->discrepancies())->toBe([]);
+
+        // Repeating changes nothing (only rows that are still active are looked at).
+        expect($method->invoke(app(ImportRunner::class), $import, microtime(true) + 30))->toBe(['cards' => 0, 'variants' => 0, 'done' => true]);
     });
 
     it('reports how many cards a full synchronization would deactivate', function (): void {

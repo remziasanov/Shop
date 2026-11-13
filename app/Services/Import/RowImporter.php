@@ -35,6 +35,7 @@ use App\Services\Content\HtmlSanitizer;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Stock\StockService;
 use App\Services\Variants\OptionService;
+use App\Services\Variants\SkuGuard;
 use App\Services\Variants\VariantAggregator;
 use App\Services\Variants\VariantService;
 use App\Settings\CatalogSettings;
@@ -111,6 +112,16 @@ final class RowImporter
         private readonly CategoryTree $tree,
         private readonly StockService $stock,
     ) {}
+
+    /**
+     * A SKU race between two writers (D-087) reads as the ordinary «артикул занят» error of the row.
+     */
+    private function uniqueViolationMessage(UniqueConstraintViolationException $e): string
+    {
+        $error = app(SkuGuard::class)->translate($e);
+
+        return $error !== null ? (string) collect($error->errors())->flatten()->first() : __('import_process.errors.row_failed');
+    }
 
     public function importChunk(Import $import, int $chunkIndex): ChunkResult
     {
@@ -212,7 +223,8 @@ final class RowImporter
                     $this->optionService->forgetCache();
                     $message = match (true) {
                         $e instanceof ValidationException => (string) collect($e->errors())->flatten()->first(),
-                        $e instanceof UniqueConstraintViolationException, $e instanceof InvalidArgumentException => __('import_process.errors.row_failed'),
+                        $e instanceof UniqueConstraintViolationException => $this->uniqueViolationMessage($e),
+                        $e instanceof InvalidArgumentException => __('import_process.errors.row_failed'),
                         default => $e->getMessage(),
                     };
                     $issues->add($row, ImportIssueLevel::Error, null, $message, $sku);
@@ -269,7 +281,11 @@ final class RowImporter
             } catch (ImportRowException|CategoryTreeException|AttributeException|UniqueConstraintViolationException|InvalidArgumentException $e) {
                 DB::rollBack();
                 $resolver->reset();
-                $message = $e instanceof ImportRowException || $e instanceof CategoryTreeException || $e instanceof AttributeException ? $e->getMessage() : __('import_process.errors.row_failed');
+                $message = match (true) {
+                    $e instanceof ImportRowException, $e instanceof CategoryTreeException, $e instanceof AttributeException => $e->getMessage(),
+                    $e instanceof UniqueConstraintViolationException => $this->uniqueViolationMessage($e),
+                    default => __('import_process.errors.row_failed'),
+                };
                 $issues->add($row, ImportIssueLevel::Error, null, $message, $sku);
                 $errors++;
 

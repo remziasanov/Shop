@@ -16,7 +16,7 @@ use App\Models\User;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Pricing\PriceRuleRecalculator;
 use App\Services\Users\PermissionService;
-use App\Services\Variants\VariantService;
+use App\Services\Variants\VariantAggregator;
 use Carbon\CarbonImmutable;
 use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -275,7 +275,7 @@ final class ImportRunner
             return ImportStep::Waiting;
         }
 
-        return $this->finish($import) ? ImportStep::Finished : ImportStep::Waiting;
+        return $this->finish($import, $deadline) ? ImportStep::Finished : ImportStep::Waiting;
     }
 
     /**
@@ -292,10 +292,15 @@ final class ImportRunner
      * Final step: full-sync deactivation, price recalculation of touched products, cache flush, event, status and
      * notification. Safe to call from several workers; does nothing until all chunks and photos are done.
      *
+     * The full-sync deactivation works in chunks inside the budget (`$deadline`, microtime; about 35 s without one) and
+     * continues on the next call; then this returns false.
+     *
      * @return bool true when the import is finished (by this call or earlier)
      */
-    public function finish(Import $import): bool
+    public function finish(Import $import, ?float $deadline = null): bool
     {
+        $deadline ??= microtime(true) + 35.0;
+
         // The run lock is held by a worker between claiming a chunk and writing its photo tasks to disk: finishing
         // is only safe when nobody is in that window.
         $run = Cache::lock($this->lockKey($import, 'run'), self::LOCK_TTL);
@@ -328,7 +333,21 @@ final class ImportRunner
 
             if (! $import->importOptions()->dryRun) {
                 if ($import->mode === ImportMode::FullSync) {
-                    $deactivated = $this->deactivateMissing($import);
+                    $deactivated = $this->deactivateMissing($import, $deadline);
+
+                    if (! $deactivated['done']) {
+                        // Out of time: the counts so far are kept, the next call continues with what is still active.
+                        $result['deactivation_progress'] = ['cards' => $deactivated['cards'], 'variants' => $deactivated['variants']];
+                        $analysis['result'] = $result;
+                        DB::table('imports')->where('id', $import->id)->update([
+                            'analysis' => json_encode($analysis, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                            'last_activity_at' => now(),
+                        ]);
+
+                        return false;
+                    }
+
+                    unset($result['deactivation_progress']);
                     $result['deactivated'] = $deactivated['cards'];
                     $result['deactivated_variants'] = $deactivated['variants'];
                 }
@@ -763,23 +782,36 @@ final class ImportRunner
      * Full synchronization (IM-04, VR-17): cards that are not in the file become inactive together with their variants;
      * of the cards that are in the file the variants that the file does not name are deactivated.
      *
-     * @return array{cards: int, variants: int}
+     * Plain bulk UPDATEs per chunk of 1000 rows, then the aggregates (stock, prices) of every affected card are rolled
+     * up under its lock. Stops at `$deadline` (`done` false); a repeated call continues, because only rows that are still
+     * active are selected. The counts include the ones of earlier calls (kept in the analysis).
+     *
+     * @return array{cards: int, variants: int, done: bool}
      */
-    private function deactivateMissing(Import $import): array
+    private function deactivateMissing(Import $import, float $deadline): array
     {
         $entities = $this->fileEntities($import);
         $skus = $entities['cards'];
 
         // An empty file must never switch the whole catalog off.
         if ($skus === []) {
-            return ['cards' => 0, 'variants' => 0];
+            return ['cards' => 0, 'variants' => 0, 'done' => true];
         }
 
-        $count = 0;
-        $variantIds = [];
-        $variants = app(VariantService::class);
+        $progress = is_array($import->analysis['result']['deactivation_progress'] ?? null) ? $import->analysis['result']['deactivation_progress'] : [];
+        $cards = (int) ($progress['cards'] ?? 0);
+        $variantCount = (int) ($progress['variants'] ?? 0);
+        $done = true;
+        $aggregator = app(VariantAggregator::class);
 
-        Product::query()->where('is_active', true)->select(['id', 'sku'])->chunkById(1000, function ($products) use ($skus, &$count, &$variantIds): void {
+        // Cards that are not in the file, with all their variants.
+        Product::query()->where('is_active', true)->select(['id', 'sku'])->chunkById(1000, function ($products) use ($skus, $deadline, $aggregator, &$cards, &$variantCount, &$done): bool {
+            if (microtime(true) >= $deadline) {
+                $done = false;
+
+                return false;
+            }
+
             $ids = [];
 
             foreach ($products as $product) {
@@ -788,39 +820,72 @@ final class ImportRunner
                 }
             }
 
-            if ($ids !== []) {
-                DB::table('products')->whereIn('id', $ids)->update(['is_active' => false, 'updated_at' => now()]);
-                $count += count($ids);
-
-                foreach (DB::table('product_variants')->whereIn('product_id', $ids)->whereNull('deleted_at')->where('is_active', true)->pluck('id') as $id) {
-                    $variantIds[] = (int) $id;
-                }
+            if ($ids === []) {
+                return true;
             }
+
+            DB::table('products')->whereIn('id', $ids)->update(['is_active' => false, 'updated_at' => now()]);
+            $cards += count($ids);
+
+            $variantIds = DB::table('product_variants')->whereIn('product_id', $ids)->whereNull('deleted_at')->where('is_active', true)->pluck('id', 'id')->all();
+            $variantCount += $this->deactivateVariantRows(array_keys($variantIds), $aggregator);
+
+            return true;
         });
 
-        // Variants of the cards that are in the file but not named by it.
-        DB::table('product_variants as pv')
-            ->join('products as p', 'p.id', '=', 'pv.product_id')
-            ->whereNull('pv.deleted_at')
-            ->where('pv.is_active', true)
-            ->where('p.is_active', true)
-            ->select(['pv.id', 'pv.sku'])
-            ->orderBy('pv.id')
-            ->chunkById(1000, function ($rows) use ($entities, &$variantIds): void {
-                foreach ($rows as $row) {
-                    if (! isset($entities['variants'][mb_strtolower((string) $row->sku, 'UTF-8')])) {
-                        $variantIds[] = (int) $row->id;
+        if ($done) {
+            // Variants of the cards that are in the file but not named by it.
+            DB::table('product_variants as pv')
+                ->join('products as p', 'p.id', '=', 'pv.product_id')
+                ->whereNull('pv.deleted_at')
+                ->where('pv.is_active', true)
+                ->where('p.is_active', true)
+                ->select(['pv.id', 'pv.sku'])
+                ->orderBy('pv.id')
+                ->chunkById(1000, function ($rows) use ($entities, $deadline, $aggregator, &$variantCount, &$done): bool {
+                    if (microtime(true) >= $deadline) {
+                        $done = false;
+
+                        return false;
                     }
-                }
-            }, 'pv.id', 'id');
 
-        $variantIds = array_values(array_unique($variantIds));
+                    $ids = [];
 
-        if ($variantIds !== []) {
-            $variants->bulkSetActive($variantIds, false);
+                    foreach ($rows as $row) {
+                        if (! isset($entities['variants'][mb_strtolower((string) $row->sku, 'UTF-8')])) {
+                            $ids[] = (int) $row->id;
+                        }
+                    }
+
+                    $variantCount += $this->deactivateVariantRows($ids, $aggregator);
+
+                    return true;
+                }, 'pv.id', 'id');
         }
 
-        return ['cards' => $count, 'variants' => count($variantIds)];
+        return ['cards' => $cards, 'variants' => $variantCount, 'done' => $done];
+    }
+
+    /**
+     * One bulk UPDATE for the variants, then the stock and price aggregates of their cards (locked one by one).
+     *
+     * @param  list<int>  $ids
+     * @return int number of variants that were active
+     */
+    private function deactivateVariantRows(array $ids, VariantAggregator $aggregator): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        $cardIds = DB::table('product_variants')->whereIn('id', $ids)->distinct()->pluck('product_id')->map(fn (mixed $id): int => (int) $id)->all();
+        $changed = DB::table('product_variants')->whereIn('id', $ids)->where('is_active', true)->update(['is_active' => false, 'updated_at' => now()]);
+
+        foreach ($cardIds as $cardId) {
+            $aggregator->refresh($cardId);
+        }
+
+        return $changed;
     }
 
     // ------------------------------------------------------------------ notification

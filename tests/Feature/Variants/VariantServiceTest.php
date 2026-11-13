@@ -241,12 +241,14 @@ describe('switching variants on and off (VR-25)', function (): void {
             ->and($fresh->final_price_max)->toBe('800.00');
     });
 
-    it('enables without a first variant and keeps the card data until variants exist', function (): void {
+    it('enables without a first variant: the card is sold out (stock 0), not untracked, until variants exist (D-114)', function (): void {
         $product = plainProduct(['stock_qty' => 3]);
 
         expect($this->service->enable($product, [$this->color->id]))->toBeNull();
 
-        expect($product->fresh()->has_variants)->toBeTrue()->and($product->fresh()->stock_qty)->toBe(3);
+        expect($product->fresh()->has_variants)->toBeTrue()
+            ->and($product->fresh()->stock_qty)->toBe(0)
+            ->and($product->stock_qty)->toBe(0);
     });
 
     it('refuses to enable and disable while unfinished requests contain the product and lists their numbers', function (): void {

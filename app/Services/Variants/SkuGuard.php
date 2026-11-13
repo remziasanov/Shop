@@ -6,6 +6,7 @@ namespace App\Services\Variants;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -81,6 +82,40 @@ final class SkuGuard
 
         if ($this->isTaken($sku, $ignore)) {
             throw ValidationException::withMessages(['sku' => __('variants.errors.sku_taken', ['sku' => $sku])]);
+        }
+    }
+
+    /**
+     * A unique-index violation on `sku` (two parallel writes into the same table slipped past the check) as the same
+     * validation error as {@see assertAvailable()}; null when the violation concerns another index.
+     */
+    public function translate(UniqueConstraintViolationException $e): ?ValidationException
+    {
+        if (! str_contains($e->getMessage(), 'sku')) {
+            return null;
+        }
+
+        return ValidationException::withMessages(['sku' => __('variants.errors.sku_race')]);
+    }
+
+    /**
+     * Runs the write (call it OUTSIDE the transaction, so it is rolled back) and turns a unique violation on `sku`
+     * into a ValidationException on `sku`.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $write
+     * @return T
+     *
+     * @throws ValidationException
+     * @throws UniqueConstraintViolationException a violation of another index
+     */
+    public function guard(callable $write): mixed
+    {
+        try {
+            return $write();
+        } catch (UniqueConstraintViolationException $e) {
+            throw $this->translate($e) ?? $e;
         }
     }
 

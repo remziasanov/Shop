@@ -14,6 +14,7 @@ use App\Services\Users\PermissionService;
 use App\Services\Variants\VariantService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Utilities\Get;
@@ -133,8 +134,22 @@ final class VariantSwitchActions
             ->visible(fn (Product $record): bool => $record->has_variants && ! $record->trashed() && self::canUpdate())
             ->modalHeading(__('admin_variants.switch.disable_heading'))
             ->modalDescription(fn (Product $record): string => self::requestsNote($record) ?? __('admin_variants.switch.disable_description'))
-            ->action(function (Product $record, Component $livewire): void {
+            // Irreversible (D-115): the card article has to be typed.
+            ->schema(fn (Product $record): array => [
+                TextInput::make('confirm_sku')
+                    ->label(__('admin_variants.switch.disable_confirm_label', ['sku' => $record->sku]))
+                    ->required()
+                    ->in([$record->sku])
+                    ->validationMessages(['in' => __('admin_variants.switch.disable_confirm_mismatch')]),
+            ])
+            ->action(function (Product $record, array $data, Component $livewire): void {
                 abort_unless(self::canUpdate(), 403);
+
+                if (trim((string) ($data['confirm_sku'] ?? '')) !== $record->sku) {
+                    Notification::make()->danger()->title(__('admin_variants.switch.disable_confirm_mismatch'))->send();
+
+                    throw new Halt;
+                }
 
                 try {
                     app(VariantService::class)->disable($record);

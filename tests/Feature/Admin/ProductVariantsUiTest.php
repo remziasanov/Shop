@@ -87,10 +87,25 @@ describe('switching variants on and off (VR-02, VR-25)', function (): void {
         OrderItem::factory()->forProduct($card, 1)->create(['order_id' => $reservation->id]);
 
         Livewire::test(EditProduct::class, ['record' => $card->getRouteKey()])
-            ->callAction('disable_variants')
+            ->callAction('disable_variants', ['confirm_sku' => $card->sku])
             ->assertNotified(__('variants.errors.unfinished_requests', ['numbers' => $reservation->number]));
 
         expect($card->refresh()->has_variants)->toBeTrue();
+    });
+
+    it('does not disable variants until the card article is typed (D-115)', function (): void {
+        $card = variantCard([], $this->size);
+        variantOf($card, [$this->size->values[0]], ['stock_qty' => 3]);
+
+        Livewire::test(EditProduct::class, ['record' => $card->getRouteKey()])
+            ->callAction('disable_variants', ['confirm_sku' => 'WRONG'])
+            ->assertHasActionErrors(['confirm_sku']);
+
+        Livewire::test(EditProduct::class, ['record' => $card->getRouteKey()])
+            ->callAction('disable_variants', [])
+            ->assertHasActionErrors(['confirm_sku' => 'required']);
+
+        expect($card->refresh()->has_variants)->toBeTrue()->and(ProductVariant::query()->where('product_id', $card->id)->count())->toBe(1);
     });
 
     it('disables variants: they are deleted and the card keeps the stock sum', function (): void {
@@ -99,7 +114,7 @@ describe('switching variants on and off (VR-02, VR-25)', function (): void {
         variantOf($card, [$this->size->values[1]], ['stock_qty' => 4]);
 
         Livewire::test(EditProduct::class, ['record' => $card->getRouteKey()])
-            ->callAction('disable_variants')
+            ->callAction('disable_variants', ['confirm_sku' => $card->sku])
             ->assertHasNoActionErrors();
 
         $card->refresh();
@@ -191,7 +206,7 @@ describe('the «Модификации» tab (VR-24)', function (): void {
             ->and($variant->stock_qty)->toBe(9)
             ->and($variant->sort_order)->toBe(5)
             ->and($variant->is_active)->toBeFalse()
-            ->and($card->refresh()->stock_qty)->toBeNull();
+            ->and($card->refresh()->stock_qty)->toBe(0);
     });
 
     it('refuses an article that another product or variant uses', function (): void {

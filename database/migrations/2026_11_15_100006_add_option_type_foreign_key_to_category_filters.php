@@ -17,6 +17,14 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Stage 10 wrote no option rows, but nothing stopped a stray value: an id without an option would fail the FK.
+        // Such a value is cleared, and an option filter left without an option is meaningless and removed.
+        DB::table('category_filters')
+            ->whereNotNull('option_type_id')
+            ->whereNotIn('option_type_id', DB::table('option_types')->select('id'))
+            ->update(['option_type_id' => null]);
+        DB::table('category_filters')->where('source', 'option')->whereNull('option_type_id')->delete();
+
         if (DB::getDriverName() === 'sqlite') {
             return;
         }

@@ -204,7 +204,7 @@ describe('aggregate rules (19.5)', function (): void {
         expect($this->card->fresh()->stock_qty)->toBe(10);
     });
 
-    it('is NULL when no variant is tracked or none is active, and reserved sums only active variants', function (): void {
+    it('is NULL when no variant is tracked, 0 when none is active (sold out), and reserved sums only active variants', function (): void {
         $this->stock->setStock($this->s, null);
         $this->stock->setStock($this->m, null);
         expect($this->card->fresh()->stock_qty)->toBeNull();
@@ -218,7 +218,8 @@ describe('aggregate rules (19.5)', function (): void {
 
         $this->m->update(['is_active' => false]);
         $this->s->update(['is_active' => false]);
-        expect($this->card->fresh()->stock_qty)->toBeNull()->and($this->card->fresh()->reserved_qty)->toBe(0);
+        // VR-08, D-114: no active variant = sold out, never "not tracked".
+        expect($this->card->fresh()->stock_qty)->toBe(0)->and($this->card->fresh()->reserved_qty)->toBe(0);
     });
 
     it('follows soft deletion of a variant', function (): void {

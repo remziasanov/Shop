@@ -88,7 +88,7 @@ final class CombinationGenerator
      */
     public function create(Product $product, array $rows, array $defaults = []): array
     {
-        return $this->aggregator->batch(fn (): array => DB::transaction(function () use ($product, $rows, $defaults): array {
+        return DB::transaction(fn (): array => $this->aggregator->batch(function () use ($product, $rows, $defaults): array {
             $existing = ProductVariant::query()->where('product_id', $product->id)->pluck('combo_hash')->flip()->all();
             $todo = [];
 

@@ -351,15 +351,17 @@ final class ProductPriceUpdater
      * variants when none is active), display_old_price = the old price of the cheapest one. Null when the card has no
      * live variant (its stored prices stay).
      *
+     * @param  bool  $lock  FOR UPDATE: a current read for writers (see VariantAggregator::expectedStock())
      * @return array{final_price: string, final_price_max: string, display_old_price: string|null}|null
      */
-    public function expectedAggregatePrices(int $productId): ?array
+    public function expectedAggregatePrices(int $productId, bool $lock = false): ?array
     {
         $rows = DB::table('product_variants')
             ->where('product_id', $productId)
             ->whereNull('deleted_at')
             ->orderBy('sort_order')
             ->orderBy('id')
+            ->when($lock, fn ($query) => $query->lockForUpdate())
             ->get(['is_active', 'final_price', 'display_old_price']);
 
         if ($rows->isEmpty()) {
@@ -398,8 +400,8 @@ final class ProductPriceUpdater
      */
     public function aggregatePrices(int $productId): bool
     {
-        $expected = $this->expectedAggregatePrices($productId);
-        $card = DB::table('products')->where('id', $productId)->where('has_variants', true)->first(['final_price', 'final_price_max', 'display_old_price']);
+        $expected = $this->expectedAggregatePrices($productId, true);
+        $card = DB::table('products')->where('id', $productId)->where('has_variants', true)->whereNull('deleted_at')->lockForUpdate()->first(['final_price', 'final_price_max', 'display_old_price']);
 
         if ($expected === null || $card === null) {
             return false;

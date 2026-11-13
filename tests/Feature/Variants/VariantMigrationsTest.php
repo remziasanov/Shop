@@ -2,8 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Enums\FilterSource;
+use App\Models\Attribute;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\Category;
+use App\Models\CategoryFilter;
+use App\Models\OptionType;
 use App\Models\OrderItem;
 use App\Models\PriceHistory;
 use App\Models\ProductVariant;
@@ -143,4 +148,21 @@ it('drops cart rows of variants when rolling back, because the old key cannot ho
     }
 
     expect(DB::table('cart_items')->count())->toBe(1);
+})->skip(fn () => DB::getDriverName() !== 'sqlite', 'DDL commits the test transaction on MySQL');
+
+it('clears orphan option_type_id values before the category_filters foreign key is added', function (): void {
+    $category = Category::factory()->create();
+    $type = OptionType::factory()->create();
+    $attribute = Attribute::factory()->create();
+    $orphanAttributeRow = CategoryFilter::factory()->create(['category_id' => $category->id, 'attribute_id' => $attribute->id, 'option_type_id' => 999_999]);
+    $orphanOptionRow = CategoryFilter::factory()->create(['category_id' => $category->id, 'source' => FilterSource::Option, 'attribute_id' => null, 'option_type_id' => 888_888]);
+    $validOptionRow = CategoryFilter::factory()->create(['category_id' => $category->id, 'source' => FilterSource::Option, 'attribute_id' => null, 'option_type_id' => $type->id]);
+
+    $migration = require database_path('migrations/2026_11_15_100006_add_option_type_foreign_key_to_category_filters.php');
+    $migration->down();
+    $migration->up();
+
+    expect($orphanAttributeRow->fresh()->option_type_id)->toBeNull()
+        ->and(CategoryFilter::query()->find($orphanOptionRow->id))->toBeNull()
+        ->and($validOptionRow->fresh()->option_type_id)->toBe($type->id);
 })->skip(fn () => DB::getDriverName() !== 'sqlite', 'DDL commits the test transaction on MySQL');

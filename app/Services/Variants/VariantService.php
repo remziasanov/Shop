@@ -17,6 +17,7 @@ use App\Services\Stock\StockService;
 use App\Settings\CatalogSettings;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -150,13 +151,23 @@ final class VariantService
 
             if (! $locked->has_variants) {
                 $locked->has_variants = true;
-                // The card keeps its own prices and stock until the first variant exists, so no observer is needed.
+                // The card keeps its own prices until the first variant exists, so no observer is needed.
                 $locked->saveQuietly();
                 $product->has_variants = true;
                 $product->syncOriginalAttribute('has_variants');
             }
 
-            return $currentDataValueIds === null ? null : $this->createFromCurrentData($locked, $currentDataValueIds);
+            if ($currentDataValueIds !== null) {
+                return $this->createFromCurrentData($locked, $currentDataValueIds);
+            }
+
+            // No variant yet: the card is sold out (stock 0) until variants exist, not "not tracked" (VR-08, D-114).
+            $this->aggregator->rollupStock($locked->id);
+            $product->stock_qty = 0;
+            $product->reserved_qty = 0;
+            $product->syncOriginalAttributes(['stock_qty', 'reserved_qty']);
+
+            return null;
         });
     }
 
@@ -232,9 +243,19 @@ final class VariantService
      */
     public function unfinishedRequestNumbers(Product $product): array
     {
+        return $this->unfinishedNumbers('order_items.product_id', [$product->id]);
+    }
+
+    /**
+     * @param  string  $column  `order_items.product_id` or `order_items.variant_id`
+     * @param  list<int>  $ids
+     * @return list<string>
+     */
+    private function unfinishedNumbers(string $column, array $ids): array
+    {
         return DB::table('order_items')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->where('order_items.product_id', $product->id)
+            ->whereIn($column, $ids)
             ->whereNull('orders.deleted_at')
             ->where(function ($query): void {
                 $query->where(fn ($q) => $q->where('orders.type', OrderType::Order->value)->whereIn('orders.status', [
@@ -272,7 +293,7 @@ final class VariantService
      */
     public function create(Product $product, array $data): ProductVariant
     {
-        return $this->aggregator->batch(fn (): ProductVariant => DB::transaction(function () use ($product, $data): ProductVariant {
+        return $this->guarded(fn (): ProductVariant => DB::transaction(fn (): ProductVariant => $this->aggregator->batch(function () use ($product, $data): ProductVariant {
             $card = $this->lockCard($product);
 
             if (! $card->has_variants) {
@@ -313,7 +334,7 @@ final class VariantService
             }
 
             return $variant->unsetRelation('product');
-        }));
+        })));
     }
 
     /**
@@ -326,7 +347,7 @@ final class VariantService
      */
     public function update(ProductVariant $variant, array $data): ProductVariant
     {
-        return $this->aggregator->batch(fn (): ProductVariant => DB::transaction(function () use ($variant, $data): ProductVariant {
+        return $this->guarded(fn (): ProductVariant => DB::transaction(fn (): ProductVariant => $this->aggregator->batch(function () use ($variant, $data): ProductVariant {
             $card = $this->lockCard($variant->stockProduct());
             /** @var ProductVariant $locked */
             $locked = ProductVariant::withTrashed()->whereKey($variant->id)->lockForUpdate()->firstOrFail();
@@ -367,7 +388,7 @@ final class VariantService
             $variant->setRawAttributes(ProductVariant::withTrashed()->whereKey($locked->id)->firstOrFail()->getAttributes(), true);
 
             return $variant;
-        }));
+        })));
     }
 
     /**
@@ -469,9 +490,10 @@ final class VariantService
     {
         $count = 0;
 
-        $this->aggregator->batch(function () use ($variantIds, $apply, &$count): void {
-            foreach (array_chunk(array_values(array_unique(array_map('intval', $variantIds))), self::CHUNK_SIZE) as $chunk) {
-                DB::transaction(function () use ($chunk, $apply, &$count): void {
+        foreach (array_chunk(array_values(array_unique(array_map('intval', $variantIds))), self::CHUNK_SIZE) as $chunk) {
+            // The card aggregates are refreshed at the end of the chunk, inside its transaction (card rows locked first).
+            DB::transaction(function () use ($chunk, $apply, &$count): void {
+                $this->aggregator->batch(function () use ($chunk, $apply, &$count): void {
                     $variants = ProductVariant::query()->whereIn('id', $chunk)->orderBy('id')->get();
 
                     // Card rows first, ascending (19.5), then the variants one by one.
@@ -483,10 +505,32 @@ final class VariantService
                         $count++;
                     }
                 });
-            }
-        });
+            });
+        }
 
         return $count;
+    }
+
+    /**
+     * Runs a write outside any transaction of its own and turns unique-index races into ordinary errors: `sku` becomes
+     * a ValidationException (SkuGuard), `combo_hash` a VariantException.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $write
+     * @return T
+     */
+    private function guarded(callable $write): mixed
+    {
+        try {
+            return $this->skus->guard($write);
+        } catch (UniqueConstraintViolationException $e) {
+            if (str_contains($e->getMessage(), 'combo_hash')) {
+                throw VariantException::comboExists();
+            }
+
+            throw $e;
+        }
     }
 
     /**
@@ -545,10 +589,19 @@ final class VariantService
     {
         $ids = ProductVariant::onlyTrashed()->where('product_id', $card->id)->where('combo_hash', $hash)->pluck('id')->all();
 
-        if ($ids !== []) {
-            CartItem::query()->whereIn('variant_id', $ids)->delete();
-            ProductVariant::onlyTrashed()->whereIn('id', $ids)->forceDelete();
+        if ($ids === []) {
+            return;
         }
+
+        // The old variant would vanish for good: not while an unfinished request still points at it (VR-25 message).
+        $numbers = $this->unfinishedNumbers('order_items.variant_id', $ids);
+
+        if ($numbers !== []) {
+            throw VariantException::unfinishedRequests($numbers);
+        }
+
+        CartItem::query()->whereIn('variant_id', $ids)->delete();
+        ProductVariant::onlyTrashed()->whereIn('id', $ids)->forceDelete();
     }
 
     /**

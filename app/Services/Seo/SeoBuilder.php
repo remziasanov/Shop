@@ -246,7 +246,7 @@ final class SeoBuilder
 
         // CG-06: no price in the structured data for a group that sees no prices.
         if (! $product->price_on_request && ! $view->priceHidden) {
-            $offer['price'] = number_format((float) $product->final_price, 2, '.', '');
+            $offer['price'] = Money::toRubles(Money::fromRubles($product->final_price));
             $offer['priceCurrency'] = 'RUB';
         }
 
@@ -293,19 +293,20 @@ final class SeoBuilder
             $offer = ['@type' => 'Offer', 'url' => $url, 'sku' => $own['sku']];
 
             if (! $hidePrice) {
-                $offer['price'] = number_format((float) $own['price'], 2, '.', '');
+                $offer['price'] = Money::toRubles(Money::fromRubles($own['price']));
                 $offer['priceCurrency'] = 'RUB';
             }
 
             $offer['availability'] = $schema($own);
             $sku = $own['sku'];
         } else {
-            $prices = array_map(fn (array $offer): string => $offer['price'], $variants->offers);
+            // Kopecks, never floats (D-006).
+            $prices = array_map(fn (array $offer): int => Money::fromRubles($offer['price']), $variants->offers);
             $offer = ['@type' => 'AggregateOffer', 'url' => $url];
 
             if (! $hidePrice) {
-                $offer['lowPrice'] = number_format((float) min(array_map('floatval', $prices)), 2, '.', '');
-                $offer['highPrice'] = number_format((float) max(array_map('floatval', $prices)), 2, '.', '');
+                $offer['lowPrice'] = Money::toRubles(min($prices));
+                $offer['highPrice'] = Money::toRubles(max($prices));
                 $offer['priceCurrency'] = 'RUB';
             }
 

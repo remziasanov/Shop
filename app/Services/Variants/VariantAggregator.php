@@ -6,6 +6,7 @@ namespace App\Services\Variants;
 
 use App\Services\Pricing\ProductPriceUpdater;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * Card aggregates over the variants (VR-06, VR-07, 19.5):
@@ -29,6 +30,8 @@ final class VariantAggregator
 
     /**
      * Run $callback and refresh every card touched through {@see refresh()} once at the end (bulk operations).
+     * Call it INSIDE the transaction that writes the variants: the refresh then runs in that transaction, after the card
+     * row was locked (19.5). When the callback throws, nothing is refreshed.
      *
      * @template T
      *
@@ -40,19 +43,29 @@ final class VariantAggregator
         $this->depth++;
 
         try {
-            return $callback();
-        } finally {
+            $result = $callback();
+        } catch (Throwable $e) {
             $this->depth--;
 
             if ($this->depth === 0) {
-                $ids = $this->pending;
                 $this->pending = [];
+            }
 
-                foreach ($ids as $id) {
-                    $this->refreshNow($id);
-                }
+            throw $e;
+        }
+
+        $this->depth--;
+
+        if ($this->depth === 0) {
+            $ids = $this->pending;
+            $this->pending = [];
+
+            foreach ($ids as $id) {
+                $this->refreshNow($id);
             }
         }
+
+        return $result;
     }
 
     /**
@@ -70,31 +83,31 @@ final class VariantAggregator
     }
 
     /**
-     * Stock aggregates only (StockService calls this inside its transaction).
+     * Stock aggregates only (StockService calls this inside its transaction). Locks the card row first, then reads the
+     * variants (lock order products, then variants, 19.5); a trashed card is left alone.
      *
      * @return bool whether the card row changed
      */
     public function rollupStock(int $productId): bool
     {
-        $expected = $this->expectedStock([$productId])[$productId] ?? ['stock_qty' => null, 'reserved_qty' => 0];
-        $row = DB::table('products')->where('id', $productId)->where('has_variants', true)->first(['stock_qty', 'reserved_qty']);
+        return DB::transaction(function () use ($productId): bool {
+            $row = $this->lockCard($productId);
 
-        if ($row === null || ($this->sameInt($row->stock_qty, $expected['stock_qty']) && (int) $row->reserved_qty === $expected['reserved_qty'])) {
-            return false;
-        }
-
-        DB::table('products')->where('id', $productId)->update($expected);
-
-        return true;
+            return $row !== null && $this->writeStock($row);
+        });
     }
 
     /**
-     * Expected stock aggregates per card, computed from the variant rows.
+     * Expected stock aggregates per card, computed from the variant rows. A card with variants but no active one is
+     * sold out: stock 0 and nothing reserved (VR-08, D-114). NULL (not tracked, always available) only when an active
+     * variant is not tracked.
      *
      * @param  list<int>  $productIds
+     * @param  bool  $lock  read the variants with FOR UPDATE: a current read, not the transaction snapshot. Writers need it
+     *                      (MySQL REPEATABLE READ would otherwise show the rows as they were when the transaction began)
      * @return array<int, array{stock_qty: int|null, reserved_qty: int}>
      */
-    public function expectedStock(array $productIds): array
+    public function expectedStock(array $productIds, bool $lock = false): array
     {
         if ($productIds === []) {
             return [];
@@ -106,12 +119,13 @@ final class VariantAggregator
             ->where('is_active', true)
             ->groupBy('product_id')
             ->selectRaw('product_id, COUNT(*) as active_count, SUM(CASE WHEN stock_qty IS NULL THEN 1 ELSE 0 END) as untracked, SUM(stock_qty) as stock_sum, SUM(reserved_qty) as reserved_sum')
+            ->when($lock, fn ($query) => $query->lockForUpdate())
             ->get();
 
         $result = [];
 
         foreach ($productIds as $id) {
-            $result[$id] = ['stock_qty' => null, 'reserved_qty' => 0];
+            $result[$id] = ['stock_qty' => 0, 'reserved_qty' => 0];
         }
 
         foreach ($rows as $row) {
@@ -163,22 +177,25 @@ final class VariantAggregator
 
         $ids = DB::table('products')->where('has_variants', true)->whereNull('deleted_at')->orderBy('id')->pluck('id');
 
-        foreach ($ids->chunk(200) as $chunk) {
+        foreach ($ids as $id) {
             if ($deadline !== null && microtime(true) >= $deadline) {
                 break;
             }
 
-            $cards = DB::table('products')->whereIn('id', $chunk->all())
-                ->get(['id', 'stock_qty', 'reserved_qty', 'final_price', 'final_price_max', 'display_old_price']);
+            // The card is locked before its variants are read, so a concurrent checkout cannot be overwritten.
+            $rows = DB::transaction(function () use ($id): array {
+                $card = $this->lockCard((int) $id);
+                $rows = $card === null ? [] : $this->cardDiscrepancies($card, true);
 
-            foreach ($cards as $card) {
-                $rows = $this->cardDiscrepancies($card);
-
-                if ($rows !== []) {
-                    $this->refreshNow((int) $card->id);
-                    array_push($fixed, ...$rows);
+                if ($card !== null && $rows !== []) {
+                    $this->writeStock($card);
+                    $this->prices->aggregatePrices((int) $id);
                 }
-            }
+
+                return $rows;
+            });
+
+            array_push($fixed, ...$rows);
         }
 
         return $fixed;
@@ -186,18 +203,55 @@ final class VariantAggregator
 
     private function refreshNow(int $productId): void
     {
-        $this->rollupStock($productId);
-        $this->prices->aggregatePrices($productId);
+        DB::transaction(function () use ($productId): void {
+            $card = $this->lockCard($productId);
+
+            if ($card !== null) {
+                $this->writeStock($card);
+                $this->prices->aggregatePrices($productId);
+            }
+        });
+    }
+
+    /**
+     * Locks the row of a live card with variants (FOR UPDATE) and returns its aggregate columns; null for any other
+     * product. Must run inside a transaction and before the variants are read.
+     */
+    private function lockCard(int $productId): ?object
+    {
+        return DB::table('products')
+            ->where('id', $productId)
+            ->where('has_variants', true)
+            ->whereNull('deleted_at')
+            ->lockForUpdate()
+            ->first(['id', 'stock_qty', 'reserved_qty', 'final_price', 'final_price_max', 'display_old_price']);
+    }
+
+    /**
+     * Writes the expected stock aggregates of a locked card when they differ.
+     */
+    private function writeStock(object $card): bool
+    {
+        $id = (int) $card->id;
+        $expected = $this->expectedStock([$id], true)[$id];
+
+        if ($this->sameInt($card->stock_qty, $expected['stock_qty']) && (int) $card->reserved_qty === $expected['reserved_qty']) {
+            return false;
+        }
+
+        DB::table('products')->where('id', $id)->update($expected);
+
+        return true;
     }
 
     /**
      * @return list<array{product_id: int, field: string, stored: string|null, expected: string|null}>
      */
-    private function cardDiscrepancies(object $card): array
+    private function cardDiscrepancies(object $card, bool $lock = false): array
     {
         $rows = [];
         $id = (int) $card->id;
-        $stock = $this->expectedStock([$id])[$id];
+        $stock = $this->expectedStock([$id], $lock)[$id];
 
         if (! $this->sameInt($card->stock_qty, $stock['stock_qty'])) {
             $rows[] = ['product_id' => $id, 'field' => 'stock_qty', 'stored' => $this->str($card->stock_qty), 'expected' => $this->str($stock['stock_qty'])];
@@ -207,7 +261,7 @@ final class VariantAggregator
             $rows[] = ['product_id' => $id, 'field' => 'reserved_qty', 'stored' => (string) $card->reserved_qty, 'expected' => (string) $stock['reserved_qty']];
         }
 
-        $prices = $this->prices->expectedAggregatePrices($id);
+        $prices = $this->prices->expectedAggregatePrices($id, $lock);
 
         if ($prices !== null) {
             foreach (['final_price', 'final_price_max', 'display_old_price'] as $field) {
