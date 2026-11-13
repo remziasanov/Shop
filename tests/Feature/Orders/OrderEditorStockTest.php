@@ -351,3 +351,20 @@ it('refuses to remove every position', function (): void {
 
     expect(fn () => saveEdit($order, editData($order, ['items' => []])))->toThrow(SalesException::class);
 });
+
+it('releases the hold of a reservation line whose unit lost its stock figure (D-128)', function (): void {
+    $a = sellable(['stock_qty' => 10]);
+    $b = sellable(['stock_qty' => 10]);
+    $order = editableOrder([[$a, 3], [$b, 2]], OrderType::Reservation);
+    expect($a->fresh()->reserved_qty)->toBe(3);
+
+    $a->forceFill(['stock_qty' => null])->save();
+
+    saveEdit($order, withQty($order, $a, 1));
+    expect($a->fresh()->reserved_qty)->toBe(1)
+        ->and($order->refresh()->items->firstWhere('product_id', $a->id)->stock_applied_qty)->toBe(1);
+
+    $keep = editData($order)->items;
+    saveEdit($order, editData($order)->with(['items' => [$keep[1]]]));
+    expect($a->fresh()->reserved_qty)->toBe(0)->and($b->fresh()->reserved_qty)->toBe(2);
+});

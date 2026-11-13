@@ -251,6 +251,50 @@ final class OrderEditor
     }
 
     /**
+     * The «Комментарий менеджера» action of the order card (OE-07, OE-08): one transaction updates the comment, moves
+     * the version and writes one `order_changes` row. An unchanged comment writes nothing.
+     *
+     * @throws SalesException the order is gone
+     */
+    public function saveManagerComment(int $orderId, ?string $comment, User $actor): bool
+    {
+        return DB::transaction(function () use ($orderId, $comment, $actor): bool {
+            /** @var Order|null $order */
+            $order = Order::query()->whereKey($orderId)->lockForUpdate()->first();
+
+            if ($order === null) {
+                throw new SalesException(__('order_edit.errors.not_found'));
+            }
+
+            $old = $this->blankToNull($order->manager_comment);
+            $new = $this->blankToNull($comment);
+
+            if ($old === $new) {
+                return false;
+            }
+
+            $order->manager_comment = $new;
+            $order->saveQuietly();
+
+            OrderChange::query()->create([
+                'order_id' => $order->id,
+                'batch_uuid' => (string) Str::uuid(),
+                'kind' => OrderChangeKind::Field,
+                'field' => 'manager_comment',
+                'order_item_id' => null,
+                'item_label' => null,
+                'old_value' => $old,
+                'new_value' => $new,
+                'user_id' => $actor->id,
+                'created_at' => now(),
+            ]);
+            $this->bumpVersion($order, (int) $order->version, $actor);
+
+            return true;
+        });
+    }
+
+    /**
      * OE-12: an inquiry becomes an order. Creates a request of the `order` type through the same pipeline as an edit
      * (stock by OE-04, prices from the price list for the group of the inquiry, source_order_id = the inquiry, a number
      * from the common counter), closes the inquiry with the comment «Создан заказ Z-…» and, per the setting, mails the
@@ -286,7 +330,8 @@ final class OrderEditor
 
             $order = new Order;
             $order->uuid = (string) Str::uuid();
-            $order->number = $this->numbers->next(OrderType::Order);
+            // The number is allocated after products and variants are locked (checkout lock order, D-053).
+            $order->number = 'tmp-'.Str::random(20);
             $order->type = OrderType::Order;
             $order->status = OrderStatus::New;
             $order->customer_name = '';
@@ -307,6 +352,8 @@ final class OrderEditor
 
             $plan = $this->build($order, $data, $actor, true);
             $plan->effects = $this->stock->applyItemChanges($order, $plan->stockChanges);
+            $order->number = $this->numbers->next(OrderType::Order);
+            $order->save();
             $this->finish($order, $plan);
             $this->persist($order, $plan);
             $order->version = 1;
@@ -523,7 +570,7 @@ final class OrderEditor
                     throw new SalesException(__('variant_storefront.errors.required', ['name' => $product->name]));
                 }
 
-                if ($variant === null || (int) $variant->product_id !== (int) $product->id || ! $variant->is_active) {
+                if ($variant === null || (int) $variant->product_id !== (int) $product->id || $variant->trashed() || ! $variant->is_active) {
                     throw new SalesException(__('variant_storefront.errors.unavailable', ['name' => $product->name]));
                 }
             } elseif ($request['variantId'] !== null) {

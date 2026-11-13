@@ -476,6 +476,20 @@ final class StockService
             $name = $unit?->stockName() ?? (string) ($products->get($change->productId)->name ?? '');
             $applied = min($change->appliedQty, $change->newQty);
 
+            // A reservation line whose unit lost its stock figure after the hold (stock_qty NULL now) still gives back
+            // what it holds when it shrinks or goes away, like releaseReservation() does (D-051 spirit).
+            if ($reservation && $order->stock_applied && $unit !== null && $unit->stock_qty === null
+                && $change->newQty < $change->oldQty && $change->appliedQty > 0) {
+                $give = $change->oldQty - $change->newQty;
+                $toReturn = $give - min($give, $change->oldQty - $change->appliedQty);
+                $applied = min($change->appliedQty - $toReturn, $change->newQty);
+                $release = min($change->appliedQty - $applied, $unit->reserved_qty);
+                $unit->reserved_qty -= $release;
+                $effects[] = new StockEffect($change->key, $name, $applied, reservedDelta: -$release, tracked: true);
+
+                continue;
+            }
+
             if (! $order->stock_applied || $unit === null || $unit->stock_qty === null) {
                 $effects[] = new StockEffect($change->key, $name, $applied);
 

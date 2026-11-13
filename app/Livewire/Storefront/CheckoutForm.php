@@ -23,6 +23,7 @@ use App\Settings\SalesSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Throwable;
 
@@ -63,6 +64,14 @@ class CheckoutForm extends Component
 
     /** MR-06: the optional desired pickup date of the reservation (Y-m-d). */
     public string $desiredDate = '';
+
+    /**
+     * MR-02: the part (`order` / `reservation`) every cart row had when the page was last rendered, by cart item id.
+     *
+     * @var array<int, string>
+     */
+    #[Locked]
+    public array $shownTargets = [];
 
     public function mount(CheckoutMethods $methods, ViewerContext $viewer, CustomerAddressService $addresses): void
     {
@@ -195,6 +204,7 @@ class CheckoutForm extends Component
                 promoLinkId: $this->promoLinkId(),
                 choice: $this->summaryChoice(),
                 desiredDate: $desired ?: null,
+                shownTargets: $this->shownTargets === [] ? null : $this->shownTargets,
             ));
         } catch (CartChangedException $e) {
             // SF-46: the cart was already corrected; the customer re-checks it and confirms again.
@@ -223,6 +233,10 @@ class CheckoutForm extends Component
         $promo = $this->promoState($cart, $summary);
         $hasOrder = $summary !== null && $summary->hasOrder;
         $hasReservation = $summary !== null && $summary->hasReservation;
+        $this->shownTargets = $summary === null ? [] : collect($summary->lines)
+            ->filter(fn ($l): bool => $l->target !== null)
+            ->mapWithKeys(fn ($l): array => [$l->item->id => $l->target->value])
+            ->all();
         // PM-02: a free delivery code zeroes the price; PM-18: total = items - promo discount + delivery. MR-08: order part only.
         $deliveryPrice = $hasOrder && $selected !== null && ! $promo['freeDelivery'] ? $selected->priceFor($summary->itemsTotal) : 0;
 

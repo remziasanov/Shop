@@ -33,5 +33,12 @@ final readonly class CheckoutData
         public CheckoutChoice $choice = CheckoutChoice::Order,
         /** MR-06: the optional desired pickup date of the reservation part. */
         public ?CarbonInterface $desiredDate = null,
+        /**
+         * MR-02: the part of every cart row (cart item id => `order` / `reservation`) the customer saw on the checkout
+         * page; null = not checked. A row that goes elsewhere on the server aborts the checkout.
+         *
+         * @var array<int, string>|null
+         */
+        public ?array $shownTargets = null,
     ) {}
 }

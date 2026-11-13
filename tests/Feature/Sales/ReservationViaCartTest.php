@@ -26,6 +26,7 @@ use App\Models\User;
 use App\Services\Access\ViewerContext;
 use App\Services\Cart\CartService;
 use App\Services\Notifications\Messages\NewRequestMessage;
+use App\Services\Orders\CheckoutData;
 use App\Services\Orders\OrderQuery;
 use App\Services\Orders\OrderService;
 use App\Services\Sales\CartAvailability;
@@ -730,4 +731,47 @@ it('edits the reservation settings in the admin panel (MR-03, MR-13)', function 
     $settings = app(SalesSettings::class);
 
     expect($settings->reservation_via_cart)->toBeFalse()->and($settings->reservation_max_items)->toBe(7);
+});
+
+it('aborts the checkout when a row moved to the other part after the page was shown (MR-02)', function (): void {
+    resetFormGuard();
+    $product = mrReservable(['stock_qty' => 5, 'name' => 'Лампа']);
+    $cart = mrCart([[$product]]);
+
+    $component = livewireWithCart(CheckoutForm::class, $cart);
+    expect($component->get('shownTargets'))->toBe([$cart->items()->firstOrFail()->id => 'reservation']);
+
+    $this->travel(5)->seconds();
+    fillCheckout($component, 'samovyvoz');
+
+    // The admin switches the product from «Резерв» to «Корзина» after the page was last shown.
+    $product->update(['sales_mode' => SalesMode::Cart]);
+    $component->call('submit');
+
+    $component->assertRedirect(route('cart'));
+    expect(Order::count())->toBe(0)
+        ->and($cart->items()->count())->toBe(1)
+        ->and($product->fresh()->stock_qty)->toBe(5)
+        ->and(session('cart_changed')[0])->toContain('Лампа')->toContain('как заказ');
+    resetFormGuard();
+});
+
+it('does not accept a shown split that differs from the server one at the service level (MR-02)', function (): void {
+    $product = sellable(['sales_mode' => SalesMode::Both, 'stock_qty' => 5, 'name' => 'Чашка']);
+    $cart = mrCart([[$product]]);
+    $itemId = $cart->items()->firstOrFail()->id;
+    $data = mrMixedData(CheckoutChoice::Reservation);
+    $stale = new CheckoutData(
+        $data->name, $data->phone, $data->email, $data->deliveryKey, $data->address, $data->paymentKey, $data->comment,
+        $data->consent, $data->ip, $data->userAgent, choice: CheckoutChoice::Order, shownTargets: [$itemId => 'reservation'],
+    );
+
+    try {
+        app(OrderService::class)->checkoutFromCart($cart, $stale);
+        $this->fail('Expected CartChangedException');
+    } catch (CartChangedException $e) {
+        expect($e->reasons[0])->toContain('Чашка')->toContain('как заказ');
+    }
+
+    expect(Order::count())->toBe(0);
 });

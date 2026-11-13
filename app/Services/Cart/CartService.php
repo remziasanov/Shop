@@ -183,7 +183,7 @@ final class CartService
      * when a card with variants gets no variant (or one of another card, inactive or deleted) and when a card without
      * variants gets one.
      */
-    private function lockUnit(Product $locked, ?int $variantId): ?Stockable
+    private function lockUnit(Product $locked, ?int $variantId, bool $lock = true): ?Stockable
     {
         if (! $locked->has_variants) {
             return $variantId === null ? $locked : null;
@@ -197,7 +197,7 @@ final class CartService
             ->whereKey($variantId)
             ->where('product_id', $locked->id)
             ->where('is_active', true)
-            ->lockForUpdate()
+            ->when($lock, fn ($query) => $query->lockForUpdate())
             ->first();
 
         if ($variant === null) {
@@ -530,14 +530,15 @@ final class CartService
             $changed = 0;
 
             foreach (CartItem::query()->where('cart_id', $cart->id)->whereIn('id', $itemIds)->orderBy('id')->get() as $item) {
-                $product = Product::query()->whereKey($item->product_id)->lockForUpdate()->first();
+                // No row locks here: this never writes stock and checkout re-checks it under its own ordered locks (19.5).
+                $product = Product::query()->whereKey($item->product_id)->first();
 
                 if ($product === null) {
                     continue;
                 }
 
                 try {
-                    $unit = $this->lockUnit($product, $item->variant_id);
+                    $unit = $this->lockUnit($product, $item->variant_id, false);
                 } catch (SalesException) {
                     continue;
                 }

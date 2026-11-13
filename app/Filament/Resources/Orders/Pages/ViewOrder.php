@@ -28,7 +28,6 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -211,13 +210,10 @@ class ViewOrder extends ViewRecord
                 abort_unless(Gate::allows('update', $this->record), 403);
 
                 $comment = trim((string) ($data['manager_comment'] ?? ''));
-                // OE-08: the comment is a field of the order editor, so saving it moves the version.
-                Order::query()->whereKey($this->record->id)->update([
-                    'manager_comment' => $comment === '' ? null : $comment,
-                    'version' => DB::raw('version + 1'),
-                    'updated_by_user_id' => $this->actor()?->id,
-                    'updated_at' => now(),
-                ]);
+                // OE-07/OE-08: one transaction moves the comment, the version and the change log.
+                $actor = $this->actor();
+                abort_if($actor === null, 403);
+                app(OrderEditor::class)->saveManagerComment($this->record->id, $comment === '' ? null : $comment, $actor);
                 $this->record->refresh();
 
                 Notification::make()->success()->title(__('admin_orders.actions.manager_comment_saved'))->send();

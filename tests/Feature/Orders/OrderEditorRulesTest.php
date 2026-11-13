@@ -22,6 +22,7 @@ use App\Models\CustomerNotification;
 use App\Models\Order;
 use App\Models\OrderChange;
 use App\Models\OrderItem;
+use App\Models\ProductVariant;
 use App\Models\PromoCode;
 use App\Models\PromoRedemption;
 use App\Models\User;
@@ -551,7 +552,7 @@ it('creates an order from an inquiry: stock, number, link, price list prices, an
     $inquiry = openInquiry([[$product, 2]], ['customer_comment' => 'нужна цена']);
     $manager = editManager();
 
-    $order = app(OrderService::class)->createFromInquiry($inquiry, (int) $inquiry->version, inquiryForm($inquiry, [[$product, 3]], true), $manager);
+    $order = app(OrderService::class)->createFromInquiry($inquiry->refresh(), (int) $inquiry->version, inquiryForm($inquiry, [[$product, 3]], true), $manager);
 
     expect($order->type)->toBe(OrderType::Order)
         ->and($order->status)->toBe(OrderStatus::New)
@@ -586,7 +587,7 @@ it('takes the group and the account of the inquiry over to the order', function 
     gpTier($product, $group, 10, '700.00');
     $inquiry = openInquiry([[$product, 10]], ['customer_id' => $customer->id, 'customer_group_id' => $group->id, 'customer_group_name' => 'Опт']);
 
-    $order = app(OrderService::class)->createFromInquiry($inquiry, (int) $inquiry->version, inquiryForm($inquiry, [[$product, 10]]), editManager());
+    $order = app(OrderService::class)->createFromInquiry($inquiry->refresh(), (int) $inquiry->version, inquiryForm($inquiry, [[$product, 10]]), editManager());
 
     expect($order->customer_id)->toBe($customer->id)
         ->and($order->customer_group_id)->toBe($group->id)
@@ -602,7 +603,7 @@ it('mails the customer about the new order only by the setting and the checkbox'
     $product = sellable(['stock_qty' => 10]);
     $inquiry = openInquiry([[$product, 1]]);
 
-    app(OrderService::class)->createFromInquiry($inquiry, (int) $inquiry->version, inquiryForm($inquiry, [[$product, 1]], $checkbox), editManager());
+    app(OrderService::class)->createFromInquiry($inquiry->refresh(), (int) $inquiry->version, inquiryForm($inquiry, [[$product, 1]], $checkbox), editManager());
 
     $sent ? Queue::assertPushed(SendMailNotification::class) : Queue::assertNotPushed(SendMailNotification::class);
 })->with([[true, true, true], [false, true, false], [true, false, false]]);
@@ -612,7 +613,7 @@ it('creates nothing when the stock is short and keeps the inquiry open', functio
     $inquiry = openInquiry([[$product, 5]]);
     $orders = Order::query()->count();
 
-    expect(fn () => app(OrderService::class)->createFromInquiry($inquiry, (int) $inquiry->version, inquiryForm($inquiry, [[$product, 5]]), editManager()))
+    expect(fn () => app(OrderService::class)->createFromInquiry($inquiry->refresh(), (int) $inquiry->version, inquiryForm($inquiry, [[$product, 5]]), editManager()))
         ->toThrow(EditStockShortageException::class);
 
     expect(Order::query()->count())->toBe($orders)
@@ -625,10 +626,10 @@ it('creates an order from an inquiry only once, from an open inquiry, with the p
     $inquiry = openInquiry([[$product, 1]]);
     $form = inquiryForm($inquiry, [[$product, 1]]);
 
-    expect(fn () => app(OrderService::class)->createFromInquiry($inquiry, (int) $inquiry->version, $form, staffWith(['orders.view', 'orders.update'])))
+    expect(fn () => app(OrderService::class)->createFromInquiry($inquiry->refresh(), (int) $inquiry->version, $form, staffWith(['orders.view', 'orders.update'])))
         ->toThrow(AuthorizationException::class);
 
-    app(OrderService::class)->createFromInquiry($inquiry, (int) $inquiry->version, $form, editManager());
+    app(OrderService::class)->createFromInquiry($inquiry->refresh(), (int) $inquiry->version, $form, editManager());
 
     expect(fn () => app(OrderService::class)->createFromInquiry($inquiry->refresh(), (int) $inquiry->version, $form, editManager()))
         ->toThrow(SalesException::class)
@@ -644,4 +645,33 @@ it('refuses an inquiry form opened before the inquiry changed (OE-08)', function
 
     expect(fn () => app(OrderService::class)->createFromInquiry($inquiry->refresh(), $opened, inquiryForm($inquiry, [[$product, 1]]), editManager()))
         ->toThrow(ConcurrentEditException::class);
+});
+
+it('rejects a soft-deleted variant for a new position (OE-13)', function (): void {
+    $size = optionWith('Размер', ['S', 'M']);
+    $card = variantCard([], $size);
+    $s = variantOf($card, [$size->values[0]], ['stock_qty' => 5]);
+    $m = variantOf($card, [$size->values[1]], ['stock_qty' => 5]);
+    $order = editableOrder([[$s, 1]]);
+    $m->delete(); // soft delete keeps is_active
+
+    expect(fn () => saveEdit($order, addItem(editData($order), $m, 2)))->toThrow(SalesException::class)
+        ->and(ProductVariant::withTrashed()->find($m->id)->stock_qty)->toBe(5);
+
+    // The variant of an existing line stays editable.
+    $s->delete();
+    saveEdit($order, withQty($order, $s, 2));
+    expect($order->refresh()->items->first()->qty)->toBe(2);
+});
+
+it('allocates the number of the order from an inquiry after the stock is locked (OE-12, D-129)', function (): void {
+    $product = sellable(['stock_qty' => 10, 'base_price' => '300.00']);
+    $inquiry = Order::factory()->inquiry()->create();
+    OrderItem::factory()->forProduct($product, 2)->create(['order_id' => $inquiry->id, 'price' => null, 'total' => null]);
+    $actor = User::factory()->admin()->create();
+    $data = EditData::fromOrder($inquiry->refresh()->load('items'))->with(['items' => [new EditItem(null, $product->id, null, 2, null)]]);
+
+    $order = app(OrderEditor::class)->createFromInquiry($inquiry->refresh(), (int) $inquiry->version, $data, $actor);
+
+    expect($order->number)->toStartWith('Z-')->and($order->number)->not->toContain('tmp');
 });

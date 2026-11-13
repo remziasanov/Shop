@@ -191,6 +191,16 @@ final class OrderService
                     $target = $kind->target($data->choice);
                     $qty = $item->qty;
 
+                    // MR-02: the row moved to the other part since the checkout page was shown (the mode of the product
+                    // was changed): nothing is created, the customer checks the page again.
+                    $shown = $data->shownTargets[$item->id] ?? null;
+
+                    if ($shown !== null && $shown !== $target->value) {
+                        $reasons[] = __($target === CheckoutChoice::Reservation ? 'sales.checkout.target_now_reservation' : 'sales.checkout.target_now_order', ['name' => $unit->stockName()]);
+
+                        continue;
+                    }
+
                     // MR-13, D-053: the limit of one row (the cart cuts it at add; a row from the outside is cut here).
                     if ($qty > QtyLimit::MAX) {
                         $qty = QtyLimit::MAX;

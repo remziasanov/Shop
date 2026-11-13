@@ -9,6 +9,7 @@ use App\Enums\OrderType;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\Orders\Pages\EditOrderContents;
 use App\Filament\Resources\Orders\Pages\ViewOrder;
+use App\Models\CustomerGroup;
 use App\Models\Order;
 use App\Models\OrderChange;
 use App\Models\OrderItem;
@@ -299,4 +300,104 @@ it('creates an order from an inquiry through the editor page', function (): void
         ->and($order->total)->toBe('600.00')
         ->and($product->fresh()->stock_qty)->toBe(8)
         ->and($inquiry->refresh()->status)->toBe(OrderStatus::Closed);
+});
+
+// ------------------------------------------------------------------ default price of a new row (OE-03)
+
+function tierGroup(): CustomerGroup
+{
+    require_once __DIR__.'/../../Support/group_prices.php';
+
+    return CustomerGroup::factory()->discount(10)->showRetailPrice()->create(['name' => 'Опт']);
+}
+
+it('prices an added row untouched by the manager for the final quantity, not as a manual price (OE-03)', function (): void {
+    $group = tierGroup();
+    $product = sellable(['stock_qty' => 100, 'base_price' => '1000.00']);
+    gpTier($product, $group, 10, '700.00');
+    $other = sellable(['stock_qty' => 10]);
+    $order = editableOrder([[$other, 1]], OrderType::Order, ['customer_group_id' => $group->id, 'customer_group_name' => 'Опт']);
+    $page = editPage($order, editAdmin());
+
+    $page->call('addProduct', $product->id.':0');
+    $key = (string) array_key_last($page->get('data.items'));
+    expect((float) $page->get("data.items.{$key}.price"))->toBe(900.0);
+
+    // The quantity moves the untouched price along (display), the tier applies.
+    $page->set("data.items.{$key}.qty", 12);
+    expect((float) $page->get("data.items.{$key}.price"))->toBe(700.0);
+
+    $page->call('openPreview')->callMountedAction();
+
+    $line = $order->refresh()->items->firstWhere('product_id', $product->id);
+    expect($line->qty)->toBe(12)->and($line->price)->toBe('700.00')->and($line->price_source->value)->toBe('tier');
+});
+
+it('resolves the price of an untouched row on the server even when the displayed price is stale (OE-03)', function (): void {
+    $group = tierGroup();
+    $product = sellable(['stock_qty' => 100, 'base_price' => '1000.00']);
+    gpTier($product, $group, 10, '700.00');
+    $order = editableOrder([[sellable(['stock_qty' => 10]), 1]], OrderType::Order, ['customer_group_id' => $group->id, 'customer_group_name' => 'Опт']);
+    $page = editPage($order, editAdmin());
+
+    $page->call('addProduct', $product->id.':0');
+    $key = (string) array_key_last($page->get('data.items'));
+    // Qty set without the live hook (as a direct state change): the stale 900 must not become a manual price.
+    $page->set("data.items.{$key}.list_price", '900.00')->set("data.items.{$key}.price", '900.00');
+    $page->set("data.items.{$key}.qty", 12);
+    $page->set("data.items.{$key}.price", '900.00')->set("data.items.{$key}.list_price", '900.00');
+    $page->call('openPreview')->callMountedAction();
+
+    $line = $order->refresh()->items->firstWhere('product_id', $product->id);
+    expect($line->price)->toBe('700.00')->and($line->price_source->value)->toBe('tier');
+});
+
+it('keeps a price the administrator really typed on a new row as manual (OE-03)', function (): void {
+    $group = tierGroup();
+    $product = sellable(['stock_qty' => 100, 'base_price' => '1000.00']);
+    gpTier($product, $group, 10, '700.00');
+    $order = editableOrder([[sellable(['stock_qty' => 10]), 1]], OrderType::Order, ['customer_group_id' => $group->id, 'customer_group_name' => 'Опт']);
+    $page = editPage($order, editAdmin());
+
+    $page->call('addProduct', $product->id.':0');
+    $key = (string) array_key_last($page->get('data.items'));
+    $page->set("data.items.{$key}.qty", 12)->set("data.items.{$key}.price", '650')->call('openPreview')->callMountedAction();
+
+    $line = $order->refresh()->items->firstWhere('product_id', $product->id);
+    expect($line->price)->toBe('650.00')->and($line->price_source->value)->toBe('manual');
+});
+
+it('prices a row of an inquiry for the final quantity when «Создать заказ» is used (OE-03, OE-12)', function (): void {
+    $group = tierGroup();
+    $product = sellable(['stock_qty' => 100, 'base_price' => '1000.00']);
+    gpTier($product, $group, 10, '700.00');
+    $inquiry = Order::factory()->inquiry()->create(['customer_group_id' => $group->id, 'customer_group_name' => 'Опт']);
+    OrderItem::factory()->forProduct($product, 2)->create(['order_id' => $inquiry->id, 'price' => null, 'total' => null]);
+    $page = editPage($inquiry, editAdmin());
+    $key = firstRowKey($page);
+
+    $page->set("data.items.{$key}.qty", 12)->call('openPreview')->callMountedAction();
+
+    $line = Order::query()->where('source_order_id', $inquiry->id)->firstOrFail()->items->first();
+    expect($line->price)->toBe('700.00')->and($line->price_source->value)->toBe('tier');
+});
+
+it('logs the manager comment action as a change row and moves the version (OE-07, OE-08)', function (): void {
+    $order = editableOrder([[sellable(['stock_qty' => 10]), 1]], OrderType::Order, ['manager_comment' => 'старый']);
+    actingAs($manager = editManager());
+
+    Livewire::test(ViewOrder::class, ['record' => $order->getRouteKey()])
+        ->callAction('manager_comment', ['manager_comment' => 'новый'])
+        ->assertHasNoActionErrors();
+
+    $change = OrderChange::query()->where('order_id', $order->id)->sole();
+    expect($order->refresh()->manager_comment)->toBe('новый')
+        ->and((int) $order->version)->toBe(2)
+        ->and($order->updated_by_user_id)->toBe($manager->id)
+        ->and($change->field)->toBe('manager_comment')
+        ->and($change->kind->value)->toBe('field')
+        ->and($change->old_value)->toBe('старый')
+        ->and($change->new_value)->toBe('новый')
+        ->and($change->user_id)->toBe($manager->id)
+        ->and($change->batch_uuid)->not->toBeEmpty();
 });

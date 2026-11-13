@@ -36,6 +36,7 @@ use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
@@ -161,6 +162,7 @@ class EditOrderContents extends Page
                 'qty' => $item->qty,
                 'price' => $price ?? '0.00',
                 'stored_price' => $this->isInquiry() ? null : $price,
+                'list_price' => $this->isInquiry() && $price !== null ? Money::toRubles(Money::fromRubles((string) $price)) : null,
                 'recalc' => false,
                 'recalc_price' => null,
             ];
@@ -226,6 +228,7 @@ class EditOrderContents extends Page
                                 Hidden::make('sku'),
                                 Hidden::make('unit'),
                                 Hidden::make('stored_price'),
+                                Hidden::make('list_price'),
                                 Hidden::make('recalc'),
                                 Hidden::make('recalc_price'),
                                 Text::make(fn (Get $get): string => trim((string) $get('name')).' · '.$get('sku')),
@@ -236,7 +239,8 @@ class EditOrderContents extends Page
                                     ->minValue(1)
                                     ->maxValue(QtyLimit::MAX)
                                     ->required()
-                                    ->live(onBlur: true),
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(fn (Get $get, Set $set) => $this->repriceUntouchedRow($get, $set)),
                                 TextInput::make('price')
                                     ->hiddenLabel()
                                     ->numeric()
@@ -339,6 +343,45 @@ class EditOrderContents extends Page
         return $names;
     }
 
+    /**
+     * A new row whose price is still the auto-filled price list price follows the quantity (tiers), for display only:
+     * the server resolves the final price again on save.
+     */
+    private function repriceUntouchedRow(Get $get, Set $set): void
+    {
+        $listPrice = $get('list_price');
+
+        if ($get('item_id') !== null && $get('item_id') !== '') {
+            return;
+        }
+
+        if ($listPrice === null || $listPrice === '' || $get('product_id') === null) {
+            return;
+        }
+
+        try {
+            if (Money::fromRubles((string) $get('price')) !== Money::fromRubles((string) $listPrice)) {
+                return;
+            }
+        } catch (InvalidArgumentException) {
+            return;
+        }
+
+        $listed = app(OrderEditor::class)->listPrice(
+            $this->order(),
+            (int) $get('product_id'),
+            ($get('variant_id') ?? '') === '' ? null : (int) $get('variant_id'),
+            max(1, (int) $get('qty')),
+        );
+
+        if ($listed === null) {
+            return;
+        }
+
+        $set('price', Money::toRubles($listed));
+        $set('list_price', Money::toRubles($listed));
+    }
+
     private function rowSum(mixed $qty, mixed $price): int
     {
         try {
@@ -397,6 +440,7 @@ class EditOrderContents extends Page
             'qty' => 1,
             'price' => Money::toRubles($price ?? 0),
             'stored_price' => null,
+            'list_price' => $price === null ? null : Money::toRubles($price),
             'recalc' => false,
             'recalc_price' => null,
         ];
@@ -552,6 +596,12 @@ class EditOrderContents extends Page
                 $recalc = $canPrices && filter_var($row['recalc'] ?? false, FILTER_VALIDATE_BOOLEAN)
                     && $price !== null && (string) $price === (string) ($row['recalc_price'] ?? '');
                 $itemId = ($row['item_id'] ?? null) === null || $row['item_id'] === '' ? null : (int) $row['item_id'];
+
+                // A new row that still carries the auto-filled list price sends no price: the service resolves it for the final quantity.
+                if ($itemId === null && $price !== null && ($row['list_price'] ?? null) !== null && $row['list_price'] !== ''
+                    && $price === Money::fromRubles((string) $row['list_price'])) {
+                    $price = null;
+                }
 
                 $items[] = new EditItem(
                     $itemId,
