@@ -1,5 +1,6 @@
-{{-- Characteristic filters of the category (FL-13): list values with counters, number range, boolean. Names follow FL-07. --}}
+{{-- Characteristic filters of the category (FL-13): list values with counters, number range, boolean. Names follow FL-07. Option groups (VR-19) use `o[slug][]` and show colour swatches for colour options. --}}
 @foreach ($facets as $group)
+    @php($isOption = $group->source === \App\Services\Catalog\FacetGroup::SOURCE_OPTION)
     @php($open = $group->expanded || $group->hasSelection())
     <details class="border-t border-slate-200 pt-1" @if ($open) open @endif>
         <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden">
@@ -11,7 +12,11 @@
             <div class="max-h-64 overflow-y-auto pb-2">
                 @foreach ($group->values as $value)
                     <label class="flex min-h-11 items-center gap-2 text-sm">
-                        <input type="checkbox" name="a[{{ $group->slug }}][]" value="{{ $value->slug }}" @checked($value->selected) class="h-5 w-5 flex-none rounded border-slate-300 accent-primary">
+                        <input type="checkbox" name="{{ $isOption ? 'o' : 'a' }}[{{ $group->slug }}][]" value="{{ $value->slug }}" @checked($value->selected) class="h-5 w-5 flex-none rounded border-slate-300 accent-primary">
+                        @if ($isOption && $group->display === 'color')
+                            <span class="h-5 w-5 flex-none rounded-full border border-slate-300 bg-cover bg-center" aria-hidden="true"
+                                  @if ($value->image) style="background-image: url('{{ $value->image }}')" @elseif ($value->hex && preg_match('/^#[0-9a-f]{3,8}$/i', $value->hex)) style="background-color: {{ $value->hex }}" @endif></span>
+                        @endif
                         <span class="min-w-0 flex-1">{{ $value->label }}</span>
                         <span class="text-xs text-slate-500">{{ $value->count }}</span>
                     </label>

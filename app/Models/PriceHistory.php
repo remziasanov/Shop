@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property int $id
  * @property int $product_id
+ * @property int|null $variant_id set for a change of a variant price (VR-22)
  * @property string $field
  * @property string|null $old_value
  * @property string|null $new_value
@@ -36,7 +37,7 @@ class PriceHistory extends Model
 
     protected $table = 'price_history';
 
-    protected $fillable = ['product_id', 'field', 'old_value', 'new_value', 'source', 'user_id', 'import_id'];
+    protected $fillable = ['product_id', 'variant_id', 'field', 'old_value', 'new_value', 'source', 'user_id', 'import_id'];
 
     /**
      * @return array<string, string>
@@ -66,5 +67,13 @@ class PriceHistory extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<ProductVariant, $this>
+     */
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class)->withTrashed();
     }
 }

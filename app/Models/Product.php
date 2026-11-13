@@ -11,6 +11,8 @@ use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Search\SearchNormalizer;
+use App\Services\Search\VariantSearch;
+use App\Services\Stock\Stockable;
 use App\Support\Money;
 use Carbon\CarbonInterface;
 use Database\Factories\ProductFactory;
@@ -20,9 +22,11 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * Catalog product.
@@ -47,11 +51,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $compare_at_price
  * @property string|null $fixed_price
  * @property bool $price_on_request
- * @property string $final_price
+ * @property string $final_price with variants: the minimum over the active variants (VR-07)
+ * @property string|null $final_price_max with variants: the maximum over the active variants; null without variants
+ * @property bool $has_variants the card works with variants (VR-02); toggled by VariantService only
  * @property string|null $display_old_price
  * @property CarbonInterface|null $price_calculated_at
- * @property int|null $stock_qty
- * @property int $reserved_qty
+ * @property int|null $stock_qty with variants: an aggregate over the active variants (VR-06)
+ * @property int $reserved_qty with variants: an aggregate over the active variants (VR-06)
  * @property string $unit
  * @property SalesMode|null $sales_mode
  * @property AgeRestriction|null $age_restriction own level only; the effective one comes from AgeRestrictionResolver
@@ -66,12 +72,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, ProductImage> $images
  * @property-read ProductImage|null $mainImage
  * @property-read Collection<int, ProductAttributeValue> $attributeValues
+ * @property-read Collection<int, ProductVariant> $variants
+ * @property-read Collection<int, OptionType> $options axes of the card in order
  */
 #[ObservedBy(ProductObserver::class)]
-class Product extends Model
+class Product extends Model implements Stockable
 {
     /** @use HasFactory<ProductFactory> */
     use HasFactory, SoftDeletes;
+
+    /** New products work without variants (VR-02); written through VariantService. */
+    protected $attributes = ['has_variants' => false];
 
     protected $fillable = [
         'category_id',
@@ -111,6 +122,8 @@ class Product extends Model
             'compare_at_price' => 'decimal:2',
             'fixed_price' => 'decimal:2',
             'final_price' => 'decimal:2',
+            'final_price_max' => 'decimal:2',
+            'has_variants' => 'boolean',
             'display_old_price' => 'decimal:2',
             'price_on_request' => 'boolean',
             'price_calculated_at' => 'datetime',
@@ -164,6 +177,28 @@ class Product extends Model
     }
 
     /**
+     * Live variants in display order (VR-03).
+     *
+     * @return HasMany<ProductVariant, $this>
+     */
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /**
+     * Axes of the card: option types in axis order (VR-02).
+     *
+     * @return BelongsToMany<OptionType, $this>
+     */
+    public function options(): BelongsToMany
+    {
+        return $this->belongsToMany(OptionType::class, 'product_options')
+            ->withPivot('sort_order')
+            ->orderBy('product_options.sort_order');
+    }
+
+    /**
      * Products visible on the storefront: the product is active and so is its category together with
      * all ancestors (SF-16). Uses the cached category tree, no extra query.
      *
@@ -189,23 +224,39 @@ class Product extends Model
 
     /**
      * Search by name / SKU / brand (D-019): every word must occur in `search_text`; an exact SKU match
-     * is ordered first. Adds an ORDER BY, so apply it before other orderings when relevance matters.
+     * is ordered first. The exact article or barcode of an active variant matches too and comes before all (VR-21). Adds an ORDER BY, so apply it before other orderings when relevance matters.
      *
      * @param  Builder<Product>  $query
      */
     public function scopeSearch(Builder $query, string $term): void
     {
         $normalizer = app(SearchNormalizer::class);
+        $variants = app(VariantSearch::class);
         $words = $normalizer->words($term);
 
         if ($words === []) {
             return;
         }
 
-        foreach ($words as $word) {
-            $query->whereRaw("{$query->qualifyColumn('search_text')} like ? escape '!'", ['%'.$normalizer->escapeLike($word).'%']);
-        }
+        $column = $query->qualifyColumn('search_text');
+        $idColumn = $query->qualifyColumn('id');
+        $exact = $variants->exactTerm($term);
 
+        // VR-21: all words match the card's search text, OR the phrase is exactly the article / barcode of an active variant.
+        $query->where(function (Builder $match) use ($words, $normalizer, $column, $variants, $idColumn, $exact): void {
+            $match->where(function (Builder $like) use ($words, $normalizer, $column): void {
+                foreach ($words as $word) {
+                    $like->whereRaw("{$column} like ? escape '!'", ['%'.$normalizer->escapeLike($word).'%']);
+                }
+            });
+            $match->orWhereExists(fn (QueryBuilder $exists) => $variants->constrain($exists, $idColumn, $exact));
+        });
+
+        // Cards found by a variant article come first, then those found by the card's own article.
+        $query->orderByRaw(
+            "case when exists (select 1 from product_variants pv where pv.product_id = {$idColumn} and pv.is_active = 1 and pv.deleted_at is null and (pv.sku = ? or pv.barcode = ?)) then 0 else 1 end",
+            [$exact, $exact],
+        );
         $query->orderByRaw("case when lower({$query->qualifyColumn('sku')}) = ? then 0 else 1 end", [$normalizer->normalize($term)]);
     }
 
@@ -234,10 +285,31 @@ class Product extends Model
 
     /**
      * Stock that can still be sold: stock_qty - reserved_qty, or null when stock is not tracked.
+     * For a card with variants this is the aggregate; decisions about availability use the variant.
      */
     public function availableQty(): ?int
     {
         return $this->stock_qty === null ? null : $this->stock_qty - $this->reserved_qty;
+    }
+
+    public function stockProduct(): Product
+    {
+        return $this;
+    }
+
+    public function stockProductId(): int
+    {
+        return $this->id;
+    }
+
+    public function stockVariantId(): ?int
+    {
+        return null;
+    }
+
+    public function stockName(): string
+    {
+        return (string) $this->name;
     }
 
     /**

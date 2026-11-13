@@ -9,8 +9,9 @@ use Illuminate\Support\Collection;
 
 /**
  * The filter set the storefront may use for a category: the effective set of {@see CategoryFilterService} reduced to
- * characteristic rows. It is empty until the migration from JSON has finished (FL-04, 20.9): until then the product
- * card shows the JSON and there are no filters. Option rows (VR-19) join in stage 11.
+ * the usable rows. Characteristic rows exist only after the migration from JSON has finished (FL-04, 20.9): until
+ * then the product card shows the JSON and there are no characteristic filters. Option rows (VR-19) do not depend on
+ * that migration; they are usable while their option is active and a filter.
  */
 final class StorefrontFilterSets
 {
@@ -21,12 +22,17 @@ final class StorefrontFilterSets
 
     public function for(int $categoryId): ResolvedFilterSet
     {
-        if (! $this->migration->isMigrated()) {
+        $set = $this->sets->resolve($categoryId);
+        $migrated = $this->migration->isMigrated();
+
+        $rows = $set->rows->filter(fn ($row): bool => match ($row->source) {
+            FilterSource::Attribute => $migrated && $row->attribute !== null,
+            FilterSource::Option => $row->optionType !== null && $row->optionType->is_active && $row->optionType->is_filterable,
+        })->values();
+
+        if ($rows->isEmpty() && ! $migrated) {
             return new ResolvedFilterSet($categoryId, null, new Collection);
         }
-
-        $set = $this->sets->resolve($categoryId);
-        $rows = $set->rows->filter(fn ($row): bool => $row->source === FilterSource::Attribute && $row->attribute !== null)->values();
 
         return $rows->count() === $set->rows->count() ? $set : new ResolvedFilterSet($set->categoryId, $set->sourceCategoryId, $rows);
     }

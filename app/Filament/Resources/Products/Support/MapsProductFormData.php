@@ -9,10 +9,12 @@ use App\Models\Product;
 use App\Services\Catalog\ProductAttributeEditor;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Stock\StockService;
+use App\Services\Variants\SkuGuard;
 use Closure;
 use Filament\Notifications\Notification;
 use Filament\Support\Exceptions\Halt;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
 
@@ -77,6 +79,17 @@ trait MapsProductFormData
             Notification::make()->danger()->title($e->getMessage())->send();
 
             throw new Halt;
+        } catch (UniqueConstraintViolationException $e) {
+            // D-087: two parallel saves of one SKU: show the ordinary error instead of a 500.
+            $error = app(SkuGuard::class)->translate($e);
+
+            if ($error === null) {
+                throw $e;
+            }
+
+            Notification::make()->danger()->title((string) collect($error->errors())->flatten()->first())->send();
+
+            throw new Halt;
         }
     }
 
@@ -91,6 +104,15 @@ trait MapsProductFormData
      */
     protected function applyStockField(Product $product): void
     {
+        // VR-24: the stock of a card with variants is the sum over them, the field is read-only.
+        if ($product->has_variants) {
+            $product->refresh();
+            $this->loadedStockQty = $product->stock_qty;
+            $this->data['stock_qty'] = $product->stock_qty;
+
+            return;
+        }
+
         $raw = $this->form->getRawState()['stock_qty'] ?? null;
         $submitted = $raw === null || $raw === '' ? null : (int) $raw;
 

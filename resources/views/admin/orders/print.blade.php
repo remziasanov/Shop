@@ -101,7 +101,15 @@
             <tr>
                 <td class="num">{{ $loop->iteration }}</td>
                 <td>{{ $item->sku }}</td>
-                <td>{{ $item->name }}</td>
+                <td>
+                    {{ $item->name }}
+                    @if ($item->variant_label)
+                        <br><small>{{ $item->variant_label }}</small>
+                    @endif
+                    @if ($item->barcode)
+                        <br><small>{{ __('admin_variants.order.barcode', ['barcode' => $item->barcode]) }}</small>
+                    @endif
+                </td>
                 <td class="num">{{ $item->qty }} {{ $item->unit }}</td>
                 <td class="num">{{ $money($item->price, __('admin_orders.view.price_on_request')) }}</td>
                 <td class="num">{{ $money($item->total) }}</td>

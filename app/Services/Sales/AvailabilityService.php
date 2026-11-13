@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Services\Sales;
 
 use App\Enums\SalesMode;
-use App\Models\Product;
 use App\Services\Access\ViewerContext;
+use App\Services\Stock\Stockable;
 use App\Settings\SalesSettings;
 
 /**
- * Effective sales mode of a product adjusted by stock (TZ 5.6). Pure: depends only on the product's
- * current attributes, the resolved mode (clamped by the viewer's customer group, CG-07) and the sales settings, and runs
- * no queries of its own. Storefront only: admin code uses {@see SalesModeResolver} directly.
+ * Effective sales mode adjusted by stock (TZ 5.6). Pure: depends only on the stockable's current attributes, the
+ * resolved mode (clamped by the viewer's customer group, CG-07) and the sales settings, and runs no queries of its own
+ * (a variant needs its `product` relation loaded). Storefront only: admin code uses {@see SalesModeResolver} directly.
+ *
+ * The unit is a {@see Stockable} (VR-13): the sales mode, category and price-on-request flag come from the product card,
+ * the quantity from the product itself or from the variant.
  */
 final class AvailabilityService
 {
@@ -22,8 +25,9 @@ final class AvailabilityService
         private readonly ViewerContext $viewer,
     ) {}
 
-    public function actionsFor(Product $product): ProductActions
+    public function actionsFor(Stockable $stockable): ProductActions
     {
+        $product = $stockable->stockProduct();
         $access = $this->viewer->access();
         $mode = $this->resolver->resolve($product, $access)->mode;
         $showPrice = ! $product->price_on_request && $access->showsPrices();
@@ -38,7 +42,7 @@ final class AvailabilityService
             return new ProductActions($mode, false, false, true, false, false, null, $showPrice);
         }
 
-        $available = $this->settings->stock_tracking ? $product->availableQty() : null;
+        $available = $this->settings->stock_tracking ? $stockable->availableQty() : null;
 
         if ($available === null) {
             // Stock is not tracked: no limits.

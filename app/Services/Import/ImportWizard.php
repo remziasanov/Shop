@@ -315,7 +315,17 @@ final class ImportWizard
 
         $attributes = [];
 
+        $variantOptions = [];
+
         foreach ($headers as $header) {
+            $optionName = ColumnMapper::optionNameFromHeader($header);
+
+            if ($optionName !== null) {
+                $variantOptions[ImportField::optionKey($optionName)] = true;
+
+                continue;
+            }
+
             $name = ColumnMapper::attributeNameFromHeader($header) ?? trim($header);
 
             if ($name !== '') {
@@ -327,10 +337,19 @@ final class ImportWizard
             if (ImportField::attributeName($target) !== null) {
                 $attributes[$target] = true;
             }
+
+            if (ImportField::optionName($target) !== null) {
+                $variantOptions[$target] = true;
+            }
         }
 
         foreach (array_keys($attributes) as $key) {
             $options[$key] = __('import_ui.mapping.attribute_option', ['name' => (string) ImportField::attributeName($key)]);
+        }
+
+        // VR-16: «Опция: <название>» columns of variant rows.
+        foreach (array_keys($variantOptions) as $key) {
+            $options[$key] = __('admin_variants.import.option_column', ['name' => (string) ImportField::optionName($key)]);
         }
 
         return $options;
@@ -360,7 +379,8 @@ final class ImportWizard
             }
 
             $valid = ImportField::tryFrom($target) !== null
-                || (ImportField::attributeName($target) !== null && mb_strlen($target) <= 255);
+                || (ImportField::attributeName($target) !== null && mb_strlen($target) <= 255)
+                || (ImportField::optionName($target) !== null && mb_strlen($target) <= 255);
 
             if (! $valid) {
                 throw ValidationException::withMessages([

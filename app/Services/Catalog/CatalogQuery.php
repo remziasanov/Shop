@@ -27,6 +27,7 @@ final class CatalogQuery
         private readonly SalesSettings $sales,
         private readonly ViewerContext $viewer,
         private readonly AttributeFilterApplier $attributeFilters,
+        private readonly OptionFilterApplier $optionFilters,
     ) {}
 
     public function perPage(): int
@@ -63,13 +64,14 @@ final class CatalogQuery
      *
      * @param  list<int>|null  $categoryIds
      * @param  list<string>  $exceptAttributes  slugs of characteristics whose filter is left out
+     * @param  bool  $withoutOptions  leave out the option filters and the availability switch (option facets count variants themselves, VR-19)
      * @return Builder<Product>
      */
-    public function selection(CatalogFilters $filters, ?array $categoryIds, ?string $search = null, array $exceptAttributes = []): Builder
+    public function selection(CatalogFilters $filters, ?array $categoryIds, ?string $search = null, array $exceptAttributes = [], bool $withoutOptions = false): Builder
     {
         $filters = $filters->restrictedTo($this->viewer->access());
 
-        return $this->filtered($this->base($categoryIds, $search), $filters, true, $exceptAttributes);
+        return $this->filtered($this->base($categoryIds, $search), $filters, true, $exceptAttributes, $withoutOptions);
     }
 
     /**
@@ -96,9 +98,13 @@ final class CatalogQuery
      * @param  list<string>  $exceptAttributes
      * @return Builder<Product>
      */
-    private function filtered(Builder $query, CatalogFilters $filters, bool $withBrands, array $exceptAttributes = []): Builder
+    private function filtered(Builder $query, CatalogFilters $filters, bool $withBrands, array $exceptAttributes = [], bool $withoutOptions = false): Builder
     {
         $this->attributeFilters->apply($query, $filters->attributes, $exceptAttributes);
+
+        if (! $withoutOptions) {
+            $this->optionFilters->apply($query, $filters->options);
+        }
 
         if ($filters->priceFrom !== null || $filters->priceTo !== null) {
             // Products with a hidden price (SF-36) never match a price range.
@@ -106,7 +112,9 @@ final class CatalogQuery
         }
 
         if ($filters->priceFrom !== null) {
-            $query->where('final_price', '>=', Money::toRubles($filters->priceFrom));
+            // VR-07: a card with variants spans `final_price` … `final_price_max`; it matches when its dearest variant reaches the bound.
+            $from = Money::toRubles($filters->priceFrom);
+            $query->where(fn (Builder $price) => $price->where('final_price', '>=', $from)->orWhere('final_price_max', '>=', $from));
         }
 
         if ($filters->priceTo !== null) {

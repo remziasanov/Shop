@@ -108,6 +108,13 @@ final class OrderInfolist
                             ->schema([
                                 TextEntry::make('sku'),
                                 TextEntry::make('name')
+                                    // VR-12: the snapshot of the variant under the name: «Цвет: красный, Размер: M» and the barcode.
+                                    ->html()
+                                    ->formatStateUsing(function (string $state, OrderItem $record): string {
+                                        $line = self::variantLine($record);
+
+                                        return e($state).($line === null ? '' : '<br><span class="text-sm text-gray-500">'.e($line).'</span>');
+                                    })
                                     ->url(fn (OrderItem $record): ?string => $record->product !== null && ! $record->product->trashed()
                                         ? ProductResource::getUrl('edit', ['record' => $record->product])
                                         : null),
@@ -173,5 +180,18 @@ final class OrderInfolist
         return $history->from_status === null
             ? $to.' ('.__('admin_orders.view.created').')'
             : $history->from_status->label($type).' → '.$to;
+    }
+
+    /**
+     * Variant label and barcode of an order line (VR-12), null for a line without them.
+     */
+    public static function variantLine(OrderItem $item): ?string
+    {
+        $parts = array_filter([
+            $item->variant_label,
+            $item->barcode !== null && $item->barcode !== '' ? __('admin_variants.order.barcode', ['barcode' => $item->barcode]) : null,
+        ]);
+
+        return $parts === [] ? null : implode(' · ', $parts);
     }
 }

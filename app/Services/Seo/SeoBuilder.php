@@ -7,6 +7,7 @@ namespace App\Services\Seo;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\ProductView;
+use App\Services\Variants\VariantPickerData;
 use App\Settings\GeneralSettings;
 use App\Settings\SeoSettings;
 use App\Support\Money;
@@ -118,7 +119,7 @@ final class SeoBuilder
     /**
      * @param  list<array{name: string, url: string|null}>  $breadcrumbs
      */
-    public function product(Product $product, ProductView $view, array $breadcrumbs): SeoMeta
+    public function product(Product $product, ProductView $view, array $breadcrumbs, ?VariantPickerData $variants = null): SeoMeta
     {
         $category = $product->relationLoaded('category') ? $product->category->name : '';
         $price = $product->price_on_request || $view->priceHidden ? '' : Money::format(Money::fromRubles($product->final_price));
@@ -153,7 +154,7 @@ final class SeoBuilder
             ogImage: $images[0] ?? $this->defaultImage(),
             ogUrl: $url,
             jsonLd: [
-                $this->productJsonLd($product, $view, $url, $description, $images),
+                $this->productJsonLd($product, $view, $url, $description, $images, $variants),
                 ...$this->breadcrumbList($breadcrumbs, $url),
             ],
         );
@@ -235,13 +236,17 @@ final class SeoBuilder
      * @param  list<string>  $images
      * @return array<string, mixed>
      */
-    private function productJsonLd(Product $product, ProductView $view, string $url, string $description, array $images): array
+    private function productJsonLd(Product $product, ProductView $view, string $url, string $description, array $images, ?VariantPickerData $variants = null): array
     {
+        if ($variants !== null) {
+            return $this->variantProductJsonLd($product, $view, $url, $description, $images, $variants);
+        }
+
         $offer = ['@type' => 'Offer', 'url' => $url];
 
         // CG-06: no price in the structured data for a group that sees no prices.
         if (! $product->price_on_request && ! $view->priceHidden) {
-            $offer['price'] = number_format((float) $product->final_price, 2, '.', '');
+            $offer['price'] = Money::toRubles(Money::fromRubles($product->final_price));
             $offer['priceCurrency'] = 'RUB';
         }
 
@@ -257,6 +262,65 @@ final class SeoBuilder
             'name' => $product->name,
             'description' => $description !== '' ? $description : null,
             'sku' => $product->sku !== '' ? $product->sku : null,
+            'brand' => $product->brand ? ['@type' => 'Brand', 'name' => $product->brand] : null,
+            'image' => $images !== [] ? $images : null,
+            'url' => $url,
+            'offers' => $offer,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * VR-28: a card with variants offers an AggregateOffer (lowest and highest price, number of offers, availability)
+     * and the article of the first available variant; opened with `?variant=` it offers that variant as one Offer.
+     * The canonical URL stays the card without the parameter.
+     *
+     * @param  list<string>  $images
+     * @return array<string, mixed>
+     */
+    private function variantProductJsonLd(Product $product, ProductView $view, string $url, string $description, array $images, VariantPickerData $variants): array
+    {
+        $hidePrice = $product->price_on_request || $view->priceHidden;
+        $schema = fn (array $offer): string => 'https://schema.org/'.match (true) {
+            ! $offer['available'] => 'OutOfStock',
+            $offer['backorder'] => 'PreOrder',
+            default => 'InStock',
+        };
+        $available = array_values(array_filter($variants->offers, fn (array $offer): bool => $offer['available']));
+
+        if ($variants->requested) {
+            $index = array_search($variants->selected->id, array_column($variants->variants, 'id'), true);
+            $own = $variants->offers[$index === false ? 0 : $index];
+            $offer = ['@type' => 'Offer', 'url' => $url, 'sku' => $own['sku']];
+
+            if (! $hidePrice) {
+                $offer['price'] = Money::toRubles(Money::fromRubles($own['price']));
+                $offer['priceCurrency'] = 'RUB';
+            }
+
+            $offer['availability'] = $schema($own);
+            $sku = $own['sku'];
+        } else {
+            // Kopecks, never floats (D-006).
+            $prices = array_map(fn (array $offer): int => Money::fromRubles($offer['price']), $variants->offers);
+            $offer = ['@type' => 'AggregateOffer', 'url' => $url];
+
+            if (! $hidePrice) {
+                $offer['lowPrice'] = Money::toRubles(min($prices));
+                $offer['highPrice'] = Money::toRubles(max($prices));
+                $offer['priceCurrency'] = 'RUB';
+            }
+
+            $offer['offerCount'] = count($variants->offers);
+            $offer['availability'] = $available === [] ? 'https://schema.org/OutOfStock' : $schema($available[0]);
+            $sku = ($available[0] ?? $variants->offers[0])['sku'];
+        }
+
+        return array_filter([
+            '@context' => 'https://schema.org',
+            '@type' => 'Product',
+            'name' => $product->name,
+            'description' => $description !== '' ? $description : null,
+            'sku' => $sku !== '' ? $sku : null,
             'brand' => $product->brand ? ['@type' => 'Brand', 'name' => $product->brand] : null,
             'image' => $images !== [] ? $images : null,
             'url' => $url,

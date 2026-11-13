@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Products\RelationManagers;
 
+use App\Exceptions\VariantException;
 use App\Filament\Resources\Products\Support\PhotoUpload;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Services\Media\ImageProcessor;
+use App\Services\Variants\VariantPhotoColors;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -14,6 +17,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Table;
@@ -26,6 +30,9 @@ use Illuminate\Database\Eloquent\Model;
 class ProductImagesRelationManager extends RelationManager
 {
     protected static string $relationship = 'images';
+
+    /** @var array<int, string>|null */
+    private ?array $choices = null;
 
     public static function getTitle(Model $ownerRecord, string $pageClass): string
     {
@@ -49,6 +56,20 @@ class ProductImagesRelationManager extends RelationManager
                 TextInputColumn::make('alt')
                     ->label(__('admin_products.photos.alt'))
                     ->rules(['nullable', 'string', 'max:255']),
+                // VR-11: a photo of a colour of the card (values of its colour axis); empty = common to every variant.
+                SelectColumn::make('option_value_id')
+                    ->label(__('admin_variants.photos.color'))
+                    ->options(fn (): array => $this->colorChoices())
+                    ->placeholder(__('admin_variants.photos.common'))
+                    ->selectablePlaceholder()
+                    ->visible(fn (): bool => $this->colorChoices() !== [])
+                    ->updateStateUsing(function (ProductImage $record, mixed $state): mixed {
+                        try {
+                            return app(VariantPhotoColors::class)->assign($record, filled($state) ? (int) $state : null)->option_value_id;
+                        } catch (VariantException $e) {
+                            return ['error' => $e->getMessage()];
+                        }
+                    }),
                 TextColumn::make('is_main')
                     ->label('')
                     ->badge()
@@ -84,6 +105,17 @@ class ProductImagesRelationManager extends RelationManager
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function colorChoices(): array
+    {
+        /** @var Product $product */
+        $product = $this->getOwnerRecord();
+
+        return $this->choices ??= app(VariantPhotoColors::class)->choices($product);
     }
 
     private function remainingSlots(): int

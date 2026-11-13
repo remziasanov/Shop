@@ -34,6 +34,8 @@ function appendixSynonyms(): array
         'meta_title' => ['Meta title', 'seo title'],
         'meta_description' => ['Meta description', 'seo description'],
         'age' => ['Возраст', 'возрастное ограничение', 'age'],
+        'parent_sku' => ['Артикул карточки', 'родительский артикул', 'parent sku', 'карточка'],
+        'barcode' => ['Штрихкод', 'barcode', 'ean', 'gtin'],
     ];
 }
 
@@ -104,4 +106,23 @@ it('maps a raw row through a mapping', function () {
         ->and($mapped->attributes)->toBe([['name' => 'Цвет', 'value' => 'чёрный']])
         ->and($mapped->has('price'))->toBeTrue()
         ->and($mapped->has('brand'))->toBeFalse();
+});
+
+it('reads «Опция: …», «Вариант: …» and «Option: …» headers as option columns (VR-16)', function () {
+    $mapper = new ColumnMapper;
+
+    expect($mapper->autoMap(['Опция: Цвет', 'вариант : Размер', 'OPTION:Материал', 'Опция:']))
+        ->toBe([0 => 'opt:Цвет', 1 => 'opt:Размер', 2 => 'opt:Материал', 3 => null])
+        ->and(ColumnMapper::optionNameFromHeader('Опция: Цвет '))->toBe('Цвет')
+        ->and(ImportField::optionName('opt:Цвет'))->toBe('Цвет')
+        ->and(ImportField::optionName('attr:Цвет'))->toBeNull();
+});
+
+it('collects the option cells of a row separately from characteristics', function () {
+    $mapper = new ColumnMapper;
+    $row = $mapper->mapRow(['A-1', 'Красный', '', 'хлопок'], [0 => 'sku', 1 => 'opt:Цвет', 2 => 'opt:Размер', 3 => 'attr:Материал']);
+
+    expect($row->options)->toBe([['name' => 'Цвет', 'value' => 'Красный']])
+        ->and($row->attributes)->toBe([['name' => 'Материал', 'value' => 'хлопок']])
+        ->and($row->values)->toBe(['sku' => 'A-1']);
 });

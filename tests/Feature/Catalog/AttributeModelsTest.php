@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Settings\CatalogSettings;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -133,10 +134,17 @@ describe('constraints', function (): void {
             ->and(collect(Schema::getIndexes('attributes'))->map(fn (array $i): array => $i['columns'])->all())->toContain(['is_filterable', 'sort_order']);
     });
 
-    it('has no foreign key on option_type_id yet (stage 11)', function (): void {
+    it('references option_types through option_type_id on MySQL (stage 11, VR-19)', function (): void {
         $foreign = collect(Schema::getForeignKeys('category_filters'))->map(fn (array $fk): array => $fk['columns'])->all();
 
-        expect($foreign)->toContain(['category_id'])->toContain(['attribute_id'])->not->toContain(['option_type_id']);
+        expect($foreign)->toContain(['category_id'])->toContain(['attribute_id']);
+
+        // SQLite (tests only) cannot add a foreign key to an existing table: the migration creates it on MySQL only.
+        if (DB::getDriverName() === 'sqlite') {
+            expect($foreign)->not->toContain(['option_type_id']);
+        } else {
+            expect($foreign)->toContain(['option_type_id']);
+        }
     });
 });
 

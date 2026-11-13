@@ -6,6 +6,7 @@ namespace App\Livewire\Storefront;
 
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
+use App\Livewire\Storefront\Concerns\SelectsVariant;
 use App\Models\Product;
 use App\Services\Access\ViewerContext;
 use App\Services\Cart\CartService;
@@ -22,6 +23,7 @@ use Livewire\Component;
 class AddToCart extends Component
 {
     use RequiresOpenShop;
+    use SelectsVariant;
 
     #[Locked]
     public int $productId;
@@ -50,7 +52,15 @@ class AddToCart extends Component
             return;
         }
 
-        $max = $availability->actionsFor($product)->maxQty;
+        $unit = $this->unitOf($product);
+
+        if ($unit === null) {
+            $this->addError('cart', $this->variantError($product));
+
+            return;
+        }
+
+        $max = $availability->actionsFor($unit)->maxQty;
 
         if ($max !== null && $max > 0 && $qty > $max) {
             $this->qty = $max;
@@ -61,7 +71,7 @@ class AddToCart extends Component
 
         try {
             app(ViewerContext::class)->assertNotPreview();
-            $carts->add($carts->getOrCreate(request()), $product, $qty);
+            $carts->add($carts->getOrCreate(request()), $product, $qty, $this->selectedVariantId());
         } catch (SalesException $e) {
             $this->addError('cart', $e->getMessage());
 
@@ -76,10 +86,11 @@ class AddToCart extends Component
     public function render(AvailabilityService $availability): View
     {
         $product = $this->product();
+        $unit = $product !== null ? ($this->unitOf($product) ?? $product) : null;
 
         return view('livewire.storefront.add-to-cart', [
             'product' => $product,
-            'actions' => $product !== null ? $availability->actionsFor($product) : null,
+            'actions' => $unit !== null ? $availability->actionsFor($unit) : null,
         ]);
     }
 

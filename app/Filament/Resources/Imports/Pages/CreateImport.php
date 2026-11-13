@@ -261,6 +261,7 @@ class CreateImport extends Page
         $headers = $import->analysis['headers'] ?? [];
         $columns = [];
         $hasAttributes = false;
+        $hasOptions = false;
 
         foreach ($import->mapping ?? [] as $index => $target) {
             if ($target === null || $target === '') {
@@ -273,11 +274,21 @@ class CreateImport extends Page
                 continue;
             }
 
+            if (ImportField::optionName($target) !== null) {
+                $hasOptions = true;
+
+                continue;
+            }
+
             $header = $headers[$index] ?? null;
             $columns[] = [
                 'field' => $target,
                 'label' => is_string($header) && $header !== '' ? $header : (ImportField::tryFrom($target)?->label() ?? $target),
             ];
+        }
+
+        if ($hasOptions) {
+            $columns[] = ['field' => 'options', 'label' => __('admin_variants.import.options_column')];
         }
 
         if ($hasAttributes) {
@@ -294,10 +305,10 @@ class CreateImport extends Page
      */
     public function formatCell(string $field, array $row): string
     {
-        if ($field === 'attributes') {
+        if ($field === 'attributes' || $field === 'options') {
             $parts = [];
 
-            foreach ($row['attributes'] ?? [] as $attribute) {
+            foreach ($row[$field] ?? [] as $attribute) {
                 if (is_array($attribute)) {
                     $parts[] = trim((string) ($attribute['name'] ?? '').': '.(string) ($attribute['value'] ?? ''), ': ');
                 }

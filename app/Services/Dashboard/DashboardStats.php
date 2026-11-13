@@ -79,7 +79,10 @@ final class DashboardStats
                 ->selectRaw(
                     'count(*) as active_count, '
                     .'sum(case when not exists (select 1 from product_images where product_images.product_id = products.id) then 1 else 0 end) as no_photo_count, '
-                    .'sum(case when stock_qty is not null and stock_qty - reserved_qty <= 0 then 1 else 0 end) as out_count'
+                    // VR-27/AD-10: a card with variants is sold out when no active variant is available (untracked counts as available).
+                    .'sum(case when has_variants = 1 then '
+                    .'(case when not exists (select 1 from product_variants pv where pv.product_id = products.id and pv.deleted_at is null and pv.is_active = 1 and (pv.stock_qty is null or pv.stock_qty - pv.reserved_qty > 0)) then 1 else 0 end) '
+                    .'else (case when stock_qty is not null and stock_qty - reserved_qty <= 0 then 1 else 0 end) end) as out_count'
                 )
                 ->first();
 

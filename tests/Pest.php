@@ -14,6 +14,7 @@ require_once __DIR__.'/Support/groups.php';
 require_once __DIR__.'/Support/customers.php';
 require_once __DIR__.'/Support/attributes.php';
 require_once __DIR__.'/Support/facets.php';
+require_once __DIR__.'/Support/variants.php';
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)

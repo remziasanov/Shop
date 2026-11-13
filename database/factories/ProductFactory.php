@@ -116,6 +116,14 @@ class ProductFactory extends Factory
         return $this->state(fn (): array => ['stock_qty' => null]);
     }
 
+    /**
+     * A card that works with variants (the variants are created separately with ProductVariantFactory).
+     */
+    public function withVariants(): static
+    {
+        return $this->state(fn (): array => ['has_variants' => true]);
+    }
+
     public function outOfStock(): static
     {
         return $this->state(fn (): array => ['stock_qty' => 0]);

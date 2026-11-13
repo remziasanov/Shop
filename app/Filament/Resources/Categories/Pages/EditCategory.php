@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Categories\Pages;
 
-use App\Enums\FilterSource;
 use App\Exceptions\AttributeException;
+use App\Exceptions\OptionException;
 use App\Filament\Resources\Categories\CategoryResource;
 use App\Filament\Resources\Categories\Pages\Concerns\MapsTreeErrors;
 use App\Filament\Resources\Categories\Pages\Concerns\SavesCategoryImage;
 use App\Models\Category;
-use App\Services\Catalog\CategoryFilterEditor;
+use App\Services\Variants\CategoryFilterRows;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Exceptions\Halt;
@@ -45,8 +45,8 @@ class EditCategory extends EditRecord
 
             if ($saved instanceof Category) {
                 try {
-                    app(CategoryFilterEditor::class)->save($saved, $own, $rows);
-                } catch (AttributeException $e) {
+                    app(CategoryFilterRows::class)->save($saved, $own, $rows);
+                } catch (AttributeException|OptionException $e) {
                     // Halts inside the transaction of saveWithImage(): the category is not saved either.
                     Notification::make()->danger()->title($e->getMessage())->send();
 
@@ -67,9 +67,9 @@ class EditCategory extends EditRecord
         $record = $this->getRecord();
 
         if ($record instanceof Category) {
-            $state = app(CategoryFilterEditor::class)->state($record);
+            $state = app(CategoryFilterRows::class)->state($record);
             $data['filters_own'] = $state['own'];
-            $data['filters'] = array_map(fn (array $row): array => $row + ['source' => FilterSource::Attribute->value], $state['rows']);
+            $data['filters'] = $state['rows'];
         }
 
         return $data;

@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Storage;
  * @property int $width Width of the large variant.
  * @property int $height Height of the large variant.
  * @property string|null $source_hash
+ * @property int|null $option_value_id value of a colour option this photo belongs to (VR-11); null = common photo
  * @property-read Product $product
  */
 #[ObservedBy(ProductImageObserver::class)]
@@ -50,6 +51,7 @@ class ProductImage extends Model
         'width',
         'height',
         'source_hash',
+        'option_value_id',
     ];
 
     /**

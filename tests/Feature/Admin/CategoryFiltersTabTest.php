@@ -9,10 +9,12 @@ use App\Models\Attribute;
 use App\Models\AttributeValue;
 use App\Models\Category;
 use App\Models\CategoryFilter;
+use App\Models\OptionType;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\Catalog\CatalogVersion;
 use App\Services\Catalog\CategoryFilterEditor;
+use App\Services\Variants\CategoryFilterRows;
 use App\Settings\CatalogSettings;
 use Filament\Actions\Testing\TestAction;
 use Livewire\Livewire;
@@ -160,16 +162,64 @@ describe('tab «Фильтры» (FL-05, FL-06, FL-17)', function (): void {
             ->assertHasFormErrors();
     });
 
-    it('keeps the option source out of reach until stage 11', function (): void {
+    it('saves a filterable option as a filter next to characteristics, in the order of the editor (VR-19)', function (): void {
         $category = Category::factory()->create();
+        $color = OptionType::factory()->color()->filterable()->create(['name' => 'Цвет']);
 
         Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()])
             ->callAction(filterAction('own_filter_set'))
-            ->fillForm(['filters' => [['source' => 'option', 'attribute_id' => $this->color->id]]])
+            ->fillForm(['filters' => [
+                ['source' => 'option', 'option_type_id' => $color->id, 'is_expanded' => true],
+                ['source' => 'attribute', 'attribute_id' => $this->color->id, 'is_expanded' => false],
+            ]])
             ->call('save')
-            ->assertHasFormErrors();
+            ->assertHasNoFormErrors();
 
-        expect(savedFilterRows($category))->toBe([]);
+        $rows = CategoryFilter::query()->where('category_id', $category->id)->orderBy('sort_order')->get();
+
+        expect($rows->map(fn (CategoryFilter $row): string => $row->source->value)->all())->toBe(['option', 'attribute'])
+            ->and($rows[0]->option_type_id)->toBe($color->id)
+            ->and($rows[0]->attribute_id)->toBeNull()
+            ->and($rows[0]->is_expanded)->toBeTrue()
+            ->and($rows[1]->attribute_id)->toBe($this->color->id);
+
+        $component = Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()]);
+
+        expect($component->get('data.filters_own'))->toBeTrue()
+            ->and((int) $component->get('data.filters.'.array_key_first($component->get('data.filters')).'.option_type_id'))->toBe($color->id);
+    });
+
+    it('offers only options with the filter flag and refuses another one', function (): void {
+        $category = Category::factory()->create();
+        $filterable = OptionType::factory()->filterable()->create(['name' => 'Размер']);
+        $plain = OptionType::factory()->create(['name' => 'Материал упаковки']);
+
+        expect(app(CategoryFilterRows::class)->optionChoices())->toBe([$filterable->id => 'Размер']);
+
+        Livewire::test(EditCategory::class, ['record' => $category->getRouteKey()])
+            ->callAction(filterAction('own_filter_set'))
+            ->fillForm(['filters' => [['source' => 'option', 'option_type_id' => $plain->id]]])
+            ->call('save');
+
+        expect(CategoryFilter::query()->where('category_id', $category->id)->count())->toBe(0);
+    });
+
+    it('copies the option rows of the inherited set into an own set and keeps an option that lost its flag', function (): void {
+        $parent = Category::factory()->create();
+        $child = Category::factory()->childOf($parent)->create();
+        $size = OptionType::factory()->filterable()->create(['name' => 'Размер']);
+        CategoryFilter::factory()->create(['category_id' => $parent->id, 'source' => 'option', 'attribute_id' => null, 'option_type_id' => $size->id, 'sort_order' => 10]);
+
+        $component = Livewire::test(EditCategory::class, ['record' => $child->getRouteKey()])->callAction(filterAction('own_filter_set'));
+
+        expect(array_values(array_map(fn (array $row): ?int => $row['option_type_id'], $component->get('data.filters'))))->toBe([$size->id]);
+
+        $component->call('save')->assertHasNoFormErrors();
+        $size->update(['is_filterable' => false]);
+
+        Livewire::test(EditCategory::class, ['record' => $child->getRouteKey()])->call('save')->assertHasNoFormErrors();
+
+        expect(CategoryFilter::query()->where('category_id', $child->id)->where('option_type_id', $size->id)->count())->toBe(1);
     });
 
     it('previews values and products per filter and warns when a filter has no values in the category', function (): void {

@@ -71,10 +71,10 @@ it('writes the canonical template headers that map back to the right fields', fu
     $rows = runExport();
     $headers = $rows[1];
 
-    expect(array_slice($headers, 0, 21))->toBe(CatalogExporter::productHeaders())
+    expect(array_slice($headers, 0, count(ImportField::cases())))->toBe(CatalogExporter::productHeaders())
         ->and($headers[0])->toBe('Артикул')
         ->and($headers[2])->toBe('Категория')
-        ->and($headers[21])->toBe('Х: Цвет');
+        ->and($headers[count(ImportField::cases())])->toBe('Х: Цвет');
 
     $mapping = app(ColumnMapper::class)->autoMap($headers);
 
@@ -82,7 +82,7 @@ it('writes the canonical template headers that map back to the right fields', fu
         expect($mapping[$i])->toBe($field->value);
     }
 
-    expect($mapping[21])->toBe('attr:Цвет');
+    expect($mapping[count(ImportField::cases())])->toBe('attr:Цвет');
 });
 
 it('formats values like the import template', function (): void {
@@ -198,7 +198,7 @@ it('exports characteristic columns in a stable sorted order', function (): void 
 
     $headers = runExport()[1];
 
-    expect(array_slice($headers, 21))->toBe(['Х: Бренд', 'Х: Вес', 'Х: Цвет']);
+    expect(array_slice($headers, count(ImportField::cases())))->toBe(['Х: Бренд', 'Х: Вес', 'Х: Цвет']);
 });
 
 it('filters by category with descendants and by activity', function (): void {

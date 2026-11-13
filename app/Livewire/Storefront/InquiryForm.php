@@ -7,6 +7,7 @@ namespace App\Livewire\Storefront;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
+use App\Livewire\Storefront\Concerns\SelectsVariant;
 use App\Models\Product;
 use App\Services\Orders\InquiryData;
 use App\Services\Orders\OrderService;
@@ -24,6 +25,7 @@ class InquiryForm extends Component
 {
     use RequiresOpenShop;
     use SalesFormSupport;
+    use SelectsVariant;
 
     #[Locked]
     public int $productId;
@@ -77,6 +79,12 @@ class InquiryForm extends Component
             return;
         }
 
+        if ($this->unitOf($product) === null) {
+            $this->addError('form', $this->variantError($product));
+
+            return;
+        }
+
         $this->normalizeEmailInput();
         $this->validate();
 
@@ -94,7 +102,7 @@ class InquiryForm extends Component
                 consent: $this->consent,
                 ip: $this->clientIp(),
                 userAgent: $this->clientUserAgent(),
-            ));
+            ), $this->selectedVariantId());
         } catch (SalesException $e) {
             $this->addError('form', $e->getMessage());
 
@@ -107,10 +115,11 @@ class InquiryForm extends Component
     public function render(AvailabilityService $availability): View
     {
         $product = $this->product();
+        $unit = $product !== null ? ($this->unitOf($product) ?? $product) : null;
 
         return view('livewire.storefront.inquiry-form', [
             'product' => $product,
-            'actions' => $product !== null ? $availability->actionsFor($product) : null,
+            'actions' => $unit !== null ? $availability->actionsFor($unit) : null,
             'consentLink' => $this->consentLink(),
             'mustSignIn' => $this->mustSignIn(),
         ]);

@@ -7,6 +7,7 @@ namespace Database\Factories;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -28,6 +29,9 @@ class OrderItemFactory extends Factory
         return [
             'order_id' => Order::factory(),
             'product_id' => null,
+            'variant_id' => null,
+            'variant_label' => null,
+            'barcode' => null,
             'sku' => strtoupper($this->faker->unique()->bothify('??-######')),
             'name' => 'Товар '.$this->faker->bothify('??-###'),
             'unit' => 'шт',
@@ -49,6 +53,29 @@ class OrderItemFactory extends Factory
             return [
                 'product_id' => $product->id,
                 'sku' => $product->sku,
+                'name' => $product->name,
+                'unit' => $product->unit,
+                'price' => Money::toRubles($price),
+                'qty' => $qty,
+                'total' => Money::toRubles($price * $qty),
+            ];
+        });
+    }
+
+    /**
+     * Snapshot of a variant of a product at the variant's own price.
+     */
+    public function forVariant(ProductVariant $variant, int $qty = 1): static
+    {
+        return $this->state(function () use ($variant, $qty): array {
+            $price = Money::fromRubles($variant->final_price);
+            $product = $variant->product;
+
+            return [
+                'product_id' => $variant->product_id,
+                'variant_id' => $variant->id,
+                'sku' => $variant->sku,
+                'barcode' => $variant->barcode,
                 'name' => $product->name,
                 'unit' => $product->unit,
                 'price' => Money::toRubles($price),

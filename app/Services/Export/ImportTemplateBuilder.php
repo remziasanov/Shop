@@ -57,6 +57,8 @@ final class ImportTemplateBuilder
             'Смартфон Орион X1 128 ГБ — купить',
             'Смартфон Орион X1 с экраном 6,1 дюйма и памятью 128 ГБ.',
             null,
+            null,
+            null,
             'Чёрный',
             'Стекло, алюминий',
         ]);
@@ -95,6 +97,13 @@ final class ImportTemplateBuilder
             __('export.template.attribute_format'),
         ]);
 
+        $book->row([
+            __('export.template.option_name'),
+            __('export.template.required.variant'),
+            __('export.template.option_synonyms'),
+            __('export.template.option_format'),
+        ]);
+
         $book->row([]);
         $book->row([__('export.template.categories_heading'), null, null, __('export.template.categories_note')]);
 
@@ -120,6 +129,7 @@ final class ImportTemplateBuilder
         return match ($field) {
             ImportField::Sku => __('export.template.required.yes'),
             ImportField::Name, ImportField::Category, ImportField::Price => __('export.template.required.new'),
+            ImportField::ParentSku => __('export.template.required.variant'),
             default => __('export.template.required.no'),
         };
     }

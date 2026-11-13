@@ -33,16 +33,25 @@ final class FilterSeoResolver
     public function resolve(Category $category, CatalogFilters $filters, int $page, ?int $total = null): ?FilterSeo
     {
         $selection = $filters->attributes;
+        $options = $filters->options;
 
-        if ($selection->isEmpty()) {
+        if ($selection->isEmpty() && $options->isEmpty()) {
             return null;
         }
 
         $url = route('catalog.category', $category->slug);
-        $text = implode(', ', array_map(FilterChips::valueText(...), $selection->filters));
+        $texts = array_map(FilterChips::valueText(...), $selection->filters);
+
+        foreach ($options->filters as $option) {
+            $texts[] = implode(', ', array_map(fn (array $value): string => $value['label'], $option->values));
+        }
+
+        $text = implode(', ', $texts);
         $single = $selection->singleValue();
 
-        $indexable = $single !== null
+        // VR-19: option filters (colour, size) are never indexed: noindex,follow and the canonical of the category (в).
+        $indexable = $options->isEmpty()
+            && $single !== null
             && $single->type === AttributeType::List
             && $single->indexable
             && $filters->sort->value === 'default'

@@ -27,13 +27,15 @@ class CartController extends Controller
 
     /**
      * Plain form endpoint of the product cards (no Livewire component per card, NF-02): works without JavaScript
-     * (redirect back with a flash message) and answers JSON to the Alpine enhancement. The cart rules (sales
+     * (redirect back with a flash message) and answers JSON to the Alpine enhancement. A card with variants is refused
+     * here without a `variant_id` (VR-12); listings link such cards to the product page instead. The cart rules (sales
      * mode, visibility, stock) are checked in {@see CartService::add()} (SF-41).
      */
     public function add(Request $request, CartService $carts, ViewerContext $viewer): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
             'product_id' => ['required', 'integer'],
+            'variant_id' => ['nullable', 'integer'],
             'qty' => ['nullable', 'integer', 'min:1', 'max:'.QtyLimit::MAX],
         ]);
 
@@ -41,7 +43,7 @@ class CartController extends Controller
             $viewer->assertNotPreview();
             $product = Product::query()->storefront()->find((int) $data['product_id'])
                 ?? throw new SalesException(__('storefront_sales.add.not_found'));
-            $carts->add($carts->getOrCreate($request), $product, (int) ($data['qty'] ?? 1));
+            $carts->add($carts->getOrCreate($request), $product, (int) ($data['qty'] ?? 1), isset($data['variant_id']) ? (int) $data['variant_id'] : null);
         } catch (SalesException $e) {
             return $request->expectsJson()
                 ? response()->json(['message' => $e->getMessage()], 422)

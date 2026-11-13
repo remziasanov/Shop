@@ -61,6 +61,7 @@ final class ProductForm
                     self::mainTab(),
                     self::priceTab(),
                     self::stockTab(),
+                    self::variantsTab(),
                     self::salesTab(),
                     self::descriptionTab(),
                     self::attributesTab(),
@@ -176,13 +177,15 @@ final class ProductForm
         return Tab::make(__('admin_products.tabs.stock'))
             ->schema([
                 Grid::make(2)->schema([
+                    // VR-24: with variants the figure is the sum over them and cannot be edited here.
                     TextInput::make('stock_qty')
-                        ->label(__('admin_products.fields.stock_qty'))
-                        ->helperText(__('admin_products.fields.stock_qty_hint'))
+                        ->label(fn (?Model $record): string => self::hasVariants($record) ? __('admin_variants.stock.sum_label') : __('admin_products.fields.stock_qty'))
+                        ->helperText(fn (?Model $record): string => self::hasVariants($record) ? __('admin_variants.stock.sum_hint') : __('admin_products.fields.stock_qty_hint'))
                         ->numeric()
                         ->integer()
                         ->minValue(0)
                         ->maxValue(2_000_000_000)
+                        ->disabled(fn (?Model $record): bool => self::hasVariants($record))
                         // D-052: written by the page hooks via StockService::setStock() only when changed.
                         ->dehydrated(false)
                         ->live(onBlur: true),
@@ -210,6 +213,40 @@ final class ProductForm
                         ]),
                 ]),
             ]);
+    }
+
+    /**
+     * «Модификации» (VR-02, VR-24): the state of the switch and a pointer to the table; the switch itself («Включить /
+     * Выключить модификации», «Изменить опции») is in the header of the page, the table is the «Модификации» tab below.
+     */
+    private static function variantsTab(): Tab
+    {
+        return Tab::make(__('admin_variants.tab.title'))
+            ->visibleOn('edit')
+            ->schema([
+                Toggle::make('has_variants')
+                    ->label(__('admin_variants.tab.has_variants'))
+                    ->helperText(__('admin_variants.tab.has_variants_hint'))
+                    ->disabled()
+                    ->dehydrated(false),
+                Text::make(fn (?Model $record): string => self::variantsSummary($record)),
+            ]);
+    }
+
+    private static function hasVariants(?Model $record): bool
+    {
+        return $record instanceof Product && $record->has_variants;
+    }
+
+    private static function variantsSummary(?Model $record): string
+    {
+        if (! $record instanceof Product || ! $record->has_variants) {
+            return __('admin_variants.tab.off');
+        }
+
+        $axes = $record->options()->pluck('option_types.name')->implode(', ');
+
+        return __('admin_variants.tab.on', ['axes' => $axes, 'count' => $record->variants()->count()]);
     }
 
     private static function salesTab(): Tab

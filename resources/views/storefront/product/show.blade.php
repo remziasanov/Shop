@@ -5,7 +5,8 @@
 
     <div class="grid gap-6 md:grid-cols-2 md:gap-10">
         {{-- SF-30: gallery. --}}
-        <section aria-label="{{ __('storefront.gallery.label') }}" x-data="productGallery({{ count($gallery) }})"
+        <section aria-label="{{ __('storefront.gallery.label') }}" x-data="productGallery({{ count($gallery) }}@if ($picker !== null), @js(array_map(fn ($image) => $image['option_value_id'], $gallery))@endif)"
+                 @variant-color.window="setColor($event.detail.id)"
                  @keydown.arrow-left="fullscreen && prev()" @keydown.arrow-right="fullscreen && next()" @keydown.escape.window="fullscreen && closeFullscreen()">
             @if ($gallery === [])
                 <div class="aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
@@ -38,7 +39,7 @@
                 @if (count($gallery) > 1)
                     <ul class="mt-3 flex gap-2 overflow-x-auto pb-1">
                         @foreach ($gallery as $i => $image)
-                            <li class="flex-none">
+                            <li class="flex-none" x-show="allowed({{ $i }})">
                                 <button type="button" @click="go({{ $i }})" :aria-current="(index === {{ $i }}).toString()"
                                         class="block h-16 w-16 overflow-hidden rounded border bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                                         :class="index === {{ $i }} ? 'border-primary ring-1 ring-primary' : 'border-slate-200'"
@@ -69,32 +70,66 @@
                         <button type="button" @click="next()" class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="{{ __('storefront.gallery.next') }}">
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                         </button>
-                        <p class="absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-black/60 px-3 py-1 text-sm text-white" aria-live="polite" x-text="@js(__('storefront.gallery.counter', ['current' => ':c', 'total' => ':t'])).replace(':c', index + 1).replace(':t', count)"></p>
+                        <p class="absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-black/60 px-3 py-1 text-sm text-white" aria-live="polite" x-text="@js(__('storefront.gallery.counter', ['current' => ':c', 'total' => ':t'])).replace(':c', position()).replace(':t', total())"></p>
                     @endif
                 </div>
             @endif
         </section>
 
         {{-- SF-31, SF-32, SF-34 (short description), SF-33 (actions). --}}
-        <div>
+        @if ($picker !== null)
+            {{-- VR-09: the variants are embedded as JSON; choosing one changes the price, availability, buttons and photos without a request. --}}
+            <script type="application/json" id="variant-data">{!! $picker->json() !!}</script>
+        @endif
+        <div @if ($picker !== null) x-data="variantPicker(@js(['unavailable' => __('variant_storefront.unavailable'), 'cart' => __('storefront.actions.cart'), 'backorder' => __('sales.actions.backorder'), 'pair' => __('variants.label.pair', ['option' => ':option', 'value' => ':value']), 'separator' => __('variants.label.separator')]))" @endif>
             @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mb-2'])
             <h1 class="text-2xl font-bold md:text-3xl">{{ $product->name }}</h1>
 
             <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-slate-600">
                 <dt>{{ __('storefront.product.sku') }}</dt>
-                <dd class="text-slate-900">{{ $product->sku }}</dd>
+                @if ($picker !== null)
+                    <dd class="text-slate-900" data-variant-sku x-text="current ? current.sku : ''">{{ $picker->selected->sku }}</dd>
+                    @if (collect($picker->variants)->contains(fn ($v) => ! empty($v['bc'])))
+                        <dt x-show="current && current.bc">{{ __('variant_storefront.barcode') }}</dt>
+                        <dd class="text-slate-900" data-variant-barcode x-show="current && current.bc" x-text="current ? current.bc : ''">{{ $picker->selected->barcode }}</dd>
+                    @endif
+                @else
+                    <dd class="text-slate-900">{{ $product->sku }}</dd>
+                @endif
                 @if ($product->brand)
                     <dt>{{ __('storefront.product.brand') }}</dt>
                     <dd class="text-slate-900">{{ $product->brand }}</dd>
                 @endif
             </dl>
 
-            @include('storefront.partials.price', ['view' => $view, 'class' => 'mt-4', 'size' => 'text-3xl'])
+            @if ($picker !== null)
+                @include('storefront.product.variant-picker', ['picker' => $picker])
+            @endif
+
+            @if ($picker !== null && ! $view->priceOnRequest)
+                <p class="mt-4 flex flex-wrap items-baseline gap-x-2" data-variant-price>
+                    <span class="text-3xl font-bold" x-text="current ? current.p : ''">{{ $view->price }}</span>
+                    <s class="text-sm text-slate-500" x-cloak x-show="current && current.o"><span class="sr-only">{{ __('storefront.labels.sale') }}:</span> <span x-text="current ? current.o : ''">{{ $view->oldPrice }}</span></s>
+                    <span class="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700" x-cloak x-show="current && current.d" x-text="current && current.d ? @js(__('storefront.product.discount', ['percent' => ':p'])).replace(':p', current.d) : ''">@if ($view->discount) {{ __('storefront.product.discount', ['percent' => $view->discount]) }} @endif</span>
+                </p>
+            @else
+                @include('storefront.partials.price', ['view' => $view, 'class' => 'mt-4', 'size' => 'text-3xl'])
+            @endif
             @unless ($view->priceOnRequest)
                 <p class="text-sm text-slate-500">{{ __('storefront.product.per_unit', ['unit' => $product->unit]) }}</p>
             @endunless
 
-            <div class="mt-2">@include('storefront.partials.availability', ['availability' => $view->availability])</div>
+            <div class="mt-2">
+                @if ($picker !== null)
+                    <p class="flex items-center gap-1.5 text-sm" data-variant-stock x-cloak x-show="current && current.s"
+                       :class="current ? ({ in: 'text-emerald-700', low: 'text-amber-700', out: 'text-slate-500' }[current.st] || '') : ''">
+                        <span class="h-2 w-2 rounded-full" aria-hidden="true" :class="current ? ({ in: 'bg-emerald-600', low: 'bg-amber-500', out: 'bg-slate-400' }[current.st] || '') : ''"></span>
+                        <span x-text="current ? current.s : ''">{{ $view->availability['text'] ?? '' }}</span>
+                    </p>
+                @else
+                    @include('storefront.partials.availability', ['availability' => $view->availability])
+                @endif
+            </div>
 
             @if ($product->short_description)
                 <p class="mt-4 whitespace-pre-line text-slate-700">{{ $product->short_description }}</p>
@@ -109,7 +144,26 @@
             @endif
 
             {{-- SF-33: actions by sales mode and stock (ProductActions); Livewire components handle cart, reservation and inquiry. --}}
-            @if ($view->actions !== [])
+            @if ($picker !== null)
+                {{-- VR-09, VR-14: the picker shows the buttons that are possible for the selected variant; the components send the variant id with their action. --}}
+                @php($pa = $view->productActions)
+                @if ($pa->mode !== \App\Enums\SalesMode::Showcase)
+                    <div class="mt-6 flex flex-wrap items-end gap-2">
+                        @if ($pa->hasCartButton())
+                            <livewire:storefront.add-to-cart :product-id="$product->id" :show-qty="true" :variant-id="$picker->selected->id" :key="'cart-'.$product->id" />
+                        @else
+                            <button type="button" disabled x-cloak x-show="current && current.can.out" class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="unavailable">{{ __('sales.actions.out_of_stock') }}</button>
+                        @endif
+                        @if ($pa->hasReservationButton())
+                            <livewire:storefront.reservation-form :product-id="$product->id" :variant-id="$picker->selected->id" :open="request()->boolean('reserve')" :key="'reserve-'.$product->id" />
+                        @endif
+                        <livewire:storefront.inquiry-form :product-id="$product->id" :variant-id="$picker->selected->id" :open="request()->boolean('inquiry')" :key="'inquiry-'.$product->id" />
+                    </div>
+                @endif
+            @elseif ($product->has_variants)
+                {{-- No active variant: nothing can be bought. --}}
+                <div class="mt-6"><button type="button" disabled class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="unavailable">{{ __('sales.actions.out_of_stock') }}</button></div>
+            @elseif ($view->actions !== [])
                 <div class="mt-6 flex flex-wrap items-end gap-2">
                     @foreach ($view->actions as $action)
                         @if ($action['disabled'])

@@ -13,17 +13,28 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int $cart_id
  * @property int $product_id
+ * @property int|null $variant_id
+ * @property int $variant_key COALESCE(variant_id, 0), part of the unique index (VR-12); maintained on save
  * @property int $qty
  * @property string $price_at_add decimal(12,2) string, final_price when the item was added
  * @property-read Cart $cart
  * @property-read Product|null $product
+ * @property-read ProductVariant|null $variant
  */
 class CartItem extends Model
 {
     /** @use HasFactory<CartItemFactory> */
     use HasFactory;
 
-    protected $fillable = ['cart_id', 'product_id', 'qty', 'price_at_add'];
+    protected $fillable = ['cart_id', 'product_id', 'variant_id', 'qty', 'price_at_add'];
+
+    protected static function booted(): void
+    {
+        // NULL never collides in a unique index, so the index uses this 0-based key instead of variant_id (VR-12).
+        static::saving(function (CartItem $item): void {
+            $item->variant_key = $item->variant_id === null ? 0 : (int) $item->variant_id;
+        });
+    }
 
     /**
      * @return array<string, string>
@@ -50,5 +61,13 @@ class CartItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * @return BelongsTo<ProductVariant, $this>
+     */
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class)->withTrashed();
     }
 }

@@ -8,10 +8,15 @@ use App\Enums\AttributeType;
 
 /**
  * One filter block of the sidebar: a characteristic with its values (list), range hint (number) or nothing more
- * (boolean). `slug` is the URL key `a[slug]`.
+ * (boolean). `slug` is the URL key `a[slug]` (`o[slug]` for an option group, VR-19).
  */
 final readonly class FacetGroup
 {
+    public const SOURCE_ATTRIBUTE = 'attribute';
+
+    /** A variant option (VR-19): the URL key is `o[slug]`, `display` is the option's display type (color / button / select). */
+    public const SOURCE_OPTION = 'option';
+
     /**
      * @param  list<FacetValue>  $values  list type only: values present in the selection plus the selected ones
      * @param  string|null  $min  number type: smallest value of the selection (decimal text)
@@ -31,6 +36,8 @@ final readonly class FacetGroup
         public ?string $selectedMin = null,
         public ?string $selectedMax = null,
         public bool $checked = false,
+        public string $source = self::SOURCE_ATTRIBUTE,
+        public ?string $display = null,
     ) {}
 
     /**
@@ -68,6 +75,8 @@ final readonly class FacetGroup
             'selectedMin' => $this->selectedMin,
             'selectedMax' => $this->selectedMax,
             'checked' => $this->checked,
+            'source' => $this->source,
+            'display' => $this->display,
         ];
     }
 
@@ -76,7 +85,7 @@ final readonly class FacetGroup
      */
     public static function fromArray(array $data): self
     {
-        /** @var list<array{slug: string, label: string, count: int, selected: bool}> $values */
+        /** @var list<array{slug: string, label: string, count: int, selected: bool, hex?: string|null, image?: string|null}> $values */
         $values = $data['values'];
 
         return new self(
@@ -91,6 +100,8 @@ final readonly class FacetGroup
             selectedMin: $data['selectedMin'] !== null ? (string) $data['selectedMin'] : null,
             selectedMax: $data['selectedMax'] !== null ? (string) $data['selectedMax'] : null,
             checked: (bool) $data['checked'],
+            source: (string) ($data['source'] ?? self::SOURCE_ATTRIBUTE),
+            display: isset($data['display']) ? (string) $data['display'] : null,
         );
     }
 }

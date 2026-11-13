@@ -22,7 +22,7 @@ class CartPage extends Component
 {
     use RequiresOpenShop;
 
-    /** @var array<int|string, int|string> product id => quantity typed by the visitor */
+    /** @var array<int|string, int|string> «product id_variant key» => quantity typed by the visitor (VR-12: a variant is a row of its own) */
     public array $qtys = [];
 
     public function updatedQtys(mixed $value, string $key): void
@@ -35,7 +35,8 @@ class CartPage extends Component
         }
 
         try {
-            app(CartService::class)->update($cart, (int) $key, QtyLimit::clamp((int) $value));
+            [$productId, $variantKey] = array_map('intval', explode('_', $key) + [1 => '0']);
+            app(CartService::class)->update($cart, $productId, QtyLimit::clamp((int) $value), $variantKey > 0 ? $variantKey : null);
         } catch (SalesException $e) {
             $this->addError('cart', $e->getMessage());
         }
@@ -43,13 +44,13 @@ class CartPage extends Component
         $this->dispatch('cart-updated');
     }
 
-    public function remove(int $productId): void
+    public function remove(int $productId, int $variantKey = 0): void
     {
         $this->resetErrorBag();
         $cart = app(CartService::class)->current(request());
 
         if ($cart !== null) {
-            app(CartService::class)->remove($cart, $productId);
+            app(CartService::class)->remove($cart, $productId, $variantKey > 0 ? $variantKey : null);
         }
 
         $this->dispatch('cart-updated');
@@ -85,7 +86,7 @@ class CartPage extends Component
         $this->qtys = [];
 
         foreach ($summary->lines as $line) {
-            $this->qtys[$line->item->product_id] = $line->qty;
+            $this->qtys[$line->item->product_id.'_'.$line->item->variant_key] = $line->qty;
         }
 
         return view('livewire.storefront.cart-page', [

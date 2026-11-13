@@ -7,6 +7,7 @@ namespace Database\Factories;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -38,6 +39,19 @@ class CartItemFactory extends Factory
             'product_id' => $product->id,
             'qty' => $qty,
             'price_at_add' => $product->final_price,
+        ]);
+    }
+
+    /**
+     * Item for a variant at its current final price.
+     */
+    public function forVariant(ProductVariant $variant, int $qty = 1): static
+    {
+        return $this->state(fn (): array => [
+            'product_id' => $variant->product_id,
+            'variant_id' => $variant->id,
+            'qty' => $qty,
+            'price_at_add' => $variant->final_price,
         ]);
     }
 }

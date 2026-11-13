@@ -79,7 +79,9 @@ class PriceRuleRecalculator
     }
 
     /**
-     * Queue recalculation of the given products in chunks of {@see RecalculatePrices::MAX_IDS}.
+     * Queue recalculation of the given products in jobs of up to {@see RecalculatePrices::MAX_IDS} priced entities: a
+     * product without variants counts as one, a card with variants as many as it has live variants (VR-07, 19.6), so a
+     * job stays within the 40 second limit. A card heavier than a whole job gets a job of its own.
      *
      * @param  iterable<int>  $productIds
      * @return array{products: int, jobs: int}
@@ -92,7 +94,7 @@ class PriceRuleRecalculator
             $ids[$id] = $id;
         }
 
-        $chunks = array_chunk(array_values($ids), RecalculatePrices::MAX_IDS);
+        $chunks = $this->chunks(array_values($ids));
 
         if ($chunks === []) {
             return ['products' => 0, 'jobs' => 0];
@@ -105,5 +107,50 @@ class PriceRuleRecalculator
         }
 
         return ['products' => count($ids), 'jobs' => count($chunks)];
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return list<list<int>>
+     */
+    private function chunks(array $ids): array
+    {
+        $weights = [];
+
+        foreach (array_chunk($ids, 1000) as $part) {
+            $rows = DB::table('product_variants')
+                ->whereIn('product_id', $part)
+                ->whereNull('deleted_at')
+                ->groupBy('product_id')
+                ->selectRaw('product_id, COUNT(*) as variants')
+                ->get();
+
+            foreach ($rows as $row) {
+                $weights[(int) $row->product_id] = (int) $row->variants;
+            }
+        }
+
+        $chunks = [];
+        $current = [];
+        $weight = 0;
+
+        foreach ($ids as $id) {
+            $own = max(1, $weights[$id] ?? 1);
+
+            if ($current !== [] && ($weight + $own > RecalculatePrices::MAX_IDS || count($current) >= RecalculatePrices::MAX_IDS)) {
+                $chunks[] = $current;
+                $current = [];
+                $weight = 0;
+            }
+
+            $current[] = $id;
+            $weight += $own;
+        }
+
+        if ($current !== []) {
+            $chunks[] = $current;
+        }
+
+        return $chunks;
     }
 }

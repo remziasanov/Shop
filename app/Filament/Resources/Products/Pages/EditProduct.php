@@ -6,6 +6,7 @@ namespace App\Filament\Resources\Products\Pages;
 
 use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\Products\Support\MapsProductFormData;
+use App\Filament\Resources\Products\Support\VariantSwitchActions;
 use App\Filament\Resources\Products\Tables\ProductsTable;
 use App\Models\Product;
 use App\Services\Catalog\ProductDuplicator;
@@ -29,6 +30,7 @@ class EditProduct extends EditRecord
     {
         return [
             ProductsTable::openOnSiteAction(),
+            ...VariantSwitchActions::make(),
             Action::make('duplicate')
                 ->label(__('admin_products.actions.duplicate'))
                 ->icon(Heroicon::OutlinedDocumentDuplicate)

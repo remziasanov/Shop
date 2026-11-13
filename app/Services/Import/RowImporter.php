@@ -10,15 +10,20 @@ use App\Enums\EmptyCellPolicy;
 use App\Enums\ImportField;
 use App\Enums\ImportIssueLevel;
 use App\Enums\ImportMode;
+use App\Enums\OptionDisplayType;
 use App\Enums\PhotoMode;
 use App\Enums\PriceChangeSource;
 use App\Enums\SalesMode;
 use App\Exceptions\AttributeException;
 use App\Exceptions\CategoryTreeException;
 use App\Exceptions\ImportRowException;
+use App\Exceptions\OptionException;
+use App\Exceptions\VariantException;
 use App\Models\Attribute;
 use App\Models\Import;
+use App\Models\OptionType;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Catalog\AttributeNameResolver;
 use App\Services\Catalog\AttributeService;
@@ -29,11 +34,16 @@ use App\Services\Catalog\CategoryTree;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Stock\StockService;
+use App\Services\Variants\OptionService;
+use App\Services\Variants\SkuGuard;
+use App\Services\Variants\VariantAggregator;
+use App\Services\Variants\VariantService;
 use App\Settings\CatalogSettings;
 use App\Support\Money;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -60,6 +70,13 @@ use Throwable;
  *    are written inside the same transaction, so a chunk is applied exactly once;
  *  - dry run: everything runs, then the transaction is rolled back and only issues and counters are stored.
  *
+ * Variant rows (VR-16, VR-17): a row with «Артикул карточки» creates or updates a variant of that card through
+ * {@see VariantService}. Options and values are found by their text and created when the catalog setting allows;
+ * the first variant of a card without variants enables them (VR-25 applies: a refusal is a row error); name,
+ * category and the other card fields are inherited, the card is never changed by its variant rows. In «prices and
+ * stock» mode only existing variants are updated, new ones are skipped. A photo of a variant row belongs to the colour
+ * value of the variant (a warning when the card has no colour axis).
+ *
  * Photos are not handled here: tasks are returned for {@see ImportPhotoProcessor}.
  */
 final class RowImporter
@@ -84,12 +101,27 @@ final class RowImporter
 
     private bool $attributesWritten = false;
 
+    /** Option dictionary of the running chunk (a fresh instance per chunk, like the attribute service). */
+    private ?OptionService $optionService = null;
+
+    private ?VariantService $variantService = null;
+
     public function __construct(
         private readonly PriceChangeContext $context,
         private readonly HtmlSanitizer $sanitizer,
         private readonly CategoryTree $tree,
         private readonly StockService $stock,
     ) {}
+
+    /**
+     * A SKU race between two writers (D-087) reads as the ordinary «артикул занят» error of the row.
+     */
+    private function uniqueViolationMessage(UniqueConstraintViolationException $e): string
+    {
+        $error = app(SkuGuard::class)->translate($e);
+
+        return $error !== null ? (string) collect($error->errors())->flatten()->first() : __('import_process.errors.row_failed');
+    }
 
     public function importChunk(Import $import, int $chunkIndex): ChunkResult
     {
@@ -104,7 +136,7 @@ final class RowImporter
             $result = $this->context->run(
                 PriceChangeSource::Import,
                 $import->id,
-                fn (): ChunkResult => $this->apply($import, $options, $chunkIndex, $lines, $resolver, $issues),
+                fn (): ChunkResult => app(VariantAggregator::class)->batch(fn (): ChunkResult => $this->apply($import, $options, $chunkIndex, $lines, $resolver, $issues)),
                 $import->user_id,
             );
 
@@ -151,6 +183,8 @@ final class RowImporter
         $products = $this->loadProducts($lines);
         $attributeColumns = $this->attributeColumns($import);
         $this->prepareAttributes($lines, $products, $attributeColumns, $issues, $warnings);
+        $this->optionService = app(OptionService::class);
+        $this->variantService = app(VariantService::class);
 
         foreach ($lines as $line) {
             $row = (int) ($line['row'] ?? 0);
@@ -177,6 +211,58 @@ final class RowImporter
             /** @var list<array{name: string, value: string}> $fileAttributes */
             $fileAttributes = array_values((array) ($line['attributes'] ?? []));
             $sku = (string) ($values['sku'] ?? '');
+
+            // VR-16: a row with «Артикул карточки» is a variant.
+            if (isset($values['parent_sku'])) {
+                try {
+                    DB::beginTransaction();
+                    $outcome = $this->variantRow($row, $values, array_values((array) ($line['options'] ?? [])), $options, $products, $issues, $warnings);
+                    DB::commit();
+                } catch (ImportRowException|VariantException|OptionException|ValidationException|UniqueConstraintViolationException|InvalidArgumentException $e) {
+                    DB::rollBack();
+                    $this->optionService->forgetCache();
+                    $message = match (true) {
+                        $e instanceof ValidationException => (string) collect($e->errors())->flatten()->first(),
+                        $e instanceof UniqueConstraintViolationException => $this->uniqueViolationMessage($e),
+                        $e instanceof InvalidArgumentException => __('import_process.errors.row_failed'),
+                        default => $e->getMessage(),
+                    };
+                    $issues->add($row, ImportIssueLevel::Error, null, $message, $sku);
+                    $errors++;
+
+                    continue;
+                } catch (Throwable $e) {
+                    DB::rollBack();
+
+                    throw $e;
+                }
+
+                if ($outcome['status'] === 'skipped') {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $touched[$outcome['card_id']] = $outcome['card_id'];
+                $task = $outcome['task'];
+
+                if ($outcome['status'] === 'created') {
+                    $created++;
+                } elseif ($outcome['status'] === 'updated') {
+                    $updated++;
+                } elseif ($task !== null) {
+                    $task['unchanged'] = true;
+                } else {
+                    $unchanged++;
+                }
+
+                if ($task !== null) {
+                    $tasks[] = $task;
+                }
+
+                continue;
+            }
+
             $product = $products[mb_strtolower($sku, 'UTF-8')] ?? null;
 
             if ($product === null && $options->mode === ImportMode::PricesStock) {
@@ -195,7 +281,11 @@ final class RowImporter
             } catch (ImportRowException|CategoryTreeException|AttributeException|UniqueConstraintViolationException|InvalidArgumentException $e) {
                 DB::rollBack();
                 $resolver->reset();
-                $message = $e instanceof ImportRowException || $e instanceof CategoryTreeException || $e instanceof AttributeException ? $e->getMessage() : __('import_process.errors.row_failed');
+                $message = match (true) {
+                    $e instanceof ImportRowException, $e instanceof CategoryTreeException, $e instanceof AttributeException => $e->getMessage(),
+                    $e instanceof UniqueConstraintViolationException => $this->uniqueViolationMessage($e),
+                    default => __('import_process.errors.row_failed'),
+                };
                 $issues->add($row, ImportIssueLevel::Error, null, $message, $sku);
                 $errors++;
 
@@ -206,7 +296,8 @@ final class RowImporter
                 throw $e;
             }
 
-            $touched[] = $saved->id;
+            $touched[$saved->id] = $saved->id;
+            $products[mb_strtolower($sku, 'UTF-8')] = $saved;
 
             $photos = $values['photos'] ?? [];
             $hasPhotos = $options->photoMode !== PhotoMode::Skip && $options->mode !== ImportMode::PricesStock && is_array($photos) && $photos !== [];
@@ -230,7 +321,7 @@ final class RowImporter
             }
         }
 
-        return new ChunkResult($chunkIndex, count($lines), $created, $updated, $unchanged, $skipped, $errors, $warnings, $resolver->createdCount(), $touched, $tasks);
+        return new ChunkResult($chunkIndex, count($lines), $created, $updated, $unchanged, $skipped, $errors, $warnings, $resolver->createdCount(), array_values($touched), $tasks);
     }
 
     /**
@@ -365,7 +456,8 @@ final class RowImporter
         // Stock goes through StockService after the product is saved (D-046); `false` = leave as is.
         $newStock = false;
 
-        if (array_key_exists('stock', $values)) {
+        // VR-06: the stock of a card with variants is an aggregate of its variants, the cell is ignored.
+        if (array_key_exists('stock', $values) && ! $product->has_variants) {
             $stock = $values['stock'];
 
             if (is_int($stock)) {
@@ -734,6 +826,292 @@ final class RowImporter
     }
 
     /**
+     * One variant row (VR-16, VR-17).
+     *
+     * @param  array<string, mixed>  $values
+     * @param  list<array{name: string, value: string}>  $cells  option cells of the row
+     * @param  array<string, Product>  $products  cards of the chunk by lower-cased article (extended here)
+     * @return array{status: string, card_id: int, task: array<string, mixed>|null} status: created, updated, unchanged or skipped
+     *
+     * @throws ImportRowException
+     * @throws VariantException
+     * @throws OptionException
+     * @throws ValidationException
+     */
+    private function variantRow(int $row, array $values, array $cells, ImportOptions $options, array &$products, IssueBatch $issues, int &$warnings): array
+    {
+        $sku = (string) $values['sku'];
+        $parentSku = (string) $values['parent_sku'];
+        $parentKey = mb_strtolower($parentSku, 'UTF-8');
+        $clear = $options->emptyCellPolicy === EmptyCellPolicy::Clear;
+        $pricesOnly = $options->mode === ImportMode::PricesStock;
+
+        $card = $products[$parentKey] ?? Product::withTrashed()->where('sku', $parentSku)->first();
+        $variant = ProductVariant::withTrashed()->where('sku', $sku)->first();
+
+        if ($pricesOnly && ($card === null || $variant === null)) {
+            return ['status' => 'skipped', 'card_id' => 0, 'task' => null];
+        }
+
+        if ($card === null) {
+            throw new ImportRowException(__('admin_variants.import.card_missing', ['sku' => $parentSku]));
+        }
+
+        if ($card->trashed()) {
+            throw new ImportRowException(__('admin_variants.import.card_trashed', ['sku' => $parentSku]));
+        }
+
+        $products[$parentKey] = $card;
+
+        if ($variant !== null && $variant->product_id !== $card->id) {
+            throw new ImportRowException(__('admin_variants.import.variant_other_card', ['sku' => $sku]));
+        }
+
+        if ($variant === null && Product::withTrashed()->where('sku', $sku)->exists()) {
+            throw new ImportRowException(__('admin_variants.import.sku_is_card', ['sku' => $sku]));
+        }
+
+        if ($pricesOnly) {
+            /** @var ProductVariant $variant */
+            $data = $this->variantChanges($variant, $values, $clear, null, true);
+
+            if ($data !== []) {
+                $this->variantService->update($variant, $data);
+            }
+
+            return ['status' => $data === [] ? 'unchanged' : 'updated', 'card_id' => $card->id, 'task' => null];
+        }
+
+        [$resolved, $colorValueId] = $this->resolveOptions($cells);
+        $this->prepareAxes($card, array_keys($resolved));
+        $axisIds = DB::table('product_options')->where('product_id', $card->id)->orderBy('sort_order')->pluck('option_type_id')->map(fn (mixed $id): int => (int) $id)->all();
+        $valueIds = array_map(fn (int $typeId): int => $resolved[$typeId], $axisIds);
+
+        if ($variant === null) {
+            $this->variantService->create($card, $this->variantCreateData($values, $sku, $valueIds));
+            $status = 'created';
+        } else {
+            $restored = false;
+
+            if ($variant->trashed()) {
+                $variant->restore();
+                $restored = true;
+            }
+
+            $data = $this->variantChanges($variant, $values, $clear, $valueIds, false);
+
+            if ($data !== []) {
+                $this->variantService->update($variant, $data);
+            }
+
+            $status = $data !== [] || $restored ? 'updated' : 'unchanged';
+        }
+
+        $task = null;
+        $photos = $values['photos'] ?? [];
+
+        if ($options->photoMode !== PhotoMode::Skip && is_array($photos) && $photos !== []) {
+            if ($colorValueId === null) {
+                $issues->add($row, ImportIssueLevel::Warning, ImportField::Photos->label(), __('admin_variants.import.photo_no_color', ['sku' => $sku]), $sku);
+                $warnings++;
+            } else {
+                $task = ['type' => 'product', 'id' => $card->id, 'refs' => array_values(array_map('strval', $photos)), 'mode' => $options->photoMode->value, 'row' => $row, 'option_value_id' => $colorValueId];
+            }
+        }
+
+        return ['status' => $status, 'card_id' => $card->id, 'task' => $task];
+    }
+
+    /**
+     * Finds or creates the options and values of the row's cells (VR-16).
+     *
+     * @param  list<array{name: string, value: string}>  $cells
+     * @return array{0: array<int, int>, 1: int|null} option type id => option value id in cell order, and the value of the first colour option
+     *
+     * @throws ImportRowException
+     */
+    private function resolveOptions(array $cells): array
+    {
+        if ($cells === []) {
+            throw new ImportRowException(__('admin_variants.import.options_missing'));
+        }
+
+        $create = app(CatalogSettings::class)->create_options_on_import;
+        $resolved = [];
+        $colorValueId = null;
+
+        foreach ($cells as $cell) {
+            $type = $this->optionService->findOrCreateType($cell['name'], $create);
+
+            if ($type === null) {
+                throw new ImportRowException(__('admin_variants.import.option_unknown', ['name' => $cell['name']]));
+            }
+
+            $value = $this->optionService->findOrCreateValue($type, $cell['value'], $create);
+
+            if ($value === null) {
+                throw new ImportRowException(__('admin_variants.import.value_unknown', ['option' => $type->name, 'value' => $cell['value']]));
+            }
+
+            if (isset($resolved[$type->id])) {
+                throw new ImportRowException(__('admin_variants.import.option_repeated', ['name' => $type->name]));
+            }
+
+            $resolved[$type->id] = $value->id;
+
+            if ($colorValueId === null && $type->display_type === OptionDisplayType::Color) {
+                $colorValueId = $value->id;
+            }
+        }
+
+        if (count($resolved) > VariantService::MAX_AXES) {
+            throw new ImportRowException(__('admin_variants.import.axes_count'));
+        }
+
+        return [$resolved, $colorValueId];
+    }
+
+    /**
+     * The first variant of a card switches variants on with the axes of its row (VR-17); later rows must match them.
+     *
+     * @param  list<int>  $typeIds  option types of the row
+     *
+     * @throws ImportRowException
+     * @throws VariantException
+     */
+    private function prepareAxes(Product $card, array $typeIds): void
+    {
+        if (! $card->has_variants) {
+            $this->variantService->enable($card, $typeIds);
+
+            return;
+        }
+
+        $axisIds = DB::table('product_options')->where('product_id', $card->id)->pluck('option_type_id')->map(fn (mixed $id): int => (int) $id)->all();
+
+        if ($axisIds === []) {
+            $this->variantService->setAxes($card, $typeIds);
+
+            return;
+        }
+
+        if (count($axisIds) !== count($typeIds) || array_diff($axisIds, $typeIds) !== []) {
+            $names = OptionType::query()->whereIn('id', $axisIds)->orderBy('id')->pluck('name')->implode(', ');
+
+            throw new ImportRowException(__('admin_variants.import.axes_mismatch', ['axes' => $names]));
+        }
+    }
+
+    /**
+     * Fields of a new variant from the row.
+     *
+     * @param  array<string, mixed>  $values
+     * @param  list<int>  $valueIds
+     * @return array<string, mixed>
+     */
+    private function variantCreateData(array $values, string $sku, array $valueIds): array
+    {
+        $data = ['values' => $valueIds, 'sku' => $sku];
+
+        foreach (['price' => 'base_price', 'cost_price' => 'cost_price', 'old_price' => 'compare_at_price'] as $key => $column) {
+            if (isset($values[$key]) && is_int($values[$key])) {
+                $data[$column] = Money::toRubles($values[$key]);
+            }
+        }
+
+        if (isset($values['stock']) && is_int($values['stock'])) {
+            $data['stock_qty'] = $values['stock'];
+        }
+
+        if (isset($values['barcode']) && is_string($values['barcode'])) {
+            $data['barcode'] = $values['barcode'];
+        }
+
+        if (isset($values['active']) && is_bool($values['active'])) {
+            $data['is_active'] = $values['active'];
+        }
+
+        if (isset($values['sort']) && is_int($values['sort'])) {
+            $data['sort_order'] = $values['sort'];
+        }
+
+        return $data;
+    }
+
+    /**
+     * What differs between an existing variant and its row, as the data of {@see VariantService::update()}. A blank cell
+     * keeps the value or, with the «clear» policy, empties the nullable ones (prices fall back to the card's, barcode,
+     * stock «not tracked»).
+     *
+     * @param  array<string, mixed>  $values
+     * @param  list<int>|null  $valueIds  new values per axis, null in «prices and stock» mode
+     * @return array<string, mixed>
+     */
+    private function variantChanges(ProductVariant $variant, array $values, bool $clear, ?array $valueIds, bool $pricesOnly): array
+    {
+        $data = [];
+
+        foreach (['price' => 'base_price', 'cost_price' => 'cost_price', 'old_price' => 'compare_at_price'] as $key => $column) {
+            if (! array_key_exists($key, $values)) {
+                continue;
+            }
+
+            $kopecks = $values[$key];
+            $current = $variant->getAttribute($column);
+
+            if (is_int($kopecks)) {
+                if ($current === null || Money::fromRubles((string) $current) !== $kopecks) {
+                    $data[$column] = Money::toRubles($kopecks);
+                }
+            } elseif ($clear && $current !== null) {
+                $data[$column] = null;
+            }
+        }
+
+        if (array_key_exists('stock', $values)) {
+            $stock = $values['stock'];
+
+            if (is_int($stock)) {
+                if ($stock !== $variant->stock_qty) {
+                    $data['stock_qty'] = $stock;
+                }
+            } elseif ($clear && $variant->stock_qty !== null) {
+                $data['stock_qty'] = null;
+            }
+        }
+
+        if ($pricesOnly) {
+            return $data;
+        }
+
+        if (array_key_exists('barcode', $values)) {
+            $barcode = $values['barcode'];
+
+            if (is_string($barcode) && $barcode !== '') {
+                if ($barcode !== $variant->barcode) {
+                    $data['barcode'] = $barcode;
+                }
+            } elseif ($clear && $variant->barcode !== null) {
+                $data['barcode'] = null;
+            }
+        }
+
+        if (isset($values['active']) && is_bool($values['active']) && $values['active'] !== $variant->is_active) {
+            $data['is_active'] = $values['active'];
+        }
+
+        if (isset($values['sort']) && is_int($values['sort']) && $values['sort'] !== $variant->sort_order) {
+            $data['sort_order'] = $values['sort'];
+        }
+
+        if ($valueIds !== null && VariantService::comboHash($valueIds) !== $variant->combo_hash) {
+            $data['values'] = $valueIds;
+        }
+
+        return $data;
+    }
+
+    /**
      * Existing products of the chunk by lower-cased SKU (soft-deleted included).
      *
      * @param  list<array<string, mixed>>  $lines
@@ -748,6 +1126,12 @@ final class RowImporter
 
             if (is_string($sku) && $sku !== '') {
                 $skus[] = $sku;
+            }
+
+            $parent = $line['values']['parent_sku'] ?? null;
+
+            if (is_string($parent) && $parent !== '') {
+                $skus[] = $parent;
             }
         }
 

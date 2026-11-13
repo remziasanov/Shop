@@ -98,14 +98,57 @@ document.addEventListener('alpine:init', () => {
     /**
      * Product gallery (SF-30): arrows, thumbnails, keyboard, swipe, fullscreen view.
      */
-    Alpine.data('productGallery', (count) => ({
+    Alpine.data('productGallery', (count, colors = []) => ({
         index: 0,
         count,
         fullscreen: false,
         touchX: null,
+        // VR-11: option value id of each photo (null = common); `color` is the selected colour value.
+        colors,
+        color: null,
+
+        /** A photo is shown when it is common or belongs to the selected colour. */
+        allowed(i) {
+            return this.color === null || this.colors[i] == null || this.colors[i] === this.color;
+        },
+
+        shown() {
+            return [...Array(this.count).keys()].filter((i) => this.allowed(i));
+        },
+
+        position() {
+            return this.shown().indexOf(this.index) + 1;
+        },
+
+        total() {
+            return this.shown().length;
+        },
+
+        setColor(id) {
+            this.color = id ?? null;
+
+            if (!this.allowed(this.index)) {
+                this.index = this.shown()[0] ?? 0;
+            }
+        },
 
         go(i) {
-            this.index = (i + this.count) % this.count;
+            const shown = this.shown();
+
+            if (shown.length === 0) {
+                return;
+            }
+
+            if (shown.includes(i)) {
+                this.index = i;
+
+                return;
+            }
+
+            // Arrow keys step over the hidden photos: i is the neighbour of the current photo.
+            const step = i > this.index ? 1 : -1;
+            const at = shown.indexOf(this.index);
+            this.index = shown[(at + step + shown.length) % shown.length];
         },
 
         next() {
@@ -133,7 +176,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         touchEnd(event) {
-            if (this.touchX === null || this.count < 2) {
+            if (this.touchX === null || this.total() < 2) {
                 return;
             }
 
@@ -149,6 +192,129 @@ document.addEventListener('alpine:init', () => {
 
 document.addEventListener('alpine:init', () => {
     const Alpine = window.Alpine;
+
+    /**
+     * Variant picker of the product page (VR-09, VR-10): reads the variants from <script id="variant-data"> and keeps one
+     * selected value per axis. Choosing a value changes price, availability, article, buttons and photos locally, with no
+     * request; the address gets `?variant=` through history.replaceState (the canonical link stays the card).
+     * A combination without stock is shaded but selectable; one that does not exist moves the other axes to the nearest variant.
+     */
+    Alpine.data('variantPicker', (labels) => ({
+        labels,
+        axes: [],
+        variants: [],
+        selection: {},
+        colorType: null,
+        current: null,
+
+        init() {
+            const data = JSON.parse(document.getElementById('variant-data')?.textContent ?? '{}');
+
+            this.axes = data.axes ?? [];
+            this.variants = data.variants ?? [];
+            this.colorType = data.colorType ?? null;
+
+            const start = this.variants.find((variant) => variant.id === data.selected) ?? this.variants[0];
+
+            if (start) {
+                this.apply(start, false);
+            }
+        },
+
+        /** Variant record whose values equal the given selection, if any. */
+        find(selection) {
+            return this.variants.find((variant) => this.axes.every((axis, i) => variant.v[i] === selection[axis.id])) ?? null;
+        },
+
+        /** The record with the display fields the templates use. */
+        view(variant) {
+            if (!variant) {
+                return null;
+            }
+
+            return {
+                id: variant.id,
+                sku: variant.sku,
+                bc: variant.bc,
+                p: variant.p,
+                o: variant.o,
+                d: variant.d,
+                s: variant.s,
+                st: variant.st,
+                max: variant.m,
+                cartLabel: variant.bo ? this.labels.backorder : this.labels.cart,
+                can: { cart: (variant.c & 1) > 0, reserve: (variant.c & 2) > 0, inquire: (variant.c & 4) > 0, out: (variant.c & 8) > 0 },
+                label: this.axes.map((axis, i) => {
+                    const value = axis.values.find((item) => item.id === variant.v[i]);
+
+                    return value ? this.labels.pair.replace(':option', axis.name).replace(':value', value.text) : '';
+                }).filter(Boolean).join(this.labels.separator),
+            };
+        },
+
+        apply(variant, replaceUrl = true) {
+            this.axes.forEach((axis, i) => {
+                this.selection[axis.id] = variant.v[i];
+            });
+            this.current = this.view(variant);
+
+            if (replaceUrl && window.history?.replaceState) {
+                const url = new URL(window.location.href);
+
+                url.searchParams.set('variant', String(variant.id));
+                window.history.replaceState(null, '', url);
+            }
+
+            if (this.colorType !== null) {
+                window.dispatchEvent(new CustomEvent('variant-color', { detail: { id: this.selection[this.colorType] ?? null } }));
+            }
+        },
+
+        pick(axisId, valueId) {
+            const wanted = { ...this.selection, [axisId]: valueId };
+            const exact = this.find(wanted);
+
+            if (exact) {
+                this.apply(exact);
+
+                return;
+            }
+
+            // The combination does not exist: take the variant with this value that shares most of the other choices, available first.
+            const index = this.axes.findIndex((axis) => axis.id === axisId);
+            const candidates = this.variants.filter((variant) => variant.v[index] === valueId);
+
+            if (candidates.length === 0) {
+                return;
+            }
+
+            const score = (variant) => this.axes.reduce((sum, axis, i) => sum + (variant.v[i] === this.selection[axis.id] ? 1 : 0), 0);
+
+            candidates.sort((a, b) => (((a.c & 8) > 0) - ((b.c & 8) > 0)) || (score(b) - score(a)));
+            this.apply(candidates[0]);
+        },
+
+        /** Shaded: choosing this value (other axes unchanged) gives a variant without stock or none at all. */
+        shaded(axisId, valueId) {
+            const variant = this.find({ ...this.selection, [axisId]: valueId });
+
+            return !variant || (variant.c & 8) > 0;
+        },
+
+        valueText(axisId) {
+            const axis = this.axes.find((item) => item.id === axisId);
+
+            return axis?.values.find((value) => value.id === this.selection[axisId])?.text ?? '';
+        },
+
+        swatch(value) {
+            if (value.image) {
+                return `background-image: url("${encodeURI(value.image)}")`;
+            }
+
+            return /^#[0-9a-f]{3,8}$/i.test(value.hex ?? '') ? `background-color: ${value.hex}` : '';
+        },
+    }));
 
     /**
      * Phone input mask +7 (___) ___-__-__ (SF-44). Cosmetic only: the server normalizes and validates the number.

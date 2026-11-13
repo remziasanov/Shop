@@ -19,6 +19,9 @@ final class ColumnMapper
     /** Matches «Х: Цвет», «x: Цвет» (Cyrillic or Latin X) and «Характеристика: Цвет». */
     private const ATTRIBUTE_PATTERN = '/^\s*(?:[ХхXx]|характеристика)\s*:\s*(.*?)\s*$/iu';
 
+    /** Matches «Опция: Цвет», «Вариант: Цвет» and «Option: Цвет» (VR-16). */
+    private const OPTION_PATTERN = '/^\s*(?:опция|вариант|option)\s*:\s*(.*?)\s*$/iu';
+
     /** @var array<string, string>|null normalized synonym => ImportField key */
     private ?array $productLookup = null;
 
@@ -118,6 +121,7 @@ final class ColumnMapper
     {
         $values = [];
         $attributes = [];
+        $options = [];
 
         foreach ($mapping as $index => $target) {
             if ($target === null || $target === '') {
@@ -125,6 +129,16 @@ final class ColumnMapper
             }
 
             $cell = $row[(int) $index] ?? null;
+            $optionName = ImportField::optionName($target);
+
+            if ($optionName !== null) {
+                if ($cell !== null && trim($cell) !== '') {
+                    $options[] = ['name' => $optionName, 'value' => $cell];
+                }
+
+                continue;
+            }
+
             $name = ImportField::attributeName($target);
 
             if ($name !== null) {
@@ -138,7 +152,7 @@ final class ColumnMapper
             $values[$target] = $cell === '' ? null : $cell;
         }
 
-        return new MappedRow($values, $attributes);
+        return new MappedRow($values, $attributes, $options);
     }
 
     /**
@@ -187,10 +201,28 @@ final class ColumnMapper
     }
 
     /**
+     * Option name of a header ("Опция: Цвет" => "Цвет"), null when it is not an option column (VR-16).
+     */
+    public static function optionNameFromHeader(string $header): ?string
+    {
+        if (preg_match(self::OPTION_PATTERN, $header, $m) === 1 && $m[1] !== '') {
+            return $m[1];
+        }
+
+        return null;
+    }
+
+    /**
      * Human-readable label of a mapping target for messages.
      */
     public static function fieldLabel(string $target): string
     {
+        $option = ImportField::optionName($target);
+
+        if ($option !== null) {
+            return __('admin_variants.import.option_column', ['name' => $option]);
+        }
+
         $name = ImportField::attributeName($target);
 
         if ($name !== null) {
@@ -202,6 +234,12 @@ final class ColumnMapper
 
     private function resolveProductHeader(string $header): ?string
     {
+        $option = self::optionNameFromHeader($header);
+
+        if ($option !== null) {
+            return ImportField::optionKey($option);
+        }
+
         $name = self::attributeNameFromHeader($header);
 
         if ($name !== null) {

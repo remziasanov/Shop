@@ -15,7 +15,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int $order_id
  * @property int|null $product_id
+ * @property int|null $variant_id
  * @property string $sku
+ * @property string|null $variant_label snapshot «Цвет: красный, Размер: M» (VR-12)
+ * @property string|null $barcode snapshot of the variant barcode
  * @property string $name
  * @property string $unit
  * @property string|null $price
@@ -24,13 +27,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $stock_applied_qty
  * @property-read Order $order
  * @property-read Product|null $product
+ * @property-read ProductVariant|null $variant
  */
 class OrderItem extends Model
 {
     /** @use HasFactory<OrderItemFactory> */
     use HasFactory;
 
-    protected $fillable = ['order_id', 'product_id', 'sku', 'name', 'unit', 'price', 'qty', 'total'];
+    protected $fillable = ['order_id', 'product_id', 'variant_id', 'sku', 'variant_label', 'barcode', 'name', 'unit', 'price', 'qty', 'total'];
 
     /**
      * @return array<string, string>
@@ -59,5 +63,21 @@ class OrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class)->withTrashed();
+    }
+
+    /**
+     * @return BelongsTo<ProductVariant, $this>
+     */
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class)->withTrashed();
+    }
+
+    /**
+     * The name with the variant snapshot, «Футболка (Цвет: красный, Размер: M)» (VR-12); the plain name without one.
+     */
+    public function displayName(): string
+    {
+        return $this->variant_label !== null && $this->variant_label !== '' ? $this->name.' ('.$this->variant_label.')' : $this->name;
     }
 }

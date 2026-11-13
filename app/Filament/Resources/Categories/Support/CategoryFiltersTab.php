@@ -9,6 +9,7 @@ use App\Models\Attribute;
 use App\Models\Category;
 use App\Services\Catalog\CategoryFilterEditor;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Variants\CategoryFilterRows;
 use App\Settings\CatalogSettings;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
@@ -57,34 +58,47 @@ final class CategoryFiltersTab
             ->label(__('admin_attributes.category.filters'))
             ->helperText(fn (): string => __('admin_attributes.category.filters_hint', ['max' => app(CatalogSettings::class)->filters_max_per_category]))
             ->schema([
-                // FL-05: the `option` source is switched on at stage 11 (VR-19).
+                // FL-05, VR-19: a characteristic or an option with the flag «использовать как фильтр».
                 Select::make('source')
                     ->label(__('admin_attributes.category.source'))
                     ->options(collect(FilterSource::cases())->mapWithKeys(fn (FilterSource $source): array => [$source->value => $source->label()])->all())
                     ->default(FilterSource::Attribute->value)
-                    ->disableOptionWhen(fn (string $value): bool => $value === FilterSource::Option->value)
                     ->selectablePlaceholder(false)
-                    ->native(false),
+                    ->native(false)
+                    ->live(),
                 Select::make('attribute_id')
                     ->label(__('admin_attributes.category.attribute'))
                     ->options(fn (): array => Attribute::query()->where('is_active', true)->ordered()->get()->mapWithKeys(fn (Attribute $a): array => [$a->id => $a->signature().($a->is_filterable ? '' : ' ('.__('admin_attributes.category.not_filterable').')')])->all())
                     ->searchable()
                     ->native(false)
-                    ->required()
+                    ->required(fn (Get $get): bool => $get('source') !== FilterSource::Option->value)
+                    ->visible(fn (Get $get): bool => $get('source') !== FilterSource::Option->value)
+                    ->live()
+                    ->distinct(),
+                Select::make('option_type_id')
+                    ->label(__('admin_variants.category.option'))
+                    ->options(fn (): array => app(CategoryFilterRows::class)->optionChoices())
+                    ->getOptionLabelUsing(fn (mixed $value): ?string => app(CategoryFilterRows::class)->optionName($value))
+                    ->searchable()
+                    ->native(false)
+                    ->required(fn (Get $get): bool => $get('source') === FilterSource::Option->value)
+                    ->visible(fn (Get $get): bool => $get('source') === FilterSource::Option->value)
                     ->live()
                     ->distinct(),
                 Toggle::make('is_expanded')
                     ->label(__('admin_attributes.category.expanded'))
                     ->default(false),
-                Text::make(fn (Get $get, ?Model $record): string => self::previewLine($get('attribute_id'), $record))
-                    ->color(fn (Get $get, ?Model $record): string => self::previewIsEmpty($get('attribute_id'), $record) ? 'warning' : 'gray'),
+                Text::make(fn (Get $get, ?Model $record): string => $get('source') === FilterSource::Option->value ? '' : self::previewLine($get('attribute_id'), $record))
+                    ->color(fn (Get $get, ?Model $record): string => $get('source') !== FilterSource::Option->value && self::previewIsEmpty($get('attribute_id'), $record) ? 'warning' : 'gray'),
             ])
             ->columns(2)
             ->reorderable()
             ->defaultItems(0)
             ->maxItems(fn (): int => app(CatalogSettings::class)->filters_max_per_category)
             ->addActionLabel(__('admin_attributes.category.add'))
-            ->itemLabel(fn (array $state): ?string => filled($state['attribute_id'] ?? null) ? Attribute::query()->find((int) $state['attribute_id'])?->signature() : null);
+            ->itemLabel(fn (array $state): ?string => ($state['source'] ?? null) === FilterSource::Option->value
+                ? app(CategoryFilterRows::class)->optionName($state['option_type_id'] ?? null)
+                : (filled($state['attribute_id'] ?? null) ? Attribute::query()->find((int) $state['attribute_id'])?->signature() : null));
     }
 
     /**
@@ -98,10 +112,10 @@ final class CategoryFiltersTab
             ->color('gray')
             ->visible(fn (Get $get): bool => ! (bool) $get('filters_own'))
             ->action(function (Set $set, ?Model $record): void {
-                $rows = $record instanceof Category ? app(CategoryFilterEditor::class)->inheritedRows($record) : [];
+                $rows = $record instanceof Category ? app(CategoryFilterRows::class)->inheritedRows($record) : [];
 
                 $set('filters_own', true);
-                $set('filters', array_map(fn (array $row): array => $row + ['source' => FilterSource::Attribute->value], $rows));
+                $set('filters', $rows);
             });
     }
 

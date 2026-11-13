@@ -69,6 +69,8 @@ return [
         'legal_pages' => 'Юридические страницы',
         'staff_roles' => 'Роли сотрудников',
         'attribute_migration' => 'Миграция характеристик',
+        'variant_skus' => 'Коллизии артикулов товаров и модификаций',
+        'variant_aggregates' => 'Агрегаты остатков и цен модификаций',
     ],
     'hints' => [
         'attribute_migration' => 'Выполните php artisan shop:attributes-migrate (предпросмотр — с ключом --dry-run) или действие «Перенести характеристики из JSON» в админке.',

@@ -16,6 +16,7 @@ use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
 use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
@@ -23,8 +24,10 @@ use App\Services\Catalog\CategoryTree;
 use App\Services\Customers\EmailNormalizer;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
+use App\Services\Stock\Stockable;
 use App\Services\Stock\StockService;
 use App\Services\Users\PermissionService;
+use App\Services\Variants\OrderItemSnapshot;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use App\Support\PhoneNormalizer;
@@ -57,6 +60,7 @@ final class OrderService
         private readonly SalesSettings $settings,
         private readonly AgeGate $age,
         private readonly ViewerContext $viewer,
+        private readonly OrderItemSnapshot $snapshots,
     ) {}
 
     /**
@@ -105,23 +109,38 @@ final class OrderService
                 ->get()
                 ->keyBy('id');
 
+            // Second lock level (19.5): the variants of the cart rows, by ascending id.
+            $variantIds = $items->pluck('variant_id')->filter()->all();
+            $variants = $variantIds === []
+                ? collect()
+                : ProductVariant::query()->whereIn('id', $variantIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+
             $reasons = [];
             $lines = [];
 
             foreach ($items as $item) {
                 $product = $products->get($item->product_id);
+                $variant = $item->variant_id !== null ? $variants->get($item->variant_id) : null;
 
-                if ($product === null || ! $this->isSellable($product)) {
+                // VR-13: the card decides the sales mode, the variant decides availability, price and stock.
+                $broken = $product === null
+                    || ! $this->isSellable($product)
+                    || ($item->variant_id !== null && ($variant === null || ! $variant->is_active || (int) $variant->product_id !== (int) $product->id))
+                    || ($item->variant_id === null && $product->has_variants);
+
+                if ($broken) {
                     $reasons[] = __('sales.checkout.removed_unavailable', ['name' => $product->name ?? '']);
                     $item->delete();
 
                     continue;
                 }
 
-                $actions = $this->availability->actionsFor($product);
+                /** @var Stockable $unit */
+                $unit = $variant !== null ? $variant->setRelation('product', $product) : $product;
+                $actions = $this->availability->actionsFor($unit);
 
                 if (! $actions->canAddToCart) {
-                    $reasons[] = __($actions->outOfStock ? 'sales.checkout.removed_out_of_stock' : 'sales.checkout.removed_unavailable', ['name' => $product->name]);
+                    $reasons[] = __($actions->outOfStock ? 'sales.checkout.removed_out_of_stock' : 'sales.checkout.removed_unavailable', ['name' => $unit->stockName()]);
                     $item->delete();
 
                     continue;
@@ -131,17 +150,17 @@ final class OrderService
 
                 if ($actions->maxQty !== null && $qty > $actions->maxQty) {
                     $qty = $actions->maxQty;
-                    $reasons[] = __('sales.checkout.qty_reduced', ['name' => $product->name, 'qty' => $qty]);
+                    $reasons[] = __('sales.checkout.qty_reduced', ['name' => $unit->stockName(), 'qty' => $qty]);
                     $item->qty = $qty;
                     $item->save();
                 }
 
-                $price = Money::fromRubles($product->final_price);
+                $price = Money::fromRubles($variant !== null ? $variant->final_price : $product->final_price);
                 $before = Money::fromRubles($item->price_at_add);
 
                 if ($price !== $before) {
                     $reasons[] = __('sales.checkout.price_changed', [
-                        'name' => $product->name,
+                        'name' => $unit->stockName(),
                         'old' => Money::format($before),
                         'new' => Money::format($price),
                     ]);
@@ -149,7 +168,7 @@ final class OrderService
                     $item->save();
                 }
 
-                $lines[] = ['product' => $product, 'qty' => $qty, 'price' => $price];
+                $lines[] = ['product' => $product, 'variant' => $variant, 'qty' => $qty, 'price' => $price];
             }
 
             if ($reasons !== []) {
@@ -205,11 +224,11 @@ final class OrderService
     }
 
     /**
-     * Reservation of one product (SF-50, SF-51).
+     * Reservation of one product, or of one of its variants (SF-50, SF-51, VR-14).
      *
      * @throws SalesException
      */
-    public function createReservation(Product $product, ReservationData $data): Order
+    public function createReservation(Product $product, ReservationData $data, ?int $variantId = null): Order
     {
         $this->viewer->assertNotPreview();
         // CA-01, CG-12: the server decides, whatever the form showed.
@@ -220,9 +239,10 @@ final class OrderService
             throw new SalesException(__('sales.errors.qty_invalid'));
         }
 
-        return DB::transaction(function () use ($product, $data, $phone): Order {
-            $locked = $this->lockSellable($product);
-            $actions = $this->availability->actionsFor($locked);
+        return DB::transaction(function () use ($product, $data, $phone, $variantId): Order {
+            [$locked, $variant] = $this->lockSellable($product, $variantId);
+            $unit = $variant ?? $locked;
+            $actions = $this->availability->actionsFor($unit);
 
             if (! $actions->canReserve) {
                 throw new SalesException(__('sales.errors.reservation_unavailable'));
@@ -249,7 +269,7 @@ final class OrderService
                 }
             }
 
-            $price = Money::fromRubles($locked->final_price);
+            $price = Money::fromRubles($variant !== null ? $variant->final_price : $locked->final_price);
 
             $order = $this->createRecord(OrderType::Reservation, [
                 'customer_name' => trim($data->name),
@@ -262,7 +282,7 @@ final class OrderService
                 'reserved_until' => $reservedUntil,
                 'desired_date' => $data->desiredDate?->copy()->startOfDay(),
                 'age_confirmed_level' => $ageLevel,
-            ], $data->ip, $data->userAgent, [['product' => $locked, 'qty' => $data->qty, 'price' => $price]]);
+            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price]]);
 
             $this->stock->holdForReservation($order);
 
@@ -271,11 +291,12 @@ final class OrderService
     }
 
     /**
-     * Inquiry about a product (SF-60): the price is the current one or empty for «Цена по запросу»; no stock change.
+     * Inquiry about a product or one of its variants (SF-60, VR-14): the price is the current one or empty for
+     * «Цена по запросу»; no stock change.
      *
      * @throws SalesException
      */
-    public function createInquiry(Product $product, InquiryData $data): Order
+    public function createInquiry(Product $product, InquiryData $data, ?int $variantId = null): Order
     {
         $this->viewer->assertNotPreview();
         // CA-01, CG-12: the server decides, whatever the form showed.
@@ -286,15 +307,15 @@ final class OrderService
             throw new SalesException(__('sales.errors.qty_invalid'));
         }
 
-        return DB::transaction(function () use ($product, $data, $phone): Order {
-            $locked = $this->lockSellable($product);
+        return DB::transaction(function () use ($product, $data, $phone, $variantId): Order {
+            [$locked, $variant] = $this->lockSellable($product, $variantId);
 
-            if (! $this->availability->actionsFor($locked)->canInquire) {
+            if (! $this->availability->actionsFor($variant ?? $locked)->canInquire) {
                 throw new SalesException(__('sales.errors.inquiry_unavailable'));
             }
 
             // CG-06: a group that sees no prices gets an inquiry without a price.
-            $price = $locked->price_on_request || ! $this->viewer->access()->showsPrices() ? null : Money::fromRubles($locked->final_price);
+            $price = $locked->price_on_request || ! $this->viewer->access()->showsPrices() ? null : Money::fromRubles($variant !== null ? $variant->final_price : $locked->final_price);
             $total = $price === null ? null : Money::toRubles($price * $data->qty);
 
             $order = $this->createRecord(OrderType::Inquiry, [
@@ -305,7 +326,7 @@ final class OrderService
                 'items_total' => $total,
                 'total' => $total,
                 'customer_comment' => $this->blankToNull($data->comment),
-            ], $data->ip, $data->userAgent, [['product' => $locked, 'qty' => $data->qty, 'price' => $price]]);
+            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price]]);
 
             return $this->finishCreate($order);
         }, self::DEADLOCK_ATTEMPTS);
@@ -497,11 +518,14 @@ final class OrderService
     }
 
     /**
-     * Locks a product row and checks that it is visible on the storefront.
+     * Locks a product row (and the variant row after it, VR-14) and checks that it is visible on the storefront. A
+     * card with variants needs an active variant of its own; a card without variants takes none.
+     *
+     * @return array{0: Product, 1: ProductVariant|null}
      *
      * @throws SalesException
      */
-    private function lockSellable(Product $product): Product
+    private function lockSellable(Product $product, ?int $variantId = null): array
     {
         $locked = Product::query()->whereKey($product->id)->lockForUpdate()->first();
 
@@ -509,7 +533,23 @@ final class OrderService
             throw new SalesException(__('sales.errors.product_unavailable'));
         }
 
-        return $locked;
+        if (! $locked->has_variants) {
+            return $variantId === null ? [$locked, null] : throw new SalesException(__('sales.errors.product_unavailable'));
+        }
+
+        if ($variantId === null) {
+            throw new SalesException(__('variant_storefront.errors.required', ['name' => $locked->name]));
+        }
+
+        $variant = ProductVariant::query()
+            ->whereKey($variantId)
+            ->where('product_id', $locked->id)
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->first()
+            ?? throw new SalesException(__('variant_storefront.errors.unavailable', ['name' => $locked->name]));
+
+        return [$locked, $variant->setRelation('product', $locked)];
     }
 
     private function isSellable(Product $product): bool
@@ -523,7 +563,7 @@ final class OrderService
 
     /**
      * @param  array<string, mixed>  $attributes
-     * @param  list<array{product: Product, qty: int, price: int|null}>  $lines
+     * @param  list<array{product: Product, variant: ProductVariant|null, qty: int, price: int|null}>  $lines
      */
     private function createRecord(OrderType $type, array $attributes, string $ip, ?string $userAgent, array $lines): Order
     {
@@ -549,13 +589,8 @@ final class OrderService
         $order->save();
 
         foreach ($lines as $line) {
-            $product = $line['product'];
-
-            $order->items()->create([
-                'product_id' => $product->id,
-                'sku' => $product->sku,
-                'name' => Str::limit($product->name, 500, ''),
-                'unit' => $product->unit,
+            // VR-12: the snapshot keeps the article, barcode and label of the variant even when it is deleted later.
+            $order->items()->create($this->snapshots->for($line['product'], $line['variant']) + [
                 'price' => $line['price'] === null ? null : Money::toRubles($line['price']),
                 'qty' => $line['qty'],
                 'total' => $line['price'] === null ? null : Money::toRubles($line['price'] * $line['qty']),
