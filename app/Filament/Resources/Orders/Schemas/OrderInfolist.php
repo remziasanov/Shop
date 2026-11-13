@@ -9,6 +9,8 @@ use App\Enums\OrderType;
 use App\Enums\PriceSource;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Filament\Resources\Products\ProductResource;
+use App\Filament\Resources\PromoCodes\PromoCodeResource;
+use App\Filament\Resources\PromoLinks\PromoLinkResource;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
@@ -18,6 +20,7 @@ use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Request card (OR-03): customer, items with price snapshot, delivery, totals, comments, status history, consent.
@@ -140,6 +143,33 @@ final class OrderInfolist
                         TextEntry::make('total')->label(__('admin_orders.view.total'))->weight('bold')->formatStateUsing(fn (?string $state): string => self::money($state, '—')),
                     ]),
 
+                // PM-19: the promo code (snapshot), its discount, the manual discount and the promo link of the order.
+                Section::make(__('promo_admin.order.section'))
+                    ->columns(['default' => 1, 'md' => 4])
+                    ->visible(fn (Order $record): bool => self::hasPromoData($record))
+                    ->schema([
+                        TextEntry::make('promo_code')
+                            ->label(__('promo_admin.order.code'))
+                            ->state(fn (Order $record): string => $record->promo_code !== null
+                                ? $record->promo_code.($record->promo_code_id === null ? ' ('.__('promo_admin.order.code_deleted').')' : '')
+                                : '—')
+                            ->url(fn (Order $record): ?string => $record->promo_code_id !== null && $record->promoCode !== null && Gate::allows('view', $record->promoCode)
+                                ? PromoCodeResource::getUrl('view', ['record' => $record->promoCode])
+                                : null),
+                        TextEntry::make('promo_discount')
+                            ->label(__('promo_admin.order.discount'))
+                            ->formatStateUsing(fn (?string $state): string => self::money($state ?? '0', '—')),
+                        TextEntry::make('manual_discount')
+                            ->label(__('promo_admin.order.manual_discount'))
+                            ->formatStateUsing(fn (?string $state): string => self::money($state ?? '0', '—')),
+                        TextEntry::make('promo_link_id')
+                            ->label(__('promo_admin.order.link'))
+                            ->state(fn (Order $record): string => $record->promoLink !== null ? $record->promoLink->name.' (/go/'.$record->promoLink->slug.')' : '—')
+                            ->url(fn (Order $record): ?string => $record->promoLink !== null && Gate::allows('view', $record->promoLink)
+                                ? PromoLinkResource::getUrl('view', ['record' => $record->promoLink])
+                                : null),
+                    ]),
+
                 Section::make(__('admin_orders.view.section_comments'))
                     ->columns(['default' => 1, 'md' => 2])
                     ->schema([
@@ -165,6 +195,17 @@ final class OrderInfolist
                             ]),
                     ]),
             ]);
+    }
+
+    /**
+     * Whether the order carries anything for the «Промокод и ссылка» block.
+     */
+    private static function hasPromoData(Order $order): bool
+    {
+        return $order->promo_code !== null
+            || $order->promo_link_id !== null
+            || bccomp((string) $order->promo_discount, '0', 2) > 0
+            || bccomp((string) $order->manual_discount, '0', 2) > 0;
     }
 
     private static function digits(Order $order): string

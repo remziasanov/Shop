@@ -10,6 +10,7 @@ use App\Settings\HomePageSettings;
 use App\Settings\LegalSettings;
 use App\Settings\NotificationSettings;
 use App\Settings\PricingSettings;
+use App\Settings\PromoSettings;
 use App\Settings\SalesSettings;
 use App\Settings\SeoSettings;
 use Spatie\LaravelSettings\SettingsCasts\DateTimeInterfaceCast;
@@ -35,6 +36,7 @@ return [
         AgeGateSettings::class,
         CatalogSettings::class,
         CustomerSettings::class,
+        PromoSettings::class,
     ],
 
     /*

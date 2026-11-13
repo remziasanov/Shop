@@ -18,5 +18,7 @@ final readonly class InquiryData
         public bool $consent,
         public string $ip,
         public ?string $userAgent = null,
+        /** PM-24: the promo link of the `shop_pl` cookie (last click). */
+        public ?int $promoLinkId = null,
     ) {}
 }

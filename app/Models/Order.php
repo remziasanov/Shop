@@ -52,6 +52,11 @@ use Illuminate\Support\Str;
  * @property int|null $customer_group_id snapshot of the customer's group at that moment (CA-26)
  * @property string|null $customer_group_name name of that group (survives a later change or deletion of the group)
  * @property CarbonInterface|null $expiring_notified_at
+ * @property int|null $promo_code_id PM-18: the promo code of the order (null once the code is deleted)
+ * @property string|null $promo_code PM-18: snapshot of the code text
+ * @property string $promo_discount PM-18: discount of the promo code (decimal string)
+ * @property string $manual_discount discount typed in by a manager (decimal string)
+ * @property int|null $promo_link_id PM-24: the promo link the order is attributed to (last click)
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property-read Collection<int, OrderItem> $items
@@ -120,6 +125,10 @@ class Order extends Model
             'customer_id' => 'integer',
             'customer_group_id' => 'integer',
             'expiring_notified_at' => 'datetime',
+            'promo_code_id' => 'integer',
+            'promo_discount' => 'decimal:2',
+            'manual_discount' => 'decimal:2',
+            'promo_link_id' => 'integer',
         ];
     }
 
@@ -139,6 +148,22 @@ class Order extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * @return BelongsTo<PromoCode, $this>
+     */
+    public function promoCode(): BelongsTo
+    {
+        return $this->belongsTo(PromoCode::class);
+    }
+
+    /**
+     * @return BelongsTo<PromoLink, $this>
+     */
+    public function promoLink(): BelongsTo
+    {
+        return $this->belongsTo(PromoLink::class);
     }
 
     /**

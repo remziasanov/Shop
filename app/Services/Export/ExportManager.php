@@ -8,6 +8,7 @@ use App\Enums\ExportStatus;
 use App\Enums\ExportType;
 use App\Jobs\ExportCatalog;
 use App\Jobs\ExportOrders;
+use App\Jobs\ExportPromoBatch;
 use App\Models\Export;
 use App\Models\User;
 use App\Services\Users\PermissionService;
@@ -31,6 +32,7 @@ final class ExportManager
     public function __construct(
         private readonly CatalogExporter $catalog,
         private readonly OrdersExporter $orders,
+        private readonly PromoBatchExporter $promoBatches,
         private readonly PermissionService $permissions,
     ) {}
 
@@ -45,6 +47,7 @@ final class ExportManager
         return match ($type) {
             ExportType::Catalog => $this->catalog->count($filters),
             ExportType::Orders => $this->orders->count($filters),
+            ExportType::PromoBatch => $this->promoBatches->count($filters),
         };
     }
 
@@ -54,7 +57,13 @@ final class ExportManager
     public function request(ExportType $type, array $filters, ?User $user): Export
     {
         // RB-11: a staff member needs the right of the export type; no user means a system action.
-        if ($user !== null && ! $this->permissions->allows($user, $type === ExportType::Orders ? 'orders.export' : 'exports.create')) {
+        $permission = match ($type) {
+            ExportType::Orders => 'orders.export',
+            ExportType::PromoBatch => 'promo_codes.generate',
+            ExportType::Catalog => 'exports.create',
+        };
+
+        if ($user !== null && ! $this->permissions->allows($user, $permission)) {
             throw new AuthorizationException;
         }
 
@@ -77,6 +86,7 @@ final class ExportManager
         match ($type) {
             ExportType::Catalog => ExportCatalog::dispatch($export->id),
             ExportType::Orders => ExportOrders::dispatch($export->id),
+            ExportType::PromoBatch => ExportPromoBatch::dispatch($export->id),
         };
 
         return $export;
@@ -98,6 +108,7 @@ final class ExportManager
             $rows = match ($export->type) {
                 ExportType::Catalog => $this->catalog->export($params, $disk->path($relative)),
                 ExportType::Orders => $this->orders->export($params, $disk->path($relative)),
+                ExportType::PromoBatch => $this->promoBatches->export($params, $disk->path($relative)),
             };
         } catch (Throwable $e) {
             $disk->delete($relative);

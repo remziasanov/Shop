@@ -52,7 +52,8 @@ it('never puts the tiers of another group into the page (21.7)', function (): vo
 
     $html = $this->get(route('product.show', $this->product->slug))->assertOk()->getContent();
 
-    expect($html)->not->toContain('654')->not->toContain('65432')->and($html)->toContain('80000');
+    // Random tokens (CSRF, asset hashes) may contain "654", so match the price forms only.
+    expect($html)->not->toContain('654.32')->not->toContain('654,32')->not->toContain('65432')->not->toContain("654\u{00A0}₽")->and($html)->toContain('80000');
 });
 
 it('embeds the group price and tiers of every variant for the picker (GP-10)', function (): void {

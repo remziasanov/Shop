@@ -34,7 +34,8 @@ class ExportPolicy
         }
 
         return $this->allows($user, 'exports.view')
-            || ($export->type === ExportType::Orders && $this->allows($user, 'orders.export'));
+            || ($export->type === ExportType::Orders && $this->allows($user, 'orders.export'))
+            || ($export->type === ExportType::PromoBatch && $this->allows($user, 'promo_codes.generate'));
     }
 
     public function download(User $user, Export $export): bool

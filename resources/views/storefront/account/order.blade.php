@@ -54,6 +54,9 @@
                 @if ($order->type === \App\Enums\OrderType::Order)
                     <div class="flex justify-between gap-3"><dt class="text-slate-600">{{ __('account.orders.delivery_price') }}</dt><dd>{{ \App\Support\Money::format(\App\Support\Money::fromRubles($order->delivery_price)) }}</dd></div>
                 @endif
+                @foreach (\App\Support\OrderDiscountLines::for($order) as $discountLine)
+                    <div class="flex justify-between gap-3 text-emerald-800" data-discount-line><dt>{{ $discountLine['label'] }}</dt><dd>{{ $discountLine['value'] }}</dd></div>
+                @endforeach
                 <div class="flex justify-between gap-3 border-t border-slate-200 pt-2 text-lg font-semibold">
                     <dt>{{ __('account.orders.total') }}</dt>
                     <dd data-total>{{ $order->total !== null ? \App\Support\Money::format(\App\Support\Money::fromRubles($order->total)) : __('account.orders.price_on_request') }}</dd>

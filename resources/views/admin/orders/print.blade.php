@@ -129,6 +129,9 @@
         @if ($order->type === OrderType::Order)
             <div><span>{{ __('admin_orders.view.delivery_price') }}</span><span>{{ $money($order->delivery_price) }}</span></div>
         @endif
+        @foreach (\App\Support\OrderDiscountLines::for($order) as $discountLine)
+            <div><span>{{ $discountLine['label'] }}</span><span>{{ $discountLine['value'] }}</span></div>
+        @endforeach
         <div class="grand"><span>{{ __('admin_orders.print.total') }}</span><span>{{ $money($order->total) }}</span></div>
     </div>
 

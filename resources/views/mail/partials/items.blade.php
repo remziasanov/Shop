@@ -8,9 +8,15 @@
 </x-mail::table>
 
 @if ($order->total !== null)
-@if ((float) $order->delivery_price > 0)
+@php($discountLines = \App\Support\OrderDiscountLines::for($order))
+@if ((float) $order->delivery_price > 0 || $discountLines !== [])
 {{ __('notifications.mail.items_total') }}: {{ $money($order->items_total) }}  
+@foreach ($discountLines as $discountLine)
+{{ $discountLine['label'] }}: {{ $discountLine['value'] }}  
+@endforeach
+@if ((float) $order->delivery_price > 0)
 {{ __('notifications.mail.delivery_price') }}: {{ $money($order->delivery_price) }}  
+@endif
 @endif
 **{{ __('notifications.mail.total') }}: {{ $money($order->total) }}**
 @endif

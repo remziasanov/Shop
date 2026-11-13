@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Services\Notifications\HtmlEscaper;
 use App\Support\Money;
+use App\Support\OrderDiscountLines;
 
 /**
  * Base for Telegram messages about a request (NT-02). Every interpolated value is escaped.
@@ -63,6 +64,12 @@ abstract class OrderMessage
 
         if ($order->total !== null) {
             $tail[] = '';
+
+            // PM-18: the promo code and the discount are in the message.
+            foreach (OrderDiscountLines::for($order) as $discountLine) {
+                $tail[] = $this->e($discountLine['label']).': '.$this->e($discountLine['value']);
+            }
+
             $tail[] = $this->e(__('notifications.telegram.total')).': <b>'.$this->e(Money::format(Money::fromRubles($order->total))).'</b>';
         }
 

@@ -8,6 +8,7 @@ enum ExportType: string
 {
     case Catalog = 'catalog';
     case Orders = 'orders';
+    case PromoBatch = 'promo_batch';
 
     public function label(): string
     {

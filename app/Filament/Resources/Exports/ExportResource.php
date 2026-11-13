@@ -11,6 +11,7 @@ use App\Enums\OrderType;
 use App\Filament\Resources\Exports\Pages\ListExports;
 use App\Models\Category;
 use App\Models\Export;
+use App\Models\PromoCodeBatch;
 use App\Models\User;
 use App\Services\Users\PermissionService;
 use BackedEnum;
@@ -141,6 +142,10 @@ class ExportResource extends Resource
 
         if ($export->type === ExportType::Orders) {
             return self::describeOrderParams($params);
+        }
+
+        if ($export->type === ExportType::PromoBatch) {
+            return (string) (PromoCodeBatch::query()->whereKey((int) ($params['batch_id'] ?? 0))->value('name') ?? '#'.($params['batch_id'] ?? ''));
         }
 
         if (isset($params['product_ids']) && is_array($params['product_ids'])) {

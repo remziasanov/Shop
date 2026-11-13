@@ -169,6 +169,17 @@ trait SalesFormSupport
         ];
     }
 
+    /**
+     * PM-24: the promo link of the `shop_pl` cookie (last click). The service checks that the link still exists; a
+     * forged or stale value is simply ignored there.
+     */
+    protected function promoLinkId(): ?int
+    {
+        $value = request()->cookie('shop_pl');
+
+        return is_string($value) && preg_match('/^[1-9][0-9]{0,17}$/', $value) === 1 ? (int) $value : null;
+    }
+
     protected function clientIp(): string
     {
         return (string) request()->ip();

@@ -9,6 +9,7 @@ use App\Enums\StockDisplay;
 use App\Filament\Concerns\AdminOnlySettingsPage;
 use App\Rules\RublesAmount;
 use App\Services\Sales\MethodCodes;
+use App\Settings\PromoSettings;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use BackedEnum;
@@ -147,6 +148,12 @@ class ManageSalesSettings extends SettingsPage
                     ->maxLength(5)
                     ->alphaNum(),
             ])->columns(3),
+            // PM-12: «Возвращать код при отмене»; stored in PromoSettings, see the form data hooks below.
+            Section::make(__('promo_admin.settings.section'))->schema([
+                Toggle::make('promo_release_on_cancel')
+                    ->label(__('promo_admin.settings.release_on_cancel'))
+                    ->helperText(__('promo_admin.settings.release_on_cancel_hint')),
+            ]),
             Section::make(__('shop.settings.sales.sections.thanks'))->schema([
                 Textarea::make('thanks_order_text')
                     ->label(__('shop.settings.sales.fields.thanks_order_text'))
@@ -175,6 +182,7 @@ class ManageSalesSettings extends SettingsPage
         $data['default_mode'] = $this->enumValue($data['default_mode']);
         $data['stock_display'] = $this->enumValue($data['stock_display']);
         $data['min_order_amount'] = Money::toRubles((int) $data['min_order_amount']);
+        $data['promo_release_on_cancel'] = app(PromoSettings::class)->release_on_cancel;
 
         $data['delivery_methods'] = array_map(function (array $method): array {
             $method['price'] = Money::toRubles((int) $method['price']);
@@ -197,6 +205,12 @@ class ManageSalesSettings extends SettingsPage
         $data['low_stock_threshold'] = (int) $data['low_stock_threshold'];
         $data['reservation_hours'] = (int) $data['reservation_hours'];
         $data['min_order_amount'] = Money::fromRubles($data['min_order_amount']);
+
+        // Not a SalesSettings property: saved into PromoSettings (PM-12).
+        $promo = app(PromoSettings::class);
+        $promo->release_on_cancel = (bool) ($data['promo_release_on_cancel'] ?? false);
+        $promo->save();
+        unset($data['promo_release_on_cancel']);
 
         $data['delivery_methods'] = array_values(array_map(function (array $method): array {
             $method['price'] = Money::fromRubles($method['price']);

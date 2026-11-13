@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Storefront;
 
 use App\Exceptions\SalesException;
+use App\Livewire\Storefront\Concerns\HandlesPromoCode;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Services\Access\ViewerContext;
 use App\Services\Cart\CartService;
@@ -20,6 +21,7 @@ use Livewire\Component;
  */
 class CartPage extends Component
 {
+    use HandlesPromoCode;
     use RequiresOpenShop;
 
     /** @var array<int|string, int|string> «product id_variant key» => quantity typed by the visitor (VR-12: a variant is a row of its own) */
@@ -91,6 +93,8 @@ class CartPage extends Component
 
         return view('livewire.storefront.cart-page', [
             'summary' => $summary,
+            // PM-13: the promo code of the cart (the cookie code of a promo link is tried first, PM-23).
+            'promo' => $this->promoState($cart, $summary),
             'changedReasons' => session('cart_changed', []),
             // CA-01, CG-12: a visitor who must sign in first gets a sign-in link instead of the checkout button.
             'mustSignIn' => ! app(ViewerContext::class)->mayOrder(),
