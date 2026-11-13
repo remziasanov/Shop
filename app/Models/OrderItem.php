@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\PriceSource;
 use Database\Factories\OrderItemFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $price
  * @property int $qty
  * @property string|null $total
+ * @property PriceSource|null $price_source GP-12: where the unit price came from
+ * @property int|null $tier_min_qty GP-12: the tier the price comes from
+ * @property string|null $retail_price GP-12: the retail price at the time of the order (decimal string)
  * @property int $stock_applied_qty
  * @property-read Order $order
  * @property-read Product|null $product
@@ -34,7 +38,9 @@ class OrderItem extends Model
     /** @use HasFactory<OrderItemFactory> */
     use HasFactory;
 
-    protected $fillable = ['order_id', 'product_id', 'variant_id', 'sku', 'variant_label', 'barcode', 'name', 'unit', 'price', 'qty', 'total'];
+    protected $fillable = ['order_id', 'product_id', 'variant_id', 'sku', 'variant_label', 'barcode', 'name', 'unit', 'price', 'qty', 'total',
+        'price_source', 'tier_min_qty', 'retail_price',
+    ];
 
     /**
      * @return array<string, string>
@@ -45,6 +51,9 @@ class OrderItem extends Model
             'price' => 'decimal:2',
             'total' => 'decimal:2',
             'qty' => 'integer',
+            'price_source' => PriceSource::class,
+            'tier_min_qty' => 'integer',
+            'retail_price' => 'decimal:2',
             'stock_applied_qty' => 'integer',
         ];
     }

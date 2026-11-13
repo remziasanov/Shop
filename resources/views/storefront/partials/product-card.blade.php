@@ -20,6 +20,10 @@
     </h3>
 
     @include('storefront.partials.price', ['view' => $view, 'class' => 'mt-2'])
+    @if ($view->tierCaption)
+        {{-- GP-09: the first quantity tier of the viewer's group. --}}
+        <p class="text-xs text-slate-600" data-tier-caption>{{ $view->tierCaption }}</p>
+    @endif
     <div class="mt-1 min-h-5">@include('storefront.partials.availability', ['availability' => $view->availability])</div>
 
     @if ($view->actions !== [])

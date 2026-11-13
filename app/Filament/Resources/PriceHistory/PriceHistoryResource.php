@@ -7,6 +7,7 @@ namespace App\Filament\Resources\PriceHistory;
 use App\Enums\PriceChangeSource;
 use App\Filament\Resources\PriceHistory\Pages\ListPriceHistory;
 use App\Filament\Resources\Products\ProductResource;
+use App\Models\CustomerGroup;
 use App\Models\PriceHistory;
 use App\Models\Product;
 use App\Services\Pricing\PriceHistoryRecorder;
@@ -37,6 +38,9 @@ class PriceHistoryResource extends Resource
     protected static ?string $slug = 'price-history';
 
     protected static ?int $navigationSort = 20;
+
+    /** GP-16: exact group prices and quantity tiers. */
+    public const GROUP_FIELDS = ['group_price', 'group_tier'];
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
@@ -71,7 +75,7 @@ class PriceHistoryResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['product:id,name,sku', 'user:id,name']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['product:id,name,sku', 'user:id,name', 'group:id,name']))
             ->columns([
                 TextColumn::make('created_at')
                     ->label(__('admin_pricing.history.columns.created_at'))
@@ -85,6 +89,13 @@ class PriceHistoryResource extends Resource
                 TextColumn::make('field')
                     ->label(__('admin_pricing.history.columns.field'))
                     ->formatStateUsing(fn (string $state): string => self::fieldLabel($state)),
+                TextColumn::make('group.name')
+                    ->label(__('admin_group_prices.history.group'))
+                    ->placeholder('—'),
+                TextColumn::make('min_qty')
+                    ->label(__('admin_group_prices.history.min_qty'))
+                    ->placeholder('—')
+                    ->alignEnd(),
                 TextColumn::make('change')
                     ->label(__('admin_pricing.history.columns.change'))
                     ->state(fn (PriceHistory $record): string => self::change($record))
@@ -119,6 +130,9 @@ class PriceHistoryResource extends Resource
                 SelectFilter::make('field')
                     ->label(__('admin_pricing.history.columns.field'))
                     ->options(self::fieldOptions()),
+                SelectFilter::make('customer_group_id')
+                    ->label(__('admin_group_prices.history.group'))
+                    ->options(fn (): array => CustomerGroup::query()->ordered()->pluck('name', 'id')->all()),
                 SelectFilter::make('source')
                     ->label(__('admin_pricing.history.columns.source'))
                     ->options(PriceChangeSource::options()),
@@ -149,6 +163,10 @@ class PriceHistoryResource extends Resource
      */
     public static function fieldLabel(string $field): string
     {
+        if (in_array($field, self::GROUP_FIELDS, true)) {
+            return __('admin_group_prices.history.fields.'.$field);
+        }
+
         return in_array($field, PriceHistoryRecorder::TRACKED_FIELDS, true)
             ? __('admin_pricing.history.fields.'.$field)
             : $field;
@@ -161,7 +179,7 @@ class PriceHistoryResource extends Resource
     {
         $options = [];
 
-        foreach (PriceHistoryRecorder::TRACKED_FIELDS as $field) {
+        foreach ([...PriceHistoryRecorder::TRACKED_FIELDS, ...self::GROUP_FIELDS] as $field) {
             $options[$field] = self::fieldLabel($field);
         }
 

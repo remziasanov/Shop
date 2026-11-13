@@ -81,7 +81,9 @@
             {{-- VR-09: the variants are embedded as JSON; choosing one changes the price, availability, buttons and photos without a request. --}}
             <script type="application/json" id="variant-data">{!! $picker->json() !!}</script>
         @endif
-        <div @if ($picker !== null) x-data="variantPicker(@js(['unavailable' => __('variant_storefront.unavailable'), 'cart' => __('storefront.actions.cart'), 'backorder' => __('sales.actions.backorder'), 'pair' => __('variants.label.pair', ['option' => ':option', 'value' => ':value']), 'separator' => __('variants.label.separator')]))" @endif>
+        @php($tierPairs = array_map(fn (array $tier): array => [$tier['min'], $tier['kopecks']], $view->tiers))
+        {{-- GP-10: the quantity field of the buy block feeds the tier table, the unit price and the total (Alpine, no request). --}}
+        <div @if ($picker !== null) x-data="variantPicker(@js(['unavailable' => __('variant_storefront.unavailable'), 'cart' => __('storefront.actions.cart'), 'backorder' => __('sales.actions.backorder'), 'pair' => __('variants.label.pair', ['option' => ':option', 'value' => ':value']), 'separator' => __('variants.label.separator')]))" @input="onQty($event)" @cart-updated.window="resetQty()" @elseif ($view->tiers !== []) x-data="tierPrice(@js($view->unitKopecks), @js($tierPairs))" @input="onQty($event)" @cart-updated.window="reset()" @endif>
             @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mb-2'])
             <h1 class="text-2xl font-bold md:text-3xl">{{ $product->name }}</h1>
 
@@ -111,12 +113,17 @@
                     <span class="text-3xl font-bold" x-text="current ? current.p : ''">{{ $view->price }}</span>
                     <s class="text-sm text-slate-500" x-cloak x-show="current && current.o"><span class="sr-only">{{ __('storefront.labels.sale') }}:</span> <span x-text="current ? current.o : ''">{{ $view->oldPrice }}</span></s>
                     <span class="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700" x-cloak x-show="current && current.d" x-text="current && current.d ? @js(__('storefront.product.discount', ['percent' => ':p'])).replace(':p', current.d) : ''">@if ($view->discount) {{ __('storefront.product.discount', ['percent' => $view->discount]) }} @endif</span>
+                    <s class="text-sm text-slate-500" data-retail-price x-cloak x-show="current && current.r"><span class="sr-only">{{ __('group_prices.retail_price') }}:</span> <span x-text="current ? current.r : ''"></span></s>
                 </p>
             @else
                 @include('storefront.partials.price', ['view' => $view, 'class' => 'mt-4', 'size' => 'text-3xl'])
             @endif
             @unless ($view->priceOnRequest)
                 <p class="text-sm text-slate-500">{{ __('storefront.product.per_unit', ['unit' => $product->unit]) }}</p>
+            @endunless
+
+            @unless ($view->priceOnRequest)
+                @include('storefront.product.tier-table', ['view' => $view, 'picker' => $picker, 'unit' => $product->unit])
             @endunless
 
             <div class="mt-2">

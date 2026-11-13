@@ -6,6 +6,7 @@ namespace App\Filament\Resources\Orders\Schemas;
 
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
+use App\Enums\PriceSource;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Filament\Resources\Products\ProductResource;
 use App\Models\Order;
@@ -72,6 +73,10 @@ final class OrderInfolist
                             ->state(fn (Order $record): string => '+'.self::digits($record))
                             ->url(fn (Order $record): string => 'https://t.me/+'.self::digits($record))
                             ->openUrlInNewTab(),
+                        // GP-12: the group the prices of the order were taken from (snapshot).
+                        TextEntry::make('customer_group_name')
+                            ->label(__('admin_group_prices.order.group'))
+                            ->visible(fn (Order $record): bool => $record->customer_group_name !== null && $record->customer_group_name !== ''),
                         TextEntry::make('customer_email')
                             ->label(__('admin_orders.view.email'))
                             ->placeholder('—')
@@ -111,9 +116,9 @@ final class OrderInfolist
                                     // VR-12: the snapshot of the variant under the name: «Цвет: красный, Размер: M» and the barcode.
                                     ->html()
                                     ->formatStateUsing(function (string $state, OrderItem $record): string {
-                                        $line = self::variantLine($record);
+                                        $lines = array_filter([self::variantLine($record), self::priceSourceLine($record)]);
 
-                                        return e($state).($line === null ? '' : '<br><span class="text-sm text-gray-500">'.e($line).'</span>');
+                                        return e($state).($lines === [] ? '' : '<br><span class="text-sm text-gray-500">'.e(implode(' · ', $lines)).'</span>');
                                     })
                                     ->url(fn (OrderItem $record): ?string => $record->product !== null && ! $record->product->trashed()
                                         ? ProductResource::getUrl('edit', ['record' => $record->product])
@@ -180,6 +185,30 @@ final class OrderInfolist
         return $history->from_status === null
             ? $to.' ('.__('admin_orders.view.created').')'
             : $history->from_status->label($type).' → '.$to;
+    }
+
+    /**
+     * Where the unit price of a line came from (GP-12): «Ступень от 10 шт», «Точная цена группы», «Скидка группы», with
+     * the retail price when it differs; null for lines without a source (orders placed before group prices).
+     */
+    public static function priceSourceLine(OrderItem $item): ?string
+    {
+        if ($item->price_source === null) {
+            return null;
+        }
+
+        $label = $item->price_source === PriceSource::Tier && $item->tier_min_qty !== null
+            ? __('admin_group_prices.order.tier', ['qty' => $item->tier_min_qty])
+            : $item->price_source->label();
+
+        $retail = $item->retail_price !== null ? Money::fromRubles($item->retail_price) : null;
+        $price = $item->price !== null ? Money::fromRubles($item->price) : null;
+
+        if ($item->price_source !== PriceSource::Retail && $retail !== null && $retail !== $price) {
+            $label .= ', '.__('admin_group_prices.order.retail', ['price' => Money::format($retail)]);
+        }
+
+        return $label;
     }
 
     /**

@@ -70,6 +70,10 @@
                             @elseif (! $line->unavailable)
                                 <p class="mt-1 text-sm text-slate-600">{{ \App\Support\Money::format($line->currentPrice) }}</p>
                             @endif
+                            @if ($line->tierHint && ! $line->unavailable)
+                                {{-- GP-11: the next quantity tier is close. --}}
+                                <p class="mt-1 text-sm text-emerald-800" data-tier-hint>{{ __('group_prices.cart.tier_hint', ['missing' => $line->tierHint->missingQty, 'price' => \App\Support\Money::format($line->tierHint->price), 'unit' => $product?->unit]) }}</p>
+                            @endif
                             @if ($line->issue)
                                 <p class="mt-1 text-sm text-red-700">{{ $line->issue }}</p>
                             @endif

@@ -30,7 +30,33 @@ class PriceRuleRecalculator
     {
         $this->rules->flush();
 
-        $this->dispatch($this->matcher->affectedIds($before, $after));
+        // A rule bound to groups never touches the retail price (GP-04): only the groups of the rule are recalculated.
+        // Binding a rule to groups or unbinding it changes the retail price too.
+        $sides = array_values(array_filter([$before, $after]));
+        $groupOnly = $sides !== [] && array_reduce($sides, fn (bool $carry, PriceRuleData $rule): bool => $carry && $rule->groupIds !== [], true);
+        $groupIds = [];
+
+        foreach ($sides as $rule) {
+            $groupIds = array_merge($groupIds, $rule->groupIds);
+        }
+
+        $this->dispatch($this->matcher->affectedIds($before, $after), $groupOnly ? array_values(array_unique($groupIds)) : null);
+    }
+
+    /**
+     * Queue recalculation of the prices of the given customer groups for every live product (a group discount changed,
+     * GP-07). The retail prices are not touched.
+     *
+     * @param  list<int>  $groupIds
+     * @return array{products: int, jobs: int}
+     */
+    public function dispatchForGroups(array $groupIds): array
+    {
+        if ($groupIds === []) {
+            return ['products' => 0, 'jobs' => 0];
+        }
+
+        return $this->dispatch($this->allIds(), $groupIds);
     }
 
     /**
@@ -84,9 +110,10 @@ class PriceRuleRecalculator
      * job stays within the 40 second limit. A card heavier than a whole job gets a job of its own.
      *
      * @param  iterable<int>  $productIds
+     * @param  list<int>|null  $groupIds  null: retail and all groups; a list: only the prices of these groups
      * @return array{products: int, jobs: int}
      */
-    public function dispatch(iterable $productIds): array
+    public function dispatch(iterable $productIds, ?array $groupIds = null): array
     {
         $ids = [];
 
@@ -103,7 +130,7 @@ class PriceRuleRecalculator
         $this->progress->add(count($ids));
 
         foreach ($chunks as $chunk) {
-            RecalculatePrices::dispatch($chunk)->afterCommit();
+            RecalculatePrices::dispatch($chunk, $groupIds)->afterCommit();
         }
 
         return ['products' => count($ids), 'jobs' => count($chunks)];

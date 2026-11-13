@@ -8,7 +8,11 @@ use App\Filament\Resources\CustomerGroups\CustomerGroupResource;
 use App\Filament\Resources\CustomerGroups\Schemas\CustomerGroupForm;
 use App\Models\CustomerGroup;
 use App\Services\Access\CustomerGroupService;
+use App\Services\Pricing\PriceListBuilder;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Model;
 
 class EditCustomerGroup extends EditRecord
@@ -18,6 +22,25 @@ class EditCustomerGroup extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            // CG-17: queue a rebuild of the wholesale price list of this group.
+            Action::make('refresh_price_list')
+                ->label(__('admin_group_prices.price_list.refresh'))
+                ->icon(Heroicon::OutlinedArrowPath)
+                ->color('gray')
+                ->visible(fn (CustomerGroup $record): bool => app(PriceListBuilder::class)->isEligible($record))
+                ->modalDescription(function (CustomerGroup $record): string {
+                    $builtAt = app(PriceListBuilder::class)->builtAt($record);
+
+                    return $builtAt === null
+                        ? __('admin_group_prices.price_list.never_built')
+                        : __('admin_group_prices.price_list.built_at', ['time' => $builtAt->timezone(config('app.timezone'))->format('d.m.Y H:i')]);
+                })
+                ->requiresConfirmation()
+                ->action(function (CustomerGroup $record): void {
+                    app(PriceListBuilder::class)->queue($record);
+
+                    Notification::make()->success()->title(__('admin_group_prices.price_list.queued', ['count' => 1]))->send();
+                }),
             CustomerGroupResource::previewAction(),
             CustomerGroupResource::deleteAction(),
         ];

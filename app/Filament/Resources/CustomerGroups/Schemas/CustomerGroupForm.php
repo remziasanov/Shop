@@ -9,11 +9,13 @@ use App\Enums\GroupStockDisplay;
 use App\Enums\PriceDisplayMode;
 use App\Enums\StorefrontSection;
 use App\Models\CustomerGroup;
+use App\Rules\PositiveAmount;
 use App\Rules\RublesAmount;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Sales\MethodCodes;
 use App\Settings\SalesSettings;
 use App\Support\Money;
+use Closure;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -117,6 +119,20 @@ final class CustomerGroupForm
                         ->default(GroupStockDisplay::Inherit->value)
                         ->required()
                         ->native(false),
+                    // GP-01: changing the discount queues the recalculation of the group prices (observer, GP-07).
+                    TextInput::make('default_discount_percent')
+                        ->label(__('admin_group_prices.group.discount'))
+                        ->helperText(__('admin_group_prices.group.discount_hint'))
+                        ->inputMode('decimal')
+                        ->suffix('%')
+                        ->default('0')
+                        ->required()
+                        ->maxLength(6)
+                        ->rule(fn (): Closure => self::discountRule()),
+                    Toggle::make('show_retail_price')
+                        ->label(__('admin_group_prices.group.show_retail_price'))
+                        ->helperText(__('admin_group_prices.group.show_retail_price_hint'))
+                        ->default(false),
                 ])->columns(2),
 
                 Tab::make(__('customer_groups.tabs.checkout'))->schema([
@@ -197,9 +213,25 @@ final class CustomerGroupForm
         $data['allowed_sales_modes'] = self::listOrNull($data['allowed_sales_modes'] ?? [], self::MODES);
         $data['allowed_delivery_codes'] = self::listOrNull($data['allowed_delivery_codes'] ?? [], array_keys(self::methodOptions('delivery_methods')));
         $data['allowed_payment_codes'] = self::listOrNull($data['allowed_payment_codes'] ?? [], array_keys(self::methodOptions('payment_methods')));
+        $data['default_discount_percent'] = bcadd(PositiveAmount::normalize($data['default_discount_percent'] ?? '0') ?? '0', '0', 2);
+        $data['show_retail_price'] = (bool) ($data['show_retail_price'] ?? false);
         $data['min_order_amount'] = filled($data['min_order_amount'] ?? null) ? Money::toRubles(Money::fromRubles($data['min_order_amount'])) : null;
 
         return [$data, $categoryIds];
+    }
+
+    /**
+     * The group discount: 0–99.99 with at most two decimals (GP-01).
+     */
+    private static function discountRule(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            $number = PositiveAmount::normalize($value);
+
+            if ($number === null || bccomp($number, '0', 6) < 0 || bccomp($number, '99.99', 6) > 0 || strlen(rtrim(explode('.', $number.'.')[1], '0')) > 2) {
+                $fail('admin_group_prices.group.discount_invalid')->translate();
+            }
+        };
     }
 
     /**

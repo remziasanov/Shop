@@ -17,7 +17,7 @@ beforeEach(function (): void {
     $this->repository = app(PriceRuleRepository::class);
 });
 
-it('loads active rules with their targets in two queries', function (): void {
+it('loads active rules with their targets and groups in three queries', function (): void {
     $category = Category::factory()->create();
     PriceRule::factory()->forCategories([$category], false)->markupPercent(5)->create(['name' => 'Категория']);
     PriceRule::factory()->forBrands([' Север ', 'Аврора'])->create();
@@ -31,7 +31,7 @@ it('loads active rules with their targets in two queries', function (): void {
     $queries = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    expect($queries)->toBe(2)
+    expect($queries)->toBe(3)
         ->and($rules)->toHaveCount(3)
         ->and($rules[0]->scope)->toBe(PriceRuleScope::Categories)
         ->and($rules[0]->action)->toBe(PriceRuleAction::MarkupPercent)

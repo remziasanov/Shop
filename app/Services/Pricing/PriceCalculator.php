@@ -20,7 +20,11 @@ use Carbon\CarbonInterface;
  *  - a cost markup rule of a product without a cost price is skipped: it is neither applied nor
  *    does it stop the phase, and it does not trigger rounding;
  *  - "show as discount" counts only for applied discount rules;
- *  - the fixed price short-circuits everything, including rounding.
+ *  - the fixed price short-circuits everything, including rounding;
+ *  - with a group context (GP-04, GP-05, 21.2 step 3) the normal pipeline runs with the rules for everyone and the
+ *    rules bound to the group, rounding included; then the group discount (half up to the kopeck, also on a fixed
+ *    price), then the rounding step once more only when GP-19 allows. Without a group context rules bound to groups
+ *    never apply (they do not touch retail).
  */
 final class PriceCalculator
 {
@@ -29,13 +33,10 @@ final class PriceCalculator
     /**
      * @param  list<PriceRuleData>  $rules  candidate rules (matching and period are checked here)
      */
-    public function calculate(PriceInput $input, array $rules, CarbonInterface $now, PricingConfig $config): PriceResult
+    public function calculate(PriceInput $input, array $rules, CarbonInterface $now, PricingConfig $config, ?GroupPriceContext $group = null): PriceResult
     {
         if ($input->fixedPrice !== null) {
-            $final = $input->fixedPrice;
-            $old = $input->compareAtPrice !== null && $input->compareAtPrice > $final ? $input->compareAtPrice : null;
-
-            return new PriceResult($final, $old, [], new PriceExplanation([PriceStep::fixed($final)]));
+            return $this->fixed($input, $config, $group);
         }
 
         $price = $input->basePrice;
@@ -46,7 +47,7 @@ final class PriceCalculator
 
         $active = array_values(array_filter(
             $rules,
-            fn (PriceRuleData $rule): bool => $rule->isInEffect($now) && $rule->matches($input),
+            fn (PriceRuleData $rule): bool => $rule->appliesToGroup($group?->groupId) && $rule->isInEffect($now) && $rule->matches($input),
         ));
 
         foreach ([PriceRulePhase::Markup, PriceRulePhase::Discount] as $phase) {
@@ -85,16 +86,73 @@ final class PriceCalculator
             $price = 0;
         }
 
+        // The retail pipeline, rounding included, with the rules for everyone and the rules bound to the group (21.2 step 3).
         if (($applied !== [] || $config->scope === RoundingScope::All) && $config->step !== RoundingStep::None) {
-            $rounded = $this->rounding->apply($price, $config->step, $config->direction, $config->psychological);
-            $plain = $this->rounding->apply($price, $config->step, $config->direction, false);
-            $steps[] = PriceStep::rounding($price, $rounded, $config->step, $config->direction, $rounded !== $plain);
-            $price = min($rounded, RublesAmount::DEFAULT_MAX_KOPECKS);
+            $price = $this->round($price, $config, $steps);
+        }
+
+        // Then the group discount, half up to the kopeck, and the rounding step again only when GP-19 allows.
+        if ($group !== null && $group->hasDiscount()) {
+            $after = $this->scale($price, $group->discountPercent);
+            $steps[] = PriceStep::groupDiscount($price, $after, $group->discountPercent);
+            $price = $after;
+
+            if ($group->applyRounding && $config->step !== RoundingStep::None) {
+                $price = $this->round($price, $config, $steps);
+            }
         }
 
         $old = max($input->compareAtPrice ?? 0, $discountShown ? $priceBeforeDiscounts : 0);
 
         return new PriceResult($price, $old > $price ? $old : null, $applied, new PriceExplanation($steps));
+    }
+
+    /**
+     * The fixed price of a product: no rules, no rounding. A group discount still applies to it (GP-05).
+     */
+    private function fixed(PriceInput $input, PricingConfig $config, ?GroupPriceContext $group): PriceResult
+    {
+        $final = (int) $input->fixedPrice;
+        $steps = [PriceStep::fixed($final)];
+
+        if ($group !== null && $group->hasDiscount()) {
+            $discounted = $this->scale($final, $group->discountPercent);
+            $steps[] = PriceStep::groupDiscount($final, $discounted, $group->discountPercent);
+            $final = $discounted;
+
+            if ($group->applyRounding && $config->step !== RoundingStep::None) {
+                $final = $this->round($final, $config, $steps);
+            }
+        }
+
+        $old = $input->compareAtPrice !== null && $input->compareAtPrice > $final ? $input->compareAtPrice : null;
+
+        return new PriceResult($final, $old, [], new PriceExplanation($steps));
+    }
+
+    /**
+     * Apply the rounding step of the configuration and record the step.
+     *
+     * @param  list<PriceStep>  $steps
+     */
+    private function round(int $price, PricingConfig $config, array &$steps): int
+    {
+        $rounded = $this->rounding->apply($price, $config->step, $config->direction, $config->psychological);
+        $plain = $this->rounding->apply($price, $config->step, $config->direction, false);
+        $steps[] = PriceStep::rounding($price, $rounded, $config->step, $config->direction, $rounded !== $plain);
+
+        return min($rounded, RublesAmount::DEFAULT_MAX_KOPECKS);
+    }
+
+    /**
+     * round_half_up(kopecks * (100 - percent) / 100) with bcmath (GP-05).
+     */
+    private function scale(int $kopecks, string $discountPercent): int
+    {
+        $factor = bcsub('100', $discountPercent, 4);
+        $exact = bcdiv(bcmul((string) max(0, $kopecks), $factor, 4), '100', 6);
+
+        return (int) bcadd($exact, '0.5', 0);
     }
 
     private function apply(PriceRuleData $rule, int $price, ?int $costPrice): int

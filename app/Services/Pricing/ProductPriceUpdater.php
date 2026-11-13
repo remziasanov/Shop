@@ -40,6 +40,7 @@ final class ProductPriceUpdater
         private readonly PriceCalculator $calculator,
         private readonly PriceRuleRepository $rules,
         private readonly CategoryTree $categories,
+        private readonly GroupPriceRecalculator $groupPrices,
     ) {}
 
     /**
@@ -168,11 +169,15 @@ final class ProductPriceUpdater
      * products are included (their variants are not: a restored card is recalculated on restore). After every batch of
      * variants the aggregates of the touched cards are recomputed.
      *
+     * The prices of the customer groups (`product_group_prices_final`, GP-07) are recomputed for the same products
+     * afterwards, so that every retail recalculation trigger also covers the groups.
+     *
      * @param  iterable<int>  $productIds
      * @return int number of priced entities (products or variants) whose prices changed
      */
     public function recalculate(iterable $productIds): int
     {
+        $productIds = collect($productIds)->unique()->values()->all();
         $config = PricingConfig::fromSettings(app(PricingSettings::class));
         $rules = $this->rules->activeRules();
         $now = now();
@@ -218,6 +223,8 @@ final class ProductPriceUpdater
             // Raw UPDATEs above bypass model events: drop the cached home page (cheap Cache::forget).
             HomePageRenderer::forget();
         }
+
+        $this->groupPrices->recalculate($productIds);
 
         return $changed;
     }

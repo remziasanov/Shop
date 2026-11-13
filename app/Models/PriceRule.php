@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -37,6 +38,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $show_as_discount
  * @property bool $stop_processing
  * @property-read Collection<int, PriceRuleTarget> $targets
+ * @property-read Collection<int, CustomerGroup> $groups customer groups the rule is bound to (GP-04); none = for everyone
  */
 #[ObservedBy(PriceRuleCacheObserver::class)]
 class PriceRule extends Model
@@ -83,6 +85,26 @@ class PriceRule extends Model
     public function targets(): HasMany
     {
         return $this->hasMany(PriceRuleTarget::class);
+    }
+
+    /**
+     * Customer groups the rule applies to (GP-04). A rule without groups applies to everyone.
+     *
+     * @return BelongsToMany<CustomerGroup, $this>
+     */
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(CustomerGroup::class, 'price_rule_groups', 'price_rule_id', 'customer_group_id');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function groupIds(): array
+    {
+        $this->loadMissing('groups');
+
+        return $this->groups->map(fn (CustomerGroup $group): int => $group->id)->sort()->values()->all();
     }
 
     /**

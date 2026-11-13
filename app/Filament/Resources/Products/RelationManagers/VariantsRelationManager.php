@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Filament\Resources\Products\RelationManagers;
 
 use App\Exceptions\VariantException;
+use App\Filament\Resources\Products\Support\GroupPricesEditor;
 use App\Models\OptionType;
 use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Rules\RublesAmount;
+use App\Services\Pricing\GroupPriceEditor;
 use App\Services\Users\PermissionService;
 use App\Services\Variants\CombinationGenerator;
 use App\Services\Variants\VariantLabel;
@@ -132,6 +134,7 @@ class VariantsRelationManager extends RelationManager
             ])
             ->recordActions([
                 $this->pricesAction(),
+                $this->groupPricesAction(),
                 $this->duplicateAction(),
                 $this->deleteAction(),
             ])
@@ -442,6 +445,45 @@ class VariantsRelationManager extends RelationManager
 
                     throw new Halt;
                 }
+            });
+    }
+
+    /**
+     * «Цены групп» (GP-17): exact prices and tiers of the customer groups for the variant, the editor of the product form tab.
+     */
+    private function groupPricesAction(): Action
+    {
+        return Action::make('group_prices')
+            ->label(__('admin_group_prices.variants.action'))
+            ->icon(Heroicon::OutlinedUserGroup)
+            ->color('gray')
+            ->visible(fn (): bool => $this->mayEdit())
+            ->modalHeading(fn (ProductVariant $record): string => __('admin_group_prices.variants.heading', ['sku' => $record->sku]))
+            ->modalDescription(__('admin_group_prices.variants.description'))
+            ->modalWidth('3xl')
+            ->fillForm(fn (ProductVariant $record): array => GroupPricesEditor::fillState($record))
+            ->schema(fn (ProductVariant $record): array => GroupPricesEditor::components(fn (): ProductVariant => $record))
+            ->action(function (ProductVariant $record, array $data): void {
+                abort_unless($this->mayEdit(), 403);
+
+                $rows = (array) ($data[GroupPricesEditor::STATE] ?? []);
+                $exception = GroupPricesEditor::errors($record, $rows, 'mountedActions.0.data.');
+
+                if ($exception !== null) {
+                    Notification::make()->danger()->title(__('admin_group_prices.editor.invalid'))->body(collect($exception->errors())->flatten()->implode("\n"))->send();
+
+                    throw new Halt;
+                }
+
+                $warnings = app(GroupPriceEditor::class)->save($record, $rows);
+
+                if ($warnings !== []) {
+                    Notification::make()->warning()->title(__('admin_group_prices.editor.saved_with_warnings'))->body(implode("\n", $warnings))->send();
+
+                    return;
+                }
+
+                Notification::make()->success()->title(__('admin_group_prices.editor.saved'))->send();
             });
     }
 

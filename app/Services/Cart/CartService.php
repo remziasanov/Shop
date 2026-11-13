@@ -14,6 +14,10 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\Access\ViewerContext;
 use App\Services\Catalog\CategoryTree;
+use App\Services\Pricing\Priceable;
+use App\Services\Pricing\PriceBook;
+use App\Services\Pricing\PriceResolver;
+use App\Services\Pricing\ResolvedPrice;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
 use App\Services\Stock\Stockable;
@@ -44,6 +48,7 @@ final class CartService
         private readonly SalesSettings $settings,
         private readonly ViewerContext $viewer,
         private readonly VariantLabel $labels,
+        private readonly PriceResolver $resolver,
     ) {}
 
     /**
@@ -133,16 +138,19 @@ final class CartService
                 $total = min($total, $actions->maxQty);
             }
 
+            // GP-11: the unit price of the row follows the quantity (tiers of the viewer's group).
+            $priced = $this->priceOf($unit, $total);
+
             if ($item === null) {
                 $item = CartItem::query()->create([
                     'cart_id' => $cart->id,
                     'product_id' => $locked->id,
                     'variant_id' => $unit->stockVariantId(),
                     'qty' => $total,
-                    'price_at_add' => $unit instanceof ProductVariant ? $unit->final_price : $locked->final_price,
+                    'price_at_add' => Money::toRubles($priced->unitPrice),
                 ]);
             } else {
-                $item->qty = $total;
+                $this->moveQty($item, $unit, $total);
                 $item->save();
             }
 
@@ -222,12 +230,44 @@ final class CartService
                 throw new SalesException(__($actions !== null && $actions->outOfStock ? 'sales.cart.out_of_stock' : 'sales.cart.not_available', ['name' => $unit?->stockName() ?? $product->name ?? '']));
             }
 
-            $item->qty = $actions->maxQty !== null ? min($qty, $actions->maxQty) : $qty;
+            $this->moveQty($item, $unit, $actions->maxQty !== null ? min($qty, $actions->maxQty) : $qty);
             $item->save();
             $cart->touch();
 
             return $item;
         });
+    }
+
+    /**
+     * The price of one unit for the viewer's customer group and a quantity (GP-03, GP-11).
+     */
+    private function priceOf(Stockable $unit, int $qty, ?PriceBook $book = null): ResolvedPrice
+    {
+        return $this->resolver->resolve($this->priceable($unit), $this->viewer->group(), $qty, $book);
+    }
+
+    private function priceable(Stockable $unit): Priceable
+    {
+        return $unit instanceof Priceable ? $unit : throw new SalesException(__('sales.cart.not_available', ['name' => $unit->stockName()]));
+    }
+
+    /**
+     * Sets the quantity of a row. A change of the quantity that moves the unit price over a tier boundary is the
+     * customer's own doing, not a price change of the shop: `price_at_add` is shifted by the tier difference (the unit
+     * price at the new quantity minus the one at the old quantity), so no «цена изменилась» notice appears for the
+     * crossing itself, while a change of the shop's price made in between stays visible (SF-42).
+     */
+    private function moveQty(CartItem $item, Stockable $unit, int $qty): void
+    {
+        $book = $this->resolver->preload([$this->priceable($unit)], $this->viewer->group());
+        $before = $this->priceOf($unit, $item->qty, $book)->unitPrice;
+        $after = $this->priceOf($unit, $qty, $book)->unitPrice;
+
+        if ($before !== $after) {
+            $item->price_at_add = Money::toRubles(max(0, Money::fromRubles($item->price_at_add) + $after - $before));
+        }
+
+        $item->qty = $qty;
     }
 
     /**
@@ -340,14 +380,45 @@ final class CartService
      */
     public function acknowledgePrices(Cart $cart): void
     {
-        foreach ($cart->items()->with(['product', 'variant'])->get() as $item) {
-            $current = $item->variant_id !== null ? $item->variant?->final_price : $item->product?->final_price;
+        $items = $cart->items()->with(['product', 'variant'])->get();
+        $book = $this->bookOf($items);
 
-            if ($current !== null && Money::fromRubles($item->price_at_add) !== Money::fromRubles($current)) {
-                $item->price_at_add = $current;
+        foreach ($items as $item) {
+            $unit = $item->variant_id !== null ? $item->variant : $item->product;
+
+            if ($unit === null) {
+                continue;
+            }
+
+            $current = $this->resolver->resolve($unit, $this->viewer->group(), $item->qty, $book)->unitPrice;
+
+            if (Money::fromRubles($item->price_at_add) !== $current) {
+                $item->price_at_add = Money::toRubles($current);
                 $item->save();
             }
         }
+    }
+
+    /**
+     * The group prices of all rows of the cart in one load (GP-03).
+     *
+     * @param  iterable<CartItem>  $items  with `product` and `variant` loaded
+     */
+    private function bookOf(iterable $items): PriceBook
+    {
+        $units = [];
+
+        foreach ($items as $item) {
+            if ($item->product !== null) {
+                $units[] = $item->product;
+            }
+
+            if ($item->variant !== null) {
+                $units[] = $item->variant;
+            }
+        }
+
+        return $this->resolver->preload($units, $this->viewer->group());
     }
 
     /**
@@ -360,6 +431,8 @@ final class CartService
         $changes = false;
         $items = $cart->items()->with(['product', 'variant'])->get();
         $labels = $this->labels->forMany($items->pluck('variant')->filter());
+        $book = $this->bookOf($items);
+        $group = $this->viewer->group();
 
         foreach ($items as $item) {
             $product = $item->product;
@@ -379,7 +452,9 @@ final class CartService
 
             $unit = $variant !== null ? $variant->setRelation('product', $product) : $product;
             $actions = $this->availability->actionsFor($unit);
-            $current = Money::fromRubles($variant !== null ? $variant->final_price : $product->final_price);
+            // GP-11: the price of the group for the current quantity of the row.
+            $resolved = $this->resolver->resolve($unit, $group, $item->qty, $book);
+            $current = $resolved->unitPrice;
             $priceChanged = $current !== $atAdd;
             $unavailable = ! $actions->canAddToCart;
             $issue = null;
@@ -394,7 +469,7 @@ final class CartService
             $total += $lineTotal;
             $changes = $changes || $priceChanged || $issue !== null;
 
-            $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $current, $lineTotal, $priceChanged, $unavailable, $actions->maxQty, $issue, $variant, $label);
+            $lines[] = new CartLine($item, $product, $item->qty, $atAdd, $current, $lineTotal, $priceChanged, $unavailable, $actions->maxQty, $issue, $variant, $label, $unavailable ? null : $this->resolver->tierHint($resolved, $item->qty), $resolved->source, $resolved->tierMinQty);
         }
 
         $deliveries = [];

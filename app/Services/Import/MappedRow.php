@@ -14,11 +14,13 @@ final readonly class MappedRow
      *                                              fields are present, so "column absent" and "cell blank" differ.
      * @param  list<array{name: string, value: string}>  $attributes  characteristics with a non-blank value
      * @param  list<array{name: string, value: string}>  $options  option cells («Опция: Цвет») with a non-blank value, in column order
+     * @param  list<array{key: string, code: string, qty: int, value: string|null}>  $groupPrices  group price cells («Цена: opt», «Цена: opt от 10»), blank ones included (null value), GP-15
      */
     public function __construct(
         public array $values,
         public array $attributes = [],
         public array $options = [],
+        public array $groupPrices = [],
     ) {}
 
     public function get(string $field): ?string

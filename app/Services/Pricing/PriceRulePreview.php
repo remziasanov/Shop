@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Pricing;
 
+use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Services\Catalog\CategoryTree;
 use App\Settings\PricingSettings;
@@ -27,9 +28,12 @@ final class PriceRulePreview
     ) {}
 
     /**
+     * With a customer group (GP-04) the prices are those of the group: the rules «для всех» and the rules bound to the
+     * group, then the group discount; "before" is the same calculation without the draft. Without one they are retail prices.
+     *
      * @return array{count: int, rows: list<array{id: int, name: string, sku: string, before: int, after: int}>}
      */
-    public function preview(PriceRuleData $draft): array
+    public function preview(PriceRuleData $draft, ?CustomerGroup $group = null): array
     {
         $ids = $this->matcher->productIds($draft)->take(self::LIMIT)->all();
         $count = $this->matcher->count($draft);
@@ -38,13 +42,15 @@ final class PriceRulePreview
             return ['count' => $count, 'rows' => []];
         }
 
-        $rules = array_values(array_filter(
+        $others = array_values(array_filter(
             $this->rules->activeRules(),
             fn (PriceRuleData $rule): bool => $rule->id !== $draft->id,
         ));
-        $rules[] = $this->withoutPeriod($draft);
+        $rules = [...$others, $this->withoutPeriod($draft)];
 
-        $config = PricingConfig::fromSettings(app(PricingSettings::class));
+        $settings = app(PricingSettings::class);
+        $config = PricingConfig::fromSettings($settings);
+        $context = $group !== null ? GroupPriceContext::for($group, $settings) : null;
         $now = now();
         $rows = [];
 
@@ -61,8 +67,10 @@ final class PriceRulePreview
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
-                'before' => Money::fromRubles($product->final_price),
-                'after' => $this->calculator->calculate($input, $rules, $now, $config)->finalPrice,
+                'before' => $context === null
+                    ? Money::fromRubles($product->final_price)
+                    : $this->calculator->calculate($input, $others, $now, $config, $context)->finalPrice,
+                'after' => $this->calculator->calculate($input, $rules, $now, $config, $context)->finalPrice,
             ];
         }
 
@@ -87,6 +95,7 @@ final class PriceRulePreview
             productIds: $rule->productIds,
             brands: $rule->brands,
             flags: $rule->flags,
+            groupIds: $rule->groupIds,
         );
     }
 }

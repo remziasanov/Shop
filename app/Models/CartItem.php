@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $variant_id
  * @property int $variant_key COALESCE(variant_id, 0), part of the unique index (VR-12); maintained on save
  * @property int $qty
- * @property string $price_at_add decimal(12,2) string, final_price when the item was added
+ * @property string $price_at_add decimal(12,2) string: the unit price of the viewer's group when the item was added or its quantity last changed (GP-11); the reference of the «цена изменилась» signal
  * @property-read Cart $cart
  * @property-read Product|null $product
  * @property-read ProductVariant|null $variant

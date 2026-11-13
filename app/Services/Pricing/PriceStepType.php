@@ -12,4 +12,5 @@ enum PriceStepType: string
     case Rounding = 'rounding';
     case Fixed = 'fixed';
     case Floor = 'floor';
+    case GroupDiscount = 'group_discount';
 }

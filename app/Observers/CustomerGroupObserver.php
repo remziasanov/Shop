@@ -7,7 +7,10 @@ namespace App\Observers;
 use App\Models\CustomerGroup;
 use App\Models\MenuItem;
 use App\Models\Page;
+use App\Models\PriceRule;
 use App\Services\Catalog\CatalogVersion;
+use App\Services\Pricing\PriceRuleRecalculator;
+use App\Services\Pricing\PriceRuleRepository;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -31,7 +34,28 @@ final class CustomerGroupObserver
      */
     public function deleting(CustomerGroup $group): ?bool
     {
-        return $group->is_system ? false : null;
+        if ($group->is_system) {
+            return false;
+        }
+
+        // GP-04: a rule without groups is a rule for everyone. A rule that was bound only to this group must not turn into
+        // one when the binding disappears with the group (FK cascade): it is switched off instead.
+        $orphans = DB::table('price_rule_groups')
+            ->where('customer_group_id', $group->id)
+            ->whereNotExists(function ($query) use ($group): void {
+                $query->selectRaw('1')
+                    ->from('price_rule_groups as other')
+                    ->whereColumn('other.price_rule_id', 'price_rule_groups.price_rule_id')
+                    ->where('other.customer_group_id', '!=', $group->id);
+            })
+            ->pluck('price_rule_id');
+
+        if ($orphans->isNotEmpty()) {
+            PriceRule::query()->whereIn('id', $orphans->all())->update(['is_active' => false]);
+            app(PriceRuleRepository::class)->flush();
+        }
+
+        return null;
     }
 
     public function deleted(CustomerGroup $group): void
@@ -54,6 +78,11 @@ final class CustomerGroupObserver
 
     public function saved(CustomerGroup $group): void
     {
+        // GP-07: a changed discount (or a new group with one) changes the prices of the group for every product.
+        if ($group->wasChanged('default_discount_percent') || ($group->wasRecentlyCreated && bccomp((string) $group->default_discount_percent, '0', 2) > 0)) {
+            app(PriceRuleRecalculator::class)->dispatchForGroups([$group->id]);
+        }
+
         $this->bump();
     }
 

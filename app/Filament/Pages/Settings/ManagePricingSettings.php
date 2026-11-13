@@ -12,9 +12,12 @@ use App\Services\Pricing\PriceRuleRecalculator;
 use App\Settings\PricingSettings;
 use BackedEnum;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\SettingsPage;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 
@@ -31,7 +34,7 @@ class ManagePricingSettings extends SettingsPage
     protected static ?int $navigationSort = 40;
 
     /** Settings that change the calculated price (the show_* toggles only affect the storefront output). */
-    private const PRICE_FIELDS = ['rounding_step', 'rounding_direction', 'rounding_scope', 'psychological_price'];
+    private const PRICE_FIELDS = ['rounding_step', 'rounding_direction', 'rounding_scope', 'psychological_price', 'group_prices_rounding'];
 
     /** @var array<string, mixed> */
     private array $priceFieldsBefore = [];
@@ -61,6 +64,36 @@ class ManagePricingSettings extends SettingsPage
                 ->label(__('shop.settings.pricing.fields.show_old_price')),
             Toggle::make('show_discount_percent')
                 ->label(__('shop.settings.pricing.fields.show_discount_percent')),
+            // GP-19: customer group prices.
+            Section::make(__('admin_group_prices.settings.section'))
+                ->schema([
+                    Toggle::make('group_prices_rounding')
+                        ->label(__('admin_group_prices.settings.group_prices_rounding'))
+                        ->helperText(__('admin_group_prices.settings.group_prices_rounding_hint')),
+                    Toggle::make('tier_hint_enabled')
+                        ->label(__('admin_group_prices.settings.tier_hint_enabled'))
+                        ->helperText(__('admin_group_prices.settings.tier_hint_enabled_hint'))
+                        ->live(),
+                    TextInput::make('tier_hint_percent')
+                        ->label(__('admin_group_prices.settings.tier_hint_percent'))
+                        ->helperText(__('admin_group_prices.settings.tier_hint_percent_hint'))
+                        ->numeric()
+                        ->integer()
+                        ->minValue(1)
+                        ->maxValue(1000)
+                        ->suffix('%')
+                        ->required()
+                        ->visible(fn (Get $get): bool => (bool) $get('tier_hint_enabled')),
+                    TextInput::make('tier_hint_qty')
+                        ->label(__('admin_group_prices.settings.tier_hint_qty'))
+                        ->helperText(__('admin_group_prices.settings.tier_hint_qty_hint'))
+                        ->numeric()
+                        ->integer()
+                        ->minValue(1)
+                        ->maxValue(100000)
+                        ->required()
+                        ->visible(fn (Get $get): bool => (bool) $get('tier_hint_enabled')),
+                ]),
         ]);
     }
 

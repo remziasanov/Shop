@@ -22,6 +22,9 @@ use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Customers\EmailNormalizer;
+use App\Services\Pricing\Priceable;
+use App\Services\Pricing\PriceResolver;
+use App\Services\Pricing\ResolvedPrice;
 use App\Services\Sales\AvailabilityService;
 use App\Services\Sales\CheckoutMethods;
 use App\Services\Stock\Stockable;
@@ -61,6 +64,7 @@ final class OrderService
         private readonly AgeGate $age,
         private readonly ViewerContext $viewer,
         private readonly OrderItemSnapshot $snapshots,
+        private readonly PriceResolver $resolver,
     ) {}
 
     /**
@@ -115,6 +119,9 @@ final class OrderService
                 ? collect()
                 : ProductVariant::query()->whereIn('id', $variantIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
 
+            // GP-13: the prices of the viewer's group for the locked rows, loaded at once and resolved inside the transaction.
+            $group = $this->viewer->group();
+            $book = $this->resolver->preload([...$products->values()->all(), ...$variants->values()->all()], $group);
             $reasons = [];
             $lines = [];
 
@@ -135,7 +142,7 @@ final class OrderService
                     continue;
                 }
 
-                /** @var Stockable $unit */
+                /** @var Stockable&Priceable $unit */
                 $unit = $variant !== null ? $variant->setRelation('product', $product) : $product;
                 $actions = $this->availability->actionsFor($unit);
 
@@ -155,7 +162,9 @@ final class OrderService
                     $item->save();
                 }
 
-                $price = Money::fromRubles($variant !== null ? $variant->final_price : $product->final_price);
+                // GP-11, GP-13: the unit price for the group and the quantity that is ordered.
+                $resolved = $this->resolver->resolve($unit, $group, $qty, $book);
+                $price = $resolved->unitPrice;
                 $before = Money::fromRubles($item->price_at_add);
 
                 if ($price !== $before) {
@@ -168,7 +177,7 @@ final class OrderService
                     $item->save();
                 }
 
-                $lines[] = ['product' => $product, 'variant' => $variant, 'qty' => $qty, 'price' => $price];
+                $lines[] = ['product' => $product, 'variant' => $variant, 'qty' => $qty, 'price' => $price, 'resolved' => $resolved];
             }
 
             if ($reasons !== []) {
@@ -269,7 +278,9 @@ final class OrderService
                 }
             }
 
-            $price = Money::fromRubles($variant !== null ? $variant->final_price : $locked->final_price);
+            // GP-12: a reservation is priced for the viewer's group and the reserved quantity, too.
+            $resolved = $this->resolver->resolve($unit, $this->viewer->group(), $data->qty);
+            $price = $resolved->unitPrice;
 
             $order = $this->createRecord(OrderType::Reservation, [
                 'customer_name' => trim($data->name),
@@ -282,7 +293,7 @@ final class OrderService
                 'reserved_until' => $reservedUntil,
                 'desired_date' => $data->desiredDate?->copy()->startOfDay(),
                 'age_confirmed_level' => $ageLevel,
-            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price]]);
+            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price, 'resolved' => $resolved]]);
 
             $this->stock->holdForReservation($order);
 
@@ -315,7 +326,8 @@ final class OrderService
             }
 
             // CG-06: a group that sees no prices gets an inquiry without a price.
-            $price = $locked->price_on_request || ! $this->viewer->access()->showsPrices() ? null : Money::fromRubles($variant !== null ? $variant->final_price : $locked->final_price);
+            $resolved = $locked->price_on_request || ! $this->viewer->access()->showsPrices() ? null : $this->resolver->resolve($variant ?? $locked, $this->viewer->group(), $data->qty);
+            $price = $resolved?->unitPrice;
             $total = $price === null ? null : Money::toRubles($price * $data->qty);
 
             $order = $this->createRecord(OrderType::Inquiry, [
@@ -326,7 +338,7 @@ final class OrderService
                 'items_total' => $total,
                 'total' => $total,
                 'customer_comment' => $this->blankToNull($data->comment),
-            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price]]);
+            ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price, 'resolved' => $resolved]]);
 
             return $this->finishCreate($order);
         }, self::DEADLOCK_ATTEMPTS);
@@ -563,7 +575,7 @@ final class OrderService
 
     /**
      * @param  array<string, mixed>  $attributes
-     * @param  list<array{product: Product, variant: ProductVariant|null, qty: int, price: int|null}>  $lines
+     * @param  list<array{product: Product, variant: ProductVariant|null, qty: int, price: int|null, resolved: ResolvedPrice|null}>  $lines
      */
     private function createRecord(OrderType $type, array $attributes, string $ip, ?string $userAgent, array $lines): Order
     {
@@ -575,7 +587,8 @@ final class OrderService
         $order->consent_at = now();
         $order->consent_ip = $ip;
 
-        // CA-26: a request under an account remembers the customer and a snapshot of their group at that moment.
+        // CA-26, GP-12: a request under an account remembers the customer and a snapshot of their group at that moment.
+        // A guest's request keeps no snapshot (it is priced for «Гость», GP-13).
         $customer = $this->viewer->customer();
 
         if ($customer !== null) {
@@ -594,6 +607,10 @@ final class OrderService
                 'price' => $line['price'] === null ? null : Money::toRubles($line['price']),
                 'qty' => $line['qty'],
                 'total' => $line['price'] === null ? null : Money::toRubles($line['price'] * $line['qty']),
+                // GP-12: where the unit price comes from, the tier and the retail price at that moment.
+                'price_source' => $line['resolved']?->source,
+                'tier_min_qty' => $line['resolved']?->tierMinQty,
+                'retail_price' => $line['resolved'] === null ? null : Money::toRubles($line['resolved']->retailPrice),
             ]);
         }
 

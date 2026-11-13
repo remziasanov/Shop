@@ -37,6 +37,14 @@ final readonly class PriceExplanation
             case PriceStepType::Fixed:
                 return __('pricing.explanation.fixed', ['price' => $price]);
 
+            case PriceStepType::GroupDiscount:
+                $percent = (string) $step->value;
+
+                return __('pricing.explanation.group_discount', [
+                    'percent' => str_replace('.', ',', str_contains($percent, '.') ? rtrim(rtrim($percent, '0'), '.') : $percent),
+                    'price' => $price,
+                ]);
+
             case PriceStepType::Floor:
                 return __('pricing.explanation.floor', ['price' => $price]);
 

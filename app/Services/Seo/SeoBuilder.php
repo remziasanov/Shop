@@ -122,7 +122,7 @@ final class SeoBuilder
     public function product(Product $product, ProductView $view, array $breadcrumbs, ?VariantPickerData $variants = null): SeoMeta
     {
         $category = $product->relationLoaded('category') ? $product->category->name : '';
-        $price = $product->price_on_request || $view->priceHidden ? '' : Money::format(Money::fromRubles($product->final_price));
+        $price = $product->price_on_request || $view->priceHidden ? '' : Money::format($this->viewerPrice($product, $view, $variants));
         $values = [
             'name' => $product->name,
             'category' => $category,
@@ -233,6 +233,18 @@ final class SeoBuilder
     }
 
     /**
+     * The price of the card for the viewer's group in kopecks (GP-09): the unit price of the page, the cheapest variant for a card with variants; the retail price when none is known.
+     */
+    private function viewerPrice(Product $product, ProductView $view, ?VariantPickerData $variants): int
+    {
+        if ($variants !== null && $variants->offers !== []) {
+            return min(array_map(fn (array $offer): int => Money::fromRubles($offer['price']), $variants->offers));
+        }
+
+        return $view->unitKopecks ?? Money::fromRubles($product->final_price);
+    }
+
+    /**
      * @param  list<string>  $images
      * @return array<string, mixed>
      */
@@ -246,7 +258,7 @@ final class SeoBuilder
 
         // CG-06: no price in the structured data for a group that sees no prices.
         if (! $product->price_on_request && ! $view->priceHidden) {
-            $offer['price'] = Money::toRubles(Money::fromRubles($product->final_price));
+            $offer['price'] = Money::toRubles($view->unitKopecks ?? Money::fromRubles($product->final_price));
             $offer['priceCurrency'] = 'RUB';
         }
 

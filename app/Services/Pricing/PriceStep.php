@@ -53,6 +53,14 @@ final readonly class PriceStep
         return new self(PriceStepType::Rounding, '', $after - $before, $after, null, null, null, null, $step, $direction, $psychological);
     }
 
+    /**
+     * The discount of a customer group (GP-05); `value` is the percent as a decimal string.
+     */
+    public static function groupDiscount(int $before, int $after, string $percent): self
+    {
+        return new self(PriceStepType::GroupDiscount, '', $after - $before, $after, null, null, $percent);
+    }
+
     public static function floor(int $before, int $after): self
     {
         return new self(PriceStepType::Floor, '', $after - $before, $after);

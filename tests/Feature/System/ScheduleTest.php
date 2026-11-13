@@ -22,6 +22,7 @@ dataset('schedule table', [
     'shop:purge-unverified-customers' => ['shop:purge-unverified-customers', '50 3 * * *'],
     'shop:purge-customer-codes' => ['shop:purge-customer-codes', '5 4 * * *'],
     'shop:variants-rollup' => ['shop:variants-rollup', '40 3 * * *'],
+    'shop:build-price-lists' => ['shop:build-price-lists', '30 4 * * *'],
 ]);
 
 it('registers every scheduled command exactly once with a 10 minute overlap mutex', function (string $command, string $expression): void {
@@ -39,7 +40,7 @@ it('registers every scheduled command exactly once with a 10 minute overlap mute
 })->with('schedule table');
 
 it('has no scheduled entries beyond the table', function (): void {
-    expect(app(Schedule::class)->events())->toHaveCount(12);
+    expect(app(Schedule::class)->events())->toHaveCount(13);
 });
 
 it('keeps scheduled commands within the one-minute budget', function (): void {

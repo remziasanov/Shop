@@ -44,12 +44,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property bool $is_default_for_new CG-11: the group of newly registered customers (exactly one; set by {@see CustomerGroupService})
  * @property bool $require_login_to_order CG-12
  * @property bool $is_wholesale_default CG-22: preselected by a wholesale approval (set by the migration / the service)
+ * @property string $default_discount_percent GP-01: discount from the retail price, 0–99.99 (decimal string)
+ * @property bool $show_retail_price GP-01: show the retail price struck through next to the group price
  */
 #[ObservedBy(CustomerGroupObserver::class)]
 #[Fillable([
     'code', 'name', 'description', 'is_active', 'sort_order', 'visible_sections', 'category_access_mode',
     'price_display', 'allowed_sales_modes', 'min_order_amount', 'allowed_delivery_codes', 'allowed_payment_codes',
-    'stock_display', 'require_login_to_order',
+    'stock_display', 'require_login_to_order', 'default_discount_percent', 'show_retail_price',
 ])]
 class CustomerGroup extends Model
 {
@@ -80,6 +82,8 @@ class CustomerGroup extends Model
             'allowed_delivery_codes' => 'array',
             'allowed_payment_codes' => 'array',
             'stock_display' => GroupStockDisplay::class,
+            'default_discount_percent' => 'decimal:2',
+            'show_retail_price' => 'boolean',
         ];
     }
 
@@ -109,6 +113,40 @@ class CustomerGroup extends Model
         $query->orderBy($query->qualifyColumn('sort_order'))->orderBy($query->qualifyColumn('id'));
     }
 
+    /**
+     * Loads the `has_price_data` flag with the group row (no extra query, GP-08): whether the group has any tiers or
+     * stored group prices. The storefront reads the viewer's group once per request and uses the flag to skip every price
+     * query for a group that pays the retail price.
+     *
+     * @param  Builder<CustomerGroup>  $query
+     */
+    public function scopeWithPriceData(Builder $query): void
+    {
+        $table = $query->qualifyColumn('id');
+
+        $query->select($query->qualifyColumn('*'))->selectRaw(
+            '(exists (select 1 from product_group_prices_final gp where gp.customer_group_id = '.$table.') or exists (select 1 from product_price_tiers pt where pt.customer_group_id = '.$table.')) as has_price_data',
+        );
+    }
+
+    /**
+     * The `has_price_data` flag when the group was loaded with {@see scopeWithPriceData()}, otherwise null (unknown).
+     */
+    public function hasPriceDataFlag(): ?bool
+    {
+        return array_key_exists('has_price_data', $this->attributes) ? (bool) $this->attributes['has_price_data'] : null;
+    }
+
+    /**
+     * Price rules bound to the group (GP-04).
+     *
+     * @return BelongsToMany<PriceRule, $this>
+     */
+    public function priceRules(): BelongsToMany
+    {
+        return $this->belongsToMany(PriceRule::class, 'price_rule_groups', 'customer_group_id', 'price_rule_id');
+    }
+
     public function isGuest(): bool
     {
         return $this->code === self::GUEST;
@@ -125,12 +163,12 @@ class CustomerGroup extends Model
      */
     public static function guest(): self
     {
-        return self::query()->where('code', self::GUEST)->first() ?? self::fallback(self::GUEST, 'Гость');
+        return self::query()->withPriceData()->where('code', self::GUEST)->first() ?? self::fallback(self::GUEST, 'Гость');
     }
 
     public static function retail(): self
     {
-        return self::query()->where('code', self::RETAIL)->first() ?? self::fallback(self::RETAIL, 'Розница');
+        return self::query()->withPriceData()->where('code', self::RETAIL)->first() ?? self::fallback(self::RETAIL, 'Розница');
     }
 
     /**
@@ -158,6 +196,8 @@ class CustomerGroup extends Model
             'category_access_mode' => CategoryAccessMode::All,
             'price_display' => PriceDisplayMode::Show,
             'stock_display' => GroupStockDisplay::Inherit,
+            'default_discount_percent' => '0.00',
+            'show_retail_price' => false,
         ]);
 
         return $group;
