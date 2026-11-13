@@ -253,9 +253,9 @@ final class CartService
 
     /**
      * Sets the quantity of a row. A change of the quantity that moves the unit price over a tier boundary is the
-     * customer's own doing, not a price change of the shop: the row is quoted again at the new price, so `price_at_add`
-     * follows and no «цена изменилась» notice appears. Within one tier `price_at_add` is kept, so a real change of the
-     * shop's price stays visible (SF-42).
+     * customer's own doing, not a price change of the shop: `price_at_add` is shifted by the tier difference (the unit
+     * price at the new quantity minus the one at the old quantity), so no «цена изменилась» notice appears for the
+     * crossing itself, while a change of the shop's price made in between stays visible (SF-42).
      */
     private function moveQty(CartItem $item, Stockable $unit, int $qty): void
     {
@@ -264,7 +264,7 @@ final class CartService
         $after = $this->priceOf($unit, $qty, $book)->unitPrice;
 
         if ($before !== $after) {
-            $item->price_at_add = Money::toRubles($after);
+            $item->price_at_add = Money::toRubles(max(0, Money::fromRubles($item->price_at_add) + $after - $before));
         }
 
         $item->qty = $qty;

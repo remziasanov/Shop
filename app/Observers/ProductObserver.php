@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Enums\PriceChangeSource;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\Catalog\RedirectService;
 use App\Services\Catalog\SlugService;
 use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\GroupPriceRecalculator;
+use App\Services\Pricing\PriceChangeContext;
 use App\Services\Pricing\PriceHistoryRecorder;
 use App\Services\Pricing\ProductPriceUpdater;
 use App\Services\Search\SearchNormalizer;
 use App\Services\Variants\SkuGuard;
 use App\Services\Variants\VariantAggregator;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Thin glue: slug, redirects, search text, price columns, price history and photo files.
@@ -31,6 +34,7 @@ final class ProductObserver
         private readonly SkuGuard $skus,
         private readonly VariantAggregator $aggregator,
         private readonly GroupPriceRecalculator $groupPrices,
+        private readonly PriceChangeContext $context,
     ) {}
 
     public function saving(Product $product): void
@@ -62,7 +66,9 @@ final class ProductObserver
         }
 
         // GP-07: the prices of the customer groups follow the retail price and the rule scope of the product.
-        if ($product->wasRecentlyCreated || $product->wasChanged(GroupPriceRecalculator::PRODUCT_FIELDS)) {
+        // An import queues one recalculation of all touched products at its end (RecalculatePrices), so it skips this.
+        if ($this->context->source() !== PriceChangeSource::Import
+            && ($product->wasRecentlyCreated || $product->wasChanged(GroupPriceRecalculator::PRODUCT_FIELDS))) {
             $this->groupPrices->recalculate([$product->id]);
         }
     }
@@ -82,6 +88,9 @@ final class ProductObserver
      */
     public function deleted(Product $product): void
     {
+        // Soft deletion fires no `saved`: the group prices of the product and of its variants go away (restore recomputes).
+        DB::table('product_group_prices_final')->where('product_id', $product->id)->delete();
+
         if ($product->isForceDeleting() || ! $product->has_variants || $product->deleted_at === null) {
             return;
         }

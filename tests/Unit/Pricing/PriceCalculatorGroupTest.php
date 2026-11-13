@@ -125,3 +125,24 @@ it('behaves exactly like v1 without a group context', function (): void {
 
     expect($result->finalPrice)->toBe(90_000)->and($result->displayOldPrice)->toBe(100_000);
 });
+
+it('rounds the rules part like retail, then discounts, then rounds again only with GP-19 (21.2 step 3)', function (): void {
+    $config = new PricingConfig(RoundingStep::Ten, RoundingDirection::Up);
+    $rules = [gcRule(1, PriceRuleAction::DiscountPercent, '5')];
+    $input = gcInput(100_300);
+
+    // 1 003 - 5 % = 952,85 -> 960 (retail); 10 % off -> 864; GP-19 on -> 870.
+    expect(gcCalc($input, $rules, null, $config)->finalPrice)->toBe(96_000)
+        ->and(gcCalc($input, $rules, new GroupPriceContext(7, '10', false), $config)->finalPrice)->toBe(86_400)
+        ->and(gcCalc($input, $rules, new GroupPriceContext(7, '10', true), $config)->finalPrice)->toBe(87_000);
+});
+
+it('rounds a group rule like retail even when GP-19 is off', function (): void {
+    $config = new PricingConfig(RoundingStep::Ten, RoundingDirection::Up);
+    $rules = [gcRule(1, PriceRuleAction::DiscountPercent, '5', [7])];
+    $input = gcInput(100_300);
+
+    expect(gcCalc($input, $rules, new GroupPriceContext(7, '0', false), $config)->finalPrice)->toBe(96_000)
+        ->and(gcCalc($input, $rules, new GroupPriceContext(7, '0', true), $config)->finalPrice)->toBe(96_000)
+        ->and(gcCalc($input, $rules, null, $config)->finalPrice)->toBe(100_300);
+});

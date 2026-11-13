@@ -21,9 +21,10 @@ use Carbon\CarbonInterface;
  *    does it stop the phase, and it does not trigger rounding;
  *  - "show as discount" counts only for applied discount rules;
  *  - the fixed price short-circuits everything, including rounding;
- *  - with a group context (GP-04, GP-05) rules bound to other groups are ignored, the group discount follows the rules
- *    (also on a fixed price), and the rounding step applies to a price that the group changed (a discount or a group
- *    rule) only when GP-19 allows. Without a group context rules bound to groups never apply (they do not touch retail).
+ *  - with a group context (GP-04, GP-05, 21.2 step 3) the normal pipeline runs with the rules for everyone and the
+ *    rules bound to the group, rounding included; then the group discount (half up to the kopeck, also on a fixed
+ *    price), then the rounding step once more only when GP-19 allows. Without a group context rules bound to groups
+ *    never apply (they do not touch retail).
  */
 final class PriceCalculator
 {
@@ -85,24 +86,20 @@ final class PriceCalculator
             $price = 0;
         }
 
-        $discounted = $group !== null && $group->hasDiscount();
+        // The retail pipeline, rounding included, with the rules for everyone and the rules bound to the group (21.2 step 3).
+        if (($applied !== [] || $config->scope === RoundingScope::All) && $config->step !== RoundingStep::None) {
+            $price = $this->round($price, $config, $steps);
+        }
 
-        if ($group !== null && $discounted) {
+        // Then the group discount, half up to the kopeck, and the rounding step again only when GP-19 allows.
+        if ($group !== null && $group->hasDiscount()) {
             $after = $this->scale($price, $group->discountPercent);
             $steps[] = PriceStep::groupDiscount($price, $after, $group->discountPercent);
             $price = $after;
-        }
 
-        // A price that the group changed is rounded only when GP-19 allows; otherwise it is the retail calculation.
-        $groupSpecific = $discounted || $this->usesGroupRule($active, $applied);
-        $roundingAllowed = $group === null || ! $groupSpecific || $group->applyRounding;
-        $changed = $applied !== [] || $discounted;
-
-        if ($roundingAllowed && ($changed || $config->scope === RoundingScope::All) && $config->step !== RoundingStep::None) {
-            $rounded = $this->rounding->apply($price, $config->step, $config->direction, $config->psychological);
-            $plain = $this->rounding->apply($price, $config->step, $config->direction, false);
-            $steps[] = PriceStep::rounding($price, $rounded, $config->step, $config->direction, $rounded !== $plain);
-            $price = min($rounded, RublesAmount::DEFAULT_MAX_KOPECKS);
+            if ($group->applyRounding && $config->step !== RoundingStep::None) {
+                $price = $this->round($price, $config, $steps);
+            }
         }
 
         $old = max($input->compareAtPrice ?? 0, $discountShown ? $priceBeforeDiscounts : 0);
@@ -124,10 +121,7 @@ final class PriceCalculator
             $final = $discounted;
 
             if ($group->applyRounding && $config->step !== RoundingStep::None) {
-                $rounded = $this->rounding->apply($final, $config->step, $config->direction, $config->psychological);
-                $plain = $this->rounding->apply($final, $config->step, $config->direction, false);
-                $steps[] = PriceStep::rounding($final, $rounded, $config->step, $config->direction, $rounded !== $plain);
-                $final = min($rounded, RublesAmount::DEFAULT_MAX_KOPECKS);
+                $final = $this->round($final, $config, $steps);
             }
         }
 
@@ -137,20 +131,17 @@ final class PriceCalculator
     }
 
     /**
-     * Whether an applied rule is bound to groups (the price then differs from the retail calculation).
+     * Apply the rounding step of the configuration and record the step.
      *
-     * @param  list<PriceRuleData>  $active
-     * @param  list<int>  $applied  ids of the applied rules
+     * @param  list<PriceStep>  $steps
      */
-    private function usesGroupRule(array $active, array $applied): bool
+    private function round(int $price, PricingConfig $config, array &$steps): int
     {
-        foreach ($active as $rule) {
-            if ($rule->groupIds !== [] && in_array($rule->id, $applied, true)) {
-                return true;
-            }
-        }
+        $rounded = $this->rounding->apply($price, $config->step, $config->direction, $config->psychological);
+        $plain = $this->rounding->apply($price, $config->step, $config->direction, false);
+        $steps[] = PriceStep::rounding($price, $rounded, $config->step, $config->direction, $rounded !== $plain);
 
-        return false;
+        return min($rounded, RublesAmount::DEFAULT_MAX_KOPECKS);
     }
 
     /**

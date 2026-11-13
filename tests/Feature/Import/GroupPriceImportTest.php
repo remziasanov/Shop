@@ -18,6 +18,7 @@ use App\Models\ProductPriceTier;
 use App\Models\ProductVariant;
 use App\Services\Import\ColumnMapper;
 use App\Services\Import\ImportWizard;
+use App\Services\Pricing\PriceChangeContext;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\ImportFiles;
@@ -329,4 +330,21 @@ describe('variant rows (GP-15)', function (): void {
 
         expect($import->error_count)->toBe(1)->and(importedTiers($variant, $this->group))->toBe([]);
     });
+});
+
+it('skips the synchronous group recalculation in the import context and still ends with correct group rows', function (): void {
+    $this->vip->update(['default_discount_percent' => '10']);
+
+    $inContext = app(PriceChangeContext::class)->run(PriceChangeSource::Import, null, fn () => Product::factory()->create(['base_price' => '1000.00']));
+
+    expect(gpRow($inContext, $this->vip))->toBeNull();
+
+    $import = runGroupCsv([
+        ['Артикул', 'Название', 'Категория', 'Цена'],
+        ['G-1', 'Стол для группы', 'Мебель', '2000'],
+    ]);
+
+    $created = Product::query()->where('sku', 'G-1')->firstOrFail();
+
+    expect($import->error_count)->toBe(0)->and(gpRow($created, $this->vip)['final'])->toBe('1800.00');
 });

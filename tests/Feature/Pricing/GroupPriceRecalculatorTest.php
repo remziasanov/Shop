@@ -17,6 +17,7 @@ use App\Services\Pricing\GroupPriceRecalculator;
 use App\Services\Pricing\PriceRuleData;
 use App\Services\Pricing\PriceRuleRecalculator;
 use App\Services\Pricing\PriceRuleSaver;
+use App\Services\Pricing\PriceTierService;
 use App\Services\Pricing\RecalculationProgress;
 use App\Settings\PricingSettings;
 use Illuminate\Support\Facades\DB;
@@ -135,6 +136,16 @@ describe('rows of the group discount', function (): void {
 
         expect(CatalogVersion::current())->not->toBe($before);
     });
+});
+
+it('removes the rows of a soft-deleted plain product', function (): void {
+    $product = gpProduct();
+    $this->group->update(['default_discount_percent' => '10']);
+    expect(gpRow($product, $this->group))->not->toBeNull();
+
+    $product->delete();
+
+    expect(gpRow($product, $this->group))->toBeNull();
 });
 
 describe('exact prices', function (): void {
@@ -341,6 +352,54 @@ describe('rounding (GP-19)', function (): void {
     });
 });
 
+describe('rules, rounding and discount (21.2 step 3)', function (): void {
+    beforeEach(function (): void {
+        $settings = app(PricingSettings::class);
+        $settings->rounding_step = RoundingStep::Ten;
+        $settings->rounding_direction = RoundingDirection::Up;
+        $settings->rounding_scope = RoundingScope::Changed;
+        $settings->save();
+        $this->product = gpProduct('1003.00');
+        app(PriceRuleSaver::class)->save(null, gpRuleState(['value' => '5']));
+        $this->group->update(['default_discount_percent' => '10']);
+    });
+
+    it('rounds the retail part, discounts it and does not round again when GP-19 is off', function (): void {
+        $settings = app(PricingSettings::class);
+        $settings->group_prices_rounding = false;
+        $settings->save();
+        $this->recalc->recalculate([$this->product->id]);
+
+        expect($this->product->fresh()->final_price)->toBe('960.00')
+            ->and(gpRow($this->product, $this->group)['final'])->toBe('864.00');
+    });
+
+    it('rounds again when GP-19 is on', function (): void {
+        expect(gpRow($this->product, $this->group)['final'])->toBe('870.00');
+    });
+
+    it('rounds a group-bound rule like retail when GP-19 is off', function (): void {
+        $settings = app(PricingSettings::class);
+        $settings->group_prices_rounding = false;
+        $settings->save();
+        $other = CustomerGroup::factory()->create();
+        app(PriceRuleSaver::class)->save(null, gpRuleState(['name' => 'Группа', 'value' => '3', 'group_ids' => [$other->id]]));
+
+        // 1 003 -5 % -3 % = 924,2 -> 930 (rounded as retail).
+        expect(gpRow($this->product, $other)['final'])->toBe('930.00');
+    });
+
+    it('uses the corrected value in the tier warnings', function (): void {
+        $settings = app(PricingSettings::class);
+        $settings->group_prices_rounding = false;
+        $settings->save();
+
+        $result = app(PriceTierService::class)->validate($this->product->fresh(), $this->group, [['min_qty' => 5, 'price' => '870']]);
+
+        expect(array_map(fn ($i) => $i->code, $result->warnings))->toBe(['above_group_price']);
+    });
+});
+
 describe('cards with variants', function (): void {
     beforeEach(function (): void {
         $this->size = optionWith('Размер', ['S', 'M', 'L']);
@@ -414,6 +473,17 @@ describe('cards with variants', function (): void {
 
         expect(gpRow($this->s, $this->group)['final'])->toBe('450.00')
             ->and(gpRow($this->card, $this->group)['final'])->toBe('450.00');
+    });
+
+    it('removes the rows of a soft-deleted card and its variants at once and brings them back on restore', function (): void {
+        $this->card->delete();
+
+        expect(ProductGroupPrice::query()->where('product_id', $this->card->id)->count())->toBe(0);
+
+        $this->card->restore();
+
+        expect(gpRow($this->card, $this->group)['final'])->toBe('450.00')
+            ->and(gpRow($this->s, $this->group)['final'])->toBe('450.00');
     });
 
     it('removes the rows of a trashed card', function (): void {

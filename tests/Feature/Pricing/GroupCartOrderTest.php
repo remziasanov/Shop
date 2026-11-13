@@ -75,6 +75,19 @@ it('does not call a tier crossing by the customer a price change (SF-42, GP-11)'
         ->and(app(CartService::class)->summary($this->cart)->hasChanges)->toBeFalse();
 });
 
+it('shifts price_at_add by the tier difference so a shop price change in between stays visible (SF-42)', function (): void {
+    $this->carts->add($this->cart, $this->product, 5);   // 900 at add
+    $this->product->update(['base_price' => '1100.00']);  // the group price becomes 990 below the tier
+    $this->carts->update($this->cart, $this->product->id, 10);   // tier 800: the customer's crossing is 990 -> 800
+
+    $item = $this->cart->items()->first();
+
+    // 900 + (800 - 990) = 710 against the current 800: the shop's +90 is still reported.
+    expect($item->price_at_add)->toBe('710.00')
+        ->and(gpLine($this->cart)->priceChanged)->toBeTrue()
+        ->and(gpLine($this->cart)->priceAtAdd)->toBe(71_000);
+});
+
 it('keeps a real price change visible when the quantity changes inside one tier (SF-42)', function (): void {
     $this->carts->add($this->cart, $this->product, 2);   // 900 at add
     $this->product->update(['base_price' => '1100.00']);  // the group price becomes 990
@@ -84,9 +97,10 @@ it('keeps a real price change visible when the quantity changes inside one tier 
 
     expect($line->priceChanged)->toBeTrue()->and($line->priceAtAdd)->toBe(90_000)->and($line->currentPrice)->toBe(99_000);
 
-    // A change of the tier price shows up as well.
+    // Crossing into the tier keeps the shop's change visible (price_at_add is shifted, not overwritten); a change
+    // of the tier price shows up as well.
     $this->carts->update($this->cart, $this->product->id, 10);
-    expect(gpLine($this->cart)->priceChanged)->toBeFalse();
+    expect(gpLine($this->cart)->priceChanged)->toBeTrue();
     ProductPriceTier::query()->where('min_qty', 10)->update(['price' => '750.00']);
     expect(gpLine($this->cart)->priceChanged)->toBeTrue()->and(gpLine($this->cart)->currentPrice)->toBe(75_000);
 });
