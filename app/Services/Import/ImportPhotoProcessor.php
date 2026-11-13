@@ -14,6 +14,7 @@ use App\Models\Import;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Services\Media\ImageProcessor;
+use App\Services\Variants\VariantPhotoColors;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -354,6 +355,8 @@ final class ImportPhotoProcessor
         if ($mode === PhotoMode::Replace && $colorValueId === null && $this->reorder($product, $order)) {
             $changed = true;
         }
+
+        app(VariantPhotoColors::class)->normalizeOrder($product->id);
 
         return null;
     }

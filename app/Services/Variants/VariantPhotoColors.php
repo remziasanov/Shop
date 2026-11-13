@@ -61,7 +61,31 @@ final class VariantPhotoColors
 
         $image->option_value_id = $optionValueId;
         $image->save();
+        $this->normalizeOrder($image->product_id);
 
         return $image;
+    }
+
+    /**
+     * Common photos first, photos of colours after them, each group in its current order: the storefront takes the
+     * first photo by `sort_order` as the main one, and that must be a common photo (VR-11).
+     */
+    public function normalizeOrder(int $productId): void
+    {
+        $images = ProductImage::query()->where('product_id', $productId)->orderBy('sort_order')->orderBy('id')->get(['id', 'sort_order', 'option_value_id']);
+
+        if ($images->whereNotNull('option_value_id')->isEmpty()) {
+            return;
+        }
+
+        $position = 0;
+
+        foreach ($images->whereNull('option_value_id')->concat($images->whereNotNull('option_value_id')) as $image) {
+            if ($image->sort_order !== $position) {
+                ProductImage::query()->whereKey($image->id)->update(['sort_order' => $position]);
+            }
+
+            $position++;
+        }
     }
 }

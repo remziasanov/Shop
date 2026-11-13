@@ -364,6 +364,17 @@ describe('photo colour (VR-11)', function (): void {
         expect($image->refresh()->option_value_id)->toBeNull();
     });
 
+    it('keeps the common photos ahead of the colour ones, so the main photo is a common one (VR-11)', function (): void {
+        $card = variantCard([], $this->color);
+        $first = ProductImage::factory()->create(['product_id' => $card->id, 'sort_order' => 0]);
+        $second = ProductImage::factory()->create(['product_id' => $card->id, 'sort_order' => 1]);
+
+        productImagesTable($card)->call('updateTableColumnState', 'option_value_id', $first->getKey(), (string) $this->color->values[0]->id);
+
+        expect($card->images()->orderBy('sort_order')->pluck('id')->all())->toBe([$second->id, $first->id])
+            ->and($card->mainImage()->value('id'))->toBe($second->id);
+    });
+
     it('refuses a value of a non-colour option and hides the column without a colour axis', function (): void {
         $card = variantCard([], $this->color, $this->size);
         $image = ProductImage::factory()->create(['product_id' => $card->id]);
