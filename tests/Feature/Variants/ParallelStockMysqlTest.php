@@ -29,8 +29,12 @@ function startWorker(string $action, int $id): Process
     return $process;
 }
 
+beforeEach(function (): void {
+    $this->committedFixtures = false;
+});
+
 afterEach(function (): void {
-    if (DB::getDriverName() === 'mysql' && $this->committedFixtures ?? false) {
+    if (DB::getDriverName() === 'mysql' && ($this->committedFixtures ?? false)) {
         Artisan::call('migrate:fresh');
     }
 });

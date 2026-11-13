@@ -134,7 +134,7 @@ final class VariantSwitchActions
             ->visible(fn (Product $record): bool => $record->has_variants && ! $record->trashed() && self::canUpdate())
             ->modalHeading(__('admin_variants.switch.disable_heading'))
             ->modalDescription(fn (Product $record): string => self::requestsNote($record) ?? __('admin_variants.switch.disable_description'))
-            // Irreversible (D-115): the card article has to be typed.
+            // Irreversible (D-116): the card article has to be typed.
             ->schema(fn (Product $record): array => [
                 TextInput::make('confirm_sku')
                     ->label(__('admin_variants.switch.disable_confirm_label', ['sku' => $record->sku]))

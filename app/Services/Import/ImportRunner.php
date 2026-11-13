@@ -872,6 +872,8 @@ final class ImportRunner
      * @param  list<int>  $ids
      * @return int number of variants that were active
      */
+    // Runs outside a transaction (autocommit): the variant UPDATE releases its locks before the cards are locked
+    // for the rollup. Wrapping this in a transaction would reverse the products → variants lock order (19.5).
     private function deactivateVariantRows(array $ids, VariantAggregator $aggregator): int
     {
         if ($ids === []) {
