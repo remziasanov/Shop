@@ -10,6 +10,7 @@ use App\Mail\OrderStatusChangedCustomerMail;
 use App\Models\Order;
 use App\Services\Notifications\JobFanOut;
 use App\Services\Notifications\TelegramNotifier;
+use App\Services\Telegram\Staff\StaffOrderNotifier;
 use App\Settings\NotificationSettings;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -99,6 +100,11 @@ class SendOrderNotifications implements ShouldQueue
 
         if ($telegram->isEnabled() && $settings->notify_shop_telegram) {
             $jobs[] = new SendTelegramNotification($order->id, SendTelegramNotification::NEW_REQUEST);
+        }
+
+        // TS-08: staff who asked for personal messages (their right to see requests is checked again when sending).
+        foreach (app(StaffOrderNotifier::class)->personalRecipients() as $user) {
+            $jobs[] = new SendStaffPersonalNotification($order->id, $user->id);
         }
 
         return $jobs;

@@ -32,6 +32,7 @@ final class TelegramSessionService
         private readonly TelegramLinkService $links,
         private readonly CartMerger $merger,
         private readonly TelegramAccountService $accounts,
+        private readonly StaffSessionService $staff,
     ) {}
 
     /**
@@ -51,6 +52,9 @@ final class TelegramSessionService
         } else {
             $session->regenerate();
         }
+
+        // TS-05: the customer entry ends a staff sign-in of this session (the session was regenerated above).
+        $this->staff->end($session);
 
         $session->put([
             TelegramMode::SESSION_KEY => true,
@@ -149,6 +153,8 @@ final class TelegramSessionService
      */
     public function leave(Session $session): void
     {
+        $this->staff->end($session);
+
         if ($session->get(TelegramMode::LOGIN_KEY) === true) {
             $this->forgetCustomer($session);
         }

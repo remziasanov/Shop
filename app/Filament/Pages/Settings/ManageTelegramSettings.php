@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages\Settings;
 
+use App\Enums\CustomerTelegramEvent;
 use App\Filament\Concerns\AdminOnlySettingsPage;
 use App\Services\Telegram\TelegramBotSetup;
 use App\Settings\TelegramSettings;
@@ -37,6 +38,8 @@ class ManageTelegramSettings extends SettingsPage
         'enabled', 'work_chat_id', 'menu_button_text', 'welcome_text', 'help_text', 'miniapp_enabled', 'autologin_enabled',
         'customer_notifications_enabled', 'work_chat_buttons_enabled', 'staff_workplace_enabled', 'miniapp_colors',
         'initdata_ttl_customer', 'initdata_ttl_staff',
+        'notify_order_created', 'notify_status_changed', 'notify_reservation_expiring', 'notify_reservation_expired',
+        'notify_items_changed', 'notify_wholesale_decision', 'notify_export_ready',
     ];
 
     protected static string $settings = TelegramSettings::class;
@@ -148,6 +151,16 @@ class ManageTelegramSettings extends SettingsPage
                     ->label(__('telegram.admin.fields.initdata_ttl_staff'))
                     ->numeric()->integer()->minValue(60)->maxValue(86400)->required()->suffix(__('telegram.admin.seconds')),
             ])->columns(2),
+            // TN-02: the events reported to customers.
+            Section::make(__('telegram_notify.admin.section'))
+                ->description(__('telegram_notify.admin.section_help'))
+                ->schema(array_map(
+                    fn (CustomerTelegramEvent $event): Toggle => Toggle::make($event->settingName())
+                        ->label($event->label())
+                        ->helperText($event === CustomerTelegramEvent::ExportReady ? __('telegram_notify.admin.export_ready_help') : null),
+                    CustomerTelegramEvent::cases(),
+                ))
+                ->columns(2),
             Section::make(__('telegram.admin.sections.startapp'))->schema([
                 View::make('filament.settings.telegram-startapp')
                     ->viewData(fn (): array => [

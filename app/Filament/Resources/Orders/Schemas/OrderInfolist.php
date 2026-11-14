@@ -8,6 +8,7 @@ use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\PriceSource;
+use App\Enums\TelegramMessageKind;
 use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\Orders\Tables\OrdersTable;
 use App\Filament\Resources\Products\ProductResource;
@@ -202,6 +203,25 @@ final class OrderInfolist
                     ->schema([
                         TextEntry::make('customer_comment')->label(__('admin_orders.view.customer_comment'))->placeholder(__('admin_orders.view.no_comment')),
                         TextEntry::make('manager_comment')->label(__('admin_orders.view.manager_comment'))->placeholder(__('admin_orders.view.no_comment')),
+                    ]),
+
+                // TN-07: the messages sent to the customer in Telegram, in their own block.
+                Section::make(__('telegram_notify.order.section'))
+                    ->collapsed()
+                    ->schema([
+                        ViewEntry::make('telegram_customer_messages')
+                            ->hiddenLabel()
+                            ->view('filament.orders.telegram-customer-messages'),
+                    ]),
+
+                // TS-01: the messages about the request sent to the staff (work chat, personal chats), in their own block.
+                Section::make(__('telegram_staff.admin.section'))
+                    ->collapsed()
+                    ->visible(fn (Order $record): bool => $record->telegramMessages()->where('kind', TelegramMessageKind::StaffNewOrder->value)->exists())
+                    ->schema([
+                        ViewEntry::make('telegram_staff_messages')
+                            ->hiddenLabel()
+                            ->view('filament.orders.telegram-staff-messages'),
                     ]),
 
                 // OE-07: the status history and the merged «История изменений» timeline are two tabs of the card.

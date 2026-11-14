@@ -17,6 +17,7 @@ use App\Models\Customer;
 use App\Models\Export;
 use App\Models\Order;
 use App\Services\Customers\CustomerNotificationService;
+use App\Services\Telegram\CustomerTelegramNotifier;
 use App\Settings\CustomerSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
@@ -502,6 +503,13 @@ final class CustomerExportService
             route('customer.exports', [], false),
             'export-ready:'.$export->id,
         );
+
+        // CX, TN-02: the optional Telegram message (off by default in the shop); a queued job, its failure changes nothing.
+        try {
+            app(CustomerTelegramNotifier::class)->exportReady($export, $customer, $export->type === ExportType::CustomerOrdersPdf ? 'PDF' : 'Excel');
+        } catch (Throwable $e) {
+            report($e);
+        }
 
         if ($this->settings->export_email_link && $customer->anonymized_at === null && filled($customer->email)) {
             Mail::to($customer->email)->send(new CustomerExportReadyMail(

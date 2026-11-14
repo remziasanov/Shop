@@ -19,9 +19,19 @@ class StopCommand
      */
     public function handle(TelegramAccount $account): array
     {
-        $account->notify_enabled = false;
-        $account->save();
+        $this->disable($account);
 
         return $this->messages->reply($account, __('telegram.bot.stopped'));
+    }
+
+    /**
+     * The «Не присылать уведомления» button under a customer message (TN-06): the same switch as `/stop`.
+     */
+    public function disable(TelegramAccount $account): void
+    {
+        if ($account->notify_enabled) {
+            $account->notify_enabled = false;
+            $account->save();
+        }
     }
 }

@@ -26,6 +26,27 @@
                     @if ($telegram['needsStart'])
                         <p class="mt-1 text-sm text-ink-soft" data-telegram-start-hint>{{ __('telegram.cabinet.start_hint') }}</p>
                     @endif
+                    @if ($telegram['stopped'])
+                        <p class="mt-1 text-sm text-ink-soft" data-telegram-stopped>{{ __('telegram_notify.cabinet.stopped') }}</p>
+                    @endif
+                    {{-- TN-05: which events come to Telegram; the checked ones stay on. --}}
+                    @if ($telegram['events'] !== [])
+                        <form method="POST" action="{{ route('customer.telegram.events') }}" class="mt-3" data-telegram-events>
+                            @csrf
+                            <fieldset>
+                                <legend class="text-sm font-medium">{{ __('telegram_notify.cabinet.events_title') }}</legend>
+                                <div class="mt-2 space-y-1">
+                                    @foreach ($telegram['events'] as $event)
+                                        <label class="flex min-h-11 items-center gap-3 text-sm">
+                                            <input type="checkbox" name="events[]" value="{{ $event['value'] }}" @checked($event['enabled']) class="size-5 rounded border-line text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                                            <span>{{ $event['label'] }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </fieldset>
+                            <x-account.button variant="secondary" class="mt-2 text-sm">{{ __('telegram_notify.cabinet.save') }}</x-account.button>
+                        </form>
+                    @endif
                     <form method="POST" action="{{ route('customer.telegram.disconnect') }}" class="mt-3">
                         @csrf
                         <x-account.button variant="secondary" class="text-sm">{{ __('telegram.cabinet.disconnect') }}</x-account.button>

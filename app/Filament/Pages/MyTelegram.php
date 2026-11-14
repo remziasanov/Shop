@@ -26,6 +26,30 @@ class MyTelegram extends Page
 
     public ?string $link = null;
 
+    /** TS-08: personal Telegram messages about new requests (the profile switch, off by default). */
+    public bool $personalNotify = false;
+
+    public function mount(): void
+    {
+        $this->personalNotify = $this->isLinked() && $this->user()->telegram_personal_notify;
+    }
+
+    public function updatedPersonalNotify(bool $value): void
+    {
+        $user = $this->user();
+
+        // Without a linked Telegram there is nobody to write to.
+        if (! $this->isLinked()) {
+            $this->personalNotify = false;
+            Notification::make()->warning()->title(__('telegram_staff.personal.needs_link'))->send();
+
+            return;
+        }
+
+        $user->forceFill(['telegram_personal_notify' => $value])->save();
+        Notification::make()->success()->title(__('telegram_staff.personal.saved'))->send();
+    }
+
     public static function canAccess(): bool
     {
         return auth()->user() instanceof User;
@@ -72,6 +96,7 @@ class MyTelegram extends Page
                 ->visible(fn (): bool => $this->isLinked())
                 ->action(function (): void {
                     app(TelegramLinkService::class)->unlinkStaff($this->user());
+                    $this->personalNotify = false;
                     $this->link = null;
                     $this->user()->unsetRelation('telegramAccount');
                     Notification::make()->success()->title(__('telegram.staff.disconnected'))->send();

@@ -51,6 +51,22 @@ class TelegramSettings extends Settings
     /** Status messages to customers in Telegram (TN). */
     public bool $customer_notifications_enabled;
 
+    /** TN-02: which events are reported to customers (each switch is `CustomerTelegramEvent::settingName()`). */
+    public bool $notify_order_created;
+
+    public bool $notify_status_changed;
+
+    public bool $notify_reservation_expiring;
+
+    public bool $notify_reservation_expired;
+
+    public bool $notify_items_changed;
+
+    public bool $notify_wholesale_decision;
+
+    /** Off by default: the history export is requested by the customer and shown in the cabinet. */
+    public bool $notify_export_ready;
+
     /** Action buttons under work chat messages (TS-03). */
     public bool $work_chat_buttons_enabled;
 
