@@ -37,7 +37,13 @@ function pdfTextExtract(string $pdf): string
     }
 
     foreach ($streams[1] as $raw) {
+        // The regex may swallow a final "\r" byte of the compressed data as part of the line break before
+        // «endstream» (it depends on the bytes, so it is random): retry with it put back.
         $content = @gzuncompress($raw);
+
+        if ($content === false) {
+            $content = @gzuncompress($raw."\r");
+        }
 
         if ($content === false || ! str_contains($content, ' Tf')) {
             continue;
