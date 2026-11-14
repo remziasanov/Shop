@@ -77,6 +77,13 @@
             </ol>
         </section>
 
+        @if ($canDownloadBlank)
+            {{-- CX-10: only for groups with the «Может скачивать бланк/счёт» flag. --}}
+            <p class="mt-8">
+                <a href="{{ route('customer.orders.blank', $order->uuid) }}" class="inline-block rounded border border-slate-300 px-4 py-2 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-order-blank>{{ __('customer_export.blank.download') }}</a>
+            </p>
+        @endif
+
         @if ($canRepeat)
             <form method="POST" action="{{ route('customer.orders.repeat', $order->uuid) }}" class="mt-8">
                 @csrf

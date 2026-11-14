@@ -42,6 +42,42 @@ class CustomerSettings extends Settings
     /** CA-25: free text under the code in every mail with a code (may be empty). */
     public string $code_mail_footer;
 
+    /** CX-04: an Excel export of at most this many requests is built in the web request. */
+    public int $export_sync_xlsx_max;
+
+    /** CX-04: a PDF export without items of at most this many requests is built in the web request. */
+    public int $export_sync_pdf_max;
+
+    /** CX-04: the same, with the items of the orders. */
+    public int $export_sync_pdf_items_max;
+
+    /** CX-05: hard limit of requests in a PDF without items. */
+    public int $export_max_pdf;
+
+    /** CX-05: hard limit of requests in a PDF with items. */
+    public int $export_max_pdf_items;
+
+    /** CX-05: hard limit of table rows of a PDF (requests plus, with items, their positions): dompdf memory grows with rows. */
+    public int $export_max_pdf_rows;
+
+    /** CX-05: hard limit of rows of an Excel file (requests plus items). */
+    public int $export_max_xlsx_rows;
+
+    /** CX-07: hours a finished file can be downloaded. */
+    public int $export_retention_hours;
+
+    /** CX-09: export requests per customer per hour. */
+    public int $export_requests_per_hour;
+
+    /** CX-09: unfinished exports a customer may have at once. */
+    public int $export_max_pending;
+
+    /** CX-09: file downloads per customer per hour. */
+    public int $export_downloads_per_hour;
+
+    /** CX-06: e-mail with the link when a background export is ready. */
+    public bool $export_email_link;
+
     public static function group(): string
     {
         return 'customers';

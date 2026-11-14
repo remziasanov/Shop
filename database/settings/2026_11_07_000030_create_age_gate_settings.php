@@ -22,4 +22,18 @@ return new class extends SettingsMigration
         $this->migrator->add('age_gate.decline_message', 'К сожалению, содержимое этого раздела доступно только совершеннолетним посетителям.');
         $this->migrator->add('age_gate.show_badge', true);
     }
+
+    public function down(): void
+    {
+        $this->migrator->delete('age_gate.enabled');
+        $this->migrator->delete('age_gate.mode');
+        $this->migrator->delete('age_gate.site_min_age');
+        $this->migrator->delete('age_gate.remember_days');
+        $this->migrator->delete('age_gate.title');
+        $this->migrator->delete('age_gate.text');
+        $this->migrator->delete('age_gate.yes_label');
+        $this->migrator->delete('age_gate.no_label');
+        $this->migrator->delete('age_gate.decline_message');
+        $this->migrator->delete('age_gate.show_badge');
+    }
 };

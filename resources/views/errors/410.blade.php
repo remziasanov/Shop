@@ -1,0 +1,1 @@
+@include('errors._page', ['code' => 410, 'title' => __('customer_export.errors.gone_title'), 'text' => $exception->getMessage() !== '' ? $exception->getMessage() : __('customer_export.errors.gone'), 'links' => true])

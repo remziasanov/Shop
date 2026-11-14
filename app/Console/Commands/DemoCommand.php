@@ -40,6 +40,7 @@ class DemoCommand extends Command
         $this->components->info(__('demo.summary_title'));
         $this->line(__('demo.categories', ['created' => $report['categories_created'], 'updated' => $report['categories_updated']]));
         $this->line(__('demo.products', ['created' => $report['products_created'], 'updated' => $report['products_updated']]));
+        $this->line(__('demo.wholesale', ['prices' => $report['wholesale_prices'], 'variants' => $report['variants'], 'promo' => $report['promo'], 'filters' => $report['filters']]));
         $this->line($withImages
             ? __('demo.images', ['created' => $report['images_created'], 'skipped' => $report['images_skipped']])
             : __('demo.images_disabled'));

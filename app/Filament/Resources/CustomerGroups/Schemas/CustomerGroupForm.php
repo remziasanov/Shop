@@ -76,6 +76,11 @@ final class CustomerGroupForm
                         ->default(true)
                         ->disabled(fn (?CustomerGroup $record): bool => $record !== null && $record->is_system)
                         ->dehydrated(fn (?CustomerGroup $record): bool => $record === null || ! $record->is_system),
+                    // CX-10: the cabinet button «Скачать бланк заказа (PDF)».
+                    Toggle::make('allow_order_blank')
+                        ->label(__('customer_groups.fields.allow_order_blank'))
+                        ->helperText(__('customer_groups.fields.allow_order_blank_hint'))
+                        ->default(false),
                 ])->columns(2),
 
                 Tab::make(__('customer_groups.tabs.access'))->schema([

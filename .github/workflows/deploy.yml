@@ -363,6 +363,7 @@ jobs:
           # 2. Writable structure (storage/ is never shipped). The private disk root is storage/app/private.
           mkdir -p storage/app/public storage/app/private \
             storage/framework/cache/data storage/framework/sessions storage/framework/views storage/framework/testing \
+            storage/fonts storage/app/private/tmp/dompdf \
             storage/logs bootstrap/cache
           chmod -R ug+rwX storage bootstrap/cache 2>/dev/null || true
 

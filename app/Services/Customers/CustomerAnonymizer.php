@@ -14,6 +14,7 @@ use App\Models\CustomerNotification;
 use App\Models\CustomerVerificationCode;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Export\CustomerExportService;
 use App\Services\Users\AuditLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -23,7 +24,7 @@ use Illuminate\Support\Str;
  *
  *  - The customer: name «Удалённый покупатель», e-mail `deleted-{id}@anonymous.invalid`, no phone, a random password,
  *    blocked, `anonymized_at` set, every session ended. The row stays, so requests keep pointing at it.
- *  - Deleted: addresses, company, cabinet notifications, e-mail codes, carts. Features with personal data of their
+ *  - Deleted: addresses, company, cabinet notifications, history exports (CX-06), e-mail codes, carts. Features with personal data of their
  *    own (wholesale applications) erase it in a listener of {@see CustomerAnonymizing}, which fires first, inside
  *    the transaction.
  *  - Requests of the customer (guest requests with the verified address are linked first) lose name, phone, e-mail, delivery address, comment, user agent and consent IP; items,
@@ -80,6 +81,8 @@ final class CustomerAnonymizer
             CustomerAddress::query()->where('customer_id', $locked->id)->delete();
             CustomerCompany::query()->where('customer_id', $locked->id)->delete();
             CustomerNotification::query()->where('customer_id', $locked->id)->delete();
+            // CX-06: the history exports (files and rows) hold the same personal data.
+            app(CustomerExportService::class)->purgeForCustomer($locked);
             CustomerVerificationCode::query()->where('customer_id', $locked->id)->orWhere('email', $oldEmail)->delete();
 
             foreach (Cart::query()->where('customer_id', $locked->id)->pluck('id') as $cartId) {

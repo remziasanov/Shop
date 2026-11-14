@@ -7,14 +7,17 @@ use App\Http\Controllers\Admin\ExportDownloadController;
 use App\Http\Controllers\Admin\ImportFileDownloadController;
 use App\Http\Controllers\Admin\ImportProcessNextController;
 use App\Http\Controllers\Admin\ImportTemplateController;
+use App\Http\Controllers\Admin\OrderPdfController;
 use App\Http\Controllers\Admin\OrderPrintController;
 use App\Http\Controllers\Storefront\Account\AccountController;
 use App\Http\Controllers\Storefront\Account\AddressController;
 use App\Http\Controllers\Storefront\Account\CompanyController;
 use App\Http\Controllers\Storefront\Account\EmailConfirmationController;
+use App\Http\Controllers\Storefront\Account\ExportController;
 use App\Http\Controllers\Storefront\Account\LoginController;
 use App\Http\Controllers\Storefront\Account\LogoutController;
 use App\Http\Controllers\Storefront\Account\NotificationController;
+use App\Http\Controllers\Storefront\Account\OrderBlankController;
 use App\Http\Controllers\Storefront\Account\OrderHistoryController;
 use App\Http\Controllers\Storefront\Account\PasswordResetController;
 use App\Http\Controllers\Storefront\Account\ProfileController;
@@ -111,6 +114,13 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         Route::get('/orders', [OrderHistoryController::class, 'index'])->name('customer.orders');
         Route::get('/orders/{uuid}', [OrderHistoryController::class, 'show'])->name('customer.orders.show');
         Route::post('/orders/{uuid}/repeat', [OrderHistoryController::class, 'repeat'])->name('customer.orders.repeat');
+        // CX-10: the order blank / invoice as PDF (groups with the allow_order_blank flag).
+        Route::get('/orders/{uuid}/blank', OrderBlankController::class)->name('customer.orders.blank');
+
+        // CX-01, CX-04…CX-09: order history exports, the list «Мои выгрузки», the download by UUID.
+        Route::get('/exports', [ExportController::class, 'index'])->name('customer.exports');
+        Route::post('/exports', [ExportController::class, 'store'])->name('customer.exports.store');
+        Route::get('/exports/{uuid}', [ExportController::class, 'download'])->name('customer.exports.download');
 
         // CA-18: cabinet notifications.
         Route::get('/notifications', [NotificationController::class, 'index'])->name('customer.notifications');
@@ -171,6 +181,8 @@ Route::middleware([FilamentAuthenticate::class])
     ->prefix((string) config('shop.admin_path'))
     ->group(function (): void {
         Route::get('/orders/{order}/print', OrderPrintController::class)->name('admin.orders.print');
+        // CX-13: the same document as the cabinet blank (invoice or blank), as a PDF file.
+        Route::get('/orders/{order}/pdf', OrderPdfController::class)->name('admin.orders.pdf');
     });
 
 // AD-11: cron setup instructions linked from the scheduler warning; administrators and managers.

@@ -18,6 +18,7 @@ require_once __DIR__.'/Support/variants.php';
 require_once __DIR__.'/Support/group_prices.php';
 require_once __DIR__.'/Support/promo.php';
 require_once __DIR__.'/Support/reservation_cart.php';
+require_once __DIR__.'/Support/pdf.php';
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)

@@ -53,6 +53,12 @@
                         <span class="block text-sm text-slate-600">{{ __('account.index.notifications_hint') }}</span>
                     </a>
                 </li>
+                <li>
+                    <a href="{{ route('customer.exports') }}" class="block rounded-lg border border-slate-200 p-4 hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-exports-link>
+                        <span class="block font-semibold">{{ __('customer_export.list.title') }}</span>
+                        <span class="block text-sm text-slate-600">{{ __('customer_export.list.index_hint') }}</span>
+                    </a>
+                </li>
                 @if (app(\App\Services\Access\ViewerContext::class)->access()->allowsSection(\App\Enums\StorefrontSection::PriceList))
                     {{-- CG-17: the wholesale price list of the customer's group. --}}
                     <li>

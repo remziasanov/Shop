@@ -11,6 +11,7 @@ use App\Services\Variants\SkuGuard;
 use App\Services\Variants\VariantAggregator;
 use App\Support\TrustedHosts;
 use Closure;
+use Composer\InstalledVersions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -35,8 +36,11 @@ class EnvironmentChecker
 
     private const EXTENSIONS = [
         'pdo_mysql', 'mbstring', 'intl', 'gd', 'zip', 'fileinfo',
-        'bcmath', 'openssl', 'curl', 'xml', 'ctype', 'tokenizer',
+        'bcmath', 'openssl', 'curl', 'xml', 'ctype', 'tokenizer', 'dom',
     ];
+
+    /** Extensions of the PDF library (CX-12, D-079); `dom` and `mbstring` are required, `gd` draws the images. */
+    private const DOMPDF_EXTENSIONS = ['mbstring', 'dom', 'gd'];
 
     /**
      * @param  ?string  $phpVersion  overrides PHP_VERSION (tests)
@@ -91,6 +95,7 @@ class EnvironmentChecker
             'attribute_migration' => fn () => $this->attributeMigration(),
             'variant_skus' => fn () => $this->variantSkus(),
             'variant_aggregates' => fn () => $this->variantAggregates(),
+            'dompdf' => fn () => $this->dompdf(),
         ];
 
         $results = [];
@@ -458,6 +463,35 @@ class EnvironmentChecker
         }
 
         return $this->result('attribute_migration', CheckStatus::Ok, $state->isMigrated() ? __('attributes.migration.done') : __('attributes.migration.not_needed'));
+    }
+
+    /**
+     * D-079, CX-12: the PDF library needs the extensions mbstring, dom and gd, a writable font cache (storage/fonts) and
+     * a version of the library that is installed.
+     */
+    private function dompdf(): CheckResult
+    {
+        $missing = array_values(array_filter(self::DOMPDF_EXTENSIONS, fn (string $name): bool => ! extension_loaded($name)));
+
+        if ($missing !== []) {
+            return $this->result('dompdf', CheckStatus::Error, __('system.values.missing').': '.implode(', ', $missing),
+                __('system.hints.dompdf_extensions', ['names' => implode(', ', $missing)]));
+        }
+
+        $fonts = (string) config('dompdf.options.font_cache', storage_path('fonts'));
+
+        if (! is_dir($fonts) || ! is_writable($fonts)) {
+            return $this->result('dompdf', CheckStatus::Error, __('system.values.not_writable').': '.$fonts,
+                __('system.hints.dompdf_fonts', ['path' => $fonts]));
+        }
+
+        $version = InstalledVersions::isInstalled('dompdf/dompdf') ? InstalledVersions::getPrettyVersion('dompdf/dompdf') : null;
+
+        if ($version === null) {
+            return $this->result('dompdf', CheckStatus::Error, __('system.values.missing'), __('system.hints.dompdf_library'));
+        }
+
+        return $this->result('dompdf', CheckStatus::Ok, 'dompdf '.$version);
     }
 
     /**

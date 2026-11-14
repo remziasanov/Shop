@@ -11,6 +11,7 @@ use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Models\Order;
 use App\Services\Cart\CartService;
 use App\Services\Customers\CustomerOrderHistory;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,16 @@ class OrderHistoryController extends Controller
 
         $orders = $history->paginate($customer, $filters, $sort, max(1, (int) $request->query('page', 1)));
 
+        // CX-01: quick periods of the export form end today (a rolling month, quarter and year).
+        $today = CarbonImmutable::today();
+
         return $this->page('orders', __('account.orders.title'), [
+            'exportPresets' => [
+                'month' => $today->subMonthsNoOverflow()->addDay()->toDateString(),
+                'quarter' => $today->subMonthsNoOverflow(3)->addDay()->toDateString(),
+                'year' => $today->subYearNoOverflow()->addDay()->toDateString(),
+            ],
+            'exportToday' => $today->toDateString(),
             'orders' => $orders->withQueryString(),
             'types' => OrderType::options(),
             'statuses' => OrderStatus::options(),
@@ -53,11 +63,14 @@ class OrderHistoryController extends Controller
 
     public function show(Request $request, string $uuid, CustomerOrderHistory $history): View
     {
+        $customer = $this->currentCustomer($request);
         $order = $this->ownOrder($request, $uuid, $history);
 
         return $this->page('order', $order->number, [
             'order' => $order,
             'canRepeat' => in_array($order->type, [OrderType::Order, OrderType::Reservation], true),
+            // CX-10: the blank / invoice button only for a group with the flag, and only where there are prices.
+            'canDownloadBlank' => $customer->group?->allow_order_blank === true && $order->total !== null,
         ]);
     }
 

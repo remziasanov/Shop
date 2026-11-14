@@ -82,6 +82,46 @@ class ManageCustomerSettings extends SettingsPage
                     ->helperText(__('account.settings.hints.deletion_grace_days'))
                     ->numeric()->integer()->minValue(0)->maxValue(30)->required(),
             ])->columns(2),
+            // CX-04, CX-05, CX-07, CX-09: order history exports.
+            Section::make(__('customer_export.settings.section'))
+                ->description(__('customer_export.settings.hint_sync'))
+                ->schema([
+                    TextInput::make('export_sync_xlsx_max')
+                        ->label(__('customer_export.settings.sync_xlsx_max'))
+                        ->numeric()->integer()->minValue(1)->maxValue(5000)->required(),
+                    TextInput::make('export_sync_pdf_max')
+                        ->label(__('customer_export.settings.sync_pdf_max'))
+                        ->numeric()->integer()->minValue(1)->maxValue(1000)->required(),
+                    TextInput::make('export_sync_pdf_items_max')
+                        ->label(__('customer_export.settings.sync_pdf_items_max'))
+                        ->numeric()->integer()->minValue(1)->maxValue(500)->required(),
+                    TextInput::make('export_max_pdf')
+                        ->label(__('customer_export.settings.max_pdf'))
+                        ->numeric()->integer()->minValue(1)->maxValue(5000)->required(),
+                    TextInput::make('export_max_pdf_items')
+                        ->label(__('customer_export.settings.max_pdf_items'))
+                        ->numeric()->integer()->minValue(1)->maxValue(2000)->required(),
+                    TextInput::make('export_max_pdf_rows')
+                        ->label(__('customer_export.settings.max_pdf_rows'))
+                        ->numeric()->integer()->minValue(1)->maxValue(5000)->required(),
+                    TextInput::make('export_max_xlsx_rows')
+                        ->label(__('customer_export.settings.max_xlsx_rows'))
+                        ->numeric()->integer()->minValue(1)->maxValue(100000)->required(),
+                    TextInput::make('export_retention_hours')
+                        ->label(__('customer_export.settings.retention_hours'))
+                        ->numeric()->integer()->minValue(1)->maxValue(720)->required(),
+                    TextInput::make('export_requests_per_hour')
+                        ->label(__('customer_export.settings.requests_per_hour'))
+                        ->numeric()->integer()->minValue(1)->maxValue(1000)->required(),
+                    TextInput::make('export_max_pending')
+                        ->label(__('customer_export.settings.max_pending'))
+                        ->numeric()->integer()->minValue(1)->maxValue(20)->required(),
+                    TextInput::make('export_downloads_per_hour')
+                        ->label(__('customer_export.settings.downloads_per_hour'))
+                        ->numeric()->integer()->minValue(1)->maxValue(1000)->required(),
+                    Toggle::make('export_email_link')
+                        ->label(__('customer_export.settings.email_link')),
+                ])->columns(3),
             Section::make(__('account.settings.sections.mail'))->schema([
                 Textarea::make('code_mail_warning')
                     ->label(__('account.settings.fields.code_mail_warning'))

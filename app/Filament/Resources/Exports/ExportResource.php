@@ -13,9 +13,12 @@ use App\Models\Category;
 use App\Models\Export;
 use App\Models\PromoCodeBatch;
 use App\Models\User;
+use App\Services\Export\CustomerExportService;
 use App\Services\Users\PermissionService;
+use App\Support\FileSize;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -23,6 +26,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Component;
 use UnitEnum;
 
 /**
@@ -84,7 +88,7 @@ class ExportResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('user:id,name'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['user:id,name', 'customer:id,name']))
             ->columns([
                 TextColumn::make('created_at')
                     ->label(__('export.table.created_at'))
@@ -113,7 +117,22 @@ class ExportResource extends Resource
                     ->numeric(),
                 TextColumn::make('user.name')
                     ->label(__('export.table.user'))
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->visible(fn (Component $livewire): bool => ! self::onCustomersTab($livewire)),
+                // CX-13: the tab «Выгрузки покупателей» shows who asked, the size and the end of the download period.
+                TextColumn::make('customer.name')
+                    ->label(__('customer_export.admin.customer'))
+                    ->placeholder('—')
+                    ->visible(fn (Component $livewire): bool => self::onCustomersTab($livewire)),
+                TextColumn::make('file_size')
+                    ->label(__('customer_export.admin.size'))
+                    ->state(fn (Export $record): string => $record->file_size === null ? '—' : FileSize::format($record->file_size))
+                    ->visible(fn (Component $livewire): bool => self::onCustomersTab($livewire)),
+                TextColumn::make('expires_at')
+                    ->label(__('customer_export.admin.expires'))
+                    ->dateTime()
+                    ->placeholder('—')
+                    ->visible(fn (Component $livewire): bool => self::onCustomersTab($livewire)),
             ])
             ->defaultSort(fn (Builder $query): Builder => $query->orderByDesc('exports.created_at')->orderByDesc('exports.id'))
             ->poll('10s')
@@ -123,7 +142,21 @@ class ExportResource extends Resource
                     ->label(__('export.resource.download'))
                     ->icon(Heroicon::OutlinedArrowDownTray)
                     ->url(fn (Export $record): string => route('admin.exports.download', $record))
-                    ->visible(fn (Export $record): bool => $record->status === ExportStatus::Completed && $record->file_path !== null),
+                    ->visible(fn (Export $record): bool => ! $record->isCustomerExport() && $record->status === ExportStatus::Completed && $record->file_path !== null),
+                // CX-13: an administrator removes the file of a customer export; the customer's link then answers 410.
+                Action::make('delete_file')
+                    ->label(__('customer_export.admin.delete_file'))
+                    ->icon(Heroicon::OutlinedTrash)
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading(__('customer_export.admin.delete_file_heading'))
+                    ->modalDescription(__('customer_export.admin.delete_file_description'))
+                    ->visible(fn (Export $record): bool => $record->isCustomerExport() && $record->file_path !== null && self::isAdministrator())
+                    ->action(function (Export $record): void {
+                        abort_unless(self::isAdministrator(), 403);
+                        app(CustomerExportService::class)->deleteFile($record);
+                        Notification::make()->success()->title(__('customer_export.admin.file_deleted'))->send();
+                    }),
             ])
             ->toolbarActions([]);
     }
@@ -135,10 +168,29 @@ class ExportResource extends Resource
         ];
     }
 
+    /**
+     * Only administrators see the exports of customers (they hold personal data of orders) and may delete their files.
+     */
+    public static function isAdministrator(): bool
+    {
+        $user = Auth::user();
+
+        return $user instanceof User && app(PermissionService::class)->isAdministrator($user);
+    }
+
+    private static function onCustomersTab(Component $livewire): bool
+    {
+        return ($livewire->activeTab ?? null) === ListExports::TAB_CUSTOMERS;
+    }
+
     private static function describeParams(Export $export): string
     {
         $params = $export->params ?? [];
         $parts = [];
+
+        if ($export->type->isCustomerOrders()) {
+            return __('customer_export.admin.period', ['from' => $params['from'] ?? '…', 'until' => $params['until'] ?? '…']);
+        }
 
         if ($export->type === ExportType::Orders) {
             return self::describeOrderParams($params);

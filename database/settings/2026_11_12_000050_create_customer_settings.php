@@ -23,4 +23,18 @@ return new class extends SettingsMigration
         $this->migrator->add('customers.code_mail_warning', 'Никому не сообщайте этот код, даже сотрудникам магазина. Если вы не запрашивали код, просто проигнорируйте письмо.');
         $this->migrator->add('customers.code_mail_footer', '');
     }
+
+    public function down(): void
+    {
+        $this->migrator->delete('customers.registration_enabled');
+        $this->migrator->delete('customers.allow_guest_checkout');
+        $this->migrator->delete('customers.code_ttl_minutes');
+        $this->migrator->delete('customers.code_max_attempts');
+        $this->migrator->delete('customers.code_resend_seconds');
+        $this->migrator->delete('customers.unverified_retention_days');
+        $this->migrator->delete('customers.deletion_grace_days');
+        $this->migrator->delete('customers.password_min_length');
+        $this->migrator->delete('customers.code_mail_warning');
+        $this->migrator->delete('customers.code_mail_footer');
+    }
 };

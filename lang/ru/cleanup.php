@@ -7,6 +7,7 @@ return [
     'imports' => 'Очищены файлы импортов: :count',
     'temp_files' => 'Удалено временных файлов: :count',
     'exports' => 'Очищены файлы выгрузок: :count',
+    'customer_exports' => 'Удалено выгрузок покупателей с истёкшим сроком: :count',
     'livewire' => 'Удалено временных загрузок Livewire: :count',
     'audit_log' => 'Удалено записей журнала действий: :count',
     'customer_notifications' => 'Удалено старых уведомлений кабинета: :count',
