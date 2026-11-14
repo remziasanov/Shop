@@ -59,7 +59,7 @@ class StaffCallbackHandler
             return $this->answer($id, __('telegram_staff.toast.disabled'), alert: true);
         }
 
-        if (! preg_match('/^o:([a-z]{2}):(\d{1,18}):(\d{1,9})$/', $data, $m) || ($action = StaffOrderAction::tryFrom($m[1])) === null) {
+        if (! preg_match('/^o:([a-z]{2}):(\d{1,18}):(\d{1,9})$/', $data, $m) || ($action = StaffOrderAction::tryFrom($m[1])) === null || $action->isWorkplaceOnly()) {
             return $this->answer($id, __('telegram_staff.toast.bad_data'));
         }
 

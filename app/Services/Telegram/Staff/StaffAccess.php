@@ -56,12 +56,12 @@ final class StaffAccess
     }
 
     /**
-     * The bot is connected (token, identity, «Подключить бота» done, the same check as the customer notifications) and
-     * switched on in «Настройки → Telegram» (NF-63, NF-64). Every staff feature needs it, not just a saved token.
+     * The bot is connected (token, identity, «Подключить бота» done, the same check as the customer notifications;
+     * NF-63). The work chat switch (`enabled`) is not a master switch: it concerns the work chat messages and buttons only.
      */
     public function botReady(): bool
     {
-        return $this->settings->enabled && $this->setup->isConnected();
+        return $this->setup->isConnected();
     }
 
     public function workplaceEnabled(): bool
@@ -71,7 +71,8 @@ final class StaffAccess
 
     public function buttonsEnabled(): bool
     {
-        return $this->settings->work_chat_buttons_enabled && $this->botReady();
+        // Chat buttons live on work chat messages, so the work chat switch applies to them (not to the workplace / personal copies).
+        return $this->settings->enabled && $this->settings->work_chat_buttons_enabled && $this->botReady();
     }
 
     /** TS-05: all entry conditions of the Mini App except the signature: feature on, active user, `orders.view`. */

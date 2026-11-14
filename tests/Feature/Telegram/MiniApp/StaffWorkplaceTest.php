@@ -115,6 +115,16 @@ describe('the entry (TS-05)', function (): void {
     });
 });
 
+describe('work chat switch (NF-63)', function (): void {
+    it('keeps the workplace open while the work chat notifications are switched off', function (): void {
+        linkedStaff(['orders.view']);
+        staffBot(['enabled' => false]);
+
+        staffEntry(['start_param' => 'staff'])->assertOk();
+        $this->get('/tg/staff')->assertOk();
+    });
+});
+
 describe('guard isolation (TS-05)', function (): void {
     it('staff entry, then customer entry in the same session: the admin and auth:web routes stay closed', function (): void {
         [$user] = linkedStaff(['orders.view', 'orders.update', 'orders.export']);

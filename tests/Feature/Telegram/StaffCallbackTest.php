@@ -410,8 +410,10 @@ describe('review round 1 fixes', function (): void {
         linkedStaff();
         $order = Order::factory()->order()->status(OrderStatus::Confirmed)->create();
 
-        tapButton($order, 'sh')->assertJsonPath('text', 'Обращение уже изменено');
-        tapButton($order, 'co')->assertJsonPath('text', 'Обращение уже изменено');
+        Queue::fake();
+        tapButton($order, 'sh')->assertJsonPath('text', __('telegram_staff.toast.bad_data'));
+        tapButton($order, 'co')->assertJsonPath('text', __('telegram_staff.toast.bad_data'));
+        Queue::assertNothingPushed();
 
         expect($order->refresh()->status)->toBe(OrderStatus::Confirmed);
         expect(array_map(fn ($a) => $a->value, app(StaffOrderActions::class)->available($order)))->toBe(['rd', 'cx']);
@@ -426,10 +428,10 @@ describe('review round 1 fixes', function (): void {
             ->and(array_map(fn ($a) => $a->value, $actions->available($reservation, workplace: true)))->toBe(['ex', 'co', 'cx']);
     });
 
-    it('does not accept the staff buttons while the bot is switched off, although the token is kept (NF-63)', function (): void {
+    it('does not accept the staff buttons while the bot is not connected, although the token is kept (NF-63)', function (): void {
         linkedStaff();
         $order = Order::factory()->order()->create();
-        staffBot(['enabled' => false]);
+        staffBot(['connected_at' => null]);
 
         tapButton($order, 'cf')->assertOk();
 
