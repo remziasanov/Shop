@@ -9,7 +9,7 @@
     $searchUrl = rescue(fn () => route('search'), '/search', false);
 @endphp
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" @isset($theme) {!! $theme->htmlAttributes() !!} @endisset>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

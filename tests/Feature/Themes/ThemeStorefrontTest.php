@@ -212,11 +212,7 @@ describe('display font (TH-19, TH-20)', function (): void {
             ->toContain('--font-body: var(--shop-font-body);');
     });
 
-    it('marks the product card name heading with font-body', function (): void {
-        $source = (string) file_get_contents(resource_path('views/storefront/partials/product-card.blade.php'));
-
-        expect($source)->toMatch('/<h3 class="[^"]*\bfont-body\b/');
-    });
+    // The font-body check of the product name is done on the rendered listing for every card variant: CardVariantsTest.
 
     it('forgets the css cache key of the previous state when overrides are saved or the theme changes', function (): void {
         $admin = User::factory()->admin()->create();

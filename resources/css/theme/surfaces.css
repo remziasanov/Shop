@@ -1,1 +1,365 @@
-/* Stage 21 (TZ 34, TH-10…TH-17): surfaces variants. Colors, fonts and radii only via --shop-* tokens. */
+/*
+ * Stage 21 (TZ 34, TH-14, TH-15, TH-16, TH-17): surface styles, extras, control states and reduced motion.
+ * Colors, fonts and radii only via --shop-* tokens (TH-06).
+ *
+ * The surface is the attribute html[data-surface] (printed by ResolvedTheme::htmlAttributes()). Every rule below that
+ * changes the look is unlayered and gated by that attribute, so the default theme (surface `line`, border 1 px,
+ * radius 8 px, button radius 4 px) renders exactly as before themes. The control states are in `@layer components`,
+ * so a state utility written on an element (disabled:opacity-60, hover:opacity-90, focus-visible:outline-none) wins.
+ *
+ * Vocabulary (the class patterns of the storefront templates, no extra markup needed):
+ *  - panel   .rounded-card.border.border-line (cards, boxes, tables) and floating panels (.rounded-card + .shadow-*)
+ *  - button  .rounded-btn with .bg-primary / .bg-accent (solid) or .border (outline); fields: input, select, textarea
+ * Card variants (stage 21 part B) put data-card on the card root and data-tile / data-tile-index on the photo tile.
+ */
+
+/* Defaults of the optional surface tokens (the theme prints its own on :root when it has them). */
+@layer base {
+    :root {
+        --shop-shadow-color: var(--shop-ink);
+        --shop-shadow-tint: color-mix(in srgb, var(--shop-ink) 12%, transparent);
+        --shop-press-color: color-mix(in srgb, var(--shop-primary) 70%, var(--shop-scrim));
+        --shop-focus: var(--shop-primary);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* TH-14 surfaces: the variables of each style                         */
+/* ------------------------------------------------------------------ */
+
+html[data-surface='none'] {
+    --shop-s-panel-border: transparent;
+}
+
+html[data-surface='soft'] {
+    --shop-s-panel-border: var(--shop-line);
+    --shop-s-panel-shadow: 0 1px 2px color-mix(in srgb, var(--shop-scrim) 4%, transparent), 0 10px 24px var(--shop-shadow-tint);
+    --shop-s-btn-shadow: none;
+    --shop-s-btn-shadow-hover: 0 4px 12px var(--shop-shadow-tint);
+    --shop-s-btn-shadow-active: none;
+    --shop-s-btn-lift: 0 -1px;
+    --shop-s-btn-sink: 0 1px;
+}
+
+html[data-surface='hard'] {
+    --shop-s-panel-border: var(--shop-ink);
+    --shop-s-panel-shadow: 4px 4px 0 var(--shop-shadow-color);
+    --shop-s-btn-bw: var(--shop-border-w);
+    --shop-s-btn-border: var(--shop-ink);
+    --shop-s-btn-shadow: 3px 3px 0 var(--shop-shadow-color);
+    --shop-s-btn-shadow-hover: 5px 5px 0 var(--shop-shadow-color);
+    --shop-s-btn-shadow-active: 0 0 0 var(--shop-shadow-color);
+    --shop-s-btn-lift: -2px -2px;
+    --shop-s-btn-sink: 3px 3px;
+    --shop-s-input-border: var(--shop-ink);
+    --shop-s-input-bg: var(--shop-surface);
+}
+
+html[data-surface='press'] {
+    --shop-s-panel-border: var(--shop-line);
+    --shop-s-panel-shadow: 0 3px 0 var(--shop-line);
+    --shop-s-btn-shadow: 0 4px 0 var(--shop-press-color);
+    --shop-s-btn-shadow-hover: 0 5px 0 var(--shop-press-color);
+    --shop-s-btn-shadow-active: 0 1px 0 var(--shop-press-color);
+    --shop-s-btn-lift: 0 -1px;
+    --shop-s-btn-sink: 0 3px;
+    --shop-s-input-bg: var(--shop-surface);
+}
+
+html[data-surface='double'] {
+    --shop-s-panel-border: var(--shop-line);
+    --shop-s-panel-shadow: 0 0 0 3px var(--shop-bg), 0 0 0 4px var(--shop-line);
+    --shop-s-btn-bw: var(--shop-border-w);
+    --shop-s-btn-border: var(--shop-line);
+    --shop-s-btn-shadow: none;
+    --shop-s-btn-shadow-hover: 0 0 0 2px var(--shop-bg), 0 0 0 3px var(--shop-line);
+    --shop-s-btn-shadow-active: none;
+    --shop-s-btn-lift: 0 0;
+    --shop-s-btn-sink: 0 1px;
+}
+
+html[data-surface='glass'] {
+    --shop-s-panel-bg: color-mix(in srgb, var(--shop-surface) 58%, transparent);
+    --shop-s-panel-border: color-mix(in srgb, var(--shop-on-solid) 90%, transparent);
+    --shop-s-panel-shadow: 0 14px 34px color-mix(in srgb, var(--shop-ink) 13%, transparent);
+    --shop-s-panel-filter: blur(14px) saturate(1.2);
+    --shop-s-btn-shadow: none;
+    --shop-s-btn-shadow-hover: 0 8px 20px color-mix(in srgb, var(--shop-ink) 16%, transparent);
+    --shop-s-btn-shadow-active: none;
+    --shop-s-btn-lift: 0 -1px;
+    --shop-s-btn-sink: 0 1px;
+    --shop-s-input-bg: color-mix(in srgb, var(--shop-surface) 70%, transparent);
+}
+
+/* Fallback: a browser without backdrop-filter gets an almost opaque panel, so the text stays readable. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    html[data-surface='glass'] {
+        --shop-s-panel-bg: color-mix(in srgb, var(--shop-surface) 94%, transparent);
+        --shop-s-panel-filter: none;
+        --shop-s-input-bg: var(--shop-surface);
+    }
+}
+
+html[data-surface='clay'] {
+    --shop-s-panel-border: var(--shop-line);
+    --shop-s-panel-shadow: 10px 10px 24px color-mix(in srgb, var(--shop-ink) 20%, transparent), -8px -8px 20px color-mix(in srgb, var(--shop-on-solid) 90%, transparent);
+    --shop-s-btn-shadow: 0 8px 16px color-mix(in srgb, var(--shop-primary) 30%, transparent), inset 0 -3px 0 color-mix(in srgb, var(--shop-scrim) 16%, transparent);
+    --shop-s-btn-shadow-hover: 0 10px 20px color-mix(in srgb, var(--shop-primary) 34%, transparent), inset 0 -3px 0 color-mix(in srgb, var(--shop-scrim) 16%, transparent);
+    --shop-s-btn-shadow-active: 0 2px 6px color-mix(in srgb, var(--shop-primary) 30%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--shop-scrim) 16%, transparent);
+    --shop-s-btn-lift: 0 -1px;
+    --shop-s-btn-sink: 0 3px;
+    --shop-s-input-bg: var(--shop-surface-2);
+    --shop-s-input-shadow: inset 3px 3px 7px color-mix(in srgb, var(--shop-ink) 14%, transparent), inset -3px -3px 7px color-mix(in srgb, var(--shop-on-solid) 85%, transparent);
+}
+
+/* ------------------------------------------------------------------ */
+/* Panels                                                              */
+/* ------------------------------------------------------------------ */
+
+/* All surfaces: a plain panel (no background class of its own) sits on the card color, as in the reference mockups. */
+.rounded-card.border.border-line:is(:not([class*='bg-']), .bg-surface) {
+    background-color: var(--shop-s-panel-bg, var(--shop-surface));
+}
+
+/* none: panels are separated by the card color only, no frame. */
+html[data-surface='none'] .rounded-card.border.border-line,
+html[data-surface='none'] .md\:rounded-card.md\:border.md\:border-line,
+html[data-surface='none'] .max-md\:rounded-card.max-md\:border.max-md\:border-line {
+    border-color: var(--shop-s-panel-border);
+}
+
+/* soft, hard, press, double, glass, clay: frame color, shadow, translucency. */
+html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) .rounded-card.border.border-line {
+    border-color: var(--shop-s-panel-border);
+    box-shadow: var(--shop-s-panel-shadow);
+    -webkit-backdrop-filter: var(--shop-s-panel-filter, none);
+    backdrop-filter: var(--shop-s-panel-filter, none);
+}
+
+@media (min-width: 48rem) {
+    html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) .md\:rounded-card.md\:border.md\:border-line {
+        border-color: var(--shop-s-panel-border);
+        box-shadow: var(--shop-s-panel-shadow);
+    }
+}
+
+@media (max-width: 47.999rem) {
+    html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) .max-md\:rounded-card.max-md\:border.max-md\:border-line {
+        border-color: var(--shop-s-panel-border);
+        box-shadow: var(--shop-s-panel-shadow);
+    }
+}
+
+/* Floating panels (modal, sheet, age gate, toast): the surface frame and shadow replace the utility shadow. */
+html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) :is([class*='rounded-card'][class*='shadow-'], [class*='rounded-t-2xl'][class*='shadow-']) {
+    border: var(--shop-border-w) solid var(--shop-s-panel-border, var(--shop-line));
+    box-shadow: var(--shop-s-panel-shadow);
+    -webkit-backdrop-filter: var(--shop-s-panel-filter, none);
+    backdrop-filter: var(--shop-s-panel-filter, none);
+}
+
+/* A sheet keeps the radius of the theme (twice the card radius = 16 px for the default theme). */
+.rounded-t-2xl {
+    border-top-left-radius: calc(var(--shop-radius) * 2);
+    border-top-right-radius: calc(var(--shop-radius) * 2);
+}
+
+/* Border width of the theme (data-bw is printed only when it is not 1 px): frames of panels, buttons and fields. */
+html[data-bw] :is(.border, .md\:border, .max-md\:border):not([class*='border-0']) {
+    border-width: var(--shop-border-w);
+}
+
+/* ------------------------------------------------------------------ */
+/* Buttons and fields                                                  */
+/* ------------------------------------------------------------------ */
+
+html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) :is(button, a, input[type='submit'], [role='button']).rounded-btn:is(.bg-primary, .bg-accent) {
+    border: var(--shop-s-btn-bw, 0) solid var(--shop-s-btn-border, transparent);
+    box-shadow: var(--shop-s-btn-shadow, none);
+}
+
+html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) :is(button, a, [role='button']).rounded-btn.border:not(.bg-primary, .bg-accent) {
+    border-color: var(--shop-s-btn-border, var(--shop-line-strong));
+}
+
+html:is([data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) :is(input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file'], [type='color']), select, textarea).rounded-btn {
+    border-color: var(--shop-s-input-border, var(--shop-line-strong));
+    background-color: var(--shop-s-input-bg, transparent);
+    box-shadow: var(--shop-s-input-shadow, none);
+}
+
+/* Hover lifts the button, pressed sinks it into its shadow. */
+html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) :is(button, a, input[type='submit'], [role='button']).rounded-btn:is(.bg-primary, .bg-accent):not(:disabled, [aria-disabled='true'], [data-loading]):hover {
+    box-shadow: var(--shop-s-btn-shadow-hover, var(--shop-s-btn-shadow, none));
+    translate: var(--shop-s-btn-lift, 0 0);
+}
+
+html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) :is(button, a, input[type='submit'], [role='button']).rounded-btn:is(.bg-primary, .bg-accent):not(:disabled, [aria-disabled='true']):active {
+    box-shadow: var(--shop-s-btn-shadow-active, none);
+    translate: var(--shop-s-btn-sink, 0 1px);
+}
+
+html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) :is(button, a, input[type='submit'], [role='button']).rounded-btn:is(.bg-primary, .bg-accent):is(:disabled, [aria-disabled='true']) {
+    box-shadow: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Extras of TH-14                                                     */
+/* ------------------------------------------------------------------ */
+
+/* backgroundImage: the page background (gradient / dots); the token is printed only by themes that have it. */
+html[data-bg-image] body {
+    background: var(--shop-bg-image);
+}
+
+/* tileShape: the product photo tile (card variants set data-tile) and the product page photo. */
+html[data-tile-shape='arch'] [data-tile] {
+    border-radius: 999px 999px 0 0;
+}
+
+html[data-tile-shape='circle'] [data-tile] {
+    border-radius: 50%;
+    aspect-ratio: 1 / 1;
+}
+
+/* dashedFrames: frames of panels and tiles are dashed. */
+html[data-dashed] :is(.rounded-card.border.border-line, [data-tile], [data-card]) {
+    border-style: dashed;
+}
+
+/* cropMarks: print crop marks (L-shaped corners in the accent color) just outside card and photo corners. */
+html[data-crop-marks] :is([data-card], [data-crop]) {
+    position: relative;
+}
+
+html[data-crop-marks] :is([data-card], [data-crop])::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--shop-accent), var(--shop-accent)) left 8px top 0 / 1px 9px no-repeat,
+        linear-gradient(var(--shop-accent), var(--shop-accent)) left 0 top 8px / 9px 1px no-repeat,
+        linear-gradient(var(--shop-accent), var(--shop-accent)) right 8px top 0 / 1px 9px no-repeat,
+        linear-gradient(var(--shop-accent), var(--shop-accent)) right 0 top 8px / 9px 1px no-repeat,
+        linear-gradient(var(--shop-accent), var(--shop-accent)) left 8px bottom 0 / 1px 9px no-repeat,
+        linear-gradient(var(--shop-accent), var(--shop-accent)) left 0 bottom 8px / 9px 1px no-repeat,
+        linear-gradient(var(--shop-accent), var(--shop-accent)) right 8px bottom 0 / 1px 9px no-repeat,
+        linear-gradient(var(--shop-accent), var(--shop-accent)) right 0 bottom 8px / 9px 1px no-repeat;
+}
+
+/* ------------------------------------------------------------------ */
+/* TH-16 control states: hover, keyboard focus, pressed, disabled,    */
+/* loading, error (buttons, links as buttons, fields, chips, checks)   */
+/* ------------------------------------------------------------------ */
+
+@layer components {
+    /* One ring for every control, from the tokens: 2 px in the focus color with a gap (fields: tight to the edge). */
+    :where(a, button, summary, [role='button'], [role='tab'], [tabindex]):focus-visible {
+        outline: 2px solid var(--shop-focus);
+        outline-offset: 2px;
+    }
+
+    :where(input, select, textarea):focus-visible {
+        outline: 2px solid var(--shop-focus);
+        outline-offset: 0;
+    }
+
+    :where(input[type='checkbox'], input[type='radio']) {
+        accent-color: var(--shop-primary);
+    }
+
+    :where(input[type='checkbox'], input[type='radio']):focus-visible {
+        outline-offset: 2px;
+    }
+
+    /* Hover: every control shows that it is clickable (the colors come from the utilities of the element). */
+    :where(button, [role='button'], a.rounded-btn, summary, select, input[type='checkbox'], input[type='radio'], label:has(> input[type='checkbox'], > input[type='radio'])):not(:disabled, [aria-disabled='true']) {
+        cursor: pointer;
+    }
+
+    :where(button, a.rounded-btn, [role='button']) {
+        transition: translate 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+    }
+
+    :where(input, select, textarea) {
+        transition: border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    :where(input, select, textarea):not(:disabled, :focus-visible, [aria-invalid='true']):hover {
+        border-color: var(--shop-muted);
+    }
+
+    /* Pressed. */
+    :where(button, a.rounded-btn, [role='button']):not(:disabled, [aria-disabled='true']):active {
+        translate: 0 1px;
+    }
+
+    /* Disabled: dimmed, no pointer (a control that already carries its own disabled look keeps it). */
+    :where(button, input, select, textarea, [role='button'], a.rounded-btn):is(:disabled, [aria-disabled='true']):not(.cursor-not-allowed) {
+        cursor: not-allowed;
+        opacity: 0.55;
+    }
+
+    /* Loading: Livewire marks the element that sent the request with data-loading; aria-busy does the same by hand. */
+    :where(button, [role='button'], a.rounded-btn, input[type='submit'])[data-loading],
+    :where(button, [role='button'], a.rounded-btn, input[type='submit'])[aria-busy='true'] {
+        cursor: progress;
+        opacity: 0.75;
+    }
+
+    :where(button, [role='button'], a.rounded-btn)[data-loading]::after,
+    :where(button, [role='button'], a.rounded-btn)[aria-busy='true']::after {
+        content: '';
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        margin-left: 0.5em;
+        vertical-align: -0.15em;
+        border: 2px solid currentcolor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: shop-spin 0.7s linear infinite;
+    }
+
+    /* Error: the field and the check marks of an invalid control take the danger color, the ring too. */
+    :where(input, select, textarea)[aria-invalid='true'] {
+        border-color: var(--shop-danger-solid);
+    }
+
+    :where(input, select, textarea)[aria-invalid='true']:focus-visible {
+        outline-color: var(--shop-danger-solid);
+    }
+
+    :where(input[type='checkbox'], input[type='radio'])[aria-invalid='true'] {
+        accent-color: var(--shop-danger-solid);
+        outline: 2px solid var(--shop-danger-solid);
+        outline-offset: 1px;
+    }
+}
+
+@keyframes shop-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* TH-17 reduced motion                                                */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* The loading ring stays visible as a static half circle. */
+    [data-loading]::after,
+    [aria-busy='true']::after {
+        transform: rotate(45deg);
+    }
+}

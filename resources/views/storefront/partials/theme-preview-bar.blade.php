@@ -7,9 +7,18 @@
         .theme-preview-bar [data-apply]{background:var(--shop-bg);color:var(--shop-ink)}
         .theme-preview-bar [aria-current]{background:var(--shop-bg);color:var(--shop-ink)}
         .theme-preview-bar .spacer{flex:1}
+        .theme-preview-bar [data-theme-preview-title]{min-width:0}
+        @media (max-width:640px){
+            /* Phone: two rows at most - the title on its own row, the buttons below; the device switch is meaningless on a phone. */
+            .theme-preview-bar{flex-wrap:wrap;gap:.25rem;padding:.25rem .5rem;font-size:.75rem}
+            .theme-preview-bar [data-theme-preview-title]{flex:1 1 100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+            .theme-preview-bar [role=group]{display:none}
+            .theme-preview-bar button,.theme-preview-bar a{min-height:2rem;padding:.125rem .4rem}
+            .theme-preview-bar .spacer{display:none}
+        }
     </style>
     <div class="theme-preview-bar" role="region" aria-label="{{ __('themes.preview.bar_label') }}" data-theme-preview-bar>
-        <span>{{ __('themes.preview.title') }}: <strong data-theme-preview-name>{{ $themePreviewBar['name'] }}</strong> ({{ $themePreviewBar['index'] + 1 }}/{{ $themePreviewBar['total'] }})</span>
+        <span data-theme-preview-title>{{ __('themes.preview.title') }}: <strong data-theme-preview-name>{{ $themePreviewBar['name'] }}</strong> ({{ $themePreviewBar['index'] + 1 }}/{{ $themePreviewBar['total'] }})</span>
         <form method="POST" action="{{ route('theme.preview.step') }}">
             @csrf
             <input type="hidden" name="direction" value="prev">

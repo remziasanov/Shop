@@ -1,1 +1,140 @@
 /* Stage 21 (TZ 34, TH-10…TH-17): header-hero variants. Colors, fonts and radii only via --shop-* tokens. */
+
+/*
+ * Header (TH-10). H2 / H4: the search row is collapsed (visually hidden but focusable, so the bottom bar's «Поиск»
+ * can still focus the field) until the icon is pressed or the field gets the focus. Unlayered, so it wins over utilities.
+ */
+[data-search-panel][data-collapsed] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* H3: the native disclosure marker is replaced by the button look. */
+[data-header-catalog] > summary::-webkit-details-marker {
+    display: none;
+}
+
+[data-header-catalog][open] > summary {
+    box-shadow: inset 0 0 0 2px var(--shop-on-primary);
+}
+
+/*
+ * Hero (TH-12). G2 and G4 sit on a full-width band (heroBg / heroInk); the content keeps the width of the page.
+ * The band is pulled out of the centred column with negative margins (body clips the horizontal overflow).
+ */
+.hero-band {
+    margin-inline: calc(50% - 50vw);
+    background: var(--shop-hero-bg);
+    color: var(--shop-hero-ink);
+}
+
+.hero-band-inner {
+    box-sizing: border-box;
+    max-width: 80rem;
+    margin-inline: auto;
+    padding: 1.5rem 1rem;
+}
+
+@media (min-width: 48rem) {
+    .hero-band-inner {
+        padding-block: 2.5rem;
+    }
+}
+
+/* A band that opens the page touches the header (main has 1.5rem of top padding). */
+.hero-band-first {
+    margin-top: -1.5rem;
+}
+
+/* Hero titles follow --shop-display-scale like the other headings (G2: 1.875 -> 3 rem, G4: 2.25 -> 4.5 rem). */
+:is(h1, h2, h3).hero-title-md {
+    font-size: calc(1.875rem * var(--shop-display-scale));
+    line-height: 1.15;
+}
+
+:is(h1, h2, h3).hero-title-xl {
+    font-size: calc(2.25rem * var(--shop-display-scale));
+    line-height: 1.05;
+}
+
+@media (min-width: 48rem) {
+    :is(h1, h2, h3).hero-title-md {
+        font-size: calc(3rem * var(--shop-display-scale));
+    }
+
+    :is(h1, h2, h3).hero-title-xl {
+        font-size: calc(4.5rem * var(--shop-display-scale));
+    }
+}
+
+/* Controls of a slider on the band follow the band's ink. */
+.hero-band button {
+    border-color: currentcolor;
+    color: var(--shop-hero-ink);
+}
+
+.hero-band button > span {
+    background: color-mix(in srgb, var(--shop-hero-ink) 35%, transparent);
+}
+
+.hero-band button[aria-current] > span {
+    background: var(--shop-hero-ink) !important;
+}
+
+/* heroButton: the theme's own button colors (the default theme sets none, so the fallbacks are the primary button). */
+.hero-btn {
+    background: var(--shop-hero-btn-bg, var(--shop-primary));
+    color: var(--shop-hero-btn-ink, var(--shop-on-primary));
+}
+
+/* heroImage: a pattern laid over the banner image. */
+.hero-pattern {
+    background: var(--shop-hero-image, none);
+}
+
+/* G3: the big tile and the slider inside it fill the grid area on wide screens. */
+@media (min-width: 48rem) {
+    .hero-bento-main > section,
+    .hero-bento-main [data-hero-slide] {
+        height: 100%;
+    }
+
+    .hero-bento-main picture {
+        display: block;
+        height: 100%;
+    }
+}
+
+/* G3 tiles: surface, tinted, inverted (the reference bento); a theme's tileColors / patterns may restyle them. */
+.hero-bento-tile > a {
+    border-color: var(--shop-line);
+    background: var(--shop-surface);
+    color: var(--shop-ink);
+}
+
+.hero-bento-tile:nth-child(2) > a {
+    background: var(--shop-surface-3);
+}
+
+.hero-bento-tile:nth-child(3) > a {
+    border-color: var(--shop-ink);
+    background: var(--shop-ink);
+    color: var(--shop-bg);
+}
+
+/* TH-17: no animation or smooth scrolling in the header and the hero for visitors who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+    [data-header] *,
+    [data-hero] *,
+    [data-hero-bento] * {
+        animation: none !important;
+        scroll-behavior: auto !important;
+        transition: none !important;
+    }
+}

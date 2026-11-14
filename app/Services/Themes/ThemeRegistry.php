@@ -15,6 +15,13 @@ final class ThemeRegistry
 {
     public const DEFAULT_ID = 'default';
 
+    /**
+     * TEMPORARY (stage 21, remove in stage 23): the service theme for checking every block variant. It exists only
+     * while `config('shop.theme_debug')` (env THEME_DEBUG) is on, only for staff preview (never in `all()`, the
+     * gallery or the saved settings) and takes its blocks from `?blocks=` (see ThemePreview).
+     */
+    public const DEBUG_ID = 'debug-blocks';
+
     /** @var array<string, Theme>|null */
     private ?array $themes = null;
 
@@ -73,6 +80,35 @@ final class ThemeRegistry
     public function find(string $id): ?Theme
     {
         return $this->all()[$id] ?? null;
+    }
+
+    public function debugEnabled(): bool
+    {
+        return (bool) config('shop.theme_debug', false);
+    }
+
+    /**
+     * Theme for the staff preview: a registry theme or, with THEME_DEBUG on, the temporary service theme.
+     */
+    public function findForPreview(string $id): ?Theme
+    {
+        if ($id === self::DEBUG_ID) {
+            return $this->debugEnabled() ? $this->debugTheme() : null;
+        }
+
+        return $this->find($id);
+    }
+
+    public function hasForPreview(string $id): bool
+    {
+        return $this->findForPreview($id) !== null;
+    }
+
+    private function debugTheme(): Theme
+    {
+        $base = $this->default();
+
+        return new Theme(self::DEBUG_ID, 0, 'Debug: blocks (temporary)', null, null, 'Service theme', null, $base->colors, $base->shape, $base->fonts, $base->blocks, []);
     }
 
     public function default(): Theme

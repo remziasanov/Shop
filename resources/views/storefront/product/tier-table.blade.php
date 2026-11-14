@@ -1,7 +1,7 @@
 {{-- GP-10: «Цены при покупке оптом» for the viewer's group only (the page never carries the tiers of another group, 21.7). Plain card: rendered on the server, highlighted by Alpine `tierPrice`; card with variants: the tiers of the selected variant (Alpine `variantPicker`). $view: ProductView, $picker: VariantPickerData|null, $unit: unit of measure. --}}
 @if ($picker === null && $view->tiers !== [])
     <section class="mt-4 max-w-sm rounded-card border border-line p-3" data-tier-table aria-labelledby="tier-table-heading">
-        <h2 id="tier-table-heading" class="text-sm font-semibold">{{ __('group_prices.table.title') }}</h2>
+        <h2 id="tier-table-heading" class="font-body text-sm font-semibold">{{ __('group_prices.table.title') }}</h2>
         <table class="mt-2 w-full text-sm">
             <thead class="sr-only">
                 <tr>
@@ -32,7 +32,7 @@
     </section>
 @elseif ($picker !== null)
     <section class="mt-4 max-w-sm rounded-card border border-line p-3" data-tier-table aria-labelledby="tier-table-heading" x-cloak x-show="current && current.t.length > 0">
-        <h2 id="tier-table-heading" class="text-sm font-semibold">{{ __('group_prices.table.title') }}</h2>
+        <h2 id="tier-table-heading" class="font-body text-sm font-semibold">{{ __('group_prices.table.title') }}</h2>
         <table class="mt-2 w-full text-sm">
             <tbody>
                 <tr :class="current && current.t.length && qty < current.t[0][0] ? 'font-semibold text-primary' : ''" data-tier-row="1">

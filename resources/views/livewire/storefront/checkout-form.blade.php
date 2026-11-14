@@ -138,7 +138,7 @@
                 @if ($blockLines !== [])
                     <div data-checkout-block="{{ $blockKey }}">
                         @if ($hasOrder && $hasReservation)
-                            <h3 class="mb-1 font-semibold">{{ __('storefront_sales.checkout.block_'.$blockKey) }}</h3>
+                            <h3 class="font-body mb-1 font-semibold">{{ __('storefront_sales.checkout.block_'.$blockKey) }}</h3>
                         @endif
                         <ul class="space-y-1 text-sm">
                             @foreach ($blockLines as $line)
