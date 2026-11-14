@@ -41,6 +41,7 @@ use App\Services\Pricing\PriceRuleData;
 use App\Services\Pricing\PriceRuleRecalculator;
 use App\Settings\GeneralSettings;
 use App\Settings\NotificationSettings;
+use App\Settings\TelegramSettings;
 use App\Support\Money;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Http\Client\Request;
@@ -243,9 +244,11 @@ function acceptanceNotifications(): void
 {
     $settings = app(NotificationSettings::class);
     $settings->notify_emails = ['shop@example.com'];
-    $settings->telegram_enabled = true;
-    $settings->telegram_bot_token = '123456:TEST-token_abc';
-    $settings->telegram_chat_id = '-1001';
+    $telegram = app(TelegramSettings::class);
+    $telegram->enabled = true;
+    $telegram->bot_token = '123456:TEST-token_abc';
+    $telegram->work_chat_id = '-1001';
+    $telegram->save();
 
     foreach (['notify_shop_email', 'notify_shop_telegram', 'notify_customer_new', 'notify_customer_status', 'notify_event_order', 'notify_event_reservation', 'notify_event_inquiry'] as $toggle) {
         $settings->{$toggle} = true;

@@ -15,6 +15,7 @@ use App\Settings\NotificationSettings;
 use App\Settings\PricingSettings;
 use App\Settings\SalesSettings;
 use App\Settings\SeoSettings;
+use App\Settings\TelegramSettings;
 
 it('loads defaults of every settings group after migrations', function () {
     $general = app(GeneralSettings::class);
@@ -48,7 +49,11 @@ it('loads defaults of every settings group after migrations', function () {
         ->and($pricing->rounding_scope)->toBe(RoundingScope::Changed);
 
     $notifications = app(NotificationSettings::class);
-    expect($notifications->telegram_bot_token)->toBeNull()
+    $telegram = app(TelegramSettings::class);
+    expect($telegram->bot_token)->toBeNull()
+        ->and($telegram->webhook_secret)->toBeNull()
+        ->and($telegram->menu_button_text)->toBe('Магазин')
+        ->and($telegram->initdata_ttl_customer)->toBe(3600)
         ->and($notifications->notify_emails)->toBe([]);
 
     expect(app(SeoSettings::class)->robots_txt)->toContain('User-agent: *')
@@ -57,12 +62,15 @@ it('loads defaults of every settings group after migrations', function () {
 });
 
 it('stores the telegram token encrypted', function () {
-    $settings = app(NotificationSettings::class);
-    $settings->telegram_bot_token = 'dummy-token';
+    $settings = app(TelegramSettings::class);
+    $settings->bot_token = 'dummy-token';
+    $settings->webhook_secret = 'dummy-secret';
     $settings->save();
 
-    $raw = DB::table('settings')->where('group', 'notifications')->where('name', 'telegram_bot_token')->value('payload');
+    $token = DB::table('settings')->where('group', 'telegram')->where('name', 'bot_token')->value('payload');
+    $secret = DB::table('settings')->where('group', 'telegram')->where('name', 'webhook_secret')->value('payload');
 
-    expect($raw)->not->toContain('dummy-token')
-        ->and(app(NotificationSettings::class)->telegram_bot_token)->toBe('dummy-token');
+    expect($token)->not->toContain('dummy-token')
+        ->and($secret)->not->toContain('dummy-secret')
+        ->and(app(TelegramSettings::class)->bot_token)->toBe('dummy-token');
 });

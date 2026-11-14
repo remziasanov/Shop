@@ -86,8 +86,29 @@
             </ul>
         </nav>
 
-        <form method="POST" action="{{ route('customer.logout') }}" class="mt-8">
+        @if (\App\Support\TelegramMode::active())
+            {{-- TM-06, TM-09: the Mini App cabinet also leads to the shop details and to the site in the browser. --}}
+            <ul class="mt-6 grid gap-3 sm:grid-cols-2">
+                <li>
+                    <a href="{{ route('tg.about') }}" class="block rounded-card border border-line p-4 hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-tg-about>
+                        <span class="block font-semibold">{{ __('telegram_miniapp.account.about') }}</span>
+                        <span class="block text-sm text-ink-mid">{{ __('telegram_miniapp.about.hint') }}</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ route('home') }}" target="_blank" rel="noopener" data-tg-browser class="block rounded-card border border-line p-4 hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-tg-open-site>
+                        <span class="block font-semibold">{{ __('telegram_miniapp.account.open_site') }}</span>
+                    </a>
+                </li>
+            </ul>
+        @endif
+
+        <form method="POST" action="{{ route('customer.logout') }}" class="mt-8"
+              @if (\App\Support\TelegramMode::active()) onsubmit="return confirm(@js(__('telegram_miniapp.account.logout_confirm')))" @endif>
             @csrf
+            @if (\App\Support\TelegramMode::active())
+                <p class="mb-3 text-sm text-ink-mid" data-tg-logout-warning>{{ __('telegram_miniapp.account.logout_warning') }}</p>
+            @endif
             <x-account.button variant="secondary">{{ __('account.actions.logout') }}</x-account.button>
         </form>
     </div>

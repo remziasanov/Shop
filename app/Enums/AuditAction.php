@@ -32,6 +32,8 @@ enum AuditAction: string
     case ThemeChanged = 'theme.changed';
     case ThemeColorsChanged = 'theme.colors_changed';
     case ThemeFontsChanged = 'theme.fonts_changed';
+    case UserTelegramLinked = 'user.telegram_linked';
+    case UserTelegramUnlinked = 'user.telegram_unlinked';
 
     public function label(): string
     {

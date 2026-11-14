@@ -1,7 +1,7 @@
 {{-- SF-08: cookie consent; not rendered when the cookie is present or the banner is disabled. --}}
 @if ($cookieBannerShow ?? false)
     <div x-data="{ visible: true, accept() {
-            document.cookie = 'cookie_consent=1; Max-Age=31536000; Path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+            document.cookie = 'cookie_consent=1; Max-Age=31536000; Path=/; {{ \App\Support\StorefrontCookie::scriptAttributes() }}' + (location.protocol === 'https:' && {{ \App\Support\StorefrontCookie::crossSite() ? 'false' : 'true' }} ? '; Secure' : '');
             this.visible = false;
          } }"
          x-show="visible" data-cookie-banner role="dialog" aria-label="{{ __('seo.cookie.label') }}"

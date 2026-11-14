@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Jobs\Concerns\DeliversTelegramMessages;
 use App\Models\Order;
 use App\Services\Notifications\Messages\NewRequestMessage;
 use App\Services\Notifications\Messages\OrderMessage;
@@ -21,6 +22,7 @@ use Throwable;
  */
 class SendTelegramNotification implements ShouldBeUnique, ShouldQueue
 {
+    use DeliversTelegramMessages;
     use Queueable;
 
     public const NEW_REQUEST = 'new';
@@ -29,7 +31,8 @@ class SendTelegramNotification implements ShouldBeUnique, ShouldQueue
 
     public const EXPIRED = 'expired';
 
-    public int $tries = 3;
+    /** Three failed attempts end the job; releases for rate limits do not count (see the trait). */
+    public int $maxExceptions = 3;
 
     public int $timeout = 30;
 
@@ -67,7 +70,7 @@ class SendTelegramNotification implements ShouldBeUnique, ShouldQueue
         };
 
         if ($message instanceof OrderMessage) {
-            $telegram->send($message->render($order));
+            $this->deliverTelegram(fn () => $telegram->send($message->render($order)));
         }
     }
 

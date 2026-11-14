@@ -7,6 +7,7 @@ namespace App\Mail;
 use App\Enums\OrderType;
 use App\Mail\Concerns\StripsMarkdownEscapes;
 use App\Models\Order;
+use App\Services\Telegram\TelegramLinkService;
 use App\Settings\GeneralSettings;
 use App\Settings\SalesSettings;
 use Illuminate\Mail\Mailable;
@@ -63,9 +64,13 @@ class OrderPlacedCustomerMail extends Mailable
 
         $related = $this->related();
 
+        $requests = $related === null ? [$this->order] : [$this->order, $related->loadMissing('items')];
+
         return new Content(markdown: 'mail.order-placed', with: [
+            // TG-08: one link for all requests of the letter, only while the bot is connected and the requests are unbound.
+            'telegramLink' => $this->order->telegram_account_id === null ? app(TelegramLinkService::class)->orderLink($requests) : null,
             'order' => $this->order->loadMissing('items'),
-            'requests' => $related === null ? [$this->order] : [$this->order, $related->loadMissing('items')],
+            'requests' => $requests,
             'thanks' => filled($thanks) ? $thanks : __('notifications.mail.default_thanks.'.$this->order->type->value),
             'general' => app(GeneralSettings::class),
         ]);

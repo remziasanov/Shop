@@ -16,6 +16,9 @@ enum CustomerNotificationType: string
     case WholesaleDecision = 'wholesale_decision';
     case ExportReady = 'export_ready';
     case OrderChanged = 'order_changed';
+    case TelegramLinked = 'telegram_linked';
+    /** TM-04: the Telegram of the customer was linked to another account or disconnected. */
+    case TelegramUnlinked = 'telegram_unlinked';
 
     public function label(): string
     {

@@ -1,4 +1,4 @@
-<form wire:submit="submit" class="relative grid gap-6 lg:grid-cols-[1fr_22rem]" novalidate aria-label="{{ __('storefront_sales.checkout.title') }}">
+<form wire:submit="submit" class="relative grid gap-6 lg:grid-cols-[1fr_22rem]" novalidate @if (\App\Support\TelegramMode::active()) data-tg-checkout @unless (session(\App\Support\TelegramMode::CHAT_KEY)) data-tg-write @endunless @endif aria-label="{{ __('storefront_sales.checkout.title') }}">
     <div class="space-y-6">
         <x-storefront.form-error />
 
@@ -21,6 +21,11 @@
             <x-storefront.field prefix="co" name="name" :label="__('storefront_sales.fields.name')" required autocomplete="name" maxlength="150" />
             <x-storefront.field prefix="co" name="phone" type="tel" :label="__('storefront_sales.fields.phone')" required autocomplete="tel" inputmode="tel"
                                 :placeholder="__('storefront_sales.checkout.phone_placeholder')" x-data="phoneMask" x-on:input="format($event)" />
+            @if (\App\Support\TelegramMode::active() && trim($phone) === '')
+                {{-- TM-05, TG-09: the number the user shares with the bot (Telegram verifies it) fills the field. --}}
+                <button type="button" data-tg-phone="co-phone" x-data="{ ok: typeof window.Telegram?.WebApp?.requestContact === 'function' }" x-show="ok" x-cloak
+                        class="min-h-11 rounded-btn border border-line-strong px-4 text-sm font-medium hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('telegram_miniapp.checkout.use_my_phone') }}</button>
+            @endif
             <x-storefront.field prefix="co" name="email" type="email" :label="__('storefront_sales.fields.email')" autocomplete="email" maxlength="190" />
         </fieldset>
 
@@ -192,7 +197,7 @@
         <x-storefront.consent prefix="co" :link="$consentLink" />
         <x-storefront.guard />
 
-        <button type="submit" wire:loading.attr="disabled" wire:target="submit" class="w-full rounded-btn bg-primary px-4 py-3 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 max-md:hidden">
+        <button type="submit" data-tg-main wire:loading.attr="disabled" wire:target="submit" class="w-full rounded-btn bg-primary px-4 py-3 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 max-md:hidden">
             <span wire:loading.remove wire:target="submit">{{ __($hasOrder && $hasReservation ? 'storefront_sales.checkout.submit_both' : ($hasReservation ? 'storefront_sales.checkout.submit_reserve' : 'storefront_sales.checkout.submit')) }}</span>
             <span wire:loading wire:target="submit">{{ __('storefront_sales.checkout.sending') }}</span>
         </button>
@@ -206,7 +211,7 @@
                 <span class="block text-xs text-muted">{{ __('storefront_sales.checkout.total') }}</span>
                 <span class="block truncate text-lg font-bold leading-tight" aria-live="polite" data-sticky-total>{{ \App\Support\Money::format($total + ($hasReservation && $summary !== null ? $summary->reservationTotal : 0)) }}</span>
             </p>
-            <button type="submit" wire:loading.attr="disabled" wire:target="submit" class="flex min-h-11 flex-none items-center justify-center rounded-btn bg-primary px-5 py-2 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60" data-sticky-submit>
+            <button type="submit" data-tg-main wire:loading.attr="disabled" wire:target="submit" class="flex min-h-11 flex-none items-center justify-center rounded-btn bg-primary px-5 py-2 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60" data-sticky-submit>
                 <span wire:loading.remove wire:target="submit">{{ __($hasOrder && $hasReservation ? 'storefront_sales.checkout.submit_both' : ($hasReservation ? 'storefront_sales.checkout.submit_reserve' : 'storefront_sales.checkout.submit')) }}</span>
                 <span wire:loading wire:target="submit">{{ __('storefront_sales.checkout.sending') }}</span>
             </button>

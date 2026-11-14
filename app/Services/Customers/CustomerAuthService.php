@@ -10,6 +10,7 @@ use App\Exceptions\CustomerAuthException;
 use App\Exceptions\CustomerNotVerifiedException;
 use App\Exceptions\CustomerThrottledException;
 use App\Mail\CustomerEmailChangedMail;
+use App\Models\Cart;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\CustomerVerificationCode;
@@ -17,6 +18,7 @@ use App\Services\Cart\CartMerger;
 use App\Services\Cart\CartService;
 use App\Settings\CustomerSettings;
 use App\Support\PiiMask;
+use App\Support\TelegramMode;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Contracts\Session\Session;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -315,6 +317,8 @@ final class CustomerAuthService
         $guard->setRememberDuration(self::REMEMBER_MINUTES);
         $guard->login($customer, $remember);
         $request->session()->put(self::SESSION_VERSION_KEY, $customer->auth_version);
+        // TM-04: a password, code or reset sign-in is not a Telegram sign-in (the per-request link check must not apply).
+        $request->session()->forget(TelegramMode::LOGIN_KEY);
         $customer->forceFill(['last_login_at' => now()])->save();
         $this->mergeGuestCart($customer, $request);
         $this->linkGuestOrders($customer);
@@ -329,7 +333,7 @@ final class CustomerAuthService
         Auth::guard('customer')->logout();
 
         $session = $request->session();
-        $session->forget(self::SESSION_VERSION_KEY);
+        $session->forget([self::SESSION_VERSION_KEY, TelegramMode::LOGIN_KEY]);
 
         if (Auth::guard('web')->check()) {
             $session->regenerateToken();
@@ -337,7 +341,17 @@ final class CustomerAuthService
             return;
         }
 
+        // TM-04 (г): the Telegram mode is not a sign-in, so it survives the sign-out (the keys of the Telegram account).
+        $telegram = TelegramMode::active($session) ? $session->only([
+            TelegramMode::SESSION_KEY,
+            TelegramMode::USER_KEY,
+            TelegramMode::ACCOUNT_KEY,
+            TelegramMode::CHAT_KEY,
+            'channel',
+        ]) : [];
+
         $session->invalidate();
+        $session->put($telegram);
         $session->regenerateToken();
     }
 
@@ -454,6 +468,9 @@ final class CustomerAuthService
         $customer->forceFill(['password' => $newPassword])->save();
         $customer->bumpAuthVersion();
         $session->put(self::SESSION_VERSION_KEY, $customer->auth_version);
+        // CA-08: the session continues. The password was just proved, so it becomes an ordinary sign-in; the Telegram link
+        // keeps the old version and ends at the next /tg/session (TM-04 а).
+        $session->forget(TelegramMode::LOGIN_KEY);
     }
 
     /**
@@ -523,6 +540,8 @@ final class CustomerAuthService
         });
 
         $session->put(self::SESSION_VERSION_KEY, $customer->auth_version);
+        // CA-08: same as changePassword(): the session continues as an ordinary sign-in (TM-04 а).
+        $session->forget(TelegramMode::LOGIN_KEY);
 
         Mail::to($old)->queue(new CustomerEmailChangedMail(PiiMask::email($newEmail)));
         CustomerEmailVerified::dispatch($customer);
@@ -605,19 +624,30 @@ final class CustomerAuthService
     private function mergeGuestCart(Customer $customer, Request $request): void
     {
         $token = $request->cookie(CartService::COOKIE);
+        $tokens = is_string($token) ? [$token] : [];
 
-        if (! is_string($token)) {
-            return;
+        // TM-10: in the Telegram mode the guest cart is bound to the Telegram account; it joins the customer's cart too.
+        $accountId = TelegramMode::accountId();
+        $telegramToken = $accountId !== null
+            ? Cart::query()->where('telegram_account_id', $accountId)->whereNull('customer_id')->value('token')
+            : null;
+
+        if (is_string($telegramToken) && ! in_array($telegramToken, $tokens, true)) {
+            $tokens[] = $telegramToken;
         }
 
-        try {
-            $this->cartMerger->merge($customer, $token);
-        } catch (\Throwable $e) {
-            report($e);
+        foreach ($tokens as $guestToken) {
+            try {
+                $this->cartMerger->merge($customer, $guestToken);
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         // From now on the cart is the customer's own: the guest cookie must not outlive the sign-in.
-        Cookie::queue(Cookie::forget(CartService::COOKIE));
+        if (is_string($token)) {
+            Cookie::queue(Cookie::forget(CartService::COOKIE));
+        }
     }
 
     /**

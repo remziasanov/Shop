@@ -13,6 +13,7 @@ use App\Services\Customers\CustomerAuthService;
 use App\Services\Customers\RegistrationData;
 use App\Services\Customers\WholesaleApplicationService;
 use App\Settings\NotificationSettings;
+use App\Settings\TelegramSettings;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -35,9 +36,11 @@ function shopNotifications(array $values = []): NotificationSettings
 {
     $settings = app(NotificationSettings::class);
     $settings->notify_emails = ['shop@example.com', 'second@example.com'];
-    $settings->telegram_enabled = true;
-    $settings->telegram_bot_token = '123456:SECRET-token_abc';
-    $settings->telegram_chat_id = '-1001';
+    $telegram = app(TelegramSettings::class);
+    $telegram->enabled = true;
+    $telegram->bot_token = '123456:SECRET-token_abc';
+    $telegram->work_chat_id = '-1001';
+    $telegram->save();
     $settings->notify_wholesale_email = true;
     $settings->notify_wholesale_telegram = true;
 
@@ -118,7 +121,10 @@ it('does not use the order toggles', function (): void {
 });
 
 it('skips Telegram when it is not configured', function (): void {
-    shopNotifications(['telegram_enabled' => false]);
+    shopNotifications();
+    $telegram = app(TelegramSettings::class);
+    $telegram->enabled = false;
+    $telegram->save();
 
     applyForWholesale($this->customer);
 

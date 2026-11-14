@@ -11,17 +11,10 @@ class NotificationSettings extends Settings
     /** @var array<int, string> */
     public array $notify_emails;
 
-    public bool $telegram_enabled;
-
-    /** Secret, stored encrypted. Never seeded. */
-    public ?string $telegram_bot_token;
-
-    public ?string $telegram_chat_id;
-
     /** New order / reservation / inquiry: email to the shop. */
     public bool $notify_shop_email;
 
-    /** New order / reservation / inquiry: Telegram to the shop. */
+    /** New order / reservation / inquiry: Telegram to the shop (the bot and work chat live in TelegramSettings, TG-01). */
     public bool $notify_shop_telegram;
 
     /** New order / reservation / inquiry: email to the customer. */
@@ -54,14 +47,6 @@ class NotificationSettings extends Settings
 
     /** Reservation expired automatically: Telegram to the shop. */
     public bool $notify_reservation_expired;
-
-    /**
-     * @return array<int, string>
-     */
-    public static function encrypted(): array
-    {
-        return ['telegram_bot_token'];
-    }
 
     public static function group(): string
     {

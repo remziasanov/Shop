@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Http\Requests\Account\CodeRequest;
 use App\Services\Customers\CustomerAuthService;
+use App\Services\Telegram\MiniApp\TelegramSessionService;
 use App\Support\PiiMask;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -53,6 +54,8 @@ class EmailConfirmationController extends Controller
 
         $request->session()->forget([RegisterController::PENDING_EMAIL_KEY, RegisterController::BINDING_KEY]);
         $auth->signIn($customer, $request);
+        // TM-04 (в): the confirmed registration links this Telegram to the new account.
+        app(TelegramSessionService::class)->linkSessionAccount($request->session(), $customer);
 
         return redirect()->intended(route('account'))->with('status', __('account.confirm.done'));
     }

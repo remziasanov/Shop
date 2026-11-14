@@ -8,6 +8,7 @@ use App\Filament\Resources\PromoLinks\Support\PromoLinkSummary;
 use App\Models\PromoLink;
 use App\Services\Promo\PromoLinkSaver;
 use App\Services\Promo\PromoLinkStats;
+use App\Services\Telegram\MiniApp\MiniAppConfig;
 use App\Support\Money;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
@@ -37,6 +38,12 @@ final class PromoLinkInfolist
                         TextEntry::make('public_url')
                             ->label(__('promo_admin.links.fields.link'))
                             ->state(fn (PromoLink $record): string => app(PromoLinkSaver::class)->publicUrl($record->slug))
+                            ->copyable(),
+                        // TM-09: the second address of the link, for the Telegram Mini App (startapp=go_{slug}).
+                        TextEntry::make('telegram_url')
+                            ->label(__('telegram_miniapp.admin.promo_link'))
+                            ->state(fn (PromoLink $record): ?string => app(MiniAppConfig::class)->startappLink('go_'.$record->slug))
+                            ->visible(fn (): bool => app(MiniAppConfig::class)->botUsername() !== null)
                             ->copyable(),
                         TextEntry::make('target')
                             ->label(__('promo_admin.links.table.target'))

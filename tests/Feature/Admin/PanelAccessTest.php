@@ -9,6 +9,7 @@ use App\Filament\Pages\Settings\ManageNotificationSettings;
 use App\Filament\Pages\Settings\ManagePricingSettings;
 use App\Filament\Pages\Settings\ManageSalesSettings;
 use App\Filament\Pages\Settings\ManageSeoSettings;
+use App\Filament\Pages\Settings\ManageTelegramSettings;
 use App\Filament\Resources\Users\UserResource;
 use App\Models\User;
 
@@ -18,6 +19,7 @@ dataset('settings pages', [
     ManageSalesSettings::class,
     ManagePricingSettings::class,
     ManageNotificationSettings::class,
+    ManageTelegramSettings::class,
     ManageSeoSettings::class,
     ManageLegalSettings::class,
 ]);

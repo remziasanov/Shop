@@ -180,15 +180,10 @@ return [
             'title' => 'Уведомления',
             'sections' => [
                 'email' => 'Email',
-                'telegram' => 'Telegram',
                 'events' => 'События',
             ],
             'fields' => [
                 'notify_emails' => 'Адреса для уведомлений',
-                'telegram_enabled' => 'Отправлять в Telegram',
-                'telegram_bot_token' => 'Токен бота',
-                'telegram_chat_id' => 'Chat ID',
-                'remove_telegram_token' => 'Удалить токен',
                 'notify_event_order' => 'Уведомлять о новых заказах',
                 'notify_event_reservation' => 'Уведомлять о новых резервах',
                 'notify_event_inquiry' => 'Уведомлять о новых заявках',
@@ -204,11 +199,8 @@ return [
                 'notify_wholesale_email' => 'Заявки на опт: email',
                 'notify_wholesale_telegram' => 'Заявки на опт: Telegram',
             ],
-            'send_test' => 'Отправить тестовое сообщение в Telegram',
             'send_test_mail' => 'Отправить тестовое письмо',
-            'token_is_set' => 'Токен задан',
-            'token_hint' => 'Оставьте поле пустым, чтобы сохранить текущий токен.',
-            'test_hint' => 'Тест использует введённые значения; токен и Chat ID сохраняются кнопкой «Сохранить».',
+            'telegram_moved' => 'Токен бота, рабочий чат и тест Telegram настраиваются в «Настройки → Telegram».',
         ],
 
         'seo' => [

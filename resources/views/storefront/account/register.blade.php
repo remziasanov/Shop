@@ -4,10 +4,10 @@
     <x-account.card :title="__('account.register.title')" :lead="__('account.register.lead')">
         <form method="POST" action="{{ route('customer.register.store') }}" class="relative space-y-4" novalidate>
             @csrf
-            <x-account.field prefix="rg" name="name" :label="__('account.fields.name')" autocomplete="name" maxlength="150" />
+            <x-account.field prefix="rg" name="name" :label="__('account.fields.name')" autocomplete="name" maxlength="150" :value="$prefillName ?? ''" />
             <x-account.field prefix="rg" name="email" type="email" :label="__('account.fields.email')" autocomplete="email" maxlength="190" :value="$prefillEmail" />
             <x-account.field prefix="rg" name="phone" type="tel" :label="__('account.fields.phone')" autocomplete="tel" inputmode="tel"
-                             :placeholder="__('storefront_sales.checkout.phone_placeholder')" x-data="phoneMask" x-on:input="format($event)" />
+                             :placeholder="__('storefront_sales.checkout.phone_placeholder')" :value="$prefillPhone ?? ''" x-data="phoneMask" x-on:input="format($event)" />
             <x-account.field prefix="rg" name="password" type="password" :label="__('account.fields.password')" autocomplete="new-password"
                              :hint="__('account.register.password_hint', ['min' => $passwordMin])" />
             <x-account.field prefix="rg" name="password_confirmation" type="password" :label="__('account.fields.password_confirmation')" autocomplete="new-password" />
@@ -31,7 +31,7 @@
             </div>
             <input type="hidden" name="form_token" value="{{ $formToken }}">
 
-            <x-account.button>{{ __('account.register.submit') }}</x-account.button>
+            <x-account.button data-tg-main>{{ __('account.register.submit') }}</x-account.button>
         </form>
 
         <p class="mt-6 text-sm text-ink-mid">

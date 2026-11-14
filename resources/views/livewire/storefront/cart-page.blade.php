@@ -169,11 +169,11 @@
 
                 @if ($summary->canProceed() && $mustSignIn)
                     <p class="mt-4 rounded-btn border border-warn-line bg-warn-wash p-2 text-sm text-warn-ink" data-login-required>{{ __('account.errors.login_required_to_order') }}</p>
-                    <a href="{{ route('customer.login', ['back' => 'checkout']) }}" class="mt-3 block rounded-btn bg-primary px-4 py-3 text-center font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary max-md:hidden" data-checkout-login>{{ __('account.actions.login_to_order') }}</a>
+                    <a href="{{ route('customer.login', ['back' => 'checkout']) }}" class="mt-3 block rounded-btn bg-primary px-4 py-3 text-center font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary max-md:hidden" data-tg-main data-checkout-login>{{ __('account.actions.login_to_order') }}</a>
                 @elseif ($summary->canProceed())
-                    <a href="{{ route('checkout') }}" class="mt-4 block rounded-btn bg-primary px-4 py-3 text-center font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary max-md:hidden" data-checkout>{{ $checkoutLabel }}</a>
+                    <a href="{{ route('checkout') }}" class="mt-4 block rounded-btn bg-primary px-4 py-3 text-center font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary max-md:hidden" data-tg-main data-checkout>{{ $checkoutLabel }}</a>
                 @else
-                    <span aria-disabled="true" @if ($summary->minOrderMissing > 0) aria-describedby="min-order-note" @endif class="mt-4 block cursor-not-allowed rounded-btn bg-line px-4 py-3 text-center font-medium text-muted max-md:hidden" data-checkout-disabled>{{ $checkoutLabel }}</span>
+                    <span aria-disabled="true" @if ($summary->minOrderMissing > 0) aria-describedby="min-order-note" @endif class="mt-4 block cursor-not-allowed rounded-btn bg-line px-4 py-3 text-center font-medium text-muted max-md:hidden" data-tg-main data-checkout-disabled>{{ $checkoutLabel }}</span>
                 @endif
 
                 <a href="{{ route('catalog.index') }}" class="mt-3 flex min-h-11 items-center justify-center text-center text-sm text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.cart.continue') }}</a>
@@ -188,11 +188,11 @@
                     <span class="block truncate text-lg font-bold leading-tight" data-sticky-total>{{ \App\Support\Money::format($summary->itemsTotal - ($promo['applied'] ? $promo['discount'] : 0)) }}</span>
                 </p>
                 @if ($summary->canProceed() && $mustSignIn)
-                    <a href="{{ route('customer.login', ['back' => 'checkout']) }}" class="flex min-h-11 flex-none items-center justify-center rounded-btn bg-primary px-5 py-2 text-center font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-sticky-checkout>{{ __('account.actions.login_to_order') }}</a>
+                    <a href="{{ route('customer.login', ['back' => 'checkout']) }}" class="flex min-h-11 flex-none items-center justify-center rounded-btn bg-primary px-5 py-2 text-center font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-tg-main data-sticky-checkout>{{ __('account.actions.login_to_order') }}</a>
                 @elseif ($summary->canProceed())
-                    <a href="{{ route('checkout') }}" class="flex min-h-11 flex-none items-center justify-center rounded-btn bg-primary px-5 py-2 text-center font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-sticky-checkout>{{ $checkoutLabel }}</a>
+                    <a href="{{ route('checkout') }}" class="flex min-h-11 flex-none items-center justify-center rounded-btn bg-primary px-5 py-2 text-center font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-tg-main data-sticky-checkout>{{ $checkoutLabel }}</a>
                 @else
-                    <span aria-disabled="true" @if ($summary->minOrderMissing > 0) aria-describedby="min-order-note" @endif class="flex min-h-11 flex-none cursor-not-allowed items-center justify-center rounded-btn bg-line px-5 py-2 text-center font-medium text-muted" data-sticky-checkout-disabled>{{ $checkoutLabel }}</span>
+                    <span aria-disabled="true" @if ($summary->minOrderMissing > 0) aria-describedby="min-order-note" @endif class="flex min-h-11 flex-none cursor-not-allowed items-center justify-center rounded-btn bg-line px-5 py-2 text-center font-medium text-muted" data-tg-main data-sticky-checkout-disabled>{{ $checkoutLabel }}</span>
                 @endif
             </div>
         </div>

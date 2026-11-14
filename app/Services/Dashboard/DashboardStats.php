@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\Dashboard;
 
+use App\Enums\OrderChannel;
 use App\Enums\OrderType;
 use App\Models\Import;
 use App\Models\Order;
 use App\Models\Product;
+use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +25,7 @@ final class DashboardStats
 
     public const EXPIRING_HOURS = 24;
 
-    private const KEYS = ['requests', 'expiring', 'products', 'chart'];
+    private const KEYS = ['requests', 'expiring', 'products', 'chart', 'channels'];
 
     /**
      * New requests created today and during the last 7 days (today included), split by type.
@@ -119,6 +121,43 @@ final class DashboardStats
             }
 
             return $points;
+        });
+    }
+
+    /**
+     * TM-14: requests of the last 30 days by channel (site, installed app, Telegram): the number and the sum in kopecks
+     * (requests without a price count as zero). Every channel is present, also without requests.
+     *
+     * @return array<string, array{count: int, sum: int}>
+     */
+    public function requestsByChannel(): array
+    {
+        /** @var array<string, array{count: int, sum: int}> */
+        return Cache::remember('dashboard:channels', self::TTL_SECONDS, function (): array {
+            $start = CarbonImmutable::now()->startOfDay()->subDays(self::CHART_DAYS - 1);
+
+            $rows = Order::query()
+                ->where('created_at', '>=', $start)
+                ->selectRaw('channel, count(*) as request_count, sum(total) as total_sum')
+                ->groupBy('channel')
+                ->get();
+
+            $result = [];
+
+            foreach (OrderChannel::cases() as $channel) {
+                $result[$channel->value] = ['count' => 0, 'sum' => 0];
+            }
+
+            foreach ($rows as $row) {
+                $channel = (string) $row->getRawOriginal('channel');
+                $sum = $row->getAttribute('total_sum');
+
+                if (isset($result[$channel])) {
+                    $result[$channel] = ['count' => (int) $row->getAttribute('request_count'), 'sum' => $sum === null ? 0 : Money::fromRubles((string) $sum)];
+                }
+            }
+
+            return $result;
         });
     }
 

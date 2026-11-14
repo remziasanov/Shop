@@ -10,7 +10,7 @@
                 class="rounded-btn border border-primary px-6 py-3 font-medium text-primary hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.inquiry') }}</button>
 
         <x-storefront.modal id="inquiry-{{ $productId }}" :title="__('storefront_sales.inquiry.title')">
-            <form wire:submit="submit" class="space-y-4" novalidate>
+            <form wire:submit="submit" class="space-y-4" novalidate @if (\App\Support\TelegramMode::active()) data-tg-checkout @unless (session(\App\Support\TelegramMode::CHAT_KEY)) data-tg-write @endunless @endif>
                 <p class="text-sm text-ink-mid">{{ __('storefront_sales.inquiry.text') }}</p>
                 @if ($variantMode)
                     <p class="text-sm font-medium" data-variant-label x-text="current ? current.label : ''"></p>
@@ -28,7 +28,7 @@
 
                 <div class="flex flex-wrap justify-end gap-2">
                     <button type="button" @click="open = false" class="rounded-btn border border-line-strong px-4 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.modal.cancel') }}</button>
-                    <button type="submit" wire:loading.attr="disabled" wire:target="submit" class="rounded-btn bg-primary px-6 py-2 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{{ __('storefront_sales.inquiry.submit') }}</button>
+                    <button type="submit" data-tg-main wire:loading.attr="disabled" wire:target="submit" class="rounded-btn bg-primary px-6 py-2 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{{ __('storefront_sales.inquiry.submit') }}</button>
                 </div>
             </form>
         </x-storefront.modal>

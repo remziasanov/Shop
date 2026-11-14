@@ -12,6 +12,7 @@ use App\Filament\Pages\Settings\ManageNotificationSettings;
 use App\Filament\Pages\Settings\ManagePricingSettings;
 use App\Filament\Pages\Settings\ManageSalesSettings;
 use App\Filament\Pages\Settings\ManageSeoSettings;
+use App\Filament\Pages\Settings\ManageTelegramSettings;
 use App\Models\User;
 use App\Settings\AppearanceSettings;
 use App\Settings\GeneralSettings;
@@ -36,6 +37,7 @@ it('renders every settings page', function (string $page) {
     ManageSalesSettings::class,
     ManagePricingSettings::class,
     ManageNotificationSettings::class,
+    ManageTelegramSettings::class,
     ManageSeoSettings::class,
     ManageLegalSettings::class,
 ]);
@@ -100,11 +102,11 @@ it('saves pricing enums', function () {
 
 it('saves notification settings without exposing a working test button', function () {
     Livewire::test(ManageNotificationSettings::class)
-        ->fillForm(['telegram_chat_id' => '12345'])
+        ->fillForm(['notify_shop_telegram' => false])
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect(app(NotificationSettings::class)->telegram_chat_id)->toBe('12345');
+    expect(app(NotificationSettings::class)->notify_shop_telegram)->toBeFalse();
 });
 
 it('rejects a malformed money amount', function () {

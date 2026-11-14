@@ -10,7 +10,7 @@
                            class="w-24 rounded-btn border border-line-strong px-3 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 </div>
             @endif
-            <button type="button" wire:click="add" wire:loading.attr="disabled" data-action="cart"
+            <button type="button" wire:click="add" wire:loading.attr="disabled" data-action="cart" data-tg-main
                     class="rounded-btn bg-primary px-6 py-3 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">
                 <span x-text="current ? current.cartLabel : ''">{{ $cartLabel }}</span><span class="sr-only">: {{ $product->name }}</span>
             </button>
@@ -27,7 +27,7 @@
                                class="w-24 rounded-btn border border-line-strong px-3 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                     </div>
                 @endif
-                <button type="button" wire:click="add" wire:loading.attr="disabled" data-action="cart"
+                <button type="button" wire:click="add" wire:loading.attr="disabled" data-action="cart" data-tg-main
                         class="rounded-btn bg-primary px-6 py-3 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">
                     {{ $cartLabel }}<span class="sr-only">: {{ $product->name }}</span>
                 </button>

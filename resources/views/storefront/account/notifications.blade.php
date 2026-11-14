@@ -17,6 +17,29 @@
             <x-account.errors />
         </div>
 
+        {{-- TG-07, TG-11: Telegram as a third channel next to e-mail and the cabinet. --}}
+        @if ($telegram['available'] || $telegram['linked'])
+            <section class="mt-4 rounded-card border border-line p-4" aria-labelledby="account-telegram" data-telegram-block>
+                <h2 id="account-telegram" class="font-body font-semibold">{{ __('telegram.cabinet.title') }}</h2>
+                @if ($telegram['linked'])
+                    <p class="mt-1 text-sm text-ink-mid" data-telegram-linked>{{ __('telegram.cabinet.connected') }}@if ($telegram['username']) ({{ '@'.$telegram['username'] }})@endif</p>
+                    @if ($telegram['needsStart'])
+                        <p class="mt-1 text-sm text-ink-soft" data-telegram-start-hint>{{ __('telegram.cabinet.start_hint') }}</p>
+                    @endif
+                    <form method="POST" action="{{ route('customer.telegram.disconnect') }}" class="mt-3">
+                        @csrf
+                        <x-account.button variant="secondary" class="text-sm">{{ __('telegram.cabinet.disconnect') }}</x-account.button>
+                    </form>
+                @else
+                    <p class="mt-1 text-sm text-ink-mid">{{ __('telegram.cabinet.text') }}</p>
+                    <form method="POST" action="{{ route('customer.telegram.connect') }}" class="mt-3">
+                        @csrf
+                        <x-account.button class="text-sm">{{ __('telegram.cabinet.connect') }}</x-account.button>
+                    </form>
+                @endif
+            </section>
+        @endif
+
         @if ($notifications->isEmpty())
             <p class="rounded-card border border-line p-4 text-ink-mid" data-notifications-empty>{{ __('account.notifications.empty') }}</p>
         @else

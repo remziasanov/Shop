@@ -5,6 +5,11 @@ declare(strict_types=1);
 return [
     'title' => 'Главная',
 
+    'channels' => [
+        'heading' => 'Обращения по каналам за 30 дней',
+        'sum' => 'На сумму :sum',
+    ],
+
     'requests' => [
         'today' => 'Обращения сегодня',
         'week' => ':type за 7 дней',

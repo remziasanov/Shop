@@ -15,6 +15,7 @@
         @endif
 
         <p class="mt-4 whitespace-pre-line text-ink-soft">{{ $thanksText }}</p>
+        @include('storefront.partials.tg-thanks-note')
 
         @if (count($orders) > 1)
             {{-- MR-11: both requests of one checkout. --}}
@@ -29,6 +30,15 @@
                 @include('storefront.partials.thanks-request', ['order' => $placed])
             </div>
         @endforeach
+
+        {{-- TG-08: follow the status of these requests in Telegram. --}}
+        @if ($telegramLink)
+            <section class="mt-6 rounded-card border border-line p-4" aria-labelledby="thanks-telegram" data-telegram-follow>
+                <h2 id="thanks-telegram" class="font-body font-semibold">{{ __('telegram.order_link.button') }}</h2>
+                <p class="mt-1 text-sm text-ink-mid">{{ __('telegram.order_link.hint') }}</p>
+                <a href="{{ $telegramLink }}" rel="noopener" class="mt-3 inline-block rounded-btn border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('telegram.order_link.button') }}</a>
+            </section>
+        @endif
 
         {{-- CA-27: a guest is offered a cabinet; the account is never created automatically. --}}
         @if ($offerAccount)

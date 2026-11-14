@@ -10,6 +10,7 @@ use App\Services\Access\ViewerContext;
 use App\Services\Promo\BotDetector;
 use App\Services\Promo\PromoLinkResolver;
 use App\Services\Promo\PromoLinkStats;
+use App\Support\StorefrontCookie;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -89,7 +90,7 @@ class PromoLinkController extends Controller
      */
     private function cookie(string $name, string $value, bool $secure): Cookie
     {
-        return new Cookie($name, $value, now()->addDays(self::DAYS)->getTimestamp(), '/', null, $secure, true, false, Cookie::SAMESITE_LAX);
+        return StorefrontCookie::build($name, $value, now()->addDays(self::DAYS)->getTimestamp(), true, $secure);
     }
 
     private function noindex(RedirectResponse $response): RedirectResponse

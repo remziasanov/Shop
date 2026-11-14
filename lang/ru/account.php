@@ -308,6 +308,8 @@ return [
             'wholesale_decision' => 'Решение по заявке на опт',
             'export_ready' => 'Выгрузка готова',
             'order_changed' => 'Состав заказа изменён',
+            'telegram_linked' => 'Telegram подключён',
+            'telegram_unlinked' => 'Telegram отключён',
         ],
         'status_title' => ':type :number: статус изменён',
         'status_body' => 'Новый статус: :status.',

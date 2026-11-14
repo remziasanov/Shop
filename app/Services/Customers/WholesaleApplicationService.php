@@ -544,7 +544,7 @@ final class WholesaleApplicationService
                 }
             }
 
-            if ($settings->telegram_enabled && $settings->notify_wholesale_telegram && app(TelegramNotifier::class)->isConfigured()) {
+            if (app(TelegramNotifier::class)->isEnabled() && $settings->notify_wholesale_telegram) {
                 $jobs[] = new SendWholesaleApplicationNotification($application->id, SendWholesaleApplicationNotification::TELEGRAM);
             }
 

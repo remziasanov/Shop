@@ -7,6 +7,7 @@ namespace App\Services\System;
 use App\Enums\CheckStatus;
 use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Content\LegalPageStatus;
+use App\Services\Telegram\TelegramDoctor;
 use App\Services\Variants\SkuGuard;
 use App\Services\Variants\VariantAggregator;
 use App\Support\TrustedHosts;
@@ -97,6 +98,11 @@ class EnvironmentChecker
             'variant_aggregates' => fn () => $this->variantAggregates(),
             'dompdf' => fn () => $this->dompdf(),
         ];
+
+        // TG-12: HTTPS, webhook address, pending updates, webhook errors, startapp links, work chat.
+        foreach (TelegramDoctor::KEYS as $key) {
+            $checks[$key] = fn () => app(TelegramDoctor::class)->check($key);
+        }
 
         $results = [];
 

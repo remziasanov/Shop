@@ -96,6 +96,7 @@
         <div @if ($picker !== null) x-data="variantPicker(@js(['unavailable' => __('variant_storefront.unavailable'), 'cart' => __('storefront.actions.cart'), 'backorder' => __('sales.actions.backorder'), 'reserve' => __('storefront.actions.reserve_to_cart'), 'pair' => __('variants.label.pair', ['option' => ':option', 'value' => ':value']), 'separator' => __('variants.label.separator')]))" @input="onQty($event)" @cart-updated.window="resetQty()" @elseif ($view->tiers !== []) x-data="tierPrice(@js($view->unitKopecks), @js($tierPairs))" @input="onQty($event)" @cart-updated.window="reset()" @endif>
             @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mb-2'])
             <h1 class="text-2xl font-bold md:text-3xl">{{ $product->name }}</h1>
+            @include('storefront.partials.telegram-links', ['param' => 'p_'.$product->id, 'shareName' => $product->name])
 
             <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-ink-mid">
                 <dt>{{ __('storefront.product.sku') }}</dt>

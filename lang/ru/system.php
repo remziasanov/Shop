@@ -72,6 +72,12 @@ return [
         'variant_skus' => 'Коллизии артикулов товаров и модификаций',
         'variant_aggregates' => 'Агрегаты остатков и цен модификаций',
         'dompdf' => 'PDF: библиотека dompdf, расширения и каталог шрифтов',
+        'telegram_https' => 'Telegram: адрес сайта по https',
+        'telegram_webhook' => 'Telegram: вебхук на текущий адрес сайта',
+        'telegram_pending' => 'Telegram: ожидающие обновления',
+        'telegram_errors' => 'Telegram: ошибки вебхука за 24 часа',
+        'telegram_startapp' => 'Telegram: ссылки Main Mini App (startapp)',
+        'telegram_work_chat' => 'Telegram: рабочий чат',
     ],
     'hints' => [
         'dompdf_extensions' => 'Для PDF нужны расширения mbstring, dom и gd. Включите недостающие (:names) в настройках PHP на хостинге.',

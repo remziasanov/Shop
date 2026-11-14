@@ -19,9 +19,14 @@ require_once __DIR__.'/Support/group_prices.php';
 require_once __DIR__.'/Support/promo.php';
 require_once __DIR__.'/Support/reservation_cart.php';
 require_once __DIR__.'/Support/pdf.php';
+require_once __DIR__.'/Support/telegram.php';
 
+// CI runs the suites without a Vite build: storefront pages must not need public/build in tests.
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
+    ->beforeEach(function (): void {
+        $this->withoutVite();
+    })
     ->in('Feature');
 
 pest()->extend(TestCase::class)

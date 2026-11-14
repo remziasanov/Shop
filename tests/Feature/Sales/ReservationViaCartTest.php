@@ -32,6 +32,7 @@ use App\Services\Orders\OrderService;
 use App\Services\Sales\CartAvailability;
 use App\Settings\NotificationSettings;
 use App\Settings\SalesSettings;
+use App\Settings\TelegramSettings;
 use App\Support\QtyLimit;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -615,9 +616,11 @@ function mrNotifications(): void
 {
     $settings = app(NotificationSettings::class);
     $settings->notify_emails = ['shop@example.com'];
-    $settings->telegram_enabled = true;
-    $settings->telegram_bot_token = '123456:SECRET-token_abc';
-    $settings->telegram_chat_id = '-1001';
+    $telegram = app(TelegramSettings::class);
+    $telegram->enabled = true;
+    $telegram->bot_token = '123456:SECRET-token_abc';
+    $telegram->work_chat_id = '-1001';
+    $telegram->save();
 
     foreach (['notify_shop_email', 'notify_shop_telegram', 'notify_customer_new', 'notify_event_order', 'notify_event_reservation'] as $toggle) {
         $settings->{$toggle} = true;

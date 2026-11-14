@@ -13,6 +13,8 @@ use App\Models\CustomerCompany;
 use App\Models\CustomerNotification;
 use App\Models\CustomerVerificationCode;
 use App\Models\Order;
+use App\Models\TelegramAccount;
+use App\Models\TelegramLinkToken;
 use App\Models\User;
 use App\Services\Export\CustomerExportService;
 use App\Services\Users\AuditLogger;
@@ -24,7 +26,7 @@ use Illuminate\Support\Str;
  *
  *  - The customer: name «Удалённый покупатель», e-mail `deleted-{id}@anonymous.invalid`, no phone, a random password,
  *    blocked, `anonymized_at` set, every session ended. The row stays, so requests keep pointing at it.
- *  - Deleted: addresses, company, cabinet notifications, history exports (CX-06), e-mail codes, carts. Features with personal data of their
+ *  - Deleted: the Telegram account (kept without customer data when a staff user is linked, TG-06), addresses, company, cabinet notifications, history exports (CX-06), e-mail codes, carts. Features with personal data of their
  *    own (wholesale applications) erase it in a listener of {@see CustomerAnonymizing}, which fires first, inside
  *    the transaction.
  *  - Requests of the customer (guest requests with the verified address are linked first) lose name, phone, e-mail, delivery address, comment, user agent and consent IP; items,
@@ -84,6 +86,7 @@ final class CustomerAnonymizer
             // CX-06: the history exports (files and rows) hold the same personal data.
             app(CustomerExportService::class)->purgeForCustomer($locked);
             CustomerVerificationCode::query()->where('customer_id', $locked->id)->orWhere('email', $oldEmail)->delete();
+            $this->eraseTelegram($locked);
 
             foreach (Cart::query()->where('customer_id', $locked->id)->pluck('id') as $cartId) {
                 Cart::query()->whereKey($cartId)->delete();
@@ -107,5 +110,36 @@ final class CustomerAnonymizer
 
             return true;
         });
+    }
+
+    /**
+     * TG-06: the Telegram name, username and phone are personal data. The row goes with the customer; when a staff user
+     * is linked to the same Telegram the row stays for the staff and only the customer side is cleared.
+     */
+    private function eraseTelegram(Customer $customer): void
+    {
+        TelegramLinkToken::query()->where('customer_id', $customer->id)->delete();
+
+        /** @var TelegramAccount|null $account */
+        $account = TelegramAccount::query()->where('customer_id', $customer->id)->first();
+
+        if ($account === null) {
+            return;
+        }
+
+        if ($account->user_id === null) {
+            // Orders and carts pointing at the row are released by the foreign keys (SET NULL / CASCADE).
+            $account->delete();
+
+            return;
+        }
+
+        Order::withTrashed()->where('customer_id', $customer->id)->update(['telegram_account_id' => null]);
+        $account->forceFill([
+            'customer_id' => null,
+            'customer_auth_version' => null,
+            'phone' => null,
+            'phone_verified_at' => null,
+        ])->save();
     }
 }

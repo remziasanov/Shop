@@ -11,6 +11,7 @@ use App\Filament\Widgets\LegalTemplatesWidget;
 use App\Filament\Widgets\NewCustomersWidget;
 use App\Filament\Widgets\ProductsStatsWidget;
 use App\Filament\Widgets\PromoTopWidget;
+use App\Filament\Widgets\RequestsByChannelWidget;
 use App\Filament\Widgets\RequestsChartWidget;
 use App\Filament\Widgets\RequestsStatsWidget;
 use App\Filament\Widgets\WholesaleApplicationsWidget;
@@ -69,6 +70,7 @@ class Dashboard extends BaseDashboard
             LegalTemplatesWidget::class,
             AttributeMigrationWidget::class,
             RequestsStatsWidget::class,
+            RequestsByChannelWidget::class,
             NewCustomersWidget::class,
             WholesaleApplicationsWidget::class,
             ProductsStatsWidget::class,

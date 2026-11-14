@@ -37,7 +37,7 @@ class NotifyExpiringReservationsCommand extends Command
             report($e);
         }
 
-        if (! $settings->telegram_enabled || ! $settings->notify_reservation_expiring || ! $telegram->isConfigured()) {
+        if (! $telegram->isEnabled() || ! $settings->notify_reservation_expiring) {
             $this->info(__('admin_orders.command.expiring_notified', ['count' => 0]));
 
             return self::SUCCESS;

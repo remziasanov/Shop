@@ -9,7 +9,7 @@
                 <input type="checkbox" name="remember" value="1" @checked(old('remember')) class="h-4 w-4 rounded-btn border-line-heavy focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 {{ __('account.login.remember') }}
             </label>
-            <x-account.button>{{ __('account.login.submit') }}</x-account.button>
+            <x-account.button data-tg-main>{{ __('account.login.submit') }}</x-account.button>
         </form>
         <x-account.resend-button :action="route('customer.login.resend')" :seconds="$resendSeconds" />
         <p class="mt-6 text-sm">

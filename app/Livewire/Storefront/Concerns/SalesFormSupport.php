@@ -7,6 +7,7 @@ namespace App\Livewire\Storefront\Concerns;
 use App\Enums\AgeRestriction;
 use App\Enums\OrderChannel;
 use App\Exceptions\FormGuardException;
+use App\Models\TelegramAccount;
 use App\Rules\CanonicalEmail;
 use App\Services\Access\ViewerContext;
 use App\Services\Content\MenuService;
@@ -15,6 +16,7 @@ use App\Services\Orders\OrderChannelResolver;
 use App\Services\Sales\FormGuard;
 use App\Settings\LegalSettings;
 use App\Support\PhoneNormalizer;
+use App\Support\TelegramMode;
 use Closure;
 use Livewire\Attributes\Locked;
 
@@ -45,6 +47,30 @@ trait SalesFormSupport
             $this->name = $customer->name;
             $this->phone = (string) $customer->phone;
             $this->email = $customer->email;
+        }
+
+        $this->prefillFromTelegram();
+    }
+
+    /**
+     * TM-05: in the Mini App the name comes from Telegram (first and last name) and the phone is the one Telegram
+     * verified (TG-09); what the customer profile already filled stays, and both stay editable.
+     */
+    private function prefillFromTelegram(): void
+    {
+        $accountId = TelegramMode::accountId();
+        $account = $accountId !== null ? TelegramAccount::query()->find($accountId) : null;
+
+        if ($account === null) {
+            return;
+        }
+
+        if (trim($this->name) === '') {
+            $this->name = trim(trim((string) $account->first_name).' '.trim((string) $account->last_name));
+        }
+
+        if (trim($this->phone) === '' && $account->phone_verified_at !== null && $account->phone !== null) {
+            $this->phone = $account->phone;
         }
     }
 
@@ -81,7 +107,7 @@ trait SalesFormSupport
     protected function passesGuard(): bool
     {
         try {
-            app(FormGuard::class)->check($this->website, $this->formToken, (string) request()->ip());
+            app(FormGuard::class)->check($this->website, $this->formToken, (string) request()->ip(), TelegramMode::telegramUserId());
         } catch (FormGuardException $e) {
             $this->addError('form', $e->getMessage());
 

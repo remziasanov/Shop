@@ -17,23 +17,28 @@ use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Pricing\PriceRuleRepository;
 use App\Services\Sales\CartAvailability;
+use App\Services\Telegram\MiniApp\MiniAppConfig;
 use App\Services\Themes\ActiveTheme;
 use App\Services\Themes\FontRegistry;
 use App\Services\Themes\ThemeRegistry;
 use App\Services\Users\PermissionService;
 use App\Services\Variants\VariantAggregator;
+use App\Settings\TelegramSettings;
 use App\View\Composers\StorefrontComposer;
 use App\View\Composers\ThemeComposer;
 use Filament\Auth\Http\Controllers\LogoutController as FilamentLogoutController;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\Events\RequestHandled;
+use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -80,6 +85,16 @@ class AppServiceProvider extends ServiceProvider
         // NF-02: N+1 problems fail loudly in development and tests, never in production.
         Model::preventLazyLoading(! $this->app->isProduction());
 
+        // TG-04: Telegram sends updates from a few addresses.
+        RateLimiter::for('telegram-webhook', fn (Request $request): Limit => Limit::perMinute(120)->by((string) $request->ip()));
+
+        // TM-13: every /tg endpoint has its own bucket per IP (a shared one let the phone polling or a busy moment of one
+        // mobile network starve the session call). Telegram clients of one carrier share an address, so the caps are
+        // generous but finite: the session call verifies a signature, the others only read or write one row.
+        foreach (['session' => 60, 'write-access' => 20, 'phone' => 40, 'leave' => 20, 'start' => 60] as $name => $perMinute) {
+            RateLimiter::for('tg-'.$name, fn (Request $request): Limit => Limit::perMinute($perMinute)->by((string) $request->ip()));
+        }
+
         $this->configureFilamentFormats();
         $this->forceCanonicalUrl();
 
@@ -96,11 +111,19 @@ class AppServiceProvider extends ServiceProvider
 
         // The theme head partial is also printed by the error pages, which must render without the settings or the
         // database (SF-07): it gets the theme from ThemeComposer only, so the storefront composer skips it.
-        View::composer('storefront.*', fn (ViewContract $view) => $view->name() === 'storefront.partials.theme-head'
+        // TM-01: neither does the light entry page of the Mini App (no catalog SQL before the session exists).
+        View::composer('storefront.*', fn (ViewContract $view) => in_array($view->name(), ['storefront.partials.theme-head', 'storefront.telegram.entry'], true)
             ? null
             : $this->app->make(StorefrontComposer::class)->compose($view));
         // TH-05: `$theme` and the theme assets for the storefront and the error pages.
         View::composer(['storefront.*', 'errors.*'], ThemeComposer::class);
+
+        // TM-09: the cached base of the «Открыть в Telegram» links follows the Telegram settings.
+        Event::listen(SettingsSaved::class, function (SettingsSaved $event): void {
+            if ($event->settings instanceof TelegramSettings) {
+                (new MiniAppConfig($event->settings))->rememberSiteLinkBase();
+            }
+        });
 
         $this->forgetCartFlagOnChanges();
 

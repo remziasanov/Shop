@@ -56,7 +56,7 @@ final class OrdersExporter
             $book->sheet(__('admin_orders.export.sheet'), [1 => 12, 2 => 10, 3 => 22, 4 => 17, 5 => 26, 6 => 18, 7 => 26, 8 => 24, 9 => 36, 10 => 22, 11 => 16, 12 => 44, 17 => 44]);
             $book->header(array_map(
                 fn (string $key): string => __('admin_orders.export.columns.'.$key),
-                ['number', 'type', 'status', 'created_at', 'customer_name', 'phone', 'email', 'delivery', 'address', 'payment', 'sku', 'item_name', 'price', 'qty', 'line_total', 'order_total', 'comment'],
+                ['number', 'type', 'status', 'created_at', 'customer_name', 'phone', 'email', 'delivery', 'address', 'payment', 'sku', 'item_name', 'price', 'qty', 'line_total', 'order_total', 'comment', 'channel'],
             ));
 
             $this->query($params)
@@ -106,6 +106,8 @@ final class OrdersExporter
             self::number($item?->total),
             self::number($order->total),
             $order->customer_comment,
+            // TM-14: where the request came from.
+            $order->channel->label(),
         ];
     }
 
