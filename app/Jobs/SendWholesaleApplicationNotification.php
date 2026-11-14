@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Jobs\Concerns\DeliversTelegramMessages;
 use App\Mail\WholesaleApplicationShopMail;
 use App\Models\WholesaleApplication;
 use App\Services\Customers\WholesaleApplicationService;
@@ -26,13 +27,14 @@ use Throwable;
  */
 class SendWholesaleApplicationNotification implements ShouldBeUnique, ShouldQueue
 {
+    use DeliversTelegramMessages;
     use Queueable;
 
     public const MAIL = 'mail';
 
     public const TELEGRAM = 'telegram';
 
-    public int $tries = 3;
+    public int $maxExceptions = 3;
 
     public int $timeout = 30;
 
@@ -70,7 +72,7 @@ class SendWholesaleApplicationNotification implements ShouldBeUnique, ShouldQueu
         $warnings = $service->duplicateWarnings($application);
 
         if ($this->kind === self::TELEGRAM) {
-            $telegram->send((new WholesaleApplicationMessage)->render($application, $warnings));
+            $this->deliverTelegram(fn () => $telegram->send((new WholesaleApplicationMessage)->render($application, $warnings)));
 
             return;
         }

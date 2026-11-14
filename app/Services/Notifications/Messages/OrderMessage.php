@@ -58,6 +58,8 @@ abstract class OrderMessage
             '',
             $this->e(__('notifications.telegram.customer')).': '.$this->e($this->clip($order->customer_name)),
             $this->e(__('notifications.telegram.phone')).': '.$this->e($this->clip($order->customer_phone)),
+            // TM-14: the channel of the request (site, installed app, Telegram).
+            $this->e(__('notifications.telegram.channel')).': '.$this->e($order->channel->label()),
         ];
 
         $tail = [];

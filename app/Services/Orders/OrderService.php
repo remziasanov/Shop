@@ -43,6 +43,7 @@ use App\Settings\SalesSettings;
 use App\Support\Money;
 use App\Support\PhoneNormalizer;
 use App\Support\QtyLimit;
+use App\Support\TelegramMode;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -828,6 +829,11 @@ final class OrderService
     private function createRecord(OrderType $type, array $attributes, string $ip, ?string $userAgent, array $lines, array $promoFields = [], ?PromoResult $promo = null): Order
     {
         $order = new Order($attributes);
+        // TM-05: a request from the Mini App remembers the Telegram account, a guest's too, so that its statuses reach the chat.
+        if (($attributes['channel'] ?? null) === OrderChannel::Telegram) {
+            $order->telegram_account_id = TelegramMode::accountId();
+        }
+
         $order->uuid = (string) Str::uuid();
         $order->number = $this->numbers->next($type);
         $order->type = $type;

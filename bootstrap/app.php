@@ -9,6 +9,7 @@ use App\Http\Middleware\RedirectIfCustomer;
 use App\Http\Middleware\ResolveViewer;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\StorefrontOpen;
+use App\Http\Middleware\TelegramCookieMode;
 use App\Http\Middleware\ThemePreviewHeaders;
 use App\Http\Middleware\ValidateCustomerSession;
 use App\Services\Catalog\RedirectService;
@@ -27,6 +28,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // TM-03: behind the nginx of Beget ONLY X-Forwarded-Proto counts (for isSecure()). X-Forwarded-For/Host are never
+        // trusted, so the client IP cannot be spoofed even with TRUSTED_PROXIES=* (the proxies come from TRUSTED_PROXIES,
+        // config/trustedproxy.php; none by default).
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_PROTO);
         $middleware->append(SecurityHeaders::class);
         // SF-08: the consent cookie is set by JavaScript, so it is not encrypted. AG-06: the age cookie is read by
         // CSS and a tiny script without a server round trip, so it is plain too.
@@ -37,7 +42,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // D-057: the www./bare twin of the APP_URL host is redirected to the canonical host (production only).
         $middleware->prepend(CanonicalHost::class);
         // SF-05: closed mode for the storefront; CG-16: the viewer's customer group (stage 8: always the guest).
-        $middleware->web(append: [StorefrontOpen::class, ResolveViewer::class, ThemePreviewHeaders::class]);
+        // TM-03: the session and XSRF cookies of the Mini App get SameSite=None; Secure; Partitioned (right after StartSession).
+        $middleware->web(append: [TelegramCookieMode::class, StorefrontOpen::class, ResolveViewer::class, ThemePreviewHeaders::class]);
         // CA-31, CA-32: a customer session with an outdated auth_version ends; the staff session is not touched.
         $middleware->web(append: [ValidateCustomerSession::class]);
         $middleware->alias([

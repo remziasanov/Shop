@@ -28,6 +28,8 @@ use App\Services\Variants\VariantLabel;
 use App\Settings\SalesSettings;
 use App\Support\Money;
 use App\Support\QtyLimit;
+use App\Support\StorefrontCookie;
+use App\Support\TelegramMode;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
@@ -66,6 +68,13 @@ final class CartService
             return Cart::query()->where('customer_id', $customer->id)->first();
         }
 
+        // TM-10: in the Telegram mode the guest cart belongs to the Telegram account, not only to the cookie.
+        $accountId = TelegramMode::accountId();
+
+        if ($accountId !== null) {
+            return $this->telegramCart($request, $accountId);
+        }
+
         $token = $request->cookie(self::COOKIE);
 
         if (! is_string($token) || ! Str::isUuid($token)) {
@@ -73,6 +82,33 @@ final class CartService
         }
 
         return Cart::query()->where('token', $token)->whereNull('customer_id')->first();
+    }
+
+    /**
+     * The guest cart of a Telegram account (TM-10). A cart of the cookie that no account owns yet (the visitor added
+     * products before the Mini App knew them) is adopted by the account.
+     */
+    private function telegramCart(Request $request, int $accountId): ?Cart
+    {
+        $cart = Cart::query()->where('telegram_account_id', $accountId)->whereNull('customer_id')->first();
+
+        if ($cart !== null) {
+            return $cart;
+        }
+
+        $token = $request->cookie(self::COOKIE);
+
+        if (! is_string($token) || ! Str::isUuid($token)) {
+            return null;
+        }
+
+        $cart = Cart::query()->where('token', $token)->whereNull('customer_id')->whereNull('telegram_account_id')->first();
+
+        if ($cart !== null) {
+            $cart->forceFill(['telegram_account_id' => $accountId])->save();
+        }
+
+        return $cart;
     }
 
     /**
@@ -87,19 +123,10 @@ final class CartService
             return $this->customerCart($customer);
         }
 
-        $cart = $this->current($request) ?? Cart::query()->create(['token' => (string) Str::uuid()]);
+        $cart = $this->current($request) ?? Cart::query()->create(['token' => (string) Str::uuid(), 'telegram_account_id' => TelegramMode::accountId()]);
 
-        Cookie::queue(Cookie::make(
-            self::COOKIE,
-            $cart->token,
-            self::COOKIE_MINUTES,
-            '/',
-            null,
-            app()->isProduction(),
-            true,
-            false,
-            'lax',
-        ));
+        // TM-03: one factory for every storefront cookie (SameSite=None; Secure; Partitioned in the Telegram mode).
+        Cookie::queue(StorefrontCookie::make(self::COOKIE, $cart->token, self::COOKIE_MINUTES, true, app()->isProduction() || (bool) config('session.secure'), $request));
 
         return $cart;
     }
@@ -316,6 +343,14 @@ final class CartService
                 ->join('carts', 'carts.id', '=', 'cart_items.cart_id')
                 ->where('carts.customer_id', $customer->id)
                 ->sum('cart_items.qty');
+        }
+
+        $accountId = TelegramMode::accountId();
+
+        if ($accountId !== null) {
+            $cart = $this->telegramCart($request, $accountId);
+
+            return $cart === null ? 0 : $this->count($cart);
         }
 
         $token = $request->cookie(self::COOKIE);

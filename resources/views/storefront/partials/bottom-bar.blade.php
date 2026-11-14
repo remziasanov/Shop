@@ -3,7 +3,8 @@
     $item = 'flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-xs hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary';
     $onCatalog = request()->routeIs('catalog.*', 'product.show');
     $onSearch = request()->routeIs('search');
-    $onAccount = request()->routeIs('account', 'customer.*') && ! request()->routeIs('customer.login*', 'customer.register*');
+    $inTelegram = \App\Support\TelegramMode::active();
+    $onAccount = request()->routeIs('account', 'customer.*', 'tg.me', 'tg.about') && ! request()->routeIs('customer.login*', 'customer.register*');
 @endphp
 <nav class="shop-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface md:hidden" aria-label="{{ __('storefront.bottom_bar.label') }}" data-bottom-nav>
     <ul class="grid grid-flow-col auto-cols-fr">
@@ -27,11 +28,12 @@
         @if ($cartEnabled)
             <livewire:storefront.mini-cart variant="bar" :active="request()->routeIs('cart')" />
         @endif
-        @if ($accountLinks)
+        {{-- TM-04, TM-06: in the Mini App the cabinet item always exists (a guest finds sign-in and «О магазине» there). --}}
+        @if ($accountLinks || $inTelegram)
             <li>
-                <a href="{{ $accountCustomerName !== null ? route('account') : route('customer.login') }}" class="{{ $item }} relative {{ $onAccount ? 'font-semibold text-primary' : 'text-ink-soft' }}" @if ($onAccount) aria-current="page" @endif data-account-bar data-bar-item="account">
+                <a href="{{ $accountCustomerName !== null ? route('account') : ($inTelegram ? route('tg.me') : route('customer.login')) }}" class="{{ $item }} relative {{ $onAccount ? 'font-semibold text-primary' : 'text-ink-soft' }}" @if ($onAccount) aria-current="page" @endif data-account-bar data-bar-item="account">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5.5 20a6.5 6.5 0 0113 0M12 12a4 4 0 100-8 4 4 0 000 8z"/></svg>
-                    <span>{{ $accountCustomerName !== null ? __('mobile.bottom_nav.cabinet') : __('account.header.login') }}</span>
+                    <span>{{ $accountCustomerName !== null || $inTelegram ? __('mobile.bottom_nav.cabinet') : __('account.header.login') }}</span>
                     @if ($accountUnread > 0)
                         <span class="absolute right-1/4 top-0.5 min-w-5 rounded-full bg-primary px-1 text-center text-xs font-medium leading-5 text-on-primary" data-unread-badge><span class="sr-only">{{ __('account.header.unread') }}</span>{{ $accountUnread }}</span>
                     @endif

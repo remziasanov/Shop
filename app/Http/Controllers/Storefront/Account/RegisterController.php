@@ -10,9 +10,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Http\Requests\Account\RegisterRequest;
 use App\Models\Order;
+use App\Models\TelegramAccount;
 use App\Services\Customers\CustomerAuthService;
 use App\Services\Sales\FormGuard;
 use App\Settings\CustomerSettings;
+use App\Support\TelegramMode;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -62,7 +64,13 @@ class RegisterController extends Controller
             $email = $order?->customer_email;
         }
 
+        // TM-04 (в): in the Mini App the name and the phone verified by Telegram (TG-09) are filled in.
+        $accountId = TelegramMode::accountId();
+        $account = $accountId !== null ? TelegramAccount::query()->find($accountId) : null;
+
         return $this->page('register', __('account.register.title'), [
+            'prefillName' => $account !== null ? trim(trim((string) $account->first_name).' '.trim((string) $account->last_name)) : '',
+            'prefillPhone' => $account !== null && $account->phone_verified_at !== null ? (string) $account->phone : '',
             'formToken' => $guard->issueToken(),
             'consentLink' => $this->consentLink(),
             'prefillEmail' => is_string($email) && filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : '',

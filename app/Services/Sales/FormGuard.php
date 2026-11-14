@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\RateLimiter;
 /**
  * Spam protection of the checkout, reservation and inquiry forms (SF-48, D-048): a honeypot field, a signed
  * render timestamp (a submit earlier than 3 s after rendering is rejected) and 5 submits per minute per IP
- * (one shared limit for all three forms).
+ * (one shared limit for all three forms); in the Telegram Mini App also 5 per minute per Telegram user (TM-05).
  */
 final class FormGuard
 {
@@ -59,16 +59,25 @@ final class FormGuard
     /**
      * @throws FormGuardException
      */
-    public function check(?string $honeypot, ?string $token, string $ip): void
+    public function check(?string $honeypot, ?string $token, string $ip, ?int $telegramUserId = null): void
     {
         $this->checkSpam($honeypot, $token);
 
-        $key = 'sales-form:'.$ip;
+        // TM-05: a Mini App visitor is limited by the Telegram user as well (several people may share one IP).
+        $keys = ['sales-form:'.$ip];
 
-        if (RateLimiter::tooManyAttempts($key, self::MAX_ATTEMPTS)) {
-            throw new FormGuardException(__('sales.guard.rate_limited'));
+        if ($telegramUserId !== null) {
+            $keys[] = 'sales-form:tg:'.$telegramUserId;
         }
 
-        RateLimiter::hit($key, self::DECAY_SECONDS);
+        foreach ($keys as $key) {
+            if (RateLimiter::tooManyAttempts($key, self::MAX_ATTEMPTS)) {
+                throw new FormGuardException(__('sales.guard.rate_limited'));
+            }
+        }
+
+        foreach ($keys as $key) {
+            RateLimiter::hit($key, self::DECAY_SECONDS);
+        }
     }
 }

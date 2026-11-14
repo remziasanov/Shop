@@ -6,6 +6,7 @@ namespace App\Filament\Resources\PromoLinks\Support;
 
 use App\Models\PromoLink;
 use App\Services\Promo\PromoLinkSaver;
+use App\Services\Telegram\MiniApp\MiniAppConfig;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Livewire\Component;
@@ -23,6 +24,25 @@ final class PromoLinkActions
             ->color('gray')
             ->action(function (PromoLink $record, Component $livewire): void {
                 $url = app(PromoLinkSaver::class)->publicUrl($record->slug);
+
+                $livewire->js('window.navigator.clipboard.writeText('.json_encode($url, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT).')');
+
+                Notification::make()->success()->title(__('promo_admin.links.actions.copied'))->body($url)->send();
+            });
+    }
+
+    /**
+     * TM-09: copies the address «для Telegram» (`t.me/{bot}?startapp=go_{slug}`); hidden while the bot's name is unknown.
+     */
+    public static function copyTelegram(): Action
+    {
+        return Action::make('copyTelegram')
+            ->label(__('telegram_miniapp.admin.copy_promo_link'))
+            ->icon('heroicon-o-paper-airplane')
+            ->color('gray')
+            ->visible(fn (): bool => app(MiniAppConfig::class)->botUsername() !== null)
+            ->action(function (PromoLink $record, Component $livewire): void {
+                $url = (string) app(MiniAppConfig::class)->startappLink('go_'.$record->slug);
 
                 $livewire->js('window.navigator.clipboard.writeText('.json_encode($url, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT).')');
 

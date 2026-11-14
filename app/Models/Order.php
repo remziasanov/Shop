@@ -62,6 +62,7 @@ use Illuminate\Support\Str;
  * @property bool $reserved_via_cart MR-12: a reservation made from the cart
  * @property int $version OE-08: optimistic lock of the order editor, moved by every edit and status change
  * @property OrderChannel $channel TM-14: web, pwa or telegram
+ * @property int|null $telegram_account_id TM-05
  * @property int|null $source_order_id OE-12: the inquiry this order was created from
  * @property int|null $updated_by_user_id the staff member of the last edit or status change (OE-08)
  * @property CarbonInterface|null $created_at
@@ -98,6 +99,7 @@ class Order extends Model
         'user_agent',
         'age_confirmed_level',
         'channel',
+        'telegram_account_id',
     ];
 
     protected static function booted(): void
@@ -163,6 +165,16 @@ class Order extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * The Telegram account the request was placed from or follows (TM-05, TG-08).
+     *
+     * @return BelongsTo<TelegramAccount, $this>
+     */
+    public function telegramAccount(): BelongsTo
+    {
+        return $this->belongsTo(TelegramAccount::class);
     }
 
     /**

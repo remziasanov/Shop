@@ -9,8 +9,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Account\RegisterController;
 use App\Models\Order;
 use App\Services\Access\ViewerContext;
+use App\Services\Telegram\TelegramLinkService;
 use App\Settings\CustomerSettings;
 use App\Settings\SalesSettings;
+use App\Support\TelegramMode;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Str;
 
@@ -47,7 +49,14 @@ class OrderThanksController extends Controller
         $related = $order->related_order_id !== null ? Order::query()->whereKey($order->related_order_id)->with('items')->first() : null;
         $orders = $related === null ? [$order] : collect([$order, $related])->sortBy(fn (Order $request): int => $request->type === OrderType::Order ? 0 : 1)->values()->all();
 
+        // TG-08: «Получать статус в Telegram» for all requests of this checkout, only while the bot is connected and
+        // customer notifications are on; not inside the Mini App, where the requests are bound to the chat already.
+        $telegramLink = TelegramMode::active() || $orders[0]->telegram_account_id !== null
+            ? null
+            : app(TelegramLinkService::class)->orderLink($orders, request()->session());
+
         return view('storefront.order-thanks', [
+            'telegramLink' => $telegramLink,
             'order' => $order,
             'orders' => $orders,
             'offerAccount' => $offerAccount,

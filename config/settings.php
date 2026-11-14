@@ -13,6 +13,7 @@ use App\Settings\PricingSettings;
 use App\Settings\PromoSettings;
 use App\Settings\SalesSettings;
 use App\Settings\SeoSettings;
+use App\Settings\TelegramSettings;
 use Spatie\LaravelSettings\SettingsCasts\DateTimeInterfaceCast;
 use Spatie\LaravelSettings\SettingsCasts\DateTimeZoneCast;
 use Spatie\LaravelSettings\SettingsRepositories\DatabaseSettingsRepository;
@@ -37,6 +38,7 @@ return [
         CatalogSettings::class,
         CustomerSettings::class,
         PromoSettings::class,
+        TelegramSettings::class,
     ],
 
     /*

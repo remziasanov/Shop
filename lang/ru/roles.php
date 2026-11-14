@@ -103,6 +103,7 @@ return [
         'settings__customers' => 'Настройки: покупатели и регистрация',
         'settings__age_gate' => 'Настройки: возрастное ограничение',
         'settings__catalog' => 'Настройки: каталог',
+        'settings__telegram' => 'Настройки: Telegram',
         'users' => 'Пользователи',
         'roles' => 'Роли сотрудников',
         'system' => 'Система',
@@ -172,6 +173,8 @@ return [
             'theme.changed' => 'Тема оформления изменена',
             'theme.colors_changed' => 'Цвета темы изменены',
             'theme.fonts_changed' => 'Шрифты темы изменены',
+            'user.telegram_linked' => 'Сотруднику подключён Telegram',
+            'user.telegram_unlinked' => 'У сотрудника отключён Telegram',
         ],
     ],
 

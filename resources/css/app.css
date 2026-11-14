@@ -118,6 +118,15 @@ html[data-kb] .shop-bottom-nav {
     min-height: var(--shop-nav-h);
 }
 
+/* TM-06: the Mini App shows the bottom bar at every width (the window of Telegram Desktop is wide enough for md). */
+html[data-tg] .shop-bottom-nav {
+    display: block;
+}
+
+html[data-tg][data-kb] .shop-bottom-nav {
+    display: none;
+}
+
 /* Sticky bar at the bottom edge of the product page, the cart and the checkout (MB-04, MB-08). */
 .shop-sticky-bar {
     position: fixed;

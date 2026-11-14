@@ -13,6 +13,7 @@ use App\Http\Requests\Account\CodeRequest;
 use App\Http\Requests\Account\EmailRequest;
 use App\Http\Requests\Account\LoginRequest;
 use App\Services\Customers\CustomerAuthService;
+use App\Services\Telegram\MiniApp\TelegramSessionService;
 use App\Settings\CustomerSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -121,6 +122,8 @@ class LoginController extends Controller
 
         $request->session()->forget(self::CODE_EMAIL_KEY);
         $auth->signIn($customer, $request, $request->boolean('remember'));
+        // TM-04 (б): in the Mini App the code also links this Telegram to the account.
+        app(TelegramSessionService::class)->linkSessionAccount($request->session(), $customer);
 
         return redirect()->intended(route('account'));
     }
