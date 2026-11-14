@@ -10,9 +10,9 @@
             @endif
         </div>
     @endif
-    <ul class="grid {{ ($mobileColumns ?? 2) === 1 ? 'grid-cols-1 min-[30rem]:grid-cols-2' : 'grid-cols-2' }} gap-3 md:grid-cols-3 md:gap-4 {{ $columns === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4' }}">
+    <x-storefront.card-grid :theme="$theme ?? null" kind="home" :columns="$columns" :mobile-columns="$mobileColumns ?? 2">
         @foreach ($cards as $card)
             <li>@include('storefront.partials.product-card', ['view' => $card, 'eager' => $first && $loop->index < 4])</li>
         @endforeach
-    </ul>
+    </x-storefront.card-grid>
 </section>

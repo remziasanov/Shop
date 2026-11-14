@@ -1,7 +1,7 @@
 <footer class="mt-8 border-t border-line bg-surface-2">
     <div class="mx-auto grid w-full max-w-7xl gap-6 px-4 py-8 text-sm text-ink-soft md:grid-cols-2 lg:grid-cols-4">
         <div>
-            <p class="font-semibold">{{ $shopName }}</p>
+            <p class="font-body font-semibold">{{ $shopName }}</p>
             @if ($shopFooterText)
                 <p class="mt-2 whitespace-pre-line">{{ $shopFooterText }}</p>
             @endif
@@ -21,7 +21,7 @@
 
         @if ($footerMenu !== [])
             <nav aria-labelledby="footer-menu">
-                <h2 id="footer-menu" class="font-semibold">{{ __('storefront.footer.menu') }}</h2>
+                <h2 id="footer-menu" class="font-body font-semibold">{{ __('storefront.footer.menu') }}</h2>
                 <ul class="shop-touch-list mt-2 space-y-1">
                     @foreach ($footerMenu as $item)
                         <li><a href="{{ $item['url'] }}" class="hover:text-primary hover:underline">{{ $item['label'] }}</a></li>
@@ -31,7 +31,7 @@
         @endif
 
         <section aria-labelledby="footer-contacts">
-            <h2 id="footer-contacts" class="font-semibold">{{ __('storefront.footer.contacts') }}</h2>
+            <h2 id="footer-contacts" class="font-body font-semibold">{{ __('storefront.footer.contacts') }}</h2>
             <ul class="shop-touch-list mt-2 space-y-1">
                 @foreach ($shopPhones as $phone)
                     <li><a href="tel:{{ preg_replace('/[^\d+]/', '', $phone) }}">{{ $phone }}</a></li>
@@ -55,14 +55,14 @@
                 </ul>
             @endif
             @if ($shopWorkingHours)
-                <h2 id="footer-hours" class="mt-4 font-semibold">{{ __('storefront.footer.working_hours') }}</h2>
+                <h2 id="footer-hours" class="font-body mt-4 font-semibold">{{ __('storefront.footer.working_hours') }}</h2>
                 <p class="mt-2 whitespace-pre-line">{{ $shopWorkingHours }}</p>
             @endif
         </section>
 
         @if ($sellerDetails || $footerPrivacyLink || $footerConsentLink)
             <section aria-labelledby="footer-legal">
-                <h2 id="footer-legal" class="font-semibold">{{ __('storefront.footer.requisites') }}</h2>
+                <h2 id="footer-legal" class="font-body font-semibold">{{ __('storefront.footer.requisites') }}</h2>
                 @if ($sellerDetails)
                     <p class="mt-2 whitespace-pre-line">{{ $sellerDetails }}</p>
                 @endif

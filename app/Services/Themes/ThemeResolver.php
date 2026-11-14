@@ -110,26 +110,127 @@ final class ThemeResolver
             shape: $this->shape($theme, $default),
             fonts: $this->fonts($theme, $overrides),
             blocks: $theme->blocks,
-            extras: $theme->extras,
+            extras: $this->extras($theme->extras),
             overrides: $overrides,
             warnings: $this->contrast->failures($colors),
         );
     }
 
     /**
-     * @return array{radius: int, buttonRadius: int, borderWidth: int, surface: string}
+     * @return array{radius: int, buttonRadius: int, borderWidth: int, surface: string, shadowColor?: string, shadowTint?: string, pressColor?: string}
      */
     private function shape(Theme $theme, Theme $default): array
     {
         $surfaces = ['none', 'line', 'soft', 'hard', 'press', 'double', 'glass', 'clay'];
         $surface = $theme->shape['surface'] ?? null;
 
-        return [
+        $shape = [
             'radius' => $this->clampInt($theme->shape['radius'] ?? $default->shape['radius'] ?? 0, 0, 999),
             'buttonRadius' => $this->clampInt($theme->shape['buttonRadius'] ?? $default->shape['buttonRadius'] ?? 0, 0, 999),
             'borderWidth' => $this->clampInt($theme->shape['borderWidth'] ?? $default->shape['borderWidth'] ?? 1, 0, 8),
             'surface' => is_string($surface) && in_array($surface, $surfaces, true) ? $surface : 'line',
         ];
+
+        // Optional surface colors (TH-14): hex only, rgba() only through the strict pattern (TH-09).
+        $shadowColor = Color::normalize($theme->shape['shadowColor'] ?? null);
+        $pressColor = Color::normalize($theme->shape['pressColor'] ?? null);
+        $shadowTint = CssValue::rgba($theme->shape['shadowTint'] ?? null) ?? Color::normalize($theme->shape['shadowTint'] ?? null);
+
+        if ($shadowColor !== null) {
+            $shape['shadowColor'] = strtolower($shadowColor);
+        }
+
+        if ($shadowTint !== null) {
+            $shape['shadowTint'] = strtolower($shadowTint);
+        }
+
+        if ($pressColor !== null) {
+            $shape['pressColor'] = strtolower($pressColor);
+        }
+
+        return $shape;
+    }
+
+    /**
+     * The extras of TH-14 that the surface layer owns are validated; the others (grid) pass through.
+     *
+     * @param  array<string, mixed>  $extras
+     * @return array<string, mixed>
+     */
+    private function extras(array $extras): array
+    {
+        $out = $extras;
+
+        foreach (['tileShape', 'tileColors', 'tilePatterns', 'backgroundImage', 'dashedFrames', 'cropMarks', 'heroImage', 'heroButton', 'headerRule'] as $key) {
+            unset($out[$key]);
+        }
+
+        if (in_array($extras['tileShape'] ?? null, ['arch', 'circle'], true)) {
+            $out['tileShape'] = $extras['tileShape'];
+        }
+
+        $colors = [];
+
+        foreach (array_slice(array_values((array) ($extras['tileColors'] ?? [])), 0, 12) as $color) {
+            $color = Color::normalize($color);
+
+            if ($color !== null) {
+                $colors[] = strtolower($color);
+            }
+        }
+
+        if ($colors !== []) {
+            $out['tileColors'] = $colors;
+        }
+
+        $patterns = [];
+
+        foreach (array_slice(array_values((array) ($extras['tilePatterns'] ?? [])), 0, 12) as $pattern) {
+            $pattern = CssValue::gradient($pattern);
+
+            if ($pattern !== null) {
+                $patterns[] = $pattern;
+            }
+        }
+
+        if ($patterns !== []) {
+            $out['tilePatterns'] = $patterns;
+        }
+
+        $image = CssValue::gradient($extras['backgroundImage'] ?? null);
+
+        if ($image !== null) {
+            $out['backgroundImage'] = $image;
+        }
+
+        // Hero and header extras (TH-14): same strict validators as the storefront helpers apply.
+        $heroImage = CssValue::gradient($extras['heroImage'] ?? null);
+
+        if ($heroImage !== null) {
+            $out['heroImage'] = $heroImage;
+        }
+
+        $button = $extras['heroButton'] ?? null;
+        $bg = is_array($button) ? Color::normalize($button['bg'] ?? null) : null;
+        $ink = is_array($button) ? Color::normalize($button['ink'] ?? null) : null;
+
+        if ($bg !== null && $ink !== null) {
+            $out['heroButton'] = ['bg' => $bg, 'ink' => $ink];
+        }
+
+        $rule = $extras['headerRule'] ?? null;
+
+        if (is_string($rule) && preg_match('/^[1-9]\d?px (solid|double|dashed|dotted) #[0-9a-fA-F]{6}$/', $rule) === 1) {
+            $out['headerRule'] = $rule;
+        }
+
+        foreach (['dashedFrames', 'cropMarks'] as $flag) {
+            if (($extras[$flag] ?? false) === true) {
+                $out[$flag] = true;
+            }
+        }
+
+        return $out;
     }
 
     /**

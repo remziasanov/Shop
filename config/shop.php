@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 return [
 
+    // TEMPORARY (stage 21, remove in stage 23): THEME_DEBUG=true enables the staff-preview service theme `debug-blocks`
+    // (blocks chosen by ?blocks=H3,C5,G2,L3). Never on in production.
+    'theme_debug' => (bool) env('THEME_DEBUG', false),
+
     /*
     |--------------------------------------------------------------------------
     | Admin panel path

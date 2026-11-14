@@ -1,0 +1,67 @@
+/* Stage 21 (TZ 34, TH-10…TH-17): cards-listing variants. Colors, fonts and radii only via --shop-* tokens. */
+
+/*
+ * Cards (TH-11) and listing (TH-13). Layout classes of the variants are Tailwind utilities in the card partials and
+ * the card-grid component; this file holds what utilities cannot express.
+ */
+
+/* C6: cells without gaps. Every cell has its own frame; neighbours overlap by one border, the padding keeps the first row and column inside. */
+[data-card-grid='C6'] {
+    padding: var(--shop-border-w, 1px) 0 0 var(--shop-border-w, 1px);
+}
+
+[data-card-grid='C6'] > li {
+    margin: calc(-1 * var(--shop-border-w, 1px)) 0 0 calc(-1 * var(--shop-border-w, 1px));
+}
+
+/* C2: the photo reacts to hover and keyboard focus of the card. */
+[data-card='C2'] [data-tile] img {
+    transition: transform 0.25s ease;
+}
+
+[data-card='C2']:hover [data-tile] img,
+[data-card='C2']:focus-within [data-tile] img {
+    transform: scale(1.03);
+}
+
+/* States of the card controls (TH-16): pressed, loading (the add form is busy), keyboard focus is set by the utilities of each control. */
+[data-card] [data-action]:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+[data-card] [data-action][aria-busy='true'],
+[data-card] [data-action]:disabled {
+    cursor: progress;
+}
+
+[data-card] [aria-disabled='true'] {
+    cursor: not-allowed;
+}
+
+/*
+ * L2 and L3 (TH-13), wide screens: the filter panel opens from the chips. It starts closed only when scripts run
+ * (scripting: enabled), so a visitor without JavaScript always gets the whole filter set (TH-17); Alpine sets
+ * data-open on the form.
+ */
+@media (min-width: 48rem) and (scripting: enabled) {
+    [data-filter-panel='top']:not([data-open='true']) {
+        display: none;
+    }
+}
+
+/* TH-17: no animation or movement for visitors who ask for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+    [data-card],
+    [data-card] *,
+    [data-filter-panel],
+    [data-filter-chips] * {
+        transition: none !important;
+        animation: none !important;
+    }
+
+    [data-card='C2']:hover [data-tile] img,
+    [data-card='C2']:focus-within [data-tile] img,
+    [data-card] [data-action]:active:not(:disabled) {
+        transform: none;
+    }
+}

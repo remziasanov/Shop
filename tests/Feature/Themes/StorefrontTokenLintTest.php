@@ -100,6 +100,30 @@ function scaledHeadingSizeClasses(): array
     return array_map(fn (string $c): string => str_replace('\\:', ':', $c), $m[1]);
 }
 
+/**
+ * Text size classes (`text-xl`, `md:text-3xl`, ...) written in the opening tag of every h1-h3 of a Blade source. Classes
+ * inside Blade expressions count too: ternaries in `{{ ... }}` (with single or double quotes inside), `@class([...])`
+ * and Alpine `:class` bindings; the tag ends at the first `>` outside such an expression.
+ *
+ * @return list<string>
+ */
+function headingSizeClasses(string $source): array
+{
+    $tag = '/<h[1-3]\b((?:\{\{.*?\}\}|\{!!.*?!!\}|@class\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)|[^>])*)>/s';
+    $size = '/(?<![\w-])((?:[a-z0-9-]+:)*text-(?:xs|sm|base|lg|xl|[2-9]xl))(?![\w-])/';
+    $found = [];
+
+    if (preg_match_all($tag, $source, $tags) > 0) {
+        foreach ($tags[1] as $attributes) {
+            if (preg_match_all($size, $attributes, $m) > 0) {
+                array_push($found, ...$m[1]);
+            }
+        }
+    }
+
+    return $found;
+}
+
 it('uses only text sizes covered by the display-scale rules on storefront headings (TH-05)', function () {
     $covered = scaledHeadingSizeClasses();
     // Sizes below text-lg are not scaled on purpose (small item-level headings).
@@ -112,20 +136,22 @@ it('uses only text sizes covered by the display-scale rules on storefront headin
     $offenders = [];
 
     foreach (Finder::create()->files()->name('*.php')->in(array_map(fn (string $d): string => $base.'/'.$d, $dirs)) as $file) {
-        preg_match_all('/<h[1-3]\b[^>]*?class="([^"]*)"/s', $file->getContents(), $tags);
-
-        foreach ($tags[1] as $classes) {
-            foreach (preg_split('/\s+/', trim($classes)) ?: [] as $class) {
-                if (! preg_match('/^(?:[a-z0-9-]+:)*text-(?:xs|sm|base|lg|xl|[2-9]xl)$/', $class)) {
-                    continue;
-                }
-
-                if (! in_array($class, $covered, true) && ! in_array($class, $unscaled, true)) {
-                    $offenders[] = substr($file->getPathname(), strlen(base_path()) + 1).': '.$class;
-                }
+        foreach (headingSizeClasses($file->getContents()) as $class) {
+            if (! in_array($class, $covered, true) && ! in_array($class, $unscaled, true)) {
+                $offenders[] = substr($file->getPathname(), strlen(base_path()) + 1).': '.$class;
             }
         }
     }
 
     expect($offenders)->toBe([]);
+});
+
+it('reads the heading sizes inside Blade ternaries, @class and :class (the linter itself works)', function () {
+    expect(headingSizeClasses('<h2 class="{{ $big ? \'text-5xl\' : \'text-sm\' }}">x</h2>'))->toBe(['text-5xl', 'text-sm'])
+        ->and(headingSizeClasses('<h3 class="mt-2 {{ $n > 1 ? "md:text-4xl" : \'text-xl\' }} font-body">'))->toBe(['md:text-4xl', 'text-xl'])
+        ->and(headingSizeClasses('<h1 @class([\'text-7xl\' => $a, \'text-lg\'])>'))->toBe(['text-7xl', 'text-lg'])
+        ->and(headingSizeClasses('<h3 :class="open ? \'text-2xl\' : \'text-base\'" class="font-body">'))->toBe(['text-2xl', 'text-base'])
+        ->and(headingSizeClasses('<h3 class="font-body text-sm">'))->toBe(['text-sm'])
+        ->and(headingSizeClasses('<p class="text-7xl"><h2 class="font-bold">'))->toBe([])
+        ->and(headingSizeClasses('<h4 class="text-9xl">'))->toBe([]);
 });

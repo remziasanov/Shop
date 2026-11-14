@@ -1,22 +1,30 @@
 {{-- Home page slider block (5.2): scroll-snap track (swipe works natively, no-JS fallback), Alpine adds autoplay and controls. --}}
-@php($count = count($slides))
-<section class="mb-8" aria-roledescription="carousel" aria-label="{{ __('home.storefront.slider') }}"
+@php
+    $count = count($slides);
+    $hero = \App\Services\Themes\BlockExtras::hero($theme ?? null);
+    $bento = $bento ?? false;
+    $band = in_array($hero, ['G2', 'G4'], true);
+    $heroStyle = \App\Services\Themes\BlockExtras::heroStyle($theme ?? null);
+@endphp
+<section @class([$bento ? 'relative h-full' : 'mb-8', 'hero-band' => $band, 'hero-band-first' => $band && $first]) aria-roledescription="carousel" aria-label="{{ __('home.storefront.slider') }}"
+         data-hero="{{ $hero }}" @if ($heroStyle !== '') style="{{ $heroStyle }}" @endif
          @if ($count > 1)
              x-data="homeSlider({ autoplay: {{ $autoplay ? 'true' : 'false' }}, interval: {{ $interval }} })"
              @mouseenter="hover = true" @mouseleave="hover = false" @focusin="focus = true" @focusout="focus = false"
              @keydown.arrow-left="prev()" @keydown.arrow-right="next()"
          @endif>
-    <div class="relative">
+    @if ($band)<div class="hero-band-inner">@endif
+    <div class="relative {{ $bento ? 'md:h-full' : '' }}">
         <div @if ($count > 1) x-ref="track" @scroll.passive="onScroll()" :aria-live="playing ? 'off' : 'polite'" @endif
-             class="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+             class="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden {{ $bento ? 'md:h-full' : '' }}">
             @foreach ($slides as $slide)
-                <div class="w-full flex-none snap-center" role="group" aria-roledescription="slide" aria-label="{{ __('home.storefront.slide_of', ['n' => $loop->iteration, 'total' => $count]) }}">
+                <div class="w-full flex-none snap-center {{ $bento ? 'md:h-full' : '' }}" role="group" aria-roledescription="slide" aria-label="{{ __('home.storefront.slide_of', ['n' => $loop->iteration, 'total' => $count]) }}">
                     @include('storefront.home.blocks._slide', ['slide' => $slide, 'eager' => $first && $loop->first])
                 </div>
             @endforeach
         </div>
 
-        @if ($count > 1)
+        @if ($count > 1 && ! $band && ! $bento)
             <div x-cloak>
                 <button type="button" @click="prev()" class="absolute left-2 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-surface/80 text-ink shadow hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary md:flex" aria-label="{{ __('home.storefront.prev') }}">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
@@ -29,7 +37,7 @@
     </div>
 
     @if ($count > 1)
-        <div class="mt-3 flex items-center justify-center gap-3" x-cloak>
+        <div class="{{ $bento ? 'absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full bg-surface/80 px-1 text-ink' : 'mt-3 flex items-center justify-center gap-3' }}" x-cloak>
             @if ($autoplay)
                 <button type="button" @click="toggle()" class="flex h-11 w-11 items-center justify-center rounded-full border border-line-strong text-ink-soft hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                         :aria-label="playing ? @js(__('home.storefront.pause')) : @js(__('home.storefront.play'))">
@@ -48,4 +56,5 @@
             </div>
         </div>
     @endif
+    @if ($band)</div>@endif
 </section>

@@ -16,6 +16,7 @@ use App\Services\Content\HtmlSanitizer;
 use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\GroupPriceSql;
 use App\Services\Themes\ActiveTheme;
+use App\Services\Themes\BlockExtras;
 use App\Settings\AppearanceSettings;
 use App\Settings\HomePageSettings;
 use Illuminate\Database\Eloquent\Builder;
@@ -109,16 +110,34 @@ final class HomePageRenderer
         $parts = [];
         $preload = [];
 
-        foreach ($this->visibleBlocks() as $block) {
+        $blocks = $this->visibleBlocks();
+        // TH-12, G3: a banner / slider followed by the categories block becomes one bento grid.
+        $bento = BlockExtras::hero(app(ActiveTheme::class)->current()) === 'G3';
+
+        for ($i = 0; $i < count($blocks); $i++) {
+            $block = $blocks[$i];
             $data = $this->data($block['type'], $block['data'], $parts === []);
 
-            if ($data !== null) {
-                if ($parts === []) {
-                    $preload = $this->preloadFor($block['type'], $data);
-                }
-
-                $parts[] = view('storefront.home.blocks.'.$block['type'], $data)->render();
+            if ($data === null) {
+                continue;
             }
+
+            if ($parts === []) {
+                $preload = $this->preloadFor($block['type'], $data);
+            }
+
+            $view = 'storefront.home.blocks.'.$block['type'];
+            $next = $bento && in_array($block['type'], ['banner', 'slider'], true) && ($blocks[$i + 1]['type'] ?? null) === 'categories'
+                ? $this->data('categories', $blocks[$i + 1]['data'], false)
+                : null;
+
+            if ($next !== null) {
+                $data = [...$data, ...$next, 'inner' => $block['type']];
+                $view = 'storefront.home.blocks.bento';
+                $i++;
+            }
+
+            $parts[] = view($view, $data)->render();
         }
 
         if ($parts === []) {

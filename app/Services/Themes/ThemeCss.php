@@ -14,9 +14,12 @@ use Illuminate\Support\Facades\Cache;
 final class ThemeCss
 {
     /** Bump when the generated CSS format changes, so a deploy never serves a stale cached block. */
-    private const FORMAT = 2;
+    private const FORMAT = 3;
 
     private const TTL = 86400;
+
+    /** Tile indexes that get a rotation rule (the rest of a long listing keeps the plain tile color). */
+    private const TILE_INDEXES = 96;
 
     private const STACKS = [
         'sans' => 'system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif',
@@ -68,7 +71,7 @@ final class ThemeCss
     {
         [$faces, $files, $preload] = $this->fontFaces($theme);
 
-        $css = implode('', $faces).$this->root($theme);
+        $css = implode('', $faces).$this->root($theme).$this->tileRules($theme);
 
         // Defense in depth: nothing that could close the <style> element.
         return ['css' => str_replace(['<', '>'], '', $css), 'preload' => $preload, 'files' => $files];
@@ -169,6 +172,27 @@ final class ThemeCss
             $vars['display-tracking'] = $display['letterSpacing'];
         }
 
+        // Surface tokens (TH-14): printed only when the theme sets them, the surface CSS has fallbacks. Validated again here.
+        foreach (['shadowColor' => 'shadow-color', 'pressColor' => 'press-color'] as $key => $name) {
+            $color = Color::normalize($theme->shape[$key] ?? null);
+
+            if ($color !== null) {
+                $vars[$name] = strtolower($color);
+            }
+        }
+
+        $tint = CssValue::color($theme->shape['shadowTint'] ?? null);
+
+        if ($tint !== null) {
+            $vars['shadow-tint'] = $tint;
+        }
+
+        $image = CssValue::gradient($theme->extras['backgroundImage'] ?? null);
+
+        if ($image !== null) {
+            $vars['bg-image'] = $image;
+        }
+
         $out = ':root{';
 
         foreach ($vars as $name => $value) {
@@ -176,6 +200,64 @@ final class ThemeCss
         }
 
         return $out.'}';
+    }
+
+    /**
+     * Product photo tiles in rotation (TH-14): `tileColors` / `tilePatterns` become rules on `[data-tile-index]`
+     * (set by the card variants), index mod the number of colors. Printed only for themes that have the extras.
+     */
+    private function tileRules(ResolvedTheme $theme): string
+    {
+        $colors = [];
+
+        foreach (array_slice(array_values((array) ($theme->extras['tileColors'] ?? [])), 0, 12) as $color) {
+            $color = Color::normalize($color);
+
+            if ($color !== null) {
+                $colors[] = strtolower($color);
+            }
+        }
+
+        $patterns = [];
+
+        foreach (array_slice(array_values((array) ($theme->extras['tilePatterns'] ?? [])), 0, 12) as $pattern) {
+            $pattern = CssValue::gradient($pattern);
+
+            if ($pattern !== null) {
+                $patterns[] = $pattern;
+            }
+        }
+
+        $steps = max(count($colors), count($patterns));
+
+        if ($steps === 0) {
+            return '';
+        }
+
+        $out = '';
+
+        for ($k = 0; $k < $steps; $k++) {
+            $selectors = [];
+
+            for ($i = $k; $i < self::TILE_INDEXES; $i += $steps) {
+                $selectors[] = '[data-tile-index="'.$i.'"]';
+            }
+
+            $declarations = '';
+
+            if ($colors !== []) {
+                $color = $colors[$k % count($colors)];
+                $declarations .= '--shop-tile:'.$color.';background-color:'.$color.';';
+            }
+
+            if ($patterns !== []) {
+                $declarations .= 'background-image:'.$patterns[$k % count($patterns)].';';
+            }
+
+            $out .= implode(',', $selectors).'{'.$declarations.'}';
+        }
+
+        return $out;
     }
 
     private function stack(?string $family, string $fallbackKind): string

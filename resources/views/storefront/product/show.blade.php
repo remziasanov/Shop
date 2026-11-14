@@ -8,15 +8,15 @@
 
     <div class="grid gap-6 md:grid-cols-2 md:gap-10">
         {{-- SF-30: gallery. --}}
-        <section aria-label="{{ __('storefront.gallery.label') }}" x-data="productGallery({{ count($gallery) }}@if ($picker !== null), @js(array_map(fn ($image) => $image['option_value_id'], $gallery))@endif)"
+        <section aria-label="{{ __('storefront.gallery.label') }}" data-crop x-data="productGallery({{ count($gallery) }}@if ($picker !== null), @js(array_map(fn ($image) => $image['option_value_id'], $gallery))@endif)"
                  @variant-color.window="setColor($event.detail.id)"
                  @keydown.arrow-left="fullscreen && prev()" @keydown.arrow-right="fullscreen && next()" @keydown.escape.window="fullscreen && closeFullscreen()">
             @if ($gallery === [])
-                <div class="aspect-square overflow-hidden rounded-card border border-line bg-tile">
+                <div class="aspect-square overflow-hidden rounded-card border border-line bg-tile" data-tile data-tile-index="0">
                     @include('storefront.partials.image-placeholder', ['url' => $view->placeholderUrl, 'alt' => $product->name])
                 </div>
             @else
-                <div class="relative touch-pan-y overflow-hidden rounded-card border border-line bg-surface-2"
+                <div class="relative touch-pan-y overflow-hidden rounded-card border border-line bg-surface-2" data-tile data-tile-index="0"
                      @touchstart.passive="touchStart($event)" @touchend.passive="touchEnd($event)"
                      @keydown.arrow-left="prev()" @keydown.arrow-right="next()">
                     @foreach ($gallery as $i => $image)
@@ -216,8 +216,8 @@
 
         @foreach (['description' => __('storefront.product.tab_description'), 'specs' => __('storefront.product.tab_specs')] as $key => $label)
             <div class="border-b border-line md:hidden" data-accordion="{{ $key }}">
-                <h2>
-                    <button type="button" class="flex min-h-12 w-full items-center justify-between gap-3 text-left text-lg font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                <h2 class="text-lg font-semibold">
+                    <button type="button" class="flex min-h-12 w-full items-center justify-between gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                             aria-controls="panel-{{ $key }}" :aria-expanded="open.{{ $key }}.toString()" aria-expanded="{{ $key === 'description' ? 'true' : 'false' }}" @click="open.{{ $key }} = ! open.{{ $key }}">
                         {{ $label }}
                         <svg class="h-5 w-5 flex-none transition-transform" :class="{ 'rotate-180': open.{{ $key }} }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>

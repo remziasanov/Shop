@@ -9,7 +9,7 @@
     $ageCookie = $ageOn && ! $ageStaff ? $ageGate->confirmedAge(request()) : 0;
 @endphp
 <!DOCTYPE html>
-<html lang="ru" @if ($ageOn) data-age-on @if ($ageGate->showBadge()) data-age-badge @endif @if ($ageStaff) data-age-ok="18" @elseif ($ageCookie > 0) data-age-ok="{{ $ageCookie }}" @endif @endif>
+<html lang="ru" @isset($theme) {!! $theme->htmlAttributes() !!} @endisset @if ($ageOn) data-age-on @if ($ageGate->showBadge()) data-age-badge @endif @if ($ageStaff) data-age-ok="18" @elseif ($ageCookie > 0) data-age-ok="{{ $ageCookie }}" @endif @endif>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

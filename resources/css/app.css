@@ -1,4 +1,7 @@
 @import 'tailwindcss';
+@import './theme/header-hero.css';
+@import './theme/surfaces.css';
+@import './theme/cards-listing.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../views/**/*.blade.php';
