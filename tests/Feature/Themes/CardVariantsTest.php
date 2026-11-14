@@ -11,6 +11,7 @@ use App\Models\Category;
 use App\Models\CustomerGroup;
 use App\Models\Order;
 use App\Models\Product;
+use App\Services\Catalog\ProductPresenter;
 use App\Services\Pricing\GroupPriceRecalculator;
 use App\Settings\AppearanceSettings;
 
@@ -182,6 +183,23 @@ describe('purchase scenarios in every card variant (stage 21 acceptance)', funct
 
         expect(Order::query()->count())->toBe(1)->and($product->fresh()->stock_qty)->toBe(4);
     })->with(array_values(cardThemes()));
+
+    it('tells the C3 reservation button from add-to-cart by icon and caption', function (): void {
+        useTheme('volt');
+        // volt uses C4; C3 is checked through the shared actions partial with the round style.
+        $reserve = sellable(['name' => 'Стол', 'sales_mode' => SalesMode::Reservation, 'stock_qty' => 5]);
+        $buy = sellable(['name' => 'Лампа', 'sales_mode' => SalesMode::Cart, 'stock_qty' => 5]);
+        $actions = app(ProductPresenter::class);
+
+        foreach ([[$reserve, true], [$buy, false]] as [$product, $isReserve]) {
+            $view = $actions->present($product->fresh());
+            $html = view('storefront.partials.cards._actions', ['view' => $view, 'cardActions' => $view->actions, 'style' => 'round'])->render();
+
+            expect(str_contains($html, 'data-reserve-icon'))->toBe($isReserve)
+                ->and(str_contains($html, 'data-reserve-caption'))->toBe($isReserve)
+                ->and($html)->toContain('sr-only');
+        }
+    });
 
     it('opens the reservation and inquiry forms from the card', function (string $theme): void {
         useTheme($theme);

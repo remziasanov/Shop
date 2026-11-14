@@ -108,7 +108,7 @@ final class ThemeRegistry
     {
         $base = $this->default();
 
-        return new Theme(self::DEBUG_ID, 0, 'Debug: blocks (temporary)', null, null, 'Service theme', null, $base->colors, $base->shape, $base->fonts, $base->blocks, []);
+        return new Theme(self::DEBUG_ID, 0, __('themes.preview.debug_name'), null, null, 'Service theme', null, $base->colors, $base->shape, $base->fonts, $base->blocks, []);
     }
 
     public function default(): Theme

@@ -32,7 +32,7 @@
 
     @if ($menuCategories !== [])
         {{-- «Каталог»: a native disclosure (works without JavaScript); Alpine only closes it on Escape / outside click. --}}
-        <details class="relative hidden md:block" data-header-catalog @click.outside="$el.removeAttribute('open')" @keydown.escape="$el.removeAttribute('open')">
+        <details class="relative hidden md:block" data-header-catalog @click.outside="$el.removeAttribute('open')" @keydown.escape="if ($el.hasAttribute('open')) { $el.removeAttribute('open'); $el.querySelector('summary').focus() }">
             <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-btn bg-primary px-4 text-sm font-semibold text-on-primary hover:opacity-90 active:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h7v7H4zM13 6h7v7h-7zM4 15h7v5H4zM13 15h7v5h-7z"/></svg>
                 {{ __('storefront_blocks.header.catalog') }}

@@ -152,7 +152,7 @@ final class ThemeResolver
     }
 
     /**
-     * The extras of TH-14 that the surface layer owns are validated; the others (hero, header, grid) pass through.
+     * The extras of TH-14 that the surface layer owns are validated; the others (grid) pass through.
      *
      * @param  array<string, mixed>  $extras
      * @return array<string, mixed>
@@ -161,7 +161,7 @@ final class ThemeResolver
     {
         $out = $extras;
 
-        foreach (['tileShape', 'tileColors', 'tilePatterns', 'backgroundImage', 'dashedFrames', 'cropMarks'] as $key) {
+        foreach (['tileShape', 'tileColors', 'tilePatterns', 'backgroundImage', 'dashedFrames', 'cropMarks', 'heroImage', 'heroButton', 'headerRule'] as $key) {
             unset($out[$key]);
         }
 
@@ -201,6 +201,27 @@ final class ThemeResolver
 
         if ($image !== null) {
             $out['backgroundImage'] = $image;
+        }
+
+        // Hero and header extras (TH-14): same strict validators as the storefront helpers apply.
+        $heroImage = CssValue::gradient($extras['heroImage'] ?? null);
+
+        if ($heroImage !== null) {
+            $out['heroImage'] = $heroImage;
+        }
+
+        $button = $extras['heroButton'] ?? null;
+        $bg = is_array($button) ? Color::normalize($button['bg'] ?? null) : null;
+        $ink = is_array($button) ? Color::normalize($button['ink'] ?? null) : null;
+
+        if ($bg !== null && $ink !== null) {
+            $out['heroButton'] = ['bg' => $bg, 'ink' => $ink];
+        }
+
+        $rule = $extras['headerRule'] ?? null;
+
+        if (is_string($rule) && preg_match('/^[1-9]\d?px (solid|double|dashed|dotted) #[0-9a-fA-F]{6}$/', $rule) === 1) {
+            $out['headerRule'] = $rule;
         }
 
         foreach (['dashedFrames', 'cropMarks'] as $flag) {

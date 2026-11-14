@@ -18,7 +18,7 @@
         }
     </style>
     <div class="theme-preview-bar" role="region" aria-label="{{ __('themes.preview.bar_label') }}" data-theme-preview-bar>
-        <span data-theme-preview-title>{{ __('themes.preview.title') }}: <strong data-theme-preview-name>{{ $themePreviewBar['name'] }}</strong> ({{ $themePreviewBar['index'] + 1 }}/{{ $themePreviewBar['total'] }})</span>
+        <span data-theme-preview-title>{{ __('themes.preview.title') }}: <strong data-theme-preview-name>{{ $themePreviewBar['name'] }}</strong>@if ($themePreviewBar['index'] !== null) ({{ $themePreviewBar['index'] + 1 }}/{{ $themePreviewBar['total'] }})@endif</span>
         <form method="POST" action="{{ route('theme.preview.step') }}">
             @csrf
             <input type="hidden" name="direction" value="prev">
@@ -34,10 +34,12 @@
             <a href="{{ \App\Filament\Pages\ThemePhonePreview::getUrl() }}" target="_top" @if (request()->header('Sec-Fetch-Dest') === 'iframe') aria-current="true" @endif>{{ __('themes.preview.phone') }}</a>
         </span>
         <span class="spacer"></span>
-        <form method="POST" action="{{ route('theme.preview.apply') }}" target="_top">
-            @csrf
-            <button type="submit" data-apply>{{ __('themes.preview.apply') }}</button>
-        </form>
+        @if ($themePreviewBar['index'] !== null)
+            <form method="POST" action="{{ route('theme.preview.apply') }}" target="_top">
+                @csrf
+                <button type="submit" data-apply>{{ __('themes.preview.apply') }}</button>
+            </form>
+        @endif
         <form method="POST" action="{{ route('theme.preview.exit') }}" target="_top">
             @csrf
             <button type="submit">{{ __('themes.preview.exit') }}</button>

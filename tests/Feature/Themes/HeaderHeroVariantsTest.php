@@ -147,7 +147,8 @@ describe('hero variants (TH-12)', function (): void {
 
         expect($html)->toContain('data-hero-bento')
             ->and(substr_count($html, 'data-tile-index='))->toBe(3)
-            ->and(substr_count($html, 'class="hero-bento-main'))->toBe(1);
+            ->and(substr_count($html, 'class="hero-bento-main'))->toBe(1)
+            ->and($html)->toContain('data-bento-title>Разделы</h2>');
     });
 
     it('G3 degrades to the plain slide without categories and G2 without text to an image', function (): void {
@@ -242,6 +243,63 @@ describe('BlockExtras', function (): void {
         expect(BlockExtras::header($bad))->toBe('H1')->and(BlockExtras::hero($bad))->toBe('G1')
             ->and(BlockExtras::heroStyle($bad))->toBe('')->and(BlockExtras::headerRule($bad))->toBeNull()
             ->and(BlockExtras::homeGridColumns($bad))->toBeNull();
+    });
+});
+
+describe('hero extras validation (TH-09)', function (): void {
+    $payloads = [
+        'uppercase url' => 'linear-gradient(red,blue),URL(//evil.example/a.png)',
+        'url' => 'url(https://evil.example/a.png)',
+        'image-set' => 'image-set(linear-gradient(red,blue) 1x)',
+        'expression' => 'expression(alert(1))',
+        'css escape' => 'linear-gradient(red,blue),\\75 rl(//evil.example/a.png)',
+        'declaration break' => 'linear-gradient(red,blue);}body{background:red',
+    ];
+
+    foreach ($payloads as $label => $payload) {
+        it('rejects a hero image with '.$label, function () use ($payload): void {
+            $resolver = app(ThemeResolver::class);
+            $theme = $resolver->resolve(app(ThemeRegistry::class)->default());
+            $method = new ReflectionMethod($resolver, 'extras');
+            $method->setAccessible(true);
+            $clean = $method->invoke($resolver, ['heroImage' => $payload, 'heroButton' => ['bg' => $payload, 'ink' => '#000000'], 'headerRule' => $payload]);
+
+            expect($clean)->not->toHaveKeys(['heroImage', 'heroButton', 'headerRule']);
+
+            $bad = new ResolvedTheme(
+                id: 'x', name: 'x', colors: $theme->colors, shape: $theme->shape, fonts: $theme->fonts,
+                blocks: [], extras: ['heroImage' => $payload], overrides: [], warnings: [],
+            );
+
+            expect(BlockExtras::heroStyle($bad))->toBe('');
+        });
+    }
+
+    it('keeps every valid hero and header extra of the shipped themes', function (): void {
+        $resolver = app(ThemeResolver::class);
+        $method = new ReflectionMethod($resolver, 'extras');
+        $method->setAccessible(true);
+        $themes = json_decode((string) file_get_contents(resource_path('themes/themes.json')), true);
+        $checked = 0;
+
+        foreach ($themes['themes'] ?? $themes as $entry) {
+            $extras = $entry['extras'] ?? [];
+
+            if (! is_array($extras)) {
+                continue;
+            }
+
+            $clean = $method->invoke($resolver, $extras);
+
+            foreach (['heroImage', 'heroButton', 'headerRule'] as $key) {
+                if (isset($extras[$key])) {
+                    $checked++;
+                    expect($clean)->toHaveKey($key);
+                }
+            }
+        }
+
+        expect($checked)->toBeGreaterThan(4);
     });
 });
 

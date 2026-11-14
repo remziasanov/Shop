@@ -50,8 +50,13 @@
         <form method="post" action="{{ route('cart.add', [], false) }}" x-data="cardAdd" @submit.prevent="submit($event)" data-error="{{ __('sales.guard.generic') }}" class="{{ $s['form'] }}">
             @csrf
             <input type="hidden" name="product_id" value="{{ $view->product->id }}">
-            <button type="submit" data-action="cart" :disabled="busy" :aria-busy="busy.toString()" class="{{ $s['cart'] }} {{ $focus }}" @if ($round) title="{{ $action['label'] }}" @endif>
-                @if ($round)
+            <button type="submit" data-action="cart" :disabled="busy" :aria-busy="busy.toString()" class="{{ $s['cart'] }} {{ $focus }} @if ($round && ($action['reserve'] ?? false)) group/res relative @endif" @if ($round) title="{{ $action['label'] }}" @endif>
+                @if ($round && ($action['reserve'] ?? false))
+                    {{-- Reservation row: a bookmark instead of «+», and the caption shows on hover / focus so it is not mistaken for «В корзину». --}}
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true" data-reserve-icon><path stroke-linecap="round" stroke-linejoin="round" d="M6 4h12v17l-6-4-6 4z"/></svg>
+                    <span class="pointer-events-none absolute bottom-full right-0 z-10 mb-1 hidden whitespace-nowrap rounded-btn bg-ink px-2 py-1 text-xs font-medium text-bg group-hover/res:block group-focus-visible/res:block" aria-hidden="true" data-reserve-caption>{{ $action['label'] }}</span>
+                    <span class="sr-only">{{ $action['label'] }}: {{ $view->product->name }}</span>
+                @elseif ($round)
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
                     <span class="sr-only">{{ $action['label'] }}: {{ $view->product->name }}</span>
                 @else

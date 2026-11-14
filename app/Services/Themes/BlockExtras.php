@@ -44,10 +44,10 @@ final class BlockExtras
             $style .= '--shop-hero-btn-bg:'.$button['bg'].';--shop-hero-btn-ink:'.$button['ink'].';';
         }
 
-        $image = $theme->extras['heroImage'] ?? null;
+        // Gradients only, through the same tokenizer as every other theme background (no url(), image-set(), escapes).
+        $image = CssValue::gradient($theme->extras['heroImage'] ?? null);
 
-        // A gradient pattern only: letters, digits, spaces and the characters of color functions; no url(), no `;`, no quotes.
-        if (is_string($image) && preg_match('/^[a-z-]+-gradient\([a-z0-9 .,%()#\/-]+\)( [0-9.]+(px|%)? [0-9.]+(px|%)?)?( \/ [0-9.]+(px|%) [0-9.]+(px|%))?$/i', $image) === 1 && ! str_contains($image, 'url(')) {
+        if ($image !== null) {
             $style .= '--shop-hero-image:'.$image.';';
         }
 

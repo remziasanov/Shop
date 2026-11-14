@@ -4,13 +4,18 @@
     $shown = array_slice($tiles, 0, 3);
     $rest = array_slice($tiles, 3);
     $count = count($shown);
+    $bentoHeading = ($title ?? null) ? 'home-bento-'.\Illuminate\Support\Str::random(6) : null;
 @endphp
 <div class="mb-8" data-hero-bento>
+    {{-- TH-12: the owner's block title is content, it stays visible above the bento grid. --}}
+    @if ($bentoHeading)
+        <h2 id="{{ $bentoHeading }}" class="mb-3 text-xl font-bold md:text-2xl" data-bento-title>{{ $title }}</h2>
+    @endif
     <div class="grid gap-3 md:grid-cols-4 md:grid-rows-2 md:gap-4">
         <div class="hero-bento-main min-w-0 md:col-span-2 md:row-span-2">
             @include('storefront.home.blocks.'.$inner, ['bento' => true])
         </div>
-        <ul class="grid grid-cols-2 gap-3 md:col-span-2 md:row-span-2 md:grid-rows-2 md:gap-4" aria-label="{{ ($title ?? null) ?: __('storefront.catalog.categories') }}">
+        <ul class="grid grid-cols-2 gap-3 md:col-span-2 md:row-span-2 md:grid-rows-2 md:gap-4" @if ($bentoHeading) aria-labelledby="{{ $bentoHeading }}" @else aria-label="{{ __('storefront.catalog.categories') }}" @endif>
             @foreach ($shown as $tile)
                 <li class="hero-bento-tile min-w-0 {{ $count === 1 ? 'col-span-2 md:row-span-2' : ($count === 2 ? 'md:row-span-2' : ($loop->iteration === 3 ? 'col-span-2' : '')) }}" data-tile data-tile-index="{{ $loop->index }}">
                     <a href="{{ $tile['url'] }}" class="flex h-full min-h-32 flex-col justify-between gap-3 rounded-card border p-4 hover:shadow-sm active:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none">

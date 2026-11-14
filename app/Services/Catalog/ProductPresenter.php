@@ -323,7 +323,7 @@ final class ProductPresenter
     /**
      * Buttons by the effective mode adjusted by stock (5.6). A disabled button is shown but not clickable.
      *
-     * @return list<array{key: string, label: string, primary: bool, disabled: bool, single?: bool}>
+     * @return list<array{key: string, label: string, primary: bool, disabled: bool, single?: bool, reserve?: bool}>
      */
     private function actions(ProductActions $actions): array
     {
@@ -342,7 +342,7 @@ final class ProductPresenter
                     'label' => self::cartLabel($actions, $kind),
                     'primary' => true,
                     'disabled' => false,
-                ];
+                ] + ($kind === CartLineKind::Reservation ? ['reserve' => true] : []);
             }
 
             if ($actions->hasReservationButton() && $actions->canReserve) {

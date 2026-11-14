@@ -127,6 +127,20 @@ it('puts the heading sizes under the theme scale (stage 21 checklist)', function
         ->and((string) file_get_contents(resource_path('views/livewire/storefront/checkout-form.blade.php')))->toContain('<h3 class="font-body');
 });
 
+it('keeps the field hover and error borders outside the layers so the border utilities do not beat them (TH-16)', function (): void {
+    $css = (string) file_get_contents(resource_path('css/theme/surfaces.css'));
+    $layerEnd = strpos($css, "\n}\n\n/*\n * Field hover");
+
+    // Unlayered: after the last `@layer` block, not inside `@layer components`.
+    $hover = strpos($css, "[data-surface]:not([data-surface='line']) :where(input");
+    $error = strpos($css, "\n:where(input:not([type='checkbox'], [type='radio']), select, textarea)[aria-invalid='true']");
+
+    expect($layerEnd)->not->toBeFalse()
+        ->and($hover)->toBeGreaterThan($layerEnd)
+        ->and($error)->toBeGreaterThan($layerEnd)
+        ->and(substr($css, 0, $layerEnd))->not->toContain("[aria-invalid='true'] {\n        border-color");
+});
+
 describe('temporary service theme debug-blocks (remove in stage 23)', function (): void {
     it('does not exist without the flag, even in a staff preview', function (): void {
         config()->set('shop.theme_debug', false);
@@ -161,12 +175,25 @@ describe('temporary service theme debug-blocks (remove in stage 23)', function (
         $this->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3']))->assertOk()->assertDontSee('data-theme-preview-bar');
 
         $this->actingAs(surfaceStaff())->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3,C5,G2,L3,X9,H9']))
-            ->assertOk()->assertSee('data-theme-preview-bar', false)->assertSee('Debug: blocks', false);
+            ->assertOk()->assertSee('data-theme-preview-bar', false)->assertSee('Отладка: блоки', false);
 
         expect(session(ThemePreview::BLOCKS_KEY))->toBe(['header' => 'H3', 'card' => 'C5', 'hero' => 'G2', 'listing' => 'L3']);
 
         $response = $this->get(route('home'))->assertOk();
         expect($response->headers->get('Cache-Control'))->toContain('no-store');
+    });
+
+    it('hides Apply for the service theme, refuses it and keeps prev / next inside real themes', function (): void {
+        config()->set('shop.theme_debug', true);
+        $staff = surfaceStaff();
+
+        $html = $this->actingAs($staff)->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3']))->assertOk()->getContent();
+        expect($html)->toContain('data-theme-preview-bar')->and($html)->not->toContain('<button type="submit" data-apply>')->and($html)->not->toMatch('~\(\d+/\d+\)~');
+
+        $this->post(route('theme.preview.apply'))->assertForbidden();
+
+        $this->post(route('theme.preview.step'), ['direction' => 'next']);
+        expect(session(ThemePreview::SESSION_KEY)['theme_id'])->not->toBe(ThemeRegistry::DEBUG_ID);
     });
 
     it('validates the variants against the allowed sets', function (): void {

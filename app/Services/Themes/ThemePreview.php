@@ -138,7 +138,11 @@ final class ThemePreview
     {
         $ids = array_keys($this->themes->all());
         $index = array_search($themeId, $ids, true);
-        $index = $index === false ? 0 : $index;
+
+        // A service theme outside the list (debug-blocks): the first real theme going forward, the last going back.
+        if ($index === false) {
+            return $step < 0 ? $ids[count($ids) - 1] : $ids[0];
+        }
 
         return $ids[($index + $step + count($ids)) % count($ids)];
     }

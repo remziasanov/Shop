@@ -286,10 +286,6 @@ html[data-crop-marks] :is([data-card], [data-crop])::after {
         transition: border-color 0.12s ease, box-shadow 0.12s ease;
     }
 
-    :where(input, select, textarea):not(:disabled, :focus-visible, [aria-invalid='true']):hover {
-        border-color: var(--shop-muted);
-    }
-
     /* Pressed. */
     :where(button, a.rounded-btn, [role='button']):not(:disabled, [aria-disabled='true']):active {
         translate: 0 1px;
@@ -323,10 +319,6 @@ html[data-crop-marks] :is([data-card], [data-crop])::after {
     }
 
     /* Error: the field and the check marks of an invalid control take the danger color, the ring too. */
-    :where(input, select, textarea)[aria-invalid='true'] {
-        border-color: var(--shop-danger-solid);
-    }
-
     :where(input, select, textarea)[aria-invalid='true']:focus-visible {
         outline-color: var(--shop-danger-solid);
     }
@@ -336,6 +328,20 @@ html[data-crop-marks] :is([data-card], [data-crop])::after {
         outline: 2px solid var(--shop-danger-solid);
         outline-offset: 1px;
     }
+}
+
+/*
+ * Field hover and error borders (TH-16) are outside the layers on purpose: the fields carry a `border-line-strong`
+ * utility, which beats anything in `@layer components`. Error applies everywhere (the shared forms already draw the same
+ * danger border through `aria-invalid:border-danger-solid`); hover only on surfaces other than `line`, so the default
+ * theme looks as before. Focus (`:focus`) and an invalid field keep their own border.
+ */
+html[data-surface]:not([data-surface='line']) :where(input:not([type='checkbox'], [type='radio']), select, textarea):not(:disabled, :focus, [aria-invalid='true']):hover {
+    border-color: var(--shop-muted);
+}
+
+:where(input:not([type='checkbox'], [type='radio']), select, textarea)[aria-invalid='true'] {
+    border-color: var(--shop-danger-solid);
 }
 
 @keyframes shop-spin {
