@@ -293,6 +293,7 @@ jobs:
           /.git/
           /.github/
           /.claude/
+          /skills-lock.json
           /node_modules/
           /tests/
           /junit.xml
