@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\User;
 use App\Services\Home\HomePageRenderer;
 use App\Services\Themes\ThemeCss;
+use App\Services\Themes\ThemeManager;
 use App\Services\Themes\ThemeRegistry;
 use App\Services\Themes\ThemeResolver;
 use App\Settings\AppearanceSettings;
@@ -179,21 +181,63 @@ describe('every theme renders the main pages (TH-32)', function (): void {
 });
 
 describe('display font (TH-19, TH-20)', function (): void {
-    it('prints the display tokens of the theme and the built css applies them to headings', function (): void {
+    it('prints the display weight / line-height / tracking tokens only when the theme sets them', function (): void {
+        $default = rootBlock($this->get(route('home'))->assertOk()->getContent());
+        expect($default)->toContain('--shop-font-display:')
+            ->not->toContain('--shop-display-weight-set')
+            ->not->toContain('--shop-display-line-height')
+            ->not->toContain('--shop-display-tracking');
+
         setTheme('arkada');
-        $html = $this->get(route('home'))->assertOk()->getContent();
+        $arkada = rootBlock($this->get(route('home'))->assertOk()->getContent());
+        expect($arkada)->toContain('--shop-font-display: "Press Start 2P"')
+            ->toContain('--shop-display-weight-set: 400;')
+            ->toContain('--shop-display-line-height: 1.5;')
+            ->not->toContain('--shop-display-tracking');
 
-        expect(rootBlock($html))->toContain('--shop-font-display: "Press Start 2P"');
+        setTheme('modul');
+        $modul = rootBlock($this->get(route('home'))->assertOk()->getContent());
+        expect($modul)->not->toContain('--shop-display-weight-set')
+            ->not->toContain('--shop-display-line-height')
+            ->toContain('--shop-display-tracking: -0.03em;');
+    });
 
-        $built = glob(public_path('build/assets/*.css')) ?: [];
-        if ($built === []) {
-            $this->markTestSkipped('Vite build is absent.');
-        }
+    it('applies the display tokens to headings in the css source, except headings that opt out with font-body', function (): void {
+        $css = (string) file_get_contents(resource_path('css/app.css'));
 
-        $css = (string) file_get_contents($built[0]);
-        expect($css)->toContain('font-family:var(--shop-font-display)')
-            ->and($css)->toContain('var(--shop-display-weight-set')
-            ->and($css)->toContain('var(--shop-display-scale)');
+        expect($css)->toContain(':is(h1, h2, h3, .font-display):not(.font-body)')
+            ->toContain('font-family: var(--shop-font-display);')
+            ->toContain('var(--shop-display-weight-set, revert-layer)')
+            ->toContain('var(--shop-display-scale)')
+            ->toContain('--font-body: var(--shop-font-body);');
+    });
+
+    it('marks the product card name heading with font-body', function (): void {
+        $source = (string) file_get_contents(resource_path('views/storefront/partials/product-card.blade.php'));
+
+        expect($source)->toMatch('/<h3 class="[^"]*\bfont-body\b/');
+    });
+
+    it('forgets the css cache key of the previous state when overrides are saved or the theme changes', function (): void {
+        $admin = User::factory()->admin()->create();
+        $manager = app(ThemeManager::class);
+        $registry = app(ThemeRegistry::class);
+        $resolver = app(ThemeResolver::class);
+        $keyOf = fn (string $id, array $overrides): string => ThemeCss::cacheKey($resolver->resolve($registry->findOrDefault($id), $overrides), $registry->version());
+
+        $oldKey = $keyOf('default', []);
+        $this->get(route('home'))->assertOk();
+        expect(Cache::has($oldKey))->toBeTrue();
+
+        $manager->saveOverrides($admin, 'default', ['colors' => ['primary' => '#112233']]);
+        expect(Cache::has($oldKey))->toBeFalse();
+
+        $this->get(route('home'))->assertOk();
+        $overrideKey = $keyOf('default', ['colors' => ['primary' => '#112233']]);
+        expect(Cache::has($overrideKey))->toBeTrue();
+
+        $manager->select($admin, 'arkada');
+        expect(Cache::has($overrideKey))->toBeFalse();
     });
 
     it('logs an unknown theme id once per day', function (): void {

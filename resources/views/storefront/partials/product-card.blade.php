@@ -15,7 +15,7 @@
     </a>
     @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mt-2'])
 
-    <h3 class="mt-2 flex-1 text-sm font-medium leading-snug">
+    <h3 class="mt-2 flex-1 font-body text-sm font-medium leading-snug">
         <a href="{{ $view->url }}" class="flex min-h-11 items-center hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ $product->name }}</a>
     </h3>
 

@@ -85,3 +85,47 @@ it('defines every contract token in the CSS block (TH-05)', function () {
         expect($css)->toContain('--shop-'.$token.':');
     }
 });
+
+/**
+ * The heading size utilities that app.css rescales with --shop-display-scale (unlayered, so a size not listed there
+ * would still work, but a responsive variant of an unlisted size would be silently overridden by a listed one).
+ *
+ * @return array<int, string>
+ */
+function scaledHeadingSizeClasses(): array
+{
+    $css = (string) file_get_contents(resource_path('css/app.css'));
+    preg_match_all('/:is\(h1, h2, h3\)\.((?:md\\\\:)?text-[a-z0-9]+)\s*\{/', $css, $m);
+
+    return array_map(fn (string $c): string => str_replace('\\:', ':', $c), $m[1]);
+}
+
+it('uses only text sizes covered by the display-scale rules on storefront headings (TH-05)', function () {
+    $covered = scaledHeadingSizeClasses();
+    // Sizes below text-lg are not scaled on purpose (small item-level headings).
+    $unscaled = ['text-xs', 'text-sm', 'text-base'];
+
+    expect($covered)->toContain('text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'md:text-2xl', 'md:text-3xl', 'md:text-4xl');
+
+    $base = resource_path('views');
+    $dirs = ['storefront', 'components/storefront', 'components/account', 'livewire/storefront', 'errors'];
+    $offenders = [];
+
+    foreach (Finder::create()->files()->name('*.php')->in(array_map(fn (string $d): string => $base.'/'.$d, $dirs)) as $file) {
+        preg_match_all('/<h[1-3]\b[^>]*?class="([^"]*)"/s', $file->getContents(), $tags);
+
+        foreach ($tags[1] as $classes) {
+            foreach (preg_split('/\s+/', trim($classes)) ?: [] as $class) {
+                if (! preg_match('/^(?:[a-z0-9-]+:)*text-(?:xs|sm|base|lg|xl|[2-9]xl)$/', $class)) {
+                    continue;
+                }
+
+                if (! in_array($class, $covered, true) && ! in_array($class, $unscaled, true)) {
+                    $offenders[] = substr($file->getPathname(), strlen(base_path()) + 1).': '.$class;
+                }
+            }
+        }
+    }
+
+    expect($offenders)->toBe([]);
+});

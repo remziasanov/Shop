@@ -228,9 +228,10 @@ html[data-kb] .shop-bottom-nav {
  * they win over the size / weight utilities on the heading itself. Theme `default` stays pixel-identical: the system
  * stack, weight 700 (the utilities font-bold / font-semibold keep working: --shop-display-weight-set is printed only
  * when the theme weight differs from 700), case none, scale 1. line-height and letter-spacing apply only when the
- * theme prints the token (revert-layer otherwise).
+ * theme prints the token (revert-layer otherwise). A heading that names an item (product card name) opts out with
+ * .font-body and keeps the body font and its own utilities, as in the reference mockups.
  */
-:is(h1, h2, h3, .font-display) {
+:is(h1, h2, h3, .font-display):not(.font-body) {
     font-family: var(--shop-font-display);
     font-weight: var(--shop-display-weight-set, revert-layer);
     font-style: var(--shop-display-style, normal);
