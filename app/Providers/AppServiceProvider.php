@@ -88,6 +88,13 @@ class AppServiceProvider extends ServiceProvider
         // TG-04: Telegram sends updates from a few addresses.
         RateLimiter::for('telegram-webhook', fn (Request $request): Limit => Limit::perMinute(120)->by((string) $request->ip()));
 
+        // TM-13: every /tg endpoint has its own bucket per IP (a shared one let the phone polling or a busy moment of one
+        // mobile network starve the session call). Telegram clients of one carrier share an address, so the caps are
+        // generous but finite: the session call verifies a signature, the others only read or write one row.
+        foreach (['session' => 60, 'write-access' => 20, 'phone' => 40, 'leave' => 20, 'start' => 60] as $name => $perMinute) {
+            RateLimiter::for('tg-'.$name, fn (Request $request): Limit => Limit::perMinute($perMinute)->by((string) $request->ip()));
+        }
+
         $this->configureFilamentFormats();
         $this->forceCanonicalUrl();
 

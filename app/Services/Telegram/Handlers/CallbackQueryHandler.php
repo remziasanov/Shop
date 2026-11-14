@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services\Telegram\Handlers;
 
+use App\Jobs\EditTelegramMessage;
 use App\Services\Telegram\TelegramAccountService;
+use App\Services\Telegram\TelegramApiException;
 use App\Services\Telegram\TelegramClient;
 use App\Services\Telegram\TelegramLinkService;
+use App\Services\Telegram\TelegramRateLimitedException;
 use Throwable;
 
 /**
  * `callback_query` (TG-05): the link confirmation buttons (TG-07). Other buttons belong to stage 18 (TS-03) and
  * get a polite «Скоро» for now. The answer goes into the webhook response body; the redraw of the question
- * message is the one synchronous Bot API call allowed by NF-60.
+ * message is the one synchronous Bot API call allowed by NF-60 (2 s timeout, a queued job on failure).
  */
 class CallbackQueryHandler
 {
@@ -74,15 +77,25 @@ class CallbackQueryHandler
             return;
         }
 
+        $params = [
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+            'text' => $text,
+            'reply_markup' => $markup ?? ['inline_keyboard' => []],
+        ];
+
         try {
-            $this->client->call('editMessageText', [
-                'chat_id' => $chatId,
-                'message_id' => $messageId,
-                'text' => $text,
-                'reply_markup' => $markup ?? ['inline_keyboard' => []],
-            ]);
-        } catch (Throwable) {
-            // The toast of answerCallbackQuery already told the result; the old keyboard simply stays.
+            // A short timeout: the webhook answer has a 4 s budget (TG-05).
+            $this->client->call('editMessageText', $params, null, TelegramClient::WEBHOOK_TIMEOUT_SECONDS);
+        } catch (Throwable $e) {
+            // A timeout, a network error, a 5xx or a rate limit: the redraw goes to the queue. Other 4xx answers (the
+            // message is gone or unchanged) are final; the toast of answerCallbackQuery already told the result.
+            $retryable = $e instanceof TelegramRateLimitedException
+                || ($e instanceof TelegramApiException && ($e->status === null || $e->status >= 500));
+
+            if ($retryable && is_scalar($chatId) && is_numeric($messageId)) {
+                EditTelegramMessage::dispatch((string) $chatId, (int) $messageId, $text, $params['reply_markup']);
+            }
         }
     }
 }

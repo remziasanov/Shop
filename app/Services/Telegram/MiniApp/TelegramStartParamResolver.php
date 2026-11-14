@@ -24,7 +24,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * Turns the launch parameter of the Mini App into the page to open (TM-08). The value comes from the signed `initData`
  * (`start_param`, `t.me/{bot}?startapp=…`) or, as a hint only, from the `?to=` of a `web_app` button; both go through
- * the same checks, so the unsigned hint grants nothing a signed parameter would not (CA-28 for orders).
+ * the same checks, so the unsigned hint grants nothing a signed parameter would not (CA-28 for orders); the exception is `check` and
+ * `staff*`, which only the signed parameter may carry (they prove the Main Mini App setup / the staff role).
  *
  * Grammar: `p_{id}`, `c_{id}`, `cart`, `orders`, `o_{uuid}`, `promo_{code}`, `go_{slug}`, `check`, `staff`,
  * `staff_o_{id}`. Numeric ids, not slugs: short and stable under renaming. An unknown, inactive or hidden object leads
@@ -40,9 +41,11 @@ final class TelegramStartParamResolver
     ) {}
 
     /**
+     * @param  bool  $signed  the parameter came from the verified initData (not from the `to` hint)
+     *
      * @throws NotFoundHttpException an order that belongs to nobody the session knows (CA-28)
      */
-    public function resolve(?string $param, Request $request): RedirectResponse
+    public function resolve(?string $param, Request $request, bool $signed = false): RedirectResponse
     {
         $param = $param === null ? '' : trim($param);
 
@@ -53,8 +56,9 @@ final class TelegramStartParamResolver
         return match (true) {
             $param === 'cart' => redirect()->route('cart'),
             $param === 'orders' => redirect()->route('customer.orders'),
-            $param === 'check' => $this->check(),
-            $param === 'staff' || str_starts_with($param, 'staff_o_') => $this->staff(),
+            // `check` and `staff*` prove something about the bot setup: they count only from the signed start_param.
+            $param === 'check' => $signed ? $this->check() : redirect()->route('home'),
+            $param === 'staff' || str_starts_with($param, 'staff_o_') => $signed ? $this->staff() : redirect()->route('home'),
             preg_match('/^p_([1-9][0-9]{0,17})$/', $param, $m) === 1 => $this->product((int) $m[1]),
             preg_match('/^c_([1-9][0-9]{0,17})$/', $param, $m) === 1 => $this->category((int) $m[1]),
             preg_match('/^o_([0-9a-fA-F-]{36})$/', $param, $m) === 1 => $this->order(strtolower($m[1])),

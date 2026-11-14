@@ -32,6 +32,9 @@ final class TelegramMode
     /** The bot may write to this user (chat started / write access allowed): no write-access request needed (TM-05). */
     public const CHAT_KEY = 'telegram_chat_started';
 
+    /** A guest cart of the Telegram account waits to be merged into the signed-in customer's cart (TM-13). */
+    public const CART_MERGE_KEY = 'telegram_cart_merge';
+
     public static function active(?Session $session = null): bool
     {
         $session ??= app()->bound('session.store') ? app('session.store') : null;

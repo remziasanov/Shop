@@ -8,8 +8,9 @@ use App\Services\Telegram\MiniApp\InvalidInitDataException;
 use App\Services\Telegram\MiniApp\TelegramInitDataValidator;
 
 /**
- * TM-02: the signature check of the initData string. The fixture below is a realistic string (user JSON with escaped
- * slashes and Cyrillic, plus signs, `signature`, `start_param`) signed with a fake token; it holds no real secret.
+ * TM-02: the signature check of the initData string. The fixture below is a realistic-looking string (user JSON with escaped
+ * slashes and Cyrillic, plus signs, `signature`, `start_param`) SELF-SIGNED with a fake token; it holds no real secret and
+ * is NOT captured from a real Telegram client. A real capture (throwaway bot, token revoked afterwards) is a manual step.
  */
 const TG_FIXTURE_TOKEN = '7000000000:AAFakeTokenForTestsOnly_0123456789abcdefgh';
 
@@ -35,7 +36,7 @@ it('accepts a valid signature and reads the user (TM-02)', function (): void {
         ->and($data->startParam)->toBe('p_9');
 });
 
-it('verifies a realistic string captured from a client, with signature, dots in names and escaped slashes', function (): void {
+it('verifies a realistic self-signed fixture in the shape of a client string: signature, dots in names, escaped slashes (not a real capture)', function (): void {
     $data = (new TelegramInitDataValidator)->validate(TG_FIXTURE, TG_FIXTURE_TOKEN, 3600, checkAge: false);
 
     expect($data->userId)->toBe(279058397)

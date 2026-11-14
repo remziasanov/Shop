@@ -7,7 +7,7 @@ namespace App\Http\Controllers\Storefront\Account;
 use App\Http\Controllers\Controller;
 use App\Models\TelegramAccount;
 use App\Services\Customers\CustomerAuthService;
-use App\Services\Telegram\MiniApp\TelegramCustomerLinker;
+use App\Services\Telegram\TelegramLinkService;
 use App\Support\TelegramMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +17,7 @@ use Illuminate\Http\Request;
  */
 class LogoutController extends Controller
 {
-    public function __invoke(Request $request, CustomerAuthService $auth, TelegramCustomerLinker $linker): RedirectResponse
+    public function __invoke(Request $request, CustomerAuthService $auth, TelegramLinkService $links): RedirectResponse
     {
         // TM-04 (г): in the Mini App the sign-out also unlinks the Telegram, so that it does not sign in again at once.
         $accountId = TelegramMode::accountId();
@@ -26,7 +26,7 @@ class LogoutController extends Controller
         $auth->signOut($request);
 
         if ($account !== null) {
-            $linker->unlink($account);
+            $links->unlinkAccount($account);
         }
 
         return redirect()->route('home');

@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\TelegramAccount;
 use App\Models\TelegramLinkToken;
 use App\Models\User;
+use App\Services\Telegram\TelegramLinkService;
 use App\Support\TelegramMode;
 use Livewire\Livewire;
 
@@ -163,5 +164,35 @@ describe('staff profile (TG-07 s_)', function (): void {
         $this->actingAs(User::factory()->manager()->create());
 
         $this->get(MyTelegram::getUrl())->assertOk();
+    });
+});
+
+describe('thanks page token reuse (TG-08)', function (): void {
+    it('reuses one unexpired token for the same order set instead of inserting one per view', function (): void {
+        connectTelegramBot();
+        $order = Order::factory()->order()->create();
+
+        $first = $this->get(route('order.thanks', $order->uuid))->assertOk()->getContent();
+        $this->get(route('order.thanks', $order->uuid))->assertOk();
+        $this->get(route('order.thanks', $order->uuid))->assertOk();
+
+        preg_match('#https://t\.me/test_shop_bot\?start=(o_[A-Za-z0-9_-]+)#', $first, $m);
+        expect(TelegramLinkToken::query()->count())->toBe(1)
+            ->and(session()->get(TelegramLinkService::ORDER_LINK_SESSION_PREFIX.hash('sha256', (string) $order->id)))->not->toBeNull()
+            ->and($m)->not->toBeEmpty();
+    });
+
+    it('issues a new token when the earlier one was spent or has expired', function (): void {
+        connectTelegramBot();
+        $order = Order::factory()->order()->create();
+
+        $this->get(route('order.thanks', $order->uuid))->assertOk();
+        TelegramLinkToken::query()->update(['used_at' => now()]);
+        $this->get(route('order.thanks', $order->uuid))->assertOk();
+        expect(TelegramLinkToken::query()->count())->toBe(2);
+
+        TelegramLinkToken::query()->update(['expires_at' => now()->subMinute()]);
+        $this->get(route('order.thanks', $order->uuid))->assertOk();
+        expect(TelegramLinkToken::query()->count())->toBe(3);
     });
 });

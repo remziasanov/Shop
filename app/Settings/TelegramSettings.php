@@ -72,6 +72,24 @@ class TelegramSettings extends Settings
     public ?string $work_chat_error;
 
     /**
+     * Saves only the given properties: the settings are re-read first, so a value changed meanwhile by another request (the
+     * admin's «Подключить бота», a webhook, a queue job) is not overwritten with this instance's stale copy. spatie's
+     * save() rewrites every property, hence the refresh right before it.
+     *
+     * @param  array<string, mixed>  $fields  property => new value
+     */
+    public function saveOnly(array $fields): void
+    {
+        $this->refresh();
+
+        foreach ($fields as $property => $value) {
+            $this->{$property} = $value;
+        }
+
+        $this->save();
+    }
+
+    /**
      * @return array<int, string>
      */
     public static function encrypted(): array

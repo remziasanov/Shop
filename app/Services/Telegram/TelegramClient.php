@@ -17,6 +17,9 @@ class TelegramClient
 {
     public const TIMEOUT_SECONDS = 5;
 
+    /** A call made inside the webhook request (TG-05, TS-04: the whole answer has a 4 s budget). */
+    public const WEBHOOK_TIMEOUT_SECONDS = 2;
+
     public function __construct(
         private readonly TelegramSettings $settings,
         private readonly TelegramRateLimiter $limiter,
@@ -32,12 +35,13 @@ class TelegramClient
      *
      * @param  array<string, mixed>  $params
      * @param  ?string  $token  override of the saved token (token check before saving, test button)
+     * @param  ?int  $timeout  seconds; null = {@see self::TIMEOUT_SECONDS}
      * @return array<mixed> the `result` of the response
      *
      * @throws TelegramApiException
      * @throws TelegramRateLimitedException on HTTP 429
      */
-    public function call(string $method, array $params = [], ?string $token = null): array
+    public function call(string $method, array $params = [], ?string $token = null, ?int $timeout = null): array
     {
         $token = (string) ($token ?: $this->settings->bot_token);
 
@@ -46,7 +50,7 @@ class TelegramClient
         }
 
         try {
-            $response = Http::timeout(self::TIMEOUT_SECONDS)
+            $response = Http::timeout($timeout ?? self::TIMEOUT_SECONDS)
                 ->asJson()
                 ->post('https://api.telegram.org/bot'.$token.'/'.$method, $params);
         } catch (ConnectionException $e) { // not chained: the original message may contain the URL with the token
@@ -141,8 +145,7 @@ class TelegramClient
                 }
 
                 $chatId = (string) $e->migrateToChatId;
-                $this->settings->work_chat_id = $chatId;
-                $this->settings->save();
+                $this->settings->saveOnly(['work_chat_id' => $chatId]);
                 $this->call('sendMessage', $this->messageParams($chatId, $html, $extra));
             }
         } catch (TelegramApiException $e) {
@@ -160,8 +163,7 @@ class TelegramClient
 
     public function recordWorkChatError(?string $error): void
     {
-        $this->settings->work_chat_error = $error;
-        $this->settings->save();
+        $this->settings->saveOnly(['work_chat_error' => $error]);
     }
 
     /**

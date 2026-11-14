@@ -17,6 +17,8 @@ use App\Services\Customers\CustomerNotificationService;
 use App\Services\Users\AuditLogger;
 use App\Settings\TelegramSettings;
 use App\Support\PiiMask;
+use Illuminate\Contracts\Session\Session;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -35,6 +37,9 @@ class TelegramLinkService
     public const ORDER_TTL_DAYS = 7;
 
     /** Callback data prefixes of the confirmation buttons (≤ 64 bytes: prefix, token id, 8 hash characters). */
+    /** Session key prefix of the order link of the thanks page (one token per order set). */
+    public const ORDER_LINK_SESSION_PREFIX = 'telegram_order_link_';
+
     public const CALLBACK_CONFIRM = 'lc';
 
     public const CALLBACK_DECLINE = 'ln';
@@ -52,21 +57,23 @@ class TelegramLinkService
     /** `c_` link for the cabinet button; null while the bot is not connected. */
     public function customerLink(Customer $customer): ?string
     {
-        return $this->link(TelegramLinkPurpose::Customer, now()->addMinutes(self::CUSTOMER_TTL_MINUTES), customerId: $customer->id);
+        return $this->link(TelegramLinkPurpose::Customer, now()->addMinutes(self::CUSTOMER_TTL_MINUTES), customerId: $customer->id)['link'] ?? null;
     }
 
     /** `s_` link for the staff profile (TS-02). */
     public function staffLink(User $user): ?string
     {
-        return $this->link(TelegramLinkPurpose::Staff, now()->addMinutes(self::STAFF_TTL_MINUTES), userId: $user->id);
+        return $this->link(TelegramLinkPurpose::Staff, now()->addMinutes(self::STAFF_TTL_MINUTES), userId: $user->id)['link'] ?? null;
     }
 
     /**
      * TG-08: `o_` link for all requests of one checkout; null unless the bot is connected and customer notifications are on.
+     * With a `$session` (the thanks page) the link is issued once per order set: a refresh or a link-preview bot reuses
+     * the unexpired, unused token instead of inserting a new row (the plain link is kept in the session only).
      *
      * @param  iterable<Order>  $orders
      */
-    public function orderLink(iterable $orders): ?string
+    public function orderLink(iterable $orders, ?Session $session = null): ?string
     {
         if (! $this->settings->customer_notifications_enabled) {
             return null;
@@ -82,22 +89,41 @@ class TelegramLinkService
             return null;
         }
 
-        return $this->link(TelegramLinkPurpose::Order, now()->addDays(self::ORDER_TTL_DAYS), orderIds: $ids);
+        sort($ids);
+        $sessionKey = self::ORDER_LINK_SESSION_PREFIX.hash('sha256', implode(',', $ids));
+        $stored = $session?->get($sessionKey);
+
+        if ($session !== null && is_array($stored) && is_string($stored['link'] ?? null) && is_string($stored['hash'] ?? null)
+            && TelegramLinkToken::query()->usable()->where('token_hash', $stored['hash'])->exists()) {
+            return $stored['link'];
+        }
+
+        $issued = $this->link(TelegramLinkPurpose::Order, now()->addDays(self::ORDER_TTL_DAYS), orderIds: $ids);
+
+        if ($issued === null) {
+            return null;
+        }
+
+        $session?->put($sessionKey, $issued);
+
+        return $issued['link'];
     }
 
     /**
      * @param  list<int>|null  $orderIds
+     * @return array{link: string, hash: string}|null
      */
-    private function link(TelegramLinkPurpose $purpose, \DateTimeInterface $expiresAt, ?int $customerId = null, ?int $userId = null, ?array $orderIds = null): ?string
+    private function link(TelegramLinkPurpose $purpose, \DateTimeInterface $expiresAt, ?int $customerId = null, ?int $userId = null, ?array $orderIds = null): ?array
     {
         if (! $this->setup->isConnected()) {
             return null;
         }
 
         $token = rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
+        $hash = hash('sha256', $token);
 
         TelegramLinkToken::query()->create([
-            'token_hash' => hash('sha256', $token),
+            'token_hash' => $hash,
             'purpose' => $purpose,
             'customer_id' => $customerId,
             'user_id' => $userId,
@@ -105,7 +131,9 @@ class TelegramLinkService
             'expires_at' => $expiresAt,
         ]);
 
-        return $this->setup->startLink($purpose->prefix().$token);
+        $link = $this->setup->startLink($purpose->prefix().$token);
+
+        return $link === null ? null : ['link' => $link, 'hash' => $hash];
     }
 
     // ---- /start with a parameter ----------------------------------------------------------------------------
@@ -296,41 +324,73 @@ class TelegramLinkService
     }
 
     /**
-     * Links a Telegram to a customer: one customer, one Telegram (a previous Telegram of the customer is released),
-     * remembers `customers.auth_version` (TM-04), writes the cabinet note and mails the owner of the account (TG-07).
+     * The one place that links a Telegram to a customer (TG-07, TM-04). One customer, one Telegram (unique columns): the
+     * previous Telegram of the customer is released. Remembers `customers.auth_version` (TM-04), turns the status
+     * messages on, writes the cabinet note «Telegram подключён» and (by default) mails the owner of the account (TG-07).
+     * Rows are locked inside one transaction (the account, the customer, the other Telegram of the customer), and a
+     * unique-key race that still slips through ends as «false», never as an exception.
+     *
      * The caller has already confirmed the customer: with a button in the bot (a link token, which is then spent) or
-     * with the e-mail code in the Mini App (no token). Returns false when this Telegram belongs to another customer or
-     * the token was spent meanwhile; nothing changes then.
+     * with the e-mail code in the Mini App (no token). Policies:
+     * - bot (`$replaceExisting = false`): a Telegram that belongs to another customer is refused (TG-07, anti-hijack);
+     * - Mini App (`$replaceExisting = true`, `$notifyByEmail = false`): the e-mail code just proved the ownership of the
+     *   new account, so the link moves (TM-04 б), the previous owner gets the cabinet notice «Telegram отключён от
+     *   аккаунта», and no e-mail is sent to the person who has just signed in with an e-mail code.
+     *
+     * Returns false when the Telegram belongs to another customer (and may not be replaced), the token was spent
+     * meanwhile or a concurrent link won; nothing changes then.
      */
-    public function bindCustomer(TelegramAccount $account, Customer $customer, ?TelegramLinkToken $token = null): bool
-    {
-        $linked = DB::transaction(function () use ($account, $token, $customer): bool {
-            $fresh = $token !== null ? TelegramLinkToken::query()->lockForUpdate()->whereKey($token->id)->first() : null;
-            $account = TelegramAccount::query()->lockForUpdate()->findOrFail($account->id);
+    public function bindCustomer(
+        TelegramAccount $account,
+        Customer $customer,
+        ?TelegramLinkToken $token = null,
+        bool $replaceExisting = false,
+        bool $notifyByEmail = true,
+    ): bool {
+        $detachedOwner = null;
 
-            if ($token !== null && ($fresh === null || $fresh->used_at !== null)) {
-                return false;
-            }
+        try {
+            $linked = DB::transaction(function () use ($account, $token, $customer, $replaceExisting, &$detachedOwner): bool {
+                $fresh = $token !== null ? TelegramLinkToken::query()->lockForUpdate()->whereKey($token->id)->first() : null;
+                $locked = TelegramAccount::query()->lockForUpdate()->find($account->id);
+                // Serialises concurrent links of the same customer.
+                Customer::query()->lockForUpdate()->whereKey($customer->id)->first(['id']);
 
-            if ($account->customer_id !== null && $account->customer_id !== $customer->id) {
-                return false;
-            }
+                if ($locked === null || ($token !== null && ($fresh === null || $fresh->used_at !== null))) {
+                    return false;
+                }
 
-            TelegramAccount::query()->where('customer_id', $customer->id)->where('id', '!=', $account->id)
-                ->update(['customer_id' => null, 'customer_auth_version' => null]);
+                if ($locked->customer_id !== null && $locked->customer_id !== $customer->id) {
+                    if (! $replaceExisting) {
+                        return false;
+                    }
 
-            $account->customer_id = $customer->id;
-            $account->customer_auth_version = $customer->auth_version;
-            $account->notify_enabled = true;
-            $account->save();
+                    $detachedOwner = $locked->customer_id;
+                }
 
-            if ($fresh !== null) {
-                $fresh->used_at = now();
-                $fresh->save();
-            }
+                // customer_id is unique: the other Telegram of the customer is released first.
+                TelegramAccount::query()->where('customer_id', $customer->id)->where('id', '!=', $locked->id)->lockForUpdate()->get(['id']);
+                TelegramAccount::query()->where('customer_id', $customer->id)->where('id', '!=', $locked->id)
+                    ->update(['customer_id' => null, 'customer_auth_version' => null]);
 
-            return true;
-        });
+                $locked->forceFill([
+                    'customer_id' => $customer->id,
+                    'customer_auth_version' => $customer->auth_version,
+                    'notify_enabled' => true,
+                ])->save();
+
+                if ($fresh !== null) {
+                    $fresh->used_at = now();
+                    $fresh->save();
+                }
+
+                $account->setRawAttributes($locked->getAttributes(), true);
+
+                return true;
+            });
+        } catch (UniqueConstraintViolationException) {
+            return false;
+        }
 
         if (! $linked) {
             return false;
@@ -339,6 +399,10 @@ class TelegramLinkService
         $label = $this->label($account);
 
         try {
+            if ($detachedOwner !== null) {
+                $this->notifyDetached(Customer::query()->find($detachedOwner));
+            }
+
             $this->cabinet->notify(
                 $customer,
                 CustomerNotificationType::TelegramLinked,
@@ -347,7 +411,7 @@ class TelegramLinkService
                 route('customer.notifications', [], false),
             );
 
-            if (filled($customer->email)) {
+            if ($notifyByEmail && filled($customer->email)) {
                 Mail::to($customer->email)->queue(new TelegramLinkedMail($label, false));
             }
         } catch (Throwable $e) {
@@ -409,9 +473,43 @@ class TelegramLinkService
 
     // ---- disconnecting (cabinet / staff profile) -------------------------------------------------------------
 
+    /** «Отключить Telegram» in the cabinet. The Mini App sessions of this Telegram end at their next request. */
     public function unlinkCustomer(Customer $customer): void
     {
         TelegramAccount::query()->where('customer_id', $customer->id)->update(['customer_id' => null, 'customer_auth_version' => null]);
+    }
+
+    /**
+     * «Выйти» in the Mini App and the end of an outdated link: the Mini App no longer signs in on its own.
+     */
+    public function unlinkAccount(TelegramAccount $account, bool $notify = false): void
+    {
+        $customerId = $account->customer_id;
+
+        if ($customerId === null) {
+            return;
+        }
+
+        $account->forceFill(['customer_id' => null, 'customer_auth_version' => null])->save();
+
+        if ($notify) {
+            $this->notifyDetached(Customer::query()->find($customerId));
+        }
+    }
+
+    private function notifyDetached(?Customer $customer): void
+    {
+        if ($customer === null) {
+            return;
+        }
+
+        $this->cabinet->notify(
+            $customer,
+            CustomerNotificationType::TelegramUnlinked,
+            __('telegram_miniapp.unlinked_title'),
+            __('telegram_miniapp.unlinked_body'),
+            route('account', [], false),
+        );
     }
 
     public function unlinkStaff(User $user): void

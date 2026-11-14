@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Services\Customers\CustomerAuthService;
+use App\Services\Telegram\MiniApp\TelegramSessionService;
+use App\Support\TelegramMode;
 use Closure;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Http\Request;
@@ -52,6 +54,18 @@ class ValidateCustomerSession
             $current = false;
         }
 
+        // TM-04 (г): a Telegram sign-in lives only while the Telegram link does (one indexed query; POST /tg/session checks
+        // it itself while it opens the session, TM-13).
+        if ($current && $session->get(TelegramMode::LOGIN_KEY) === true && ! $request->is('tg/session')) {
+            $sessions = app(TelegramSessionService::class);
+
+            if (! $sessions->loginStillValid($session, $customer)) {
+                $sessions->endTelegramLogin($session);
+
+                return $next($request);
+            }
+        }
+
         if ($current) {
             if ($stored === null) {
                 $session->put(CustomerAuthService::SESSION_VERSION_KEY, $customer->auth_version);
@@ -61,7 +75,7 @@ class ValidateCustomerSession
         }
 
         // Not logout(): that would rotate the remember token and so end the customer's valid sessions on other devices.
-        $session->forget([$guard->getName(), CustomerAuthService::SESSION_VERSION_KEY]);
+        $session->forget([$guard->getName(), CustomerAuthService::SESSION_VERSION_KEY, TelegramMode::LOGIN_KEY]);
         $guard->forgetUser();
         Cookie::queue(Cookie::forget($guard->getRecallerName()));
 

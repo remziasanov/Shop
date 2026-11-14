@@ -78,8 +78,7 @@ class TelegramBotSetup
      */
     public function markStartappVerified(): void
     {
-        $this->settings->startapp_verified_at = CarbonImmutable::now()->toIso8601String();
-        $this->settings->save();
+        $this->settings->saveOnly(['startapp_verified_at' => CarbonImmutable::now()->toIso8601String()]);
     }
 
     /**
@@ -106,15 +105,22 @@ class TelegramBotSetup
         $botId = isset($me['id']) ? (int) $me['id'] : null;
         $username = isset($me['username']) ? (string) $me['username'] : null;
         $previousBotId = $this->settings->bot_id;
+        $previousUsername = $this->settings->bot_username;
         $botChanged = $previousBotId !== null && $botId !== null && $previousBotId !== $botId;
+        // The Main Mini App is a per-bot setting of @BotFather: another bot (or another username) has not verified the links.
+        $linksChanged = $botChanged || (filled($previousUsername) && $username !== null && strcasecmp($previousUsername, $username) !== 0);
+
+        $identity = ['bot_id' => $botId, 'bot_username' => $username];
 
         if ($token !== null) {
-            $this->settings->bot_token = $token;
+            $identity['bot_token'] = $token;
         }
 
-        $this->settings->bot_id = $botId;
-        $this->settings->bot_username = $username;
-        $this->settings->save();
+        if ($linksChanged) {
+            $identity['startapp_verified_at'] = null;
+        }
+
+        $this->settings->saveOnly($identity);
         $steps[] = ['key' => 'getMe', 'ok' => true, 'detail' => '@'.$username];
 
         // TG-11: another bot cannot write to people until they press /start in it.
@@ -151,15 +157,13 @@ class TelegramBotSetup
             }
 
             if ($key === 'setWebhook') {
-                $this->settings->webhook_secret = $secret;
-                $this->settings->save();
+                $this->settings->saveOnly(['webhook_secret' => $secret]);
             }
 
             $steps[] = ['key' => $key, 'ok' => true, 'detail' => $key === 'setWebhook' ? $this->webhookUrl() : ''];
         }
 
-        $this->settings->connected_at = CarbonImmutable::now()->toIso8601String();
-        $this->settings->save();
+        $this->settings->saveOnly(['connected_at' => CarbonImmutable::now()->toIso8601String()]);
         Cache::forget(TelegramDoctor::CACHE_KEY);
 
         return $steps;
@@ -217,9 +221,7 @@ class TelegramBotSetup
             }
         }
 
-        $this->settings->connected_at = null;
-        $this->settings->webhook_secret = null;
-        $this->settings->save();
+        $this->settings->saveOnly(['connected_at' => null, 'webhook_secret' => null]);
         Cache::forget(TelegramDoctor::CACHE_KEY);
 
         return $steps;

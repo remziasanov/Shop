@@ -93,11 +93,11 @@ Route::get('/age-gate/decline', [AgeGateController::class, 'decline'])->name('ag
 // button. Not indexed, not in the sitemap. The pages after the entry are the usual storefront routes in the Telegram mode.
 Route::prefix('tg')->group(function (): void {
     Route::get('/', [TelegramEntryController::class, 'show'])->name('tg.entry');
-    Route::post('/session', [TelegramEntryController::class, 'session'])->middleware('throttle:30,1')->name('tg.session');
-    Route::post('/leave', [TelegramEntryController::class, 'leave'])->middleware('throttle:30,1')->name('tg.leave');
-    Route::get('/start', [TelegramEntryController::class, 'start'])->name('tg.start');
-    Route::post('/write-access', [TelegramEntryController::class, 'writeAccess'])->middleware('throttle:30,1')->name('tg.write-access');
-    Route::get('/phone', [TelegramEntryController::class, 'phone'])->middleware('throttle:30,1')->name('tg.phone');
+    Route::post('/session', [TelegramEntryController::class, 'session'])->middleware('throttle:tg-session')->name('tg.session');
+    Route::post('/leave', [TelegramEntryController::class, 'leave'])->middleware('throttle:tg-leave')->name('tg.leave');
+    Route::get('/start', [TelegramEntryController::class, 'start'])->middleware('throttle:tg-start')->name('tg.start');
+    Route::post('/write-access', [TelegramEntryController::class, 'writeAccess'])->middleware('throttle:tg-write-access')->name('tg.write-access');
+    Route::get('/phone', [TelegramEntryController::class, 'phone'])->middleware('throttle:tg-phone')->name('tg.phone');
     Route::get('/me', [TelegramCabinetController::class, 'me'])->name('tg.me');
     Route::get('/about', [TelegramCabinetController::class, 'about'])->name('tg.about');
 });

@@ -10,6 +10,7 @@ use App\Models\TelegramAccount;
 use App\Services\Cart\CartMerger;
 use App\Services\Customers\CustomerAuthService;
 use App\Services\Telegram\TelegramAccountService;
+use App\Services\Telegram\TelegramLinkService;
 use App\Support\TelegramMode;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Contracts\Session\Session;
@@ -28,7 +29,7 @@ final class TelegramSessionService
     public function __construct(
         private readonly TelegramInitDataValidator $validator,
         private readonly MiniAppConfig $config,
-        private readonly TelegramCustomerLinker $linker,
+        private readonly TelegramLinkService $links,
         private readonly CartMerger $merger,
         private readonly TelegramAccountService $accounts,
     ) {}
@@ -75,15 +76,70 @@ final class TelegramSessionService
 
     /**
      * TM-04 (б), (в): the customer proved the account (the code of the e-mail, the confirmed registration): the Telegram
-     * of this Mini App session is linked to it. Nothing happens outside the Telegram mode.
+     * of this Mini App session is linked to it, moving it from another customer if needed and without an e-mail (the
+     * customer has just proved the ownership with an e-mail code). Nothing happens outside the Telegram mode.
      */
     public function linkSessionAccount(Session $session, Customer $customer): void
     {
         $accountId = TelegramMode::accountId($session);
         $account = $accountId !== null ? TelegramAccount::query()->find($accountId) : null;
 
-        if ($account !== null) {
-            $this->linker->link($account, $customer);
+        if ($account !== null && ! $this->links->bindCustomer($account, $customer, null, replaceExisting: true, notifyByEmail: false)) {
+            // A concurrent link won or the account vanished: the customer stays signed in, only the Telegram is not linked.
+            $session->flash(TelegramStartParamResolver::NOTICE_KEY, __('telegram_miniapp.link_failed'));
+        }
+    }
+
+    /**
+     * TM-04 (г): a session signed in through Telegram stays valid only while this Telegram is still linked to the same
+     * customer with the same `auth_version` and the auto-login is on. One indexed query, asked on every request of such a
+     * session; the cabinet button «Отключить Telegram» and the admin switch therefore end the sign-in at once.
+     */
+    public function loginStillValid(Session $session, Customer $customer): bool
+    {
+        $accountId = TelegramMode::accountId($session);
+
+        if ($accountId === null || ! $this->config->autologinEnabled()) {
+            return false;
+        }
+
+        return TelegramAccount::query()
+            ->whereKey($accountId)
+            ->where('customer_id', $customer->id)
+            ->where('customer_auth_version', $customer->auth_version)
+            ->exists();
+    }
+
+    /**
+     * Drops the customer of a Telegram sign-in from this session (the Telegram guest session stays).
+     */
+    public function endTelegramLogin(Session $session): void
+    {
+        $this->forgetCustomer($session);
+        $session->forget(TelegramMode::LOGIN_KEY);
+    }
+
+    /**
+     * CA-15, TM-10: the guest cart of this Telegram joins the cart of the customer who was signed in on entry. Deferred
+     * from POST /tg/session (TM-13: at most 5 SQL there) to the first page request (`/tg/start`).
+     */
+    public function mergePendingCart(Session $session): void
+    {
+        if ($session->pull(TelegramMode::CART_MERGE_KEY) !== true) {
+            return;
+        }
+
+        $accountId = TelegramMode::accountId($session);
+        $customer = Auth::guard('customer')->user();
+
+        if ($accountId === null || ! $customer instanceof Customer) {
+            return;
+        }
+
+        $guest = Cart::query()->where('telegram_account_id', $accountId)->whereNull('customer_id')->value('token');
+
+        if (is_string($guest)) {
+            $this->merger->merge($customer, $guest);
         }
     }
 
@@ -105,6 +161,7 @@ final class TelegramSessionService
             TelegramMode::CHAT_KEY,
             TelegramMode::START_KEY,
             TelegramMode::HINT_KEY,
+            TelegramMode::CART_MERGE_KEY,
             'channel',
         ]);
         $session->regenerate();
@@ -127,18 +184,29 @@ final class TelegramSessionService
 
     /**
      * TM-04 (а): a linked, usable customer with an unchanged `auth_version` is signed in; otherwise the link ends
-     * (CA-31: password reset, e-mail change, «завершить сессии» or a block).
+     * (CA-31: password reset, e-mail change, «завершить сессии» or a block). A sign-in made by an earlier Telegram entry
+     * of this session ends as soon as these conditions no longer hold (TM-04 г: unlinked, relinked, auto-login off).
      */
     private function autoLogin(Session $session, TelegramAccount $account): void
     {
+        $viaTelegram = $session->get(TelegramMode::LOGIN_KEY) === true;
+
         if ($account->customer_id === null || ! $this->config->autologinEnabled()) {
+            if ($viaTelegram) {
+                $this->endTelegramLogin($session);
+            }
+
             return;
         }
 
         $customer = Customer::query()->find($account->customer_id);
 
         if ($customer === null || ! $customer->canSignIn() || $account->customer_auth_version !== $customer->auth_version) {
-            $this->linker->unlink($account);
+            $this->links->unlinkAccount($account);
+
+            if ($viaTelegram) {
+                $this->endTelegramLogin($session);
+            }
 
             return;
         }
@@ -148,11 +216,10 @@ final class TelegramSessionService
         $session->put(CustomerAuthService::SESSION_VERSION_KEY, $customer->auth_version);
         $session->put(TelegramMode::LOGIN_KEY, true);
 
-        // CA-15, TM-10: a guest cart of this Telegram joins the cart of the customer (one cheap lookup).
-        $guest = Cart::query()->where('telegram_account_id', $account->id)->whereNull('customer_id')->value('token');
-
-        if (is_string($guest)) {
-            $this->merger->merge($customer, $guest);
+        // CA-15, TM-10: a guest cart of this Telegram joins the cart of the customer; the merge itself waits for the
+        // first page request (one cheap lookup here, TM-13).
+        if (Cart::query()->where('telegram_account_id', $account->id)->whereNull('customer_id')->exists()) {
+            $session->put(TelegramMode::CART_MERGE_KEY, true);
         }
     }
 

@@ -53,7 +53,7 @@ class OrderThanksController extends Controller
         // customer notifications are on; not inside the Mini App, where the requests are bound to the chat already.
         $telegramLink = TelegramMode::active() || $orders[0]->telegram_account_id !== null
             ? null
-            : app(TelegramLinkService::class)->orderLink($orders);
+            : app(TelegramLinkService::class)->orderLink($orders, request()->session());
 
         return view('storefront.order-thanks', [
             'telegramLink' => $telegramLink,

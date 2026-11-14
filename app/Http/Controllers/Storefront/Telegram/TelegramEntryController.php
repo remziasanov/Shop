@@ -62,7 +62,7 @@ class TelegramEntryController extends Controller
         }
 
         $session = $request->session();
-        $launch = $session->has(TelegramMode::START_KEY) || $session->has(TelegramMode::HINT_KEY);
+        $launch = $session->has(TelegramMode::START_KEY) || $session->has(TelegramMode::HINT_KEY) || $session->has(TelegramMode::CART_MERGE_KEY);
 
         return response()->json(['url' => $launch ? route('tg.start', [], false) : '/']);
     }
@@ -81,18 +81,22 @@ class TelegramEntryController extends Controller
     /**
      * TM-08: opens the page of the launch parameter, once. The signed `start_param` wins over the unsigned hint.
      */
-    public function start(Request $request, TelegramStartParamResolver $resolver): RedirectResponse
+    public function start(Request $request, TelegramStartParamResolver $resolver, TelegramSessionService $sessions): RedirectResponse
     {
         if (! TelegramMode::active()) {
             return redirect()->route('home');
         }
 
         $session = $request->session();
+        // TM-13: the guest cart joins the customer's cart here, not in POST /tg/session.
+        $sessions->mergePendingCart($session);
+
         $signed = $session->pull(TelegramMode::START_KEY);
         $hint = $session->pull(TelegramMode::HINT_KEY);
         $param = is_string($signed) ? $signed : (is_string($hint) ? $hint : null);
 
-        return $resolver->resolve($param, $request);
+        // Only the signed parameter may carry `check` and `staff*` (TG-03): the hint is client-controlled.
+        return $resolver->resolve($param, $request, signed: is_string($signed));
     }
 
     /**

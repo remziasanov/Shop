@@ -41,11 +41,9 @@ class TelegramAccount extends Model
     /** @use HasFactory<TelegramAccountFactory> */
     use HasFactory;
 
+    /** The link columns (`customer_id`, `customer_auth_version`, `user_id`) are never mass-assigned: only the link service sets them (NF-11). */
     protected $fillable = [
         'telegram_user_id',
-        'customer_id',
-        'customer_auth_version',
-        'user_id',
         'first_name',
         'last_name',
         'username',
