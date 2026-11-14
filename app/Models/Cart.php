@@ -30,7 +30,7 @@ class Cart extends Model
     /** @use HasFactory<CartFactory> */
     use HasFactory;
 
-    protected $fillable = ['token'];
+    protected $fillable = ['token', 'telegram_account_id'];
 
     /**
      * @return array<string, string>

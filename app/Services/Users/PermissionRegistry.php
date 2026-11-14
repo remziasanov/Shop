@@ -20,7 +20,7 @@ final class PermissionRegistry
     private const CRUD = ['view', 'create', 'update', 'delete'];
 
     /** Settings pages, one `settings.{page}.view|update` pair each (25.4). */
-    private const SETTINGS_PAGES = ['general', 'appearance', 'sales', 'pricing', 'notifications', 'seo', 'legal', 'customers', 'age_gate', 'catalog'];
+    private const SETTINGS_PAGES = ['general', 'appearance', 'sales', 'pricing', 'notifications', 'seo', 'legal', 'customers', 'age_gate', 'catalog', 'telegram'];
 
     /**
      * Permissions of the system role «Менеджер» (6.13, 25.4, RB-15).

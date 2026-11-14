@@ -3,6 +3,7 @@
 
 {{ __('notifications.mail.customer') }}: @mdi($order->customer_name)  
 {{ __('notifications.mail.phone') }}: @mdi($order->customer_phone)  
+{{ __('notifications.mail.channel') }}: {{ $order->channel->label() }}  
 @if (filled($order->customer_email))
 {{ __('notifications.mail.email') }}: @mdi($order->customer_email)  
 @endif

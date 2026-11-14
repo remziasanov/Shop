@@ -81,6 +81,7 @@ final class PromoLinksTable
                 ViewAction::make(),
                 EditAction::make(),
                 PromoLinkActions::copy(),
+                PromoLinkActions::copyTelegram(),
                 PromoLinkActions::check(),
                 PromoLinkActions::preview(),
                 DeleteAction::make(),

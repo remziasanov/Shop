@@ -97,7 +97,7 @@ class SendOrderNotifications implements ShouldQueue
             }
         }
 
-        if ($settings->telegram_enabled && $settings->notify_shop_telegram && $telegram->isConfigured()) {
+        if ($telegram->isEnabled() && $settings->notify_shop_telegram) {
             $jobs[] = new SendTelegramNotification($order->id, SendTelegramNotification::NEW_REQUEST);
         }
 
@@ -127,7 +127,7 @@ class SendOrderNotifications implements ShouldQueue
      */
     private function expired(Order $order, NotificationSettings $settings, TelegramNotifier $telegram): array
     {
-        if ($settings->telegram_enabled && $settings->notify_reservation_expired && $telegram->isConfigured()) {
+        if ($telegram->isEnabled() && $settings->notify_reservation_expired) {
             return [new SendTelegramNotification($order->id, SendTelegramNotification::EXPIRED)];
         }
 

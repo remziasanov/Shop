@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Models\CustomerNotification;
 use App\Services\Customers\CustomerNotificationService;
+use App\Services\Telegram\TelegramBotSetup;
+use App\Settings\TelegramSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,7 +27,17 @@ class NotificationController extends Controller
     {
         $customer = $this->currentCustomer($request);
 
+        $setup = app(TelegramBotSetup::class);
+        $account = $customer->telegramAccount;
+
         return $this->page('notifications', __('account.notifications.title'), [
+            // TG-07, TG-11: the Telegram block; the hint appears while the bot cannot write (new bot, never started).
+            'telegram' => [
+                'available' => $setup->isConnected() && app(TelegramSettings::class)->customer_notifications_enabled,
+                'linked' => $account !== null,
+                'username' => $account?->username,
+                'needsStart' => $account !== null && $account->chat_started_at === null,
+            ],
             'unreadTotal' => $service->unreadCount($customer),
             'notifications' => CustomerNotification::query()
                 ->where('customer_id', $customer->id)

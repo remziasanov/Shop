@@ -9,6 +9,7 @@ use App\Http\Middleware\RedirectIfCustomer;
 use App\Http\Middleware\ResolveViewer;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\StorefrontOpen;
+use App\Http\Middleware\TelegramCookieMode;
 use App\Http\Middleware\ThemePreviewHeaders;
 use App\Http\Middleware\ValidateCustomerSession;
 use App\Services\Catalog\RedirectService;
@@ -37,7 +38,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // D-057: the www./bare twin of the APP_URL host is redirected to the canonical host (production only).
         $middleware->prepend(CanonicalHost::class);
         // SF-05: closed mode for the storefront; CG-16: the viewer's customer group (stage 8: always the guest).
-        $middleware->web(append: [StorefrontOpen::class, ResolveViewer::class, ThemePreviewHeaders::class]);
+        // TM-03: the session and XSRF cookies of the Mini App get SameSite=None; Secure; Partitioned (right after StartSession).
+        $middleware->web(append: [TelegramCookieMode::class, StorefrontOpen::class, ResolveViewer::class, ThemePreviewHeaders::class]);
         // CA-31, CA-32: a customer session with an outdated auth_version ends; the staff session is not touched.
         $middleware->web(append: [ValidateCustomerSession::class]);
         $middleware->alias([

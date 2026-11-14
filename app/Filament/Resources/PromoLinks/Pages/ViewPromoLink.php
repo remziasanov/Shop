@@ -18,6 +18,7 @@ class ViewPromoLink extends ViewRecord
         return [
             EditAction::make(),
             PromoLinkActions::copy(),
+            PromoLinkActions::copyTelegram(),
             PromoLinkActions::check(),
             PromoLinkActions::preview(),
         ];

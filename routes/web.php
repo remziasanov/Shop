@@ -23,6 +23,7 @@ use App\Http\Controllers\Storefront\Account\PasswordResetController;
 use App\Http\Controllers\Storefront\Account\ProfileController;
 use App\Http\Controllers\Storefront\Account\RegisterController;
 use App\Http\Controllers\Storefront\Account\SecurityController;
+use App\Http\Controllers\Storefront\Account\TelegramLinkController;
 use App\Http\Controllers\Storefront\Account\WholesaleApplicationController;
 use App\Http\Controllers\Storefront\AgeGateController;
 use App\Http\Controllers\Storefront\CartController;
@@ -39,8 +40,11 @@ use App\Http\Controllers\Storefront\RobotsController;
 use App\Http\Controllers\Storefront\SearchController;
 use App\Http\Controllers\Storefront\SearchSuggestController;
 use App\Http\Controllers\Storefront\SitemapController;
+use App\Http\Controllers\Storefront\Telegram\TelegramCabinetController;
+use App\Http\Controllers\Storefront\Telegram\TelegramEntryController;
 use App\Http\Controllers\Storefront\ThemePreviewController;
 use App\Http\Controllers\Storefront\ViewerPreviewController;
+use App\Http\Controllers\Telegram\TelegramWebhookController;
 use Filament\Http\Middleware\Authenticate as FilamentAuthenticate;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -57,6 +61,13 @@ $statelessMiddleware = [
     ShareErrorsFromSession::class,
     PreventRequestForgery::class,
 ];
+
+// TG-04: the bot webhook. Outside the web group (no session, cookies or CSRF, not subject to «Магазин закрыт»); the
+// secret header is the authentication, the limit is 120 requests per minute per IP.
+Route::post('/telegram/webhook', TelegramWebhookController::class)
+    ->withoutMiddleware('web')
+    ->middleware('throttle:telegram-webhook')
+    ->name('telegram.webhook');
 
 Route::get('/', HomeController::class)->name('home');
 
@@ -77,6 +88,19 @@ Route::get('/search/suggest', SearchSuggestController::class)->middleware('throt
 // Age gate (stage 8, TZ 16): the answers of the overlay; both work as plain links / forms without JavaScript.
 Route::post('/age-gate/confirm', [AgeGateController::class, 'confirm'])->middleware('throttle:60,1')->name('age-gate.confirm');
 Route::get('/age-gate/decline', [AgeGateController::class, 'decline'])->name('age-gate.decline');
+
+// Telegram Mini App of the customer (stage 17, TZ 29): `/tg` is the address of the menu button and of every web_app
+// button. Not indexed, not in the sitemap. The pages after the entry are the usual storefront routes in the Telegram mode.
+Route::prefix('tg')->group(function (): void {
+    Route::get('/', [TelegramEntryController::class, 'show'])->name('tg.entry');
+    Route::post('/session', [TelegramEntryController::class, 'session'])->middleware('throttle:30,1')->name('tg.session');
+    Route::post('/leave', [TelegramEntryController::class, 'leave'])->middleware('throttle:30,1')->name('tg.leave');
+    Route::get('/start', [TelegramEntryController::class, 'start'])->name('tg.start');
+    Route::post('/write-access', [TelegramEntryController::class, 'writeAccess'])->middleware('throttle:30,1')->name('tg.write-access');
+    Route::get('/phone', [TelegramEntryController::class, 'phone'])->middleware('throttle:30,1')->name('tg.phone');
+    Route::get('/me', [TelegramCabinetController::class, 'me'])->name('tg.me');
+    Route::get('/about', [TelegramCabinetController::class, 'about'])->name('tg.about');
+});
 
 // Customer account (stage 9, TZ 17): registration with an e-mail code, sign-in by password or code, password reset,
 // profile. The pages carry personal data and one-time flows: private, not indexed. `customer.login` is also the target
@@ -145,6 +169,10 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         Route::get('/notifications', [NotificationController::class, 'index'])->name('customer.notifications');
         Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('customer.notifications.read-all');
         Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->whereNumber('notification')->name('customer.notifications.read');
+
+        // TG-07: connect / disconnect the customer's Telegram (the bot asks for confirmation).
+        Route::post('/notifications/telegram', [TelegramLinkController::class, 'connect'])->middleware('throttle:10,1')->name('customer.telegram.connect');
+        Route::post('/notifications/telegram/disconnect', [TelegramLinkController::class, 'disconnect'])->name('customer.telegram.disconnect');
 
         // CA-16: security section, deleting the account with a code.
         Route::get('/security', [SecurityController::class, 'show'])->name('customer.security');

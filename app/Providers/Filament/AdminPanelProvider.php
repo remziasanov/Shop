@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\MyTelegram;
 use App\Livewire\Admin\PriceRecalcBanner;
 use App\Support\ShopName;
+use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -35,6 +37,13 @@ class AdminPanelProvider extends PanelProvider
             ->passwordReset()
             // Import/export results arrive in the bell (TZ section 9, D-037).
             ->databaseNotifications()
+            // TG-07 (staff part of TS-02): the staff member links their own Telegram from the user menu.
+            ->userMenuItems([
+                Action::make('telegram')
+                    ->label(fn (): string => __('telegram.staff.menu'))
+                    ->url(fn (): string => MyTelegram::getUrl())
+                    ->icon('heroicon-o-paper-airplane'),
+            ])
             ->brandName(fn (): string => $this->brandName())
             ->colors([
                 'primary' => Color::Blue,

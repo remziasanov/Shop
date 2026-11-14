@@ -11,6 +11,7 @@ use App\Providers\AgeGateServiceProvider;
 use App\Services\Catalog\CatalogVersion;
 use App\Services\Catalog\RedirectService;
 use App\Settings\AgeGateSettings;
+use App\Support\StorefrontCookie;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -146,17 +147,8 @@ final class AgeGate
     {
         $days = max(1, min(365, $this->settings->remember_days));
 
-        return new Cookie(
-            name: self::COOKIE,
-            value: $level->value,
-            expire: now()->addDays($days)->getTimestamp(),
-            path: '/',
-            domain: null,
-            secure: $secure,
-            httpOnly: false,
-            raw: false,
-            sameSite: Cookie::SAMESITE_LAX,
-        );
+        // TM-03: the factory adds SameSite=None; Secure; Partitioned in the Telegram mode.
+        return StorefrontCookie::build(self::COOKIE, $level->value, now()->addDays($days)->getTimestamp(), false, $secure);
     }
 
     /**

@@ -17,6 +17,7 @@ use App\Services\Notifications\TelegramException;
 use App\Services\Notifications\TelegramNotifier;
 use App\Services\Orders\OrderService;
 use App\Settings\NotificationSettings;
+use App\Settings\TelegramSettings;
 use App\Support\PiiMask;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Exceptions;
@@ -31,9 +32,11 @@ function notif(array $values = []): NotificationSettings
 {
     $settings = app(NotificationSettings::class);
     $settings->notify_emails = ['shop@example.com'];
-    $settings->telegram_enabled = true;
-    $settings->telegram_bot_token = '123456:SECRET-token_abc';
-    $settings->telegram_chat_id = '-1001';
+    $telegram = app(TelegramSettings::class);
+    $telegram->enabled = true;
+    $telegram->bot_token = '123456:SECRET-token_abc';
+    $telegram->work_chat_id = '-1001';
+    $telegram->save();
 
     foreach (['notify_shop_email', 'notify_shop_telegram', 'notify_customer_new', 'notify_customer_status', 'notify_reservation_expiring', 'notify_reservation_expired', 'notify_event_order', 'notify_event_reservation', 'notify_event_inquiry'] as $toggle) {
         $settings->{$toggle} = true;
@@ -163,7 +166,8 @@ it('a failing Telegram job fails and retries while the emails still go out', fun
 
     $job = new SendTelegramNotification($order->id, SendTelegramNotification::NEW_REQUEST);
     expect(fn () => $job->handle(app(TelegramNotifier::class)))->toThrow(TelegramException::class)
-        ->and($job->tries)->toBe(3)
+        ->and($job->maxExceptions)->toBe(3)
+        ->and($job->retryUntil())->toBeInstanceOf(DateTimeInterface::class)
         ->and($job->backoff())->toBe([60, 300]);
 
     // Through the sync queue the failing channel throws, but the mails are queued before and sent independently.
