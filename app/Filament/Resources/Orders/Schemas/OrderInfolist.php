@@ -219,7 +219,7 @@ final class OrderInfolist
                                 ->schema([
                                     TextEntry::make('created_at')->dateTime('d.m.Y H:i'),
                                     TextEntry::make('change')->state(fn (OrderStatusHistory $record): string => self::change($record)),
-                                    TextEntry::make('actor')->state(fn (OrderStatusHistory $record): string => $record->user->name ?? __('admin_orders.view.actor_system')),
+                                    TextEntry::make('actor')->state(fn (OrderStatusHistory $record): string => ($record->user->name ?? __('admin_orders.view.actor_system')).' ('.$record->source->label().')'),
                                     TextEntry::make('comment')->placeholder('—'),
                                 ]),
                         ]),

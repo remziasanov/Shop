@@ -8,6 +8,7 @@ use App\Enums\OrderChangeKind;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\PriceSource;
+use App\Enums\StatusChangeSource;
 use App\Events\OrderItemsChanged;
 use App\Exceptions\ConcurrentEditException;
 use App\Exceptions\SalesException;
@@ -370,6 +371,7 @@ final class OrderEditor
                 'from_status' => null,
                 'to_status' => OrderStatus::New,
                 'user_id' => $actor->id,
+                'source' => StatusChangeSource::Admin,
                 'comment' => __('order_edit.history.created_from_inquiry', ['number' => $locked->number]),
                 'created_at' => now(),
             ]);
@@ -378,6 +380,7 @@ final class OrderEditor
                 'from_status' => $from,
                 'to_status' => OrderStatus::Closed,
                 'user_id' => $actor->id,
+                'source' => StatusChangeSource::Admin,
                 'comment' => __('order_edit.history.inquiry_closed', ['number' => $order->number]),
                 'created_at' => now(),
             ]);

@@ -147,6 +147,7 @@ return [
             'action' => 'Действие',
             'subject' => 'Объект',
             'data' => 'Данные',
+            'source' => 'Источник',
             'ip' => 'IP',
         ],
         'actions' => [

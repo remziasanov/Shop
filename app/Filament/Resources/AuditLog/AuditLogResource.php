@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\AuditLog;
 
 use App\Enums\AuditAction;
+use App\Enums\StatusChangeSource;
 use App\Filament\Resources\AuditLog\Pages\ListAuditLog;
 use App\Models\AdminAuditEntry;
 use BackedEnum;
@@ -89,6 +90,9 @@ class AuditLogResource extends Resource
                     ->state(fn (AdminAuditEntry $record): string => $record->data === null ? '—' : (string) json_encode($record->data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
                     ->limit(120)
                     ->wrap(),
+                TextColumn::make('source')
+                    ->label(__('roles.audit.columns.source'))
+                    ->formatStateUsing(fn (StatusChangeSource|string $state): string => ($state instanceof StatusChangeSource ? $state : StatusChangeSource::from($state))->label()),
                 TextColumn::make('ip')
                     ->label(__('roles.audit.columns.ip'))
                     ->placeholder('—'),
@@ -97,6 +101,12 @@ class AuditLogResource extends Resource
                 SelectFilter::make('action')
                     ->label(__('roles.audit.columns.action'))
                     ->options(AuditAction::options()),
+                SelectFilter::make('source')
+                    ->label(__('roles.audit.columns.source'))
+                    ->options([
+                        StatusChangeSource::Admin->value => StatusChangeSource::Admin->label(),
+                        StatusChangeSource::Telegram->value => StatusChangeSource::Telegram->label(),
+                    ]),
             ])
             ->defaultSort(fn (Builder $query): Builder => $query->orderByDesc('admin_audit_log.created_at')->orderByDesc('admin_audit_log.id'))
             ->recordActions([])

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Users;
 
 use App\Enums\AuditAction;
+use App\Enums\StatusChangeSource;
 use App\Models\AdminAuditEntry;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -19,7 +20,7 @@ final class AuditLogger
     /**
      * @param  array<string, mixed>  $data
      */
-    public function record(AuditAction|string $action, ?User $actor = null, ?Model $subject = null, array $data = []): AdminAuditEntry
+    public function record(AuditAction|string $action, ?User $actor = null, ?Model $subject = null, array $data = [], StatusChangeSource $source = StatusChangeSource::Admin): AdminAuditEntry
     {
         $actorId = $actor !== null ? $actor->getKey() : Auth::id();
 
@@ -29,6 +30,7 @@ final class AuditLogger
             'subject_type' => $subject !== null ? $subject->getTable() : null,
             'subject_id' => $subject !== null ? (int) $subject->getKey() : null,
             'data' => $data === [] ? null : $data,
+            'source' => $source,
             'ip' => app()->runningInConsole() ? null : request()->ip(),
             'created_at' => now(),
         ]);

@@ -22,6 +22,7 @@ use Illuminate\Notifications\Notifiable;
  *
  * @property int|null $role_id
  * @property bool $is_active
+ * @property bool $telegram_personal_notify TS-08: personal Telegram notifications of the staff member
  * @property Role|null $role
  */
 #[Fillable(['name', 'email', 'password', 'is_active'])]
@@ -43,6 +44,7 @@ class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
             'role_id' => 'integer',
             'is_active' => 'boolean',
+            'telegram_personal_notify' => 'boolean',
         ];
     }
 
