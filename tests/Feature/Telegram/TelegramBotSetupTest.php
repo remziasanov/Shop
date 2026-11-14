@@ -25,6 +25,7 @@ function fakeBotApi(array $overrides = []): void
 }
 
 beforeEach(function (): void {
+    $this->withoutVite();
     config(['app.url' => 'https://shop.example.com']);
     $settings = app(TelegramSettings::class);
     $settings->bot_token = '777:SAVED-token';

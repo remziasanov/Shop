@@ -16,6 +16,10 @@ use Livewire\Livewire;
  * TG-07, TG-08: «Получать статус в Telegram» on the thanks page and in the e-mail, «Подключить Telegram» in the cabinet
  * and in the staff profile.
  */
+beforeEach(function (): void {
+    $this->withoutVite();
+});
+
 describe('thanks page and e-mail (TG-08)', function (): void {
     it('offers the o_ link for all requests of the checkout when the bot is connected', function (): void {
         connectTelegramBot();
