@@ -30,6 +30,12 @@ final class AppIconGenerator
     /** Minimum side of the uploaded square icon, px. */
     public const MIN_SIZE = 512;
 
+    /** Side of the intermediate copy the icons are built from, px. */
+    private const BASE_SIZE = 512;
+
+    /** Pixel limit of the source (4096 x 4096): the icons are cut from one 512 px copy, but the source is decoded once at full size. */
+    public const MAX_PIXELS = 16_777_216;
+
     /** Share of the maskable canvas kept free around the icon on each side. */
     public const MASKABLE_PADDING = 0.10;
 
@@ -66,8 +72,8 @@ final class AppIconGenerator
             throw ImageProcessingException::appIconUnsupportedType();
         }
 
-        if ($info[0] * $info[1] > ImageProcessor::MAX_PIXELS) {
-            throw ImageProcessingException::tooManyPixels();
+        if ($info[0] * $info[1] > self::MAX_PIXELS) {
+            throw ImageProcessingException::appIconTooLarge(4096);
         }
 
         if ($info[0] !== $info[1]) {
@@ -124,8 +130,11 @@ final class AppIconGenerator
         $disk = $this->disk();
 
         try {
+            // One decode of the source, scaled to the largest icon; every variant is cut from this copy.
+            $base = $this->manager()->read($contents)->cover(self::BASE_SIZE, self::BASE_SIZE)->toPng()->toString();
+
             foreach (self::KINDS as $kind => [, $size]) {
-                $disk->put($this->path($kind, $hash), $this->render($contents, $kind, $size, $background));
+                $disk->put($this->path($kind, $hash), $this->render($base, $kind, $size, $background));
             }
         } catch (ImageProcessingException $e) {
             throw $e;

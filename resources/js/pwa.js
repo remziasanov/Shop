@@ -25,6 +25,14 @@ const dismissedUntil = () => {
     }
 };
 
+const snooze = () => {
+    try {
+        window.localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000));
+    } catch (error) {
+        // Private mode: the sheet comes back on the next visit, nothing breaks.
+    }
+};
+
 window.shopPwa = { standalone, inTelegram, iosSafari };
 
 // The browser fires beforeinstallprompt once and early: keep the event until a component asks for it.
@@ -58,8 +66,23 @@ document.addEventListener('alpine:init', () => {
                 this.sheet = false;
             });
 
-            // iPhone: one bottom sheet, again only after the 90 days of a dismissal.
+            // iPhone: one bottom sheet, once. Not on pages whose bottom edge belongs to a sticky bar or has no bar
+            // (product, cart, checkout): the sheet would hide the main buttons. The first display counts as the snooze.
+            const body = document.body;
+
+            if (!this.$el.hasAttribute('data-pwa-ios-sheet')) {
+                return;
+            }
+
+            if (body.hasAttribute('data-sticky') || body.dataset.nav === 'off') {
+                return;
+            }
+
             this.sheet = iosSafari() && Date.now() > dismissedUntil();
+
+            if (this.sheet) {
+                snooze();
+            }
         },
 
         async install() {
@@ -76,12 +99,7 @@ document.addEventListener('alpine:init', () => {
 
         dismiss() {
             this.sheet = false;
-
-            try {
-                window.localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000));
-            } catch (error) {
-                // Private mode: the sheet comes back on the next visit, nothing breaks.
-            }
+            snooze();
         },
     }));
 });

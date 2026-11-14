@@ -697,6 +697,37 @@ document.addEventListener('alpine:init', () => {
      */
     const stack = [];
     let ignorePops = 0;
+    let leaving = false;
+
+    /**
+     * Leaving a page by navigation while an overlay is open (a form redirect, «Применить» in the filters, a sort link)
+     * leaves the overlay's history entry behind. When such an entry is shown again and no overlay is open, step over it,
+     * so that Back works as expected. After a reload the entry is only cleaned (stepping back would reopen ?inquiry=1 in a loop).
+     */
+    const skipLeftoverEntry = () => {
+        if (leaving || stack.length > 0 || window.history.state?.shopOverlay !== true) {
+            return;
+        }
+
+        const navigation = window.performance?.getEntriesByType?.('navigation')?.[0];
+
+        if (navigation?.type === 'reload') {
+            window.history.replaceState(null, '');
+
+            return;
+        }
+
+        leaving = true;
+        window.history.back();
+    };
+
+    skipLeftoverEntry();
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            leaving = false;
+            skipLeftoverEntry();
+        }
+    });
 
     window.addEventListener('popstate', () => {
         if (ignorePops > 0) {
@@ -717,7 +748,7 @@ document.addEventListener('alpine:init', () => {
         let entry = null;
 
         effect(() => read((open) => {
-            if (open && entry === null && isPhone()) {
+            if (open && entry === null && isPhone() && !leaving) {
                 entry = () => {
                     entry = null;
                     evaluate(`${expression} = false`);
@@ -774,10 +805,20 @@ document.addEventListener('alpine:init', () => {
                 items.forEach((item) => grid.appendChild(document.importNode(item, true)));
 
                 const next = page.querySelector('[data-load-more]')?.dataset.next ?? '';
+                const counter = this.$refs.wrap.querySelector('[data-load-count]');
+                const fresh = page.querySelector('[data-load-count]')?.textContent;
 
                 button.dataset.next = next;
 
+                if (counter && fresh) {
+                    counter.textContent = fresh;
+                }
+
                 if (next === '') {
+                    // The button that has focus is about to disappear: keep the keyboard position on the first new card.
+                    const target = items.length > 0 ? grid.querySelector(`li:nth-child(${grid.children.length - items.length + 1}) a`) : null;
+
+                    target?.focus({ preventScroll: true });
                     this.$refs.wrap.hidden = true;
                 }
 

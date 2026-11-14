@@ -54,7 +54,9 @@ function pdfTextExtract(string $pdf): string
         }
 
         foreach ($arrays[1] as $array) {
-            preg_match_all('/\(((?:\\\\.|[^\\\\)])*)\)/s', $array, $strings);
+            if (preg_match_all('/\(((?:\\\\.|[^\\\\)])*)\)/s', $array, $strings) === false) {
+                throw new RuntimeException('PCRE error: '.preg_last_error_msg());
+            }
 
             $bytes = '';
 

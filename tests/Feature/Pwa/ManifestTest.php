@@ -91,6 +91,19 @@ it('serves the manifest built from the settings with the manifest content type (
         ->and($manifest['icons'][2]['src'])->toContain('app-icons/icon-512-maskable-'.$hash);
 });
 
+it('serves the manifest and robots.txt without a session, cookies or CSRF token (MB-20)', function () {
+    enablePwa();
+
+    foreach (['/manifest.webmanifest', '/robots.txt'] as $path) {
+        $response = $this->get($path)->assertOk();
+
+        expect($response->headers->getCookies())->toBe([])
+            ->and($response->headers->has('Set-Cookie'))->toBeFalse();
+    }
+
+    expect($this->get('/manifest.webmanifest')->headers->get('Cache-Control'))->toContain('public');
+});
+
 it('uses an own name, cuts a long short name to 12 characters and follows saved changes at once (MB-20)', function () {
     $settings = enablePwa(['pwa_name' => 'Большой магазин мебели', 'pwa_short_name' => 'Очень длинное короткое имя']);
 

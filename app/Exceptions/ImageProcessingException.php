@@ -60,6 +60,11 @@ final class ImageProcessingException extends RuntimeException
         return new self(__('pwa.errors.icon_small', ['min' => $min]));
     }
 
+    public static function appIconTooLarge(int $max): self
+    {
+        return new self(__('pwa.errors.icon_large', ['max' => $max]));
+    }
+
     public static function appIconNotSquare(): self
     {
         return new self(__('pwa.errors.icon_square'));

@@ -212,5 +212,4 @@
             </button>
         </div>
     </div>
-    <div class="shop-sticky-spacer md:hidden" aria-hidden="true"></div>
 </form>

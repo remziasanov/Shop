@@ -276,5 +276,4 @@
     @endif
 
     {{-- MB-04: room for the sticky bar. --}}
-    <div class="shop-sticky-spacer md:hidden" aria-hidden="true"></div>
 @endsection

@@ -150,7 +150,7 @@
 
                 @if ($paginator->hasMorePages())
                     <div class="mt-6 text-center md:hidden" x-ref="wrap" data-load-more data-next="{{ $paginator->nextPageUrl() }}">
-                        <p class="mb-2 text-sm text-slate-500">{{ __('mobile.listing.shown', ['shown' => $paginator->lastItem(), 'total' => $paginator->total()]) }}</p>
+                        <p class="mb-2 text-sm text-slate-500" data-load-count>{{ __('mobile.listing.shown', ['shown' => $paginator->lastItem(), 'total' => $paginator->total()]) }}</p>
                         <button type="button" x-cloak x-ref="more" data-next="{{ $paginator->nextPageUrl() }}" @click="load()" :disabled="busy" :aria-busy="busy.toString()"
                                 class="inline-flex min-h-11 w-full items-center justify-center rounded border border-primary px-6 py-2 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60" data-load-more-button>
                             <span x-show="! busy">{{ __('mobile.listing.load_more') }}</span>

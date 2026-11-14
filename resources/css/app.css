@@ -62,12 +62,13 @@ html[data-kb] .shop-bottom-nav {
     background: #fff;
 }
 
-.shop-sticky-spacer {
-    height: var(--shop-sticky-h);
-}
-
 /* Floating elements that must stay above the bottom bar (phones only; wide screens keep their utility classes). */
 @media (max-width: 767px) {
+    /* The sticky bar (product, cart, checkout) must not cover the end of the page: the footer ends above it. */
+    body[data-sticky] {
+        padding-bottom: calc(var(--shop-nav-total) + var(--shop-sticky-h));
+    }
+
     .shop-above-nav {
         bottom: calc(var(--shop-nav-total) + 0.75rem);
     }

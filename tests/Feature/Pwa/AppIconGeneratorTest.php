@@ -109,6 +109,12 @@ it('rejects SVG, other formats, small and non-square images (MB-21, NF-11)', fun
     'text' => ['hello', 'PNG, JPG и WebP'],
     'gif' => [fn () => base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), 'PNG, JPG и WebP'],
     'too small' => [fn () => pwaPng(511), '512×512'],
+    // Only the header is read: a PNG header that announces 5000×5000 (25 MP) is over the own 4096×4096 limit.
+    'too many pixels' => [function () {
+        $ihdr = pack('NNCCCCC', 5000, 5000, 8, 2, 0, 0, 0);
+
+        return "\x89PNG\r\n\x1a\n".pack('N', 13).'IHDR'.$ihdr.pack('N', crc32('IHDR'.$ihdr));
+    }, '4096×4096'],
     'not square' => [function () {
         $image = imagecreatetruecolor(800, 600);
         ob_start();
