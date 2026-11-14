@@ -1,0 +1,2568 @@
+{
+  "groups": {
+    "tech": "Бытовая и компьютерная техника",
+    "beauty": "Косметика",
+    "fashion": "Одежда и аксессуары",
+    "food": "Еда",
+    "chem": "Бытовая химия",
+    "home": "Товары быта",
+    "kids": "Детские товары и игрушки",
+    "tools": "Инструмент, стройка, авто",
+    "interior": "Мебель, декор, текстиль",
+    "neutral": "Нейтральные универсальные"
+  },
+  "themes": [
+    {
+      "n": 1,
+      "id": "volt",
+      "name": "Вольт",
+      "group": "tech",
+      "niche": "Электроника, компьютеры, смартфоны",
+      "basis": {
+        "type": "hallmark",
+        "theme": "cobalt",
+        "genre": "modern-minimal"
+      },
+      "mood": "Холодный светлый, графитовые линии, один кобальтовый сигнал",
+      "colors": {
+        "bg": "#F6F8FB",
+        "surface": "#FFFFFF",
+        "ink": "#1B2433",
+        "muted": "#566174",
+        "line": "#D5DBE5",
+        "primary": "#1F4FE0",
+        "onPrimary": "#FFFFFF",
+        "accent": "#1B2433",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#E6ECF7",
+        "heroInk": "#1B2433",
+        "tile": "#EDF1F8"
+      },
+      "shape": {
+        "radius": 6,
+        "buttonRadius": 6,
+        "surface": "line",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Golos Text",
+          "weight": 700
+        },
+        "body": {
+          "family": "IBM Plex Sans"
+        },
+        "mono": {
+          "family": "JetBrains Mono"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C4",
+        "hero": "G3",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 2,
+      "id": "grafit",
+      "name": "Графит",
+      "group": "tech",
+      "niche": "Премиальные гаджеты, ПК и комплектующие",
+      "basis": {
+        "type": "hallmark",
+        "theme": "vantage",
+        "genre": "modern-minimal"
+      },
+      "mood": "Тёмный сине-чёрный, стальной текст, тонкие рамки, лаймовый сигнал",
+      "colors": {
+        "bg": "#0E131B",
+        "surface": "#151C27",
+        "ink": "#E3E9F0",
+        "muted": "#97A4B6",
+        "line": "#2B3544",
+        "primary": "#C6F24E",
+        "onPrimary": "#10160A",
+        "accent": "#C6F24E",
+        "onAccent": "#10160A",
+        "heroBg": "#151C27",
+        "heroInk": "#E3E9F0",
+        "tile": "#1B2431"
+      },
+      "shape": {
+        "radius": 2,
+        "buttonRadius": 2,
+        "surface": "line",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Geologica",
+          "weight": 300
+        },
+        "body": {
+          "family": "Geologica"
+        },
+        "mono": {
+          "family": "JetBrains Mono"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C4",
+        "hero": "G2",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 3,
+      "id": "arkada",
+      "name": "Аркада",
+      "group": "tech",
+      "niche": "Игровые товары, приставки, гик-атрибутика",
+      "basis": {
+        "type": "hallmark",
+        "theme": "arcade",
+        "genre": "playful"
+      },
+      "mood": "Баклажановый «экран», пиксельные заголовки, жёсткие тени, кислотный и огненный",
+      "colors": {
+        "bg": "#1F1028",
+        "surface": "#2B1838",
+        "ink": "#F1E6FF",
+        "muted": "#BDA8D3",
+        "line": "#F1E6FF",
+        "primary": "#B8F23A",
+        "onPrimary": "#1A1024",
+        "accent": "#FF6B3D",
+        "onAccent": "#1F1028",
+        "heroBg": "#2B1838",
+        "heroInk": "#F1E6FF",
+        "tile": "#3A2249"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "hard",
+        "borderWidth": 2,
+        "shadowColor": "#0C0612"
+      },
+      "fonts": {
+        "display": {
+          "family": "Press Start 2P",
+          "weight": 400,
+          "scale": 0.56,
+          "lineHeight": 1.5
+        },
+        "body": {
+          "family": "Golos Text"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C1",
+        "hero": "G2",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 4,
+      "id": "korall",
+      "name": "Коралл",
+      "group": "tech",
+      "niche": "Бытовая техника для дома и кухни",
+      "basis": {
+        "type": "hallmark",
+        "theme": "coral",
+        "genre": "modern-minimal"
+      },
+      "mood": "Тёплый серый, мягкие «прессованные» карточки, один коралловый акцент",
+      "colors": {
+        "bg": "#F3F1EE",
+        "surface": "#FBFAF8",
+        "ink": "#2B2926",
+        "muted": "#67625B",
+        "line": "#DAD5CD",
+        "primary": "#C63F27",
+        "onPrimary": "#FFFFFF",
+        "accent": "#C63F27",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#E9E5DF",
+        "heroInk": "#2B2926",
+        "tile": "#ECE8E2"
+      },
+      "shape": {
+        "radius": 12,
+        "buttonRadius": 999,
+        "surface": "soft",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Commissioner",
+          "weight": 600
+        },
+        "body": {
+          "family": "Commissioner"
+        },
+        "mono": {
+          "family": "IBM Plex Mono"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C4",
+        "hero": "G1",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 5,
+      "id": "pudra",
+      "name": "Пудра",
+      "group": "beauty",
+      "niche": "Уходовая косметика, парфюмерия, «тихая роскошь»",
+      "basis": {
+        "type": "hallmark",
+        "theme": "atelier",
+        "genre": "editorial"
+      },
+      "mood": "Известковая бумага, умбра, тонкий антиквенный заголовок, волосяные линии",
+      "colors": {
+        "bg": "#F4EFE6",
+        "surface": "#FBF8F2",
+        "ink": "#3A2A20",
+        "muted": "#746457",
+        "line": "#D9CEBE",
+        "primary": "#3A2A20",
+        "onPrimary": "#F4EFE6",
+        "accent": "#506679",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#F4EFE6",
+        "heroInk": "#3A2A20",
+        "tile": "#EAE1D3"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Cormorant Garamond",
+          "weight": 500,
+          "scale": 1.12
+        },
+        "body": {
+          "family": "Jost"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G4",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 6,
+      "id": "formula",
+      "name": "Формула",
+      "group": "beauty",
+      "niche": "Аптечная и дерматологическая косметика, БАДы",
+      "basis": {
+        "type": "hallmark",
+        "theme": "dose",
+        "genre": "modern-minimal"
+      },
+      "mood": "Утренняя бумага, аптечный зелёный, моноширинные «этикетки», литые кнопки",
+      "colors": {
+        "bg": "#F7F5EC",
+        "surface": "#FFFFFF",
+        "ink": "#16261C",
+        "muted": "#56645A",
+        "line": "#D7DBC9",
+        "primary": "#0E7347",
+        "onPrimary": "#FFFFFF",
+        "accent": "#D7EBDD",
+        "onAccent": "#16261C",
+        "heroBg": "#E4EFE2",
+        "heroInk": "#16261C",
+        "tile": "#E9F1E6"
+      },
+      "shape": {
+        "radius": 14,
+        "buttonRadius": 10,
+        "surface": "soft",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Fira Sans",
+          "weight": 600
+        },
+        "body": {
+          "family": "Fira Sans"
+        },
+        "mono": {
+          "family": "IBM Plex Mono"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C1",
+        "hero": "G2",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 7,
+      "id": "ultrafiolet",
+      "name": "Ультрафиолет",
+      "group": "beauty",
+      "niche": "Молодёжная косметика, k-beauty, маникюр",
+      "basis": {
+        "type": "hallmark",
+        "theme": "ultraviolet",
+        "genre": "modern-minimal"
+      },
+      "mood": "Лавандовая бумага, строчные округлые заголовки, пилюли, насыщенный фиолетовый",
+      "colors": {
+        "bg": "#EFEAFB",
+        "surface": "#FBF9FF",
+        "ink": "#25153F",
+        "muted": "#5E5178",
+        "line": "#CDC2E8",
+        "primary": "#6A2BE8",
+        "onPrimary": "#FFFFFF",
+        "accent": "#3A1590",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#6A2BE8",
+        "heroInk": "#FFFFFF",
+        "tile": "#E2D9F7"
+      },
+      "shape": {
+        "radius": 22,
+        "buttonRadius": 999,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Comfortaa",
+          "weight": 700,
+          "case": "lower"
+        },
+        "body": {
+          "family": "Onest"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G3",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 8,
+      "id": "monohrom",
+      "name": "Монохром",
+      "group": "fashion",
+      "niche": "Минималистичная одежда, базовый гардероб",
+      "basis": {
+        "type": "hallmark",
+        "theme": "ink",
+        "genre": "editorial"
+      },
+      "mood": "Белый лист, чёрный без оттенка, волосяные линии, один бирюзовый статус",
+      "colors": {
+        "bg": "#FFFFFF",
+        "surface": "#FFFFFF",
+        "ink": "#0A0A0A",
+        "muted": "#5C5C5C",
+        "line": "#E2E2E2",
+        "primary": "#0A0A0A",
+        "onPrimary": "#FFFFFF",
+        "accent": "#0B7A75",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#FFFFFF",
+        "heroInk": "#0A0A0A",
+        "tile": "#F2F2F2"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Manrope",
+          "weight": 700
+        },
+        "body": {
+          "family": "Manrope"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G4",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 9,
+      "id": "lyon",
+      "name": "Лён",
+      "group": "fashion",
+      "niche": "Одежда из натуральных тканей, локальные марки",
+      "basis": {
+        "type": "hallmark",
+        "theme": "loom",
+        "genre": "editorial"
+      },
+      "mood": "Суровое полотно, песочные ступени, антиква в заголовках и ценах, глубокий индиго",
+      "colors": {
+        "bg": "#EFE8DA",
+        "surface": "#F7F2E7",
+        "ink": "#2A2620",
+        "muted": "#675F52",
+        "line": "#D2C7B1",
+        "primary": "#2A3A78",
+        "onPrimary": "#F7F2E7",
+        "accent": "#2A3A78",
+        "onAccent": "#F7F2E7",
+        "heroBg": "#EFE8DA",
+        "heroInk": "#2A2620",
+        "tile": "#E3D9C5"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Bona Nova",
+          "weight": 400,
+          "scale": 1.06
+        },
+        "body": {
+          "family": "Mulish"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G2",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 10,
+      "id": "strit",
+      "name": "Стрит",
+      "group": "fashion",
+      "niche": "Стритвир, спорт, кроссовки",
+      "basis": {
+        "type": "hallmark",
+        "theme": "sport",
+        "genre": "editorial"
+      },
+      "mood": "Холодный бетон, узкие прописные, двухвесовые линейки, вольтовая заливка",
+      "colors": {
+        "bg": "#EEF0F2",
+        "surface": "#FFFFFF",
+        "ink": "#0F1B2D",
+        "muted": "#525E76",
+        "line": "#0F1B2D",
+        "primary": "#0F1B2D",
+        "onPrimary": "#FFFFFF",
+        "accent": "#D7F23A",
+        "onAccent": "#0F1B2D",
+        "heroBg": "#0F1B2D",
+        "heroInk": "#FFFFFF",
+        "tile": "#E1E4E8"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 2
+      },
+      "fonts": {
+        "display": {
+          "family": "Sofia Sans Extra Condensed",
+          "weight": 800,
+          "case": "upper",
+          "scale": 1.35
+        },
+        "body": {
+          "family": "Sofia Sans"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C2",
+        "hero": "G4",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 11,
+      "id": "nuar",
+      "name": "Нуар",
+      "group": "fashion",
+      "niche": "Премиум: украшения, часы, аксессуары, подарки",
+      "basis": {
+        "type": "custom",
+        "direction": "тёмный премиум",
+        "genre": "atmospheric"
+      },
+      "mood": "Почти чёрный, шампань вместо золота, контрастная антиква, много воздуха",
+      "colors": {
+        "bg": "#0E0D0C",
+        "surface": "#171513",
+        "ink": "#EDE6DA",
+        "muted": "#A59C8D",
+        "line": "#2F2B26",
+        "primary": "#C9A96A",
+        "onPrimary": "#14110C",
+        "accent": "#C9A96A",
+        "onAccent": "#14110C",
+        "heroBg": "#0E0D0C",
+        "heroInk": "#EDE6DA",
+        "tile": "#1D1A17"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Playfair Display",
+          "weight": 500
+        },
+        "body": {
+          "family": "Raleway"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G4",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 12,
+      "id": "gryadka",
+      "name": "Грядка",
+      "group": "food",
+      "niche": "Продукты, овощи и фрукты, фермерские товары",
+      "basis": {
+        "type": "hallmark",
+        "theme": "garden",
+        "genre": "editorial"
+      },
+      "mood": "Овсяная бумага, тёмно-зелёные чернила, антиква, мшистые и глиняные подложки",
+      "colors": {
+        "bg": "#F2EDE1",
+        "surface": "#FAF7EF",
+        "ink": "#1F3A28",
+        "muted": "#536656",
+        "line": "#D4D0BC",
+        "primary": "#2C7733",
+        "onPrimary": "#FFFFFF",
+        "accent": "#E9D3BD",
+        "onAccent": "#1F3A28",
+        "heroBg": "#DFE5CC",
+        "heroInk": "#1F3A28",
+        "tile": "#E4E7D2"
+      },
+      "shape": {
+        "radius": 10,
+        "buttonRadius": 10,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Vollkorn",
+          "weight": 600
+        },
+        "body": {
+          "family": "Nunito Sans"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C3",
+        "hero": "G1",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 13,
+      "id": "skviz",
+      "name": "Сквиз",
+      "group": "food",
+      "niche": "Напитки, снеки, сладости, здоровое питание",
+      "basis": {
+        "type": "hallmark",
+        "theme": "squeeze",
+        "genre": "playful"
+      },
+      "mood": "Сочный лесной зелёный во весь экран, округлые плитки, персиковые кнопки",
+      "colors": {
+        "bg": "#1F5C3A",
+        "surface": "#2A6E48",
+        "ink": "#FFF8EC",
+        "muted": "#D3E6D6",
+        "line": "#3E8259",
+        "primary": "#FFB48A",
+        "onPrimary": "#3A1D0A",
+        "accent": "#FFD35C",
+        "onAccent": "#3A2A00",
+        "heroBg": "#174A2E",
+        "heroInk": "#FFF8EC",
+        "tile": "#2F7A50"
+      },
+      "shape": {
+        "radius": 24,
+        "buttonRadius": 999,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Nunito",
+          "weight": 900
+        },
+        "body": {
+          "family": "Manrope"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G2",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 14,
+      "id": "goryacho",
+      "name": "Горячо",
+      "group": "food",
+      "niche": "Доставка готовой еды: пицца, суши, бургеры",
+      "basis": {
+        "type": "custom",
+        "direction": "«дофаминовые» цвета",
+        "genre": "playful"
+      },
+      "mood": "Сливочный фон, томатный и горчичный, крупные скругления, кнопка «+» в один тап",
+      "colors": {
+        "bg": "#FFF6EC",
+        "surface": "#FFFFFF",
+        "ink": "#2A1410",
+        "muted": "#75564C",
+        "line": "#F0DAC5",
+        "primary": "#D42A13",
+        "onPrimary": "#FFFFFF",
+        "accent": "#FFC42E",
+        "onAccent": "#2A1410",
+        "heroBg": "#D42A13",
+        "heroInk": "#FFFFFF",
+        "tile": "#FFE9CF"
+      },
+      "shape": {
+        "radius": 20,
+        "buttonRadius": 999,
+        "surface": "soft",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Rubik",
+          "weight": 800
+        },
+        "body": {
+          "family": "Rubik"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C3",
+        "hero": "G3",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 15,
+      "id": "pekarnya",
+      "name": "Пекарня",
+      "group": "food",
+      "niche": "Выпечка, кофе, чай, мёд, крафтовые продукты",
+      "basis": {
+        "type": "hallmark",
+        "theme": "solstice",
+        "genre": "editorial"
+      },
+      "mood": "Кремовая бумага, тёплый коричневый, золотые волосяные линии, киноварь",
+      "colors": {
+        "bg": "#F6EEDD",
+        "surface": "#FBF6EA",
+        "ink": "#4A2F1D",
+        "muted": "#775D4A",
+        "line": "#C7A65C",
+        "primary": "#BE3418",
+        "onPrimary": "#FFFFFF",
+        "accent": "#4A2F1D",
+        "onAccent": "#F6EEDD",
+        "heroBg": "#F6EEDD",
+        "heroInk": "#4A2F1D",
+        "tile": "#EDE1C8"
+      },
+      "shape": {
+        "radius": 2,
+        "buttonRadius": 2,
+        "surface": "hard",
+        "borderWidth": 2,
+        "shadowColor": "#DCCBA6"
+      },
+      "fonts": {
+        "display": {
+          "family": "Yeseva One",
+          "weight": 400
+        },
+        "body": {
+          "family": "PT Sans"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C1",
+        "hero": "G2",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 16,
+      "id": "akva",
+      "name": "Аква",
+      "group": "chem",
+      "niche": "Бытовая химия, гигиена, средства для уборки",
+      "basis": {
+        "type": "hallmark",
+        "theme": "refract",
+        "genre": "atmospheric"
+      },
+      "mood": "Солнечная белая штукатурка, чернила цвета бассейна, прозрачные плитки с цветной тенью",
+      "colors": {
+        "bg": "#F7FAFB",
+        "surface": "#FFFFFF",
+        "ink": "#0E3A5A",
+        "muted": "#4A6A82",
+        "line": "#D1E3EB",
+        "primary": "#0A6E9E",
+        "onPrimary": "#FFFFFF",
+        "accent": "#BDEBF2",
+        "onAccent": "#0E3A5A",
+        "heroBg": "#DDF1F6",
+        "heroInk": "#0E3A5A",
+        "tile": "#E3F3F7"
+      },
+      "shape": {
+        "radius": 18,
+        "buttonRadius": 999,
+        "surface": "soft",
+        "borderWidth": 1,
+        "shadowTint": "rgba(10,110,158,0.16)"
+      },
+      "fonts": {
+        "display": {
+          "family": "Wix Madefor Display",
+          "weight": 500
+        },
+        "body": {
+          "family": "Wix Madefor Text"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C3",
+        "hero": "G1",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 17,
+      "id": "eko",
+      "name": "Эко",
+      "group": "chem",
+      "niche": "Экотовары, бытовая химия без пластика, рефил",
+      "basis": {
+        "type": "custom",
+        "direction": "крафт",
+        "genre": "editorial"
+      },
+      "mood": "Крафтовая бумага, лесной зелёный, брусковый шрифт, штриховые «отрывные» линии",
+      "colors": {
+        "bg": "#E6DAC3",
+        "surface": "#F1E8D6",
+        "ink": "#26301F",
+        "muted": "#535A46",
+        "line": "#B9A987",
+        "primary": "#2F5D3A",
+        "onPrimary": "#F1E8D6",
+        "accent": "#9E4420",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#D8C9AB",
+        "heroInk": "#26301F",
+        "tile": "#DBCCAE"
+      },
+      "shape": {
+        "radius": 4,
+        "buttonRadius": 4,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Bitter",
+          "weight": 600
+        },
+        "body": {
+          "family": "Source Sans 3"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C1",
+        "hero": "G2",
+        "listing": "L1"
+      },
+      "extras": {
+        "dashedFrames": true
+      }
+    },
+    {
+      "n": 18,
+      "id": "terrazzo",
+      "name": "Терраццо",
+      "group": "home",
+      "niche": "Посуда, кухня, хранение, хозтовары",
+      "basis": {
+        "type": "hallmark",
+        "theme": "terrazzo",
+        "genre": "modern-minimal"
+      },
+      "mood": "Белые карточки в чернильной рамке с жёстким сдвигом, широкие заголовки, ржавый сигнал",
+      "colors": {
+        "bg": "#F4F1EA",
+        "surface": "#FFFFFF",
+        "ink": "#1C1B19",
+        "muted": "#5E5A53",
+        "line": "#1C1B19",
+        "primary": "#AD4019",
+        "onPrimary": "#FFFFFF",
+        "accent": "#1C1B19",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#FFFFFF",
+        "heroInk": "#1C1B19",
+        "tile": "#ECE7DC"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "hard",
+        "borderWidth": 2,
+        "shadowColor": "#1C1B19"
+      },
+      "fonts": {
+        "display": {
+          "family": "Unbounded",
+          "weight": 600,
+          "scale": 0.82
+        },
+        "body": {
+          "family": "Onest"
+        },
+        "mono": {
+          "family": "JetBrains Mono"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C1",
+        "hero": "G3",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 19,
+      "id": "yarmarka",
+      "name": "Ярмарка",
+      "group": "home",
+      "niche": "Дискаунтер, «всё для дома» по низким ценам",
+      "basis": {
+        "type": "hallmark",
+        "theme": "carnival",
+        "genre": "editorial"
+      },
+      "mood": "Афишный: прописные плакатного размера, линейки 2 px, жёсткая тень, красный и синий спорят",
+      "colors": {
+        "bg": "#FBEBD0",
+        "surface": "#FFF7E6",
+        "ink": "#2B1408",
+        "muted": "#6A4F3E",
+        "line": "#2B1408",
+        "primary": "#CF241A",
+        "onPrimary": "#FFFFFF",
+        "accent": "#1D49C9",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#1D49C9",
+        "heroInk": "#FFFFFF",
+        "tile": "#F6DDB0"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "hard",
+        "borderWidth": 2,
+        "shadowColor": "#2B1408"
+      },
+      "fonts": {
+        "display": {
+          "family": "Alumni Sans",
+          "weight": 800,
+          "case": "upper",
+          "scale": 1.3
+        },
+        "body": {
+          "family": "Golos Text"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C1",
+        "hero": "G1",
+        "listing": "L3"
+      }
+    },
+    {
+      "n": 20,
+      "id": "karamel",
+      "name": "Карамель",
+      "group": "kids",
+      "niche": "Игрушки, товары для малышей",
+      "basis": {
+        "type": "hallmark",
+        "theme": "hum",
+        "genre": "playful"
+      },
+      "mood": "Кремовая бумага с грушевым оттенком, «картонные» кнопки, три не смешивающихся акцента",
+      "colors": {
+        "bg": "#F8F3D6",
+        "surface": "#FFFCEB",
+        "ink": "#1E2A44",
+        "muted": "#566078",
+        "line": "#E0D8AE",
+        "primary": "#C92C5F",
+        "onPrimary": "#FFFFFF",
+        "accent": "#7FD8BE",
+        "onAccent": "#1E2A44",
+        "heroBg": "#FFD66B",
+        "heroInk": "#1E2A44",
+        "tile": "#FFEDB3"
+      },
+      "shape": {
+        "radius": 20,
+        "buttonRadius": 14,
+        "surface": "press",
+        "borderWidth": 1,
+        "pressColor": "#8E1B41"
+      },
+      "fonts": {
+        "display": {
+          "family": "M PLUS Rounded 1c",
+          "weight": 800
+        },
+        "body": {
+          "family": "M PLUS Rounded 1c"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G3",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 21,
+      "id": "stiker",
+      "name": "Стикер",
+      "group": "kids",
+      "niche": "Канцелярия, творчество, товары для школьников",
+      "basis": {
+        "type": "hallmark",
+        "theme": "sticker",
+        "genre": "playful"
+      },
+      "mood": "Наклейки: белая «вырубка», жёсткие тени, ярко-розовый и лаймовый, тяжёлый гротеск",
+      "colors": {
+        "bg": "#F6F1E7",
+        "surface": "#FFFFFF",
+        "ink": "#1A1613",
+        "muted": "#5A524A",
+        "line": "#1A1613",
+        "primary": "#F0388B",
+        "onPrimary": "#1A1613",
+        "accent": "#C4F03C",
+        "onAccent": "#1A1613",
+        "heroBg": "#C4F03C",
+        "heroInk": "#1A1613",
+        "tile": "#FFD9EA"
+      },
+      "shape": {
+        "radius": 14,
+        "buttonRadius": 12,
+        "surface": "hard",
+        "borderWidth": 2,
+        "shadowColor": "#1A1613"
+      },
+      "fonts": {
+        "display": {
+          "family": "Dela Gothic One",
+          "weight": 400,
+          "scale": 0.86
+        },
+        "body": {
+          "family": "Sofia Sans"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C1",
+        "hero": "G2",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 22,
+      "id": "opalubka",
+      "name": "Опалубка",
+      "group": "tools",
+      "niche": "Инструмент, стройматериалы, крепёж",
+      "basis": {
+        "type": "hallmark",
+        "theme": "formwork",
+        "genre": "editorial"
+      },
+      "mood": "Бетонный серый, узкие прописные, литые прямые кромки, сигнальный оранжевый",
+      "colors": {
+        "bg": "#CFCBC4",
+        "surface": "#E3E0DA",
+        "ink": "#151413",
+        "muted": "#45423D",
+        "line": "#151413",
+        "primary": "#F26A1B",
+        "onPrimary": "#151413",
+        "accent": "#151413",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#151413",
+        "heroInk": "#F2EFEA",
+        "tile": "#BEB9B1"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "hard",
+        "borderWidth": 2,
+        "shadowColor": "#151413"
+      },
+      "fonts": {
+        "display": {
+          "family": "Oswald",
+          "weight": 600,
+          "case": "upper",
+          "scale": 1.08
+        },
+        "body": {
+          "family": "IBM Plex Sans"
+        },
+        "mono": {
+          "family": "IBM Plex Mono"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C4",
+        "hero": "G1",
+        "listing": "L3"
+      }
+    },
+    {
+      "n": 23,
+      "id": "chertyozh",
+      "name": "Чертёж",
+      "group": "tools",
+      "niche": "Электрика, сантехника, инженерные комплектующие",
+      "basis": {
+        "type": "hallmark",
+        "theme": "blueprint",
+        "genre": "modern-minimal"
+      },
+      "mood": "Лист берлинской лазури, белая линия — единственный сигнал, двойные рамки, моноширинные размеры",
+      "colors": {
+        "bg": "#123A6B",
+        "surface": "#17437A",
+        "ink": "#FFFFFF",
+        "muted": "#C9D9EE",
+        "line": "#8FB0DA",
+        "primary": "#FFFFFF",
+        "onPrimary": "#123A6B",
+        "accent": "#FFFFFF",
+        "onAccent": "#123A6B",
+        "heroBg": "#123A6B",
+        "heroInk": "#FFFFFF",
+        "tile": "#0F325D"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "double",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Tektur",
+          "weight": 600,
+          "case": "upper",
+          "scale": 0.9
+        },
+        "body": {
+          "family": "IBM Plex Sans"
+        },
+        "mono": {
+          "family": "IBM Plex Mono"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C4",
+        "hero": "G2",
+        "listing": "L3"
+      }
+    },
+    {
+      "n": 24,
+      "id": "garazh",
+      "name": "Гараж",
+      "group": "tools",
+      "niche": "Автозапчасти, шины, мото, автохимия",
+      "basis": {
+        "type": "hallmark",
+        "theme": "manifesto",
+        "genre": "editorial"
+      },
+      "mood": "Тёплый чёрный, широкие плакатные заголовки, тяжёлая плашка, один боевой красный",
+      "colors": {
+        "bg": "#141110",
+        "surface": "#1E1A18",
+        "ink": "#F3EDE4",
+        "muted": "#ABA297",
+        "line": "#3B3431",
+        "primary": "#E0291A",
+        "onPrimary": "#FFFFFF",
+        "accent": "#F3EDE4",
+        "onAccent": "#141110",
+        "heroBg": "#141110",
+        "heroInk": "#F3EDE4",
+        "tile": "#272220"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Russo One",
+          "weight": 400,
+          "case": "upper",
+          "scale": 0.88
+        },
+        "body": {
+          "family": "Roboto"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C4",
+        "hero": "G4",
+        "listing": "L3"
+      }
+    },
+    {
+      "n": 25,
+      "id": "terrakota",
+      "name": "Терракота",
+      "group": "interior",
+      "niche": "Мебель, предметы интерьера",
+      "basis": {
+        "type": "hallmark",
+        "theme": "bloom",
+        "genre": "atmospheric"
+      },
+      "mood": "Тёплый белёный фон с зерном, два терракотовых пятна, округлые «клипсы», мягкий свет",
+      "colors": {
+        "bg": "#F7F3EC",
+        "surface": "#FFFFFF",
+        "ink": "#3B2C24",
+        "muted": "#75655A",
+        "line": "#E2D8CA",
+        "primary": "#A9502E",
+        "onPrimary": "#FFFFFF",
+        "accent": "#EAC9B4",
+        "onAccent": "#3B2C24",
+        "heroBg": "#EFDCCB",
+        "heroInk": "#3B2C24",
+        "tile": "#EFE6D8"
+      },
+      "shape": {
+        "radius": 16,
+        "buttonRadius": 999,
+        "surface": "soft",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Montserrat Alternates",
+          "weight": 600,
+          "scale": 0.92
+        },
+        "body": {
+          "family": "Montserrat"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C2",
+        "hero": "G2",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 26,
+      "id": "galereya",
+      "name": "Галерея",
+      "group": "interior",
+      "niche": "Декор, свет, постеры, предметы искусства",
+      "basis": {
+        "type": "hallmark",
+        "theme": "studio",
+        "genre": "editorial"
+      },
+      "mood": "Студийная белая бумага с точечной сеткой, антиква, метки обреза, кадмиевый оранжевый",
+      "colors": {
+        "bg": "#F4F6F7",
+        "surface": "#FFFFFF",
+        "ink": "#172231",
+        "muted": "#566272",
+        "line": "#D5DBE0",
+        "primary": "#172231",
+        "onPrimary": "#FFFFFF",
+        "accent": "#EC6418",
+        "onAccent": "#172231",
+        "heroBg": "#F4F6F7",
+        "heroInk": "#172231",
+        "tile": "#E8ECEE"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Spectral",
+          "weight": 500,
+          "scale": 1.04
+        },
+        "body": {
+          "family": "Onest"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G4",
+        "listing": "L2"
+      },
+      "extras": {
+        "cropMarks": true
+      }
+    },
+    {
+      "n": 27,
+      "id": "hygge",
+      "name": "Хюгге",
+      "group": "interior",
+      "niche": "Домашний текстиль, свечи, уютные мелочи",
+      "basis": {
+        "type": "hallmark",
+        "theme": "spore",
+        "genre": "atmospheric"
+      },
+      "mood": "Кофейно-чёрный с тёплым зерном, пергаментный текст, мягкие пилюли, устричный розовый",
+      "colors": {
+        "bg": "#1C1613",
+        "surface": "#27201C",
+        "ink": "#EFE4D2",
+        "muted": "#B8AA97",
+        "line": "#3D332C",
+        "primary": "#E7B7A6",
+        "onPrimary": "#2A1A14",
+        "accent": "#E7B7A6",
+        "onAccent": "#2A1A14",
+        "heroBg": "#27201C",
+        "heroInk": "#EFE4D2",
+        "tile": "#30271F"
+      },
+      "shape": {
+        "radius": 20,
+        "buttonRadius": 999,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Alice",
+          "weight": 400,
+          "scale": 1.04
+        },
+        "body": {
+          "family": "Mulish"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C3",
+        "hero": "G2",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 28,
+      "id": "bento",
+      "name": "Бенто",
+      "group": "neutral",
+      "niche": "Любой ассортимент: светлая нейтральная витрина",
+      "basis": {
+        "type": "custom",
+        "direction": "бенто-сетка",
+        "genre": "modern-minimal"
+      },
+      "mood": "Светло-серое поле, белые плитки с крупным скруглением, чёрные кнопки, один синий",
+      "colors": {
+        "bg": "#F1F1F3",
+        "surface": "#FFFFFF",
+        "ink": "#111114",
+        "muted": "#5A5A63",
+        "line": "#E1E1E6",
+        "primary": "#111114",
+        "onPrimary": "#FFFFFF",
+        "accent": "#1257E0",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#FFFFFF",
+        "heroInk": "#111114",
+        "tile": "#F6F6F8"
+      },
+      "shape": {
+        "radius": 24,
+        "buttonRadius": 999,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Onest",
+          "weight": 600
+        },
+        "body": {
+          "family": "Onest"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G3",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 29,
+      "id": "klassika",
+      "name": "Классика",
+      "group": "neutral",
+      "niche": "Магазин широкого профиля",
+      "basis": {
+        "type": "hallmark",
+        "theme": "grid",
+        "genre": "editorial"
+      },
+      "mood": "Белый плакатный лист, плоские поля ультрамарина без обводок, одна красная метка",
+      "colors": {
+        "bg": "#FFFFFF",
+        "surface": "#FFFFFF",
+        "ink": "#101A3A",
+        "muted": "#525C7A",
+        "line": "#DCE0EB",
+        "primary": "#1B36D1",
+        "onPrimary": "#FFFFFF",
+        "accent": "#D8201A",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#1B36D1",
+        "heroInk": "#FFFFFF",
+        "tile": "#EEF1FA"
+      },
+      "shape": {
+        "radius": 4,
+        "buttonRadius": 4,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Noto Sans",
+          "weight": 700
+        },
+        "body": {
+          "family": "Noto Sans"
+        }
+      },
+      "blocks": {
+        "header": "H1",
+        "card": "C1",
+        "hero": "G1",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 30,
+      "id": "prays",
+      "name": "Прайс",
+      "group": "neutral",
+      "niche": "Опт и B2B: каталог-прайс",
+      "basis": {
+        "type": "hallmark",
+        "theme": "almanac",
+        "genre": "editorial"
+      },
+      "mood": "Сланцевый фон и бледный «печатный» лист, две толщины линеек, моноширинные цифры, одна маджента",
+      "colors": {
+        "bg": "#CBD3DD",
+        "surface": "#EEF1F5",
+        "ink": "#131A2B",
+        "muted": "#434D63",
+        "line": "#131A2B",
+        "primary": "#131A2B",
+        "onPrimary": "#FFFFFF",
+        "accent": "#B01552",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#EEF1F5",
+        "heroInk": "#131A2B",
+        "tile": "#D9E0E8"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 2
+      },
+      "fonts": {
+        "display": {
+          "family": "Roboto Condensed",
+          "weight": 600
+        },
+        "body": {
+          "family": "IBM Plex Sans"
+        },
+        "mono": {
+          "family": "IBM Plex Mono"
+        }
+      },
+      "blocks": {
+        "header": "H1",
+        "card": "C5",
+        "hero": "G2",
+        "listing": "L3"
+      }
+    },
+    {
+      "n": 31,
+      "id": "steklo",
+      "name": "Стекло",
+      "group": "tech",
+      "niche": "Гаджеты, умный дом, носимая электроника",
+      "basis": {
+        "type": "custom",
+        "direction": "жидкое стекло",
+        "genre": "modern-minimal"
+      },
+      "mood": "Мягкое цветное поле, полупрозрачные плитки с размытием, тёмно-синий текст, пилюли",
+      "colors": {
+        "bg": "#EDF1F8",
+        "surface": "#FFFFFF",
+        "ink": "#141B34",
+        "muted": "#4D5773",
+        "line": "#C9D3E8",
+        "primary": "#141B34",
+        "onPrimary": "#FFFFFF",
+        "accent": "#2450E6",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#FFFFFF",
+        "heroInk": "#141B34",
+        "tile": "#DCE5F7"
+      },
+      "shape": {
+        "radius": 22,
+        "buttonRadius": 999,
+        "surface": "glass",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Exo 2",
+          "weight": 600
+        },
+        "body": {
+          "family": "Inter"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G3",
+        "listing": "L2"
+      },
+      "extras": {
+        "backgroundImage": "radial-gradient(900px 520px at 10% 0%, #CFE0FF 0%, rgba(207,224,255,0) 62%), radial-gradient(820px 620px at 100% 34%, #FFE1CC 0%, rgba(255,225,204,0) 60%), #EDF1F8"
+      }
+    },
+    {
+      "n": 32,
+      "id": "terminal",
+      "name": "Терминал",
+      "group": "tech",
+      "niche": "Комплектующие, одноплатники, сетевое оборудование",
+      "basis": {
+        "type": "hallmark",
+        "theme": "terminal",
+        "genre": "atmospheric"
+      },
+      "mood": "Почти чёрный с зелёным отливом, фосфорный текст, всё моноширинное, один яркий сигнал",
+      "colors": {
+        "bg": "#0B110D",
+        "surface": "#101812",
+        "ink": "#CFE8D2",
+        "muted": "#8FB098",
+        "line": "#27402E",
+        "primary": "#5CFF7A",
+        "onPrimary": "#06130A",
+        "accent": "#5CFF7A",
+        "onAccent": "#06130A",
+        "heroBg": "#101812",
+        "heroInk": "#CFE8D2",
+        "tile": "#152018"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "line",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Martian Mono",
+          "weight": 600,
+          "scale": 0.7,
+          "lineHeight": 1.25
+        },
+        "body": {
+          "family": "JetBrains Mono"
+        },
+        "mono": {
+          "family": "JetBrains Mono"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C4",
+        "hero": "G2",
+        "listing": "L3"
+      }
+    },
+    {
+      "n": 33,
+      "id": "ambra",
+      "name": "Амбра",
+      "group": "beauty",
+      "niche": "Нишевая парфюмерия, ароматы для дома",
+      "basis": {
+        "type": "hallmark",
+        "theme": "lumen",
+        "genre": "atmospheric"
+      },
+      "mood": "Фиолетово-чёрный фон, строчная антиква на шаг крупнее, волосяные рамки, латунь и роза",
+      "colors": {
+        "bg": "#15101C",
+        "surface": "#1D1726",
+        "ink": "#F4EFF7",
+        "muted": "#B8ACC5",
+        "line": "#3A2F48",
+        "primary": "#D9A441",
+        "onPrimary": "#1A1206",
+        "accent": "#E58BA6",
+        "onAccent": "#2A0F19",
+        "heroBg": "#15101C",
+        "heroInk": "#F4EFF7",
+        "tile": "#221A2C"
+      },
+      "shape": {
+        "radius": 2,
+        "buttonRadius": 2,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Prata",
+          "weight": 400,
+          "case": "lower",
+          "scale": 0.94
+        },
+        "body": {
+          "family": "Onest"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G4",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 34,
+      "id": "rosa",
+      "name": "Роса",
+      "group": "beauty",
+      "niche": "Натуральная косметика, мыло ручной работы",
+      "basis": {
+        "type": "custom",
+        "direction": "ботанический минимализм",
+        "genre": "editorial"
+      },
+      "mood": "Шалфейный и пудрово-розовый, фото в «арках», тонкий гротеск, много воздуха",
+      "colors": {
+        "bg": "#F3F5EE",
+        "surface": "#FBFCF8",
+        "ink": "#2C3A2E",
+        "muted": "#586758",
+        "line": "#D3DBCB",
+        "primary": "#3F6B4A",
+        "onPrimary": "#FFFFFF",
+        "accent": "#F2C9C0",
+        "onAccent": "#2C3A2E",
+        "heroBg": "#F3F5EE",
+        "heroInk": "#2C3A2E",
+        "tile": "#E1E9D9"
+      },
+      "shape": {
+        "radius": 16,
+        "buttonRadius": 999,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Tenor Sans",
+          "weight": 400
+        },
+        "body": {
+          "family": "Nunito Sans"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G2",
+        "listing": "L2"
+      },
+      "extras": {
+        "tileShape": "arch"
+      }
+    },
+    {
+      "n": 35,
+      "id": "modul",
+      "name": "Модуль",
+      "group": "fashion",
+      "niche": "Мультибрендовый магазин одежды и обуви",
+      "basis": {
+        "type": "custom",
+        "direction": "швейцарская сетка",
+        "genre": "editorial"
+      },
+      "mood": "Белый лист, чёрные линейки, товары в ячейках без зазоров, нумерация, одна красная метка",
+      "colors": {
+        "bg": "#FFFFFF",
+        "surface": "#FFFFFF",
+        "ink": "#111111",
+        "muted": "#575757",
+        "line": "#111111",
+        "primary": "#111111",
+        "onPrimary": "#FFFFFF",
+        "accent": "#D80A00",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#FFFFFF",
+        "heroInk": "#111111",
+        "tile": "#F0F0F0"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Inter Tight",
+          "weight": 700,
+          "letterSpacing": "-0.03em"
+        },
+        "body": {
+          "family": "Inter"
+        }
+      },
+      "blocks": {
+        "header": "H1",
+        "card": "C6",
+        "hero": "G4",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 36,
+      "id": "kross",
+      "name": "Кросс",
+      "group": "fashion",
+      "niche": "Кроссовки, спортивная обувь",
+      "basis": {
+        "type": "custom",
+        "direction": "плакатная типографика",
+        "genre": "editorial"
+      },
+      "mood": "Жёлтый во весь экран, чёрный наклонный гротеск, белые «подиумы» под товар",
+      "colors": {
+        "bg": "#FFD60A",
+        "surface": "#FFFFFF",
+        "ink": "#111111",
+        "muted": "#3D3400",
+        "line": "#111111",
+        "primary": "#111111",
+        "onPrimary": "#FFD60A",
+        "accent": "#FFFFFF",
+        "onAccent": "#111111",
+        "heroBg": "#FFD60A",
+        "heroInk": "#111111",
+        "tile": "#FFFFFF"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 2
+      },
+      "fonts": {
+        "display": {
+          "family": "Fira Sans Extra Condensed",
+          "weight": 900,
+          "case": "upper",
+          "italic": true,
+          "scale": 1.34
+        },
+        "body": {
+          "family": "Fira Sans"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C2",
+        "hero": "G4",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 37,
+      "id": "matcha",
+      "name": "Матча",
+      "group": "food",
+      "niche": "Чай, кофе, специи, посуда для заваривания",
+      "basis": {
+        "type": "custom",
+        "direction": "японский минимализм",
+        "genre": "editorial"
+      },
+      "mood": "Рисовая бумага, тушь, товары в кругах, зелёный матча и красная «печать»",
+      "colors": {
+        "bg": "#F5F2EA",
+        "surface": "#FBF9F3",
+        "ink": "#1E1E1C",
+        "muted": "#5B5A53",
+        "line": "#D8D4C6",
+        "primary": "#4A6618",
+        "onPrimary": "#FFFFFF",
+        "accent": "#BE3A22",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#F5F2EA",
+        "heroInk": "#1E1E1C",
+        "tile": "#E8E5D6"
+      },
+      "shape": {
+        "radius": 2,
+        "buttonRadius": 2,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Forum",
+          "weight": 400,
+          "scale": 1.12
+        },
+        "body": {
+          "family": "Mulish"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G2",
+        "listing": "L2"
+      },
+      "extras": {
+        "tileShape": "circle"
+      }
+    },
+    {
+      "n": 38,
+      "id": "batonchik",
+      "name": "Батончик",
+      "group": "food",
+      "niche": "Снеки, батончики, здоровое питание",
+      "basis": {
+        "type": "custom",
+        "direction": "цветные блоки",
+        "genre": "playful"
+      },
+      "mood": "Сливочный фон, шоколадный текст, у каждого товара своя яркая плитка, пухлые заголовки",
+      "colors": {
+        "bg": "#FFF9EF",
+        "surface": "#FFFFFF",
+        "ink": "#3B1F14",
+        "muted": "#6B4E42",
+        "line": "#EAD9C6",
+        "primary": "#3B1F14",
+        "onPrimary": "#FFF9EF",
+        "accent": "#FFD166",
+        "onAccent": "#3B1F14",
+        "heroBg": "#FFB3C7",
+        "heroInk": "#3B1F14",
+        "tile": "#FFE9CF"
+      },
+      "shape": {
+        "radius": 22,
+        "buttonRadius": 999,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Days One",
+          "weight": 400,
+          "scale": 0.84
+        },
+        "body": {
+          "family": "Onest"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G3",
+        "listing": "L2"
+      },
+      "extras": {
+        "tileColors": [
+          "#FFB3C7",
+          "#B9E769",
+          "#FFD166",
+          "#9AD4FF"
+        ]
+      }
+    },
+    {
+      "n": 39,
+      "id": "markirovka",
+      "name": "Маркировка",
+      "group": "chem",
+      "niche": "Профессиональная химия, клининг, расходники",
+      "basis": {
+        "type": "hallmark",
+        "theme": "wayfind",
+        "genre": "modern-minimal"
+      },
+      "mood": "Холодный серый, моноширинный шрифт, рамки 2 px, чернильные плашки, кобальт и янтарь",
+      "colors": {
+        "bg": "#D9DEE3",
+        "surface": "#EEF1F4",
+        "ink": "#111A2B",
+        "muted": "#3F4A5E",
+        "line": "#111A2B",
+        "primary": "#111A2B",
+        "onPrimary": "#FFFFFF",
+        "accent": "#1D4ED8",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#111A2B",
+        "heroInk": "#FFFFFF",
+        "tile": "#C9D0D8"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 2
+      },
+      "fonts": {
+        "display": {
+          "family": "Roboto Mono",
+          "weight": 600,
+          "scale": 0.8,
+          "lineHeight": 1.2
+        },
+        "body": {
+          "family": "Roboto Mono"
+        },
+        "mono": {
+          "family": "Roboto Mono"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C4",
+        "hero": "G1",
+        "listing": "L3"
+      },
+      "extras": {
+        "heroButton": {
+          "bg": "#FFB000",
+          "ink": "#111A2B"
+        }
+      }
+    },
+    {
+      "n": 40,
+      "id": "pena",
+      "name": "Пена",
+      "group": "chem",
+      "niche": "Гипоаллергенная химия, детская гигиена",
+      "basis": {
+        "type": "custom",
+        "direction": "мягкий объём (clay)",
+        "genre": "playful"
+      },
+      "mood": "Голубоватый фон, «надутые» карточки с двойной тенью, округлые заголовки, розовая искра",
+      "colors": {
+        "bg": "#EAF0FA",
+        "surface": "#F4F7FD",
+        "ink": "#27304D",
+        "muted": "#525C7C",
+        "line": "#D3DCEE",
+        "primary": "#4456D6",
+        "onPrimary": "#FFFFFF",
+        "accent": "#FFB5CF",
+        "onAccent": "#27304D",
+        "heroBg": "#F4F7FD",
+        "heroInk": "#27304D",
+        "tile": "#DDE6F7"
+      },
+      "shape": {
+        "radius": 28,
+        "buttonRadius": 999,
+        "surface": "clay",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Nunito",
+          "weight": 800
+        },
+        "body": {
+          "family": "Nunito"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G2",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 41,
+      "id": "farfor",
+      "name": "Фарфор",
+      "group": "home",
+      "niche": "Посуда и керамика ручной работы",
+      "basis": {
+        "type": "hallmark",
+        "theme": "riso",
+        "genre": "editorial"
+      },
+      "mood": "Яркая бумага без чёрного: всё набрано синим, заливки флуоресцентно-розовые, как в ризографии",
+      "colors": {
+        "bg": "#FBFBF6",
+        "surface": "#FFFFFF",
+        "ink": "#2443B8",
+        "muted": "#4459B5",
+        "line": "#2443B8",
+        "primary": "#2443B8",
+        "onPrimary": "#FFFFFF",
+        "accent": "#FF5FA2",
+        "onAccent": "#16246B",
+        "heroBg": "#FBFBF6",
+        "heroInk": "#2443B8",
+        "tile": "#E7ECFB"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 2
+      },
+      "fonts": {
+        "display": {
+          "family": "Golos Text",
+          "weight": 800
+        },
+        "body": {
+          "family": "Literata"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G2",
+        "listing": "L2"
+      }
+    },
+    {
+      "n": 42,
+      "id": "bauhaus",
+      "name": "Баухаус",
+      "group": "home",
+      "niche": "Хозтовары, сад и дача",
+      "basis": {
+        "type": "hallmark",
+        "theme": "werkstatt",
+        "genre": "playful"
+      },
+      "mood": "Тёплая шпаклёвка, прописной геометрический гротеск, жирные линейки, синий, красный и жёлтый плашками",
+      "colors": {
+        "bg": "#D8D2C4",
+        "surface": "#E9E4D8",
+        "ink": "#141414",
+        "muted": "#45423B",
+        "line": "#141414",
+        "primary": "#1F3BD1",
+        "onPrimary": "#FFFFFF",
+        "accent": "#D8341A",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#1F3BD1",
+        "heroInk": "#FFFFFF",
+        "tile": "#C9C2B2"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 2
+      },
+      "fonts": {
+        "display": {
+          "family": "Jost",
+          "weight": 700,
+          "case": "upper"
+        },
+        "body": {
+          "family": "Jost"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C1",
+        "hero": "G3",
+        "listing": "L3"
+      },
+      "extras": {
+        "heroButton": {
+          "bg": "#F5C400",
+          "ink": "#141414"
+        }
+      }
+    },
+    {
+      "n": 43,
+      "id": "oblako",
+      "name": "Облако",
+      "group": "kids",
+      "niche": "Детская одежда и обувь",
+      "basis": {
+        "type": "custom",
+        "direction": "пастель и горошек",
+        "genre": "playful"
+      },
+      "mood": "Небесный фон в белый горошек, белые карточки, сливочные плитки, коралловые метки",
+      "colors": {
+        "bg": "#E8F3FF",
+        "surface": "#FFFFFF",
+        "ink": "#1D2B53",
+        "muted": "#4A5880",
+        "line": "#C9DDF5",
+        "primary": "#1D2B53",
+        "onPrimary": "#FFFFFF",
+        "accent": "#FF8A73",
+        "onAccent": "#1D2B53",
+        "heroBg": "#FFFFFF",
+        "heroInk": "#1D2B53",
+        "tile": "#FFF1D6"
+      },
+      "shape": {
+        "radius": 28,
+        "buttonRadius": 999,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Balsamiq Sans",
+          "weight": 700
+        },
+        "body": {
+          "family": "Nunito Sans"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G2",
+        "listing": "L2"
+      },
+      "extras": {
+        "backgroundImage": "radial-gradient(#FFFFFF 2.5px, rgba(255,255,255,0) 3px) 0 0 / 28px 28px, #E8F3FF"
+      }
+    },
+    {
+      "n": 44,
+      "id": "komiks",
+      "name": "Комикс",
+      "group": "kids",
+      "niche": "Настольные игры, комиксы, фигурки",
+      "basis": {
+        "type": "hallmark",
+        "theme": "halftone",
+        "genre": "playful"
+      },
+      "mood": "Сливочная бумага, брусковые заголовки, линейки 3 px, киноварь сплошная и через растр",
+      "colors": {
+        "bg": "#FBF1CF",
+        "surface": "#FFF8E1",
+        "ink": "#2A1A12",
+        "muted": "#5E4B3F",
+        "line": "#2A1A12",
+        "primary": "#CC2D1B",
+        "onPrimary": "#FFFFFF",
+        "accent": "#2A1A12",
+        "onAccent": "#FBF1CF",
+        "heroBg": "#CC2D1B",
+        "heroInk": "#FFFFFF",
+        "tile": "#F3E3B3"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 3
+      },
+      "fonts": {
+        "display": {
+          "family": "Roboto Slab",
+          "weight": 900
+        },
+        "body": {
+          "family": "Golos Text"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C1",
+        "hero": "G1",
+        "listing": "L2"
+      },
+      "extras": {
+        "heroImage": "radial-gradient(rgba(42,26,18,0.30) 1.6px, rgba(42,26,18,0) 2.2px) 0 0 / 10px 10px",
+        "heroButton": {
+          "bg": "#2A1A12",
+          "ink": "#FBF1CF"
+        }
+      }
+    },
+    {
+      "n": 45,
+      "id": "karkas",
+      "name": "Каркас",
+      "group": "tools",
+      "niche": "Стройматериалы, строительный гипермаркет",
+      "basis": {
+        "type": "hallmark",
+        "theme": "brutal",
+        "genre": "editorial"
+      },
+      "mood": "Плакатный белый, чёрные линейки 3 px, ячейки-коробки, прописной гротеск, кислотно-жёлтая заливка",
+      "colors": {
+        "bg": "#FAFAF7",
+        "surface": "#FFFFFF",
+        "ink": "#0D0D0D",
+        "muted": "#4A4A46",
+        "line": "#0D0D0D",
+        "primary": "#0D0D0D",
+        "onPrimary": "#FAFAF7",
+        "accent": "#E8F22B",
+        "onAccent": "#0D0D0D",
+        "heroBg": "#E8F22B",
+        "heroInk": "#0D0D0D",
+        "tile": "#EFEFEA"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 3
+      },
+      "fonts": {
+        "display": {
+          "family": "Libre Franklin",
+          "weight": 900,
+          "case": "upper",
+          "scale": 0.9
+        },
+        "body": {
+          "family": "Libre Franklin"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C6",
+        "hero": "G1",
+        "listing": "L3"
+      }
+    },
+    {
+      "n": 46,
+      "id": "ralli",
+      "name": "Ралли",
+      "group": "tools",
+      "niche": "Шины, диски, автоаксессуары",
+      "basis": {
+        "type": "custom",
+        "direction": "ретро-автоспорт",
+        "genre": "editorial"
+      },
+      "mood": "Кремовый и гоночный зелёный, узкие прописные, красная метка, рамки как на стартовых номерах",
+      "colors": {
+        "bg": "#F4F1E8",
+        "surface": "#FBF9F2",
+        "ink": "#0F3D2E",
+        "muted": "#46605A",
+        "line": "#0F3D2E",
+        "primary": "#0F3D2E",
+        "onPrimary": "#F4F1E8",
+        "accent": "#C8102E",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#0F3D2E",
+        "heroInk": "#F4F1E8",
+        "tile": "#E7E2D2"
+      },
+      "shape": {
+        "radius": 4,
+        "buttonRadius": 4,
+        "surface": "none",
+        "borderWidth": 2
+      },
+      "fonts": {
+        "display": {
+          "family": "Yanone Kaffeesatz",
+          "weight": 700,
+          "case": "upper",
+          "scale": 1.2
+        },
+        "body": {
+          "family": "Golos Text"
+        },
+        "mono": {
+          "family": "JetBrains Mono"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C4",
+        "hero": "G1",
+        "listing": "L3"
+      },
+      "extras": {
+        "heroButton": {
+          "bg": "#C8102E",
+          "ink": "#FFFFFF"
+        }
+      }
+    },
+    {
+      "n": 47,
+      "id": "palitra",
+      "name": "Палитра",
+      "group": "interior",
+      "niche": "Ковры, текстиль, обои",
+      "basis": {
+        "type": "custom",
+        "direction": "яркий товар, тихий интерфейс",
+        "genre": "editorial"
+      },
+      "mood": "Белый фон, тонкие серые линии и мелкий текст; весь цвет отдан узорам товара",
+      "colors": {
+        "bg": "#FFFFFF",
+        "surface": "#FFFFFF",
+        "ink": "#151515",
+        "muted": "#5E5E5E",
+        "line": "#E3E3E3",
+        "primary": "#151515",
+        "onPrimary": "#FFFFFF",
+        "accent": "#F2B134",
+        "onAccent": "#151515",
+        "heroBg": "#FFFFFF",
+        "heroInk": "#151515",
+        "tile": "#F2F2F2"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Golos Text",
+          "weight": 500,
+          "scale": 0.92
+        },
+        "body": {
+          "family": "Golos Text"
+        }
+      },
+      "blocks": {
+        "header": "H4",
+        "card": "C2",
+        "hero": "G4",
+        "listing": "L2"
+      },
+      "extras": {
+        "tileColors": [
+          "#D9502B",
+          "#2B7FA3",
+          "#E3A522",
+          "#39795A"
+        ],
+        "tilePatterns": [
+          "repeating-linear-gradient(90deg, rgba(255,255,255,0.30) 0 14px, rgba(255,255,255,0) 14px 28px)",
+          "repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0 2px, rgba(0,0,0,0) 2px 26px), repeating-linear-gradient(90deg, rgba(0,0,0,0.16) 0 2px, rgba(0,0,0,0) 2px 26px)",
+          "repeating-linear-gradient(45deg, rgba(255,255,255,0.32) 0 10px, rgba(255,255,255,0) 10px 30px)",
+          "repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.32) 0 6px, rgba(255,255,255,0) 6px 22px)"
+        ]
+      }
+    },
+    {
+      "n": 48,
+      "id": "retro",
+      "name": "Ретро",
+      "group": "interior",
+      "niche": "Мебель и свет в стиле середины века",
+      "basis": {
+        "type": "custom",
+        "direction": "mid-century",
+        "genre": "editorial"
+      },
+      "mood": "Петролевый во весь экран, кремовый текст, горчичные кнопки, геометрический гротеск",
+      "colors": {
+        "bg": "#12414F",
+        "surface": "#1A5262",
+        "ink": "#F6EBD4",
+        "muted": "#C6D5D3",
+        "line": "#3A7384",
+        "primary": "#E5A823",
+        "onPrimary": "#1F1603",
+        "accent": "#E2673B",
+        "onAccent": "#1F1603",
+        "heroBg": "#0D3541",
+        "heroInk": "#F6EBD4",
+        "tile": "#215E6F"
+      },
+      "shape": {
+        "radius": 18,
+        "buttonRadius": 999,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Jost",
+          "weight": 600
+        },
+        "body": {
+          "family": "Jost"
+        }
+      },
+      "blocks": {
+        "header": "H2",
+        "card": "C3",
+        "hero": "G2",
+        "listing": "L1"
+      }
+    },
+    {
+      "n": 49,
+      "id": "gazeta",
+      "name": "Газета",
+      "group": "neutral",
+      "niche": "Универсальный каталог: книги, хобби, подарки",
+      "basis": {
+        "type": "hallmark",
+        "theme": "newsprint",
+        "genre": "editorial"
+      },
+      "mood": "Газетная бумага, брусковые заголовки, колонки с тонкими линейками, двойная линейка, кирпичный акцент",
+      "colors": {
+        "bg": "#EDEAE0",
+        "surface": "#F4F1E8",
+        "ink": "#1F1B16",
+        "muted": "#554E48",
+        "line": "#1F1B16",
+        "primary": "#1F1B16",
+        "onPrimary": "#EDEAE0",
+        "accent": "#9E3B25",
+        "onAccent": "#FFFFFF",
+        "heroBg": "#EDEAE0",
+        "heroInk": "#1F1B16",
+        "tile": "#DFDACB"
+      },
+      "shape": {
+        "radius": 0,
+        "buttonRadius": 0,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Podkova",
+          "weight": 700,
+          "scale": 1.06
+        },
+        "body": {
+          "family": "Spectral"
+        }
+      },
+      "blocks": {
+        "header": "H1",
+        "card": "C6",
+        "hero": "G4",
+        "listing": "L1"
+      },
+      "extras": {
+        "headerRule": "4px double #1F1B16"
+      }
+    },
+    {
+      "n": 50,
+      "id": "market",
+      "name": "Маркет",
+      "group": "neutral",
+      "niche": "Подача как у маркетплейса: плотный каталог",
+      "basis": {
+        "type": "custom",
+        "direction": "плотная витрина",
+        "genre": "modern-minimal"
+      },
+      "mood": "Светло-серый фон, белые компактные карточки по пять в ряд, изумрудные кнопки, жёлтые ярлыки",
+      "colors": {
+        "bg": "#F4F5F7",
+        "surface": "#FFFFFF",
+        "ink": "#16181D",
+        "muted": "#565C6C",
+        "line": "#E3E6EC",
+        "primary": "#087A4F",
+        "onPrimary": "#FFFFFF",
+        "accent": "#FFDD2D",
+        "onAccent": "#16181D",
+        "heroBg": "#087A4F",
+        "heroInk": "#FFFFFF",
+        "tile": "#F1F3F6"
+      },
+      "shape": {
+        "radius": 12,
+        "buttonRadius": 10,
+        "surface": "none",
+        "borderWidth": 1
+      },
+      "fonts": {
+        "display": {
+          "family": "Open Sans",
+          "weight": 700,
+          "scale": 0.94
+        },
+        "body": {
+          "family": "Open Sans"
+        }
+      },
+      "blocks": {
+        "header": "H3",
+        "card": "C1",
+        "hero": "G1",
+        "listing": "L3"
+      },
+      "extras": {
+        "homeGridColumns": 5
+      }
+    }
+  ]
+}
