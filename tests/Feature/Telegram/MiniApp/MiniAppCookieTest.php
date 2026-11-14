@@ -47,7 +47,7 @@ it('gives the session and XSRF cookies of /tg SameSite=None; Secure; Partitioned
 });
 
 it('keeps lax without Partitioned over plain HTTP, also on /tg (TM-03)', function (): void {
-    $cookies = tgCookies($this->get('/tg')->assertOk());
+    $cookies = tgCookies($this->get('http://localhost/tg')->assertOk());
 
     foreach ([config('session.cookie'), 'XSRF-TOKEN'] as $name) {
         expect($cookies[$name]->getSameSite())->toBe('lax', $name)
