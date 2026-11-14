@@ -17,7 +17,9 @@ function fontSpec(): array
 {
     static $fonts = null;
 
-    return $fonts ??= json_decode((string) file_get_contents(base_path('docs/themes/fonts.json')), true, 512, JSON_THROW_ON_ERROR);
+    $fonts ??= json_decode((string) file_get_contents(base_path('docs/themes/fonts.json')), true, 512, JSON_THROW_ON_ERROR);
+
+    return $fonts['fonts'];
 }
 
 /** @return array<string, array<string, mixed>> */
@@ -114,12 +116,19 @@ it('uses allowed surface styles and genres (TH-14, TH-33)', function (): void {
 });
 
 it('assigns every theme to a known group (TH-02)', function (): void {
-    $groups = themeSpec()['groups'];
+    $groups = array_column(themeSpec()['groups'], 'name', 'id');
 
     expect($groups)->toHaveCount(10);
-    $unknown = array_filter(themeSpec()['themes'], fn (array $theme): bool => ! array_key_exists($theme['group'], $groups));
+    $unknown = array_filter(themeSpec()['themes'], fn (array $theme): bool => ! array_key_exists($theme['group'], $groups) || $theme['shopType'] !== $groups[$theme['group']]);
 
     expect($unknown)->toBe([]);
+});
+
+it('links every theme to its reference mockup (TH-34)', function (): void {
+    $missing = array_filter(themeSpec()['themes'], fn (array $theme): bool => $theme['preview'] !== sprintf('preview/%02d-%s.html', $theme['n'], $theme['id'])
+        || ! is_file(base_path('docs/themes/'.$theme['preview'])));
+
+    expect($missing)->toBe([])->and(themeSpec()['defaultTheme'])->toBe('default');
 });
 
 it('has exactly 60 unique font families (TH-18)', function (): void {
@@ -129,11 +138,12 @@ it('has exactly 60 unique font families (TH-18)', function (): void {
         ->and(array_unique($families))->toHaveCount(60);
     $problems = [];
     foreach (fontSpec() as $font) {
-        $valid = in_array($font['category'], ['serif', 'sans', 'mono'], true)
-            && in_array($font['license'], ['OFL', 'Apache 2.0'], true)
+        $valid = in_array($font['kind'], ['serif', 'sans', 'mono'], true)
+            && in_array($font['license'], ['OFL', 'APACHE2'], true)
             && $font['weights'] !== []
-            && preg_match('#^(ofl|apache)/[a-z0-9]+$#', $font['source']) === 1
-            && is_bool($font['displayOnly'])
+            && preg_match('#^(ofl|apache)/[a-z0-9]+$#', $font['googleFontsDir']) === 1
+            && in_array($font['selectableAs'], [['display'], ['display', 'body']], true)
+            && $font['cyrillic'] === true
             && is_bool($font['italic']);
         if (! $valid) {
             $problems[] = $font['family'];
@@ -149,7 +159,7 @@ it('references only fonts that exist in fonts.json (TH-18)', function (): void {
     $problems = [];
     foreach (themeSpec()['themes'] as $theme) {
         foreach (['display', 'body', 'mono'] as $role) {
-            if (! isset($theme['fonts'][$role])) {
+            if (($theme['fonts'][$role] ?? null) === null) {
                 if ($role !== 'mono') {
                     $problems[] = "theme {$theme['n']}: missing {$role} font";
                 }
@@ -174,7 +184,7 @@ it('does not use display-only fonts as body fonts and picks display weights the 
 
     foreach (themeSpec()['themes'] as $theme) {
         $body = $fonts[$theme['fonts']['body']['family']];
-        if ($body['displayOnly']) {
+        if (! in_array('body', $body['selectableAs'], true)) {
             $violations[] = "theme {$theme['n']} ({$theme['id']}): body font \"{$body['family']}\" is display-only";
         }
         $display = $theme['fonts']['display'];
@@ -183,7 +193,7 @@ it('does not use display-only fonts as body fonts and picks display weights the 
             $violations[] = "theme {$theme['n']} ({$theme['id']}): display weight {$display['weight']} is not among ["
                 .implode(', ', $displayFont['weights'])."] of \"{$display['family']}\"";
         }
-        if (isset($theme['fonts']['mono']) && $fonts[$theme['fonts']['mono']['family']]['category'] !== 'mono') {
+        if (($theme['fonts']['mono'] ?? null) !== null && $fonts[$theme['fonts']['mono']['family']]['kind'] !== 'mono') {
             $violations[] = "theme {$theme['n']} ({$theme['id']}): mono font \"{$theme['fonts']['mono']['family']}\" is not a mono family";
         }
         if (($display['italic'] ?? false) && ! $displayFont['italic']) {

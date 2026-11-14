@@ -1,22 +1,82 @@
 {
-  "groups": {
-    "tech": "Бытовая и компьютерная техника",
-    "beauty": "Косметика",
-    "fashion": "Одежда и аксессуары",
-    "food": "Еда",
-    "chem": "Бытовая химия",
-    "home": "Товары быта",
-    "kids": "Детские товары и игрушки",
-    "tools": "Инструмент, стройка, авто",
-    "interior": "Мебель, декор, текстиль",
-    "neutral": "Нейтральные универсальные"
+  "version": 1,
+  "defaultTheme": "default",
+  "blocks": {
+    "header": {
+      "H1": "классическая, два ряда",
+      "H2": "компактная, одна строка",
+      "H3": "кнопка «Каталог» и широкий поиск",
+      "H4": "логотип по центру"
+    },
+    "card": {
+      "C1": "в рамке, кнопка во всю ширину",
+      "C2": "крупное фото без рамки",
+      "C3": "мягкая плитка с кнопкой «+»",
+      "C4": "с характеристиками",
+      "C5": "строкой, как в прайсе",
+      "C6": "ячейки сетки без зазоров"
+    },
+    "hero": {
+      "G1": "баннер-слайдер",
+      "G2": "текст и фото пополам",
+      "G3": "бенто-сетка",
+      "G4": "крупная типографика"
+    },
+    "listing": {
+      "L1": "фильтры слева",
+      "L2": "чипы сверху",
+      "L3": "плотная сетка"
+    }
   },
+  "groups": [
+    {
+      "id": "tech",
+      "name": "Бытовая и компьютерная техника"
+    },
+    {
+      "id": "beauty",
+      "name": "Косметика"
+    },
+    {
+      "id": "fashion",
+      "name": "Одежда и аксессуары"
+    },
+    {
+      "id": "food",
+      "name": "Еда"
+    },
+    {
+      "id": "chem",
+      "name": "Бытовая химия"
+    },
+    {
+      "id": "home",
+      "name": "Товары быта"
+    },
+    {
+      "id": "kids",
+      "name": "Детские товары и игрушки"
+    },
+    {
+      "id": "tools",
+      "name": "Инструмент, стройка, авто"
+    },
+    {
+      "id": "interior",
+      "name": "Мебель, декор, текстиль"
+    },
+    {
+      "id": "neutral",
+      "name": "Нейтральные универсальные"
+    }
+  ],
   "themes": [
     {
-      "n": 1,
       "id": "volt",
+      "n": 1,
       "name": "Вольт",
       "group": "tech",
+      "shopType": "Бытовая и компьютерная техника",
       "niche": "Электроника, компьютеры, смартфоны",
       "basis": {
         "type": "hallmark",
@@ -47,7 +107,12 @@
       "fonts": {
         "display": {
           "family": "Golos Text",
-          "weight": 700
+          "weight": 700,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "IBM Plex Sans"
@@ -61,13 +126,16 @@
         "card": "C4",
         "hero": "G3",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/01-volt.html"
     },
     {
-      "n": 2,
       "id": "grafit",
+      "n": 2,
       "name": "Графит",
       "group": "tech",
+      "shopType": "Бытовая и компьютерная техника",
       "niche": "Премиальные гаджеты, ПК и комплектующие",
       "basis": {
         "type": "hallmark",
@@ -98,7 +166,12 @@
       "fonts": {
         "display": {
           "family": "Geologica",
-          "weight": 300
+          "weight": 300,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Geologica"
@@ -112,13 +185,16 @@
         "card": "C4",
         "hero": "G2",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/02-grafit.html"
     },
     {
-      "n": 3,
       "id": "arkada",
+      "n": 3,
       "name": "Аркада",
       "group": "tech",
+      "shopType": "Бытовая и компьютерная техника",
       "niche": "Игровые товары, приставки, гик-атрибутика",
       "basis": {
         "type": "hallmark",
@@ -151,25 +227,32 @@
         "display": {
           "family": "Press Start 2P",
           "weight": 400,
+          "case": "none",
+          "italic": false,
           "scale": 0.56,
-          "lineHeight": 1.5
+          "lineHeight": 1.5,
+          "letterSpacing": null
         },
         "body": {
           "family": "Golos Text"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C1",
         "hero": "G2",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/03-arkada.html"
     },
     {
-      "n": 4,
       "id": "korall",
+      "n": 4,
       "name": "Коралл",
       "group": "tech",
+      "shopType": "Бытовая и компьютерная техника",
       "niche": "Бытовая техника для дома и кухни",
       "basis": {
         "type": "hallmark",
@@ -200,7 +283,12 @@
       "fonts": {
         "display": {
           "family": "Commissioner",
-          "weight": 600
+          "weight": 600,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Commissioner"
@@ -214,13 +302,16 @@
         "card": "C4",
         "hero": "G1",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/04-korall.html"
     },
     {
-      "n": 5,
       "id": "pudra",
+      "n": 5,
       "name": "Пудра",
       "group": "beauty",
+      "shopType": "Косметика",
       "niche": "Уходовая косметика, парфюмерия, «тихая роскошь»",
       "basis": {
         "type": "hallmark",
@@ -252,24 +343,32 @@
         "display": {
           "family": "Cormorant Garamond",
           "weight": 500,
-          "scale": 1.12
+          "case": "none",
+          "italic": false,
+          "scale": 1.12,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Jost"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
         "card": "C2",
         "hero": "G4",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/05-pudra.html"
     },
     {
-      "n": 6,
       "id": "formula",
+      "n": 6,
       "name": "Формула",
       "group": "beauty",
+      "shopType": "Косметика",
       "niche": "Аптечная и дерматологическая косметика, БАДы",
       "basis": {
         "type": "hallmark",
@@ -300,7 +399,12 @@
       "fonts": {
         "display": {
           "family": "Fira Sans",
-          "weight": 600
+          "weight": 600,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Fira Sans"
@@ -314,13 +418,16 @@
         "card": "C1",
         "hero": "G2",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/06-formula.html"
     },
     {
-      "n": 7,
       "id": "ultrafiolet",
+      "n": 7,
       "name": "Ультрафиолет",
       "group": "beauty",
+      "shopType": "Косметика",
       "niche": "Молодёжная косметика, k-beauty, маникюр",
       "basis": {
         "type": "hallmark",
@@ -352,24 +459,32 @@
         "display": {
           "family": "Comfortaa",
           "weight": 700,
-          "case": "lower"
+          "case": "lower",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Onest"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C3",
         "hero": "G3",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/07-ultrafiolet.html"
     },
     {
-      "n": 8,
       "id": "monohrom",
+      "n": 8,
       "name": "Монохром",
       "group": "fashion",
+      "shopType": "Одежда и аксессуары",
       "niche": "Минималистичная одежда, базовый гардероб",
       "basis": {
         "type": "hallmark",
@@ -400,24 +515,33 @@
       "fonts": {
         "display": {
           "family": "Manrope",
-          "weight": 700
+          "weight": 700,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Manrope"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
         "card": "C2",
         "hero": "G4",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/08-monohrom.html"
     },
     {
-      "n": 9,
       "id": "lyon",
+      "n": 9,
       "name": "Лён",
       "group": "fashion",
+      "shopType": "Одежда и аксессуары",
       "niche": "Одежда из натуральных тканей, локальные марки",
       "basis": {
         "type": "hallmark",
@@ -449,24 +573,32 @@
         "display": {
           "family": "Bona Nova",
           "weight": 400,
-          "scale": 1.06
+          "case": "none",
+          "italic": false,
+          "scale": 1.06,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Mulish"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
         "card": "C2",
         "hero": "G2",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/09-lyon.html"
     },
     {
-      "n": 10,
       "id": "strit",
+      "n": 10,
       "name": "Стрит",
       "group": "fashion",
+      "shopType": "Одежда и аксессуары",
       "niche": "Стритвир, спорт, кроссовки",
       "basis": {
         "type": "hallmark",
@@ -499,24 +631,31 @@
           "family": "Sofia Sans Extra Condensed",
           "weight": 800,
           "case": "upper",
-          "scale": 1.35
+          "italic": false,
+          "scale": 1.35,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Sofia Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C2",
         "hero": "G4",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/10-strit.html"
     },
     {
-      "n": 11,
       "id": "nuar",
+      "n": 11,
       "name": "Нуар",
       "group": "fashion",
+      "shopType": "Одежда и аксессуары",
       "niche": "Премиум: украшения, часы, аксессуары, подарки",
       "basis": {
         "type": "custom",
@@ -547,24 +686,33 @@
       "fonts": {
         "display": {
           "family": "Playfair Display",
-          "weight": 500
+          "weight": 500,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Raleway"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
         "card": "C2",
         "hero": "G4",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/11-nuar.html"
     },
     {
-      "n": 12,
       "id": "gryadka",
+      "n": 12,
       "name": "Грядка",
       "group": "food",
+      "shopType": "Еда",
       "niche": "Продукты, овощи и фрукты, фермерские товары",
       "basis": {
         "type": "hallmark",
@@ -595,24 +743,33 @@
       "fonts": {
         "display": {
           "family": "Vollkorn",
-          "weight": 600
+          "weight": 600,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Nunito Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H3",
         "card": "C3",
         "hero": "G1",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/12-gryadka.html"
     },
     {
-      "n": 13,
       "id": "skviz",
+      "n": 13,
       "name": "Сквиз",
       "group": "food",
+      "shopType": "Еда",
       "niche": "Напитки, снеки, сладости, здоровое питание",
       "basis": {
         "type": "hallmark",
@@ -643,24 +800,33 @@
       "fonts": {
         "display": {
           "family": "Nunito",
-          "weight": 900
+          "weight": 900,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Manrope"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C3",
         "hero": "G2",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/13-skviz.html"
     },
     {
-      "n": 14,
       "id": "goryacho",
+      "n": 14,
       "name": "Горячо",
       "group": "food",
+      "shopType": "Еда",
       "niche": "Доставка готовой еды: пицца, суши, бургеры",
       "basis": {
         "type": "custom",
@@ -691,24 +857,33 @@
       "fonts": {
         "display": {
           "family": "Rubik",
-          "weight": 800
+          "weight": 800,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Rubik"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H3",
         "card": "C3",
         "hero": "G3",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/14-goryacho.html"
     },
     {
-      "n": 15,
       "id": "pekarnya",
+      "n": 15,
       "name": "Пекарня",
       "group": "food",
+      "shopType": "Еда",
       "niche": "Выпечка, кофе, чай, мёд, крафтовые продукты",
       "basis": {
         "type": "hallmark",
@@ -740,24 +915,33 @@
       "fonts": {
         "display": {
           "family": "Yeseva One",
-          "weight": 400
+          "weight": 400,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "PT Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
         "card": "C1",
         "hero": "G2",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/15-pekarnya.html"
     },
     {
-      "n": 16,
       "id": "akva",
+      "n": 16,
       "name": "Аква",
       "group": "chem",
+      "shopType": "Бытовая химия",
       "niche": "Бытовая химия, гигиена, средства для уборки",
       "basis": {
         "type": "hallmark",
@@ -789,24 +973,33 @@
       "fonts": {
         "display": {
           "family": "Wix Madefor Display",
-          "weight": 500
+          "weight": 500,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Wix Madefor Text"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H3",
         "card": "C3",
         "hero": "G1",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/16-akva.html"
     },
     {
-      "n": 17,
       "id": "eko",
+      "n": 17,
       "name": "Эко",
       "group": "chem",
+      "shopType": "Бытовая химия",
       "niche": "Экотовары, бытовая химия без пластика, рефил",
       "basis": {
         "type": "custom",
@@ -837,11 +1030,17 @@
       "fonts": {
         "display": {
           "family": "Bitter",
-          "weight": 600
+          "weight": 600,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Source Sans 3"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
@@ -851,13 +1050,15 @@
       },
       "extras": {
         "dashedFrames": true
-      }
+      },
+      "preview": "preview/17-eko.html"
     },
     {
-      "n": 18,
       "id": "terrazzo",
+      "n": 18,
       "name": "Терраццо",
       "group": "home",
+      "shopType": "Товары быта",
       "niche": "Посуда, кухня, хранение, хозтовары",
       "basis": {
         "type": "hallmark",
@@ -890,7 +1091,11 @@
         "display": {
           "family": "Unbounded",
           "weight": 600,
-          "scale": 0.82
+          "case": "none",
+          "italic": false,
+          "scale": 0.82,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Onest"
@@ -904,13 +1109,16 @@
         "card": "C1",
         "hero": "G3",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/18-terrazzo.html"
     },
     {
-      "n": 19,
       "id": "yarmarka",
+      "n": 19,
       "name": "Ярмарка",
       "group": "home",
+      "shopType": "Товары быта",
       "niche": "Дискаунтер, «всё для дома» по низким ценам",
       "basis": {
         "type": "hallmark",
@@ -944,24 +1152,31 @@
           "family": "Alumni Sans",
           "weight": 800,
           "case": "upper",
-          "scale": 1.3
+          "italic": false,
+          "scale": 1.3,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Golos Text"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H3",
         "card": "C1",
         "hero": "G1",
         "listing": "L3"
-      }
+      },
+      "extras": {},
+      "preview": "preview/19-yarmarka.html"
     },
     {
-      "n": 20,
       "id": "karamel",
+      "n": 20,
       "name": "Карамель",
       "group": "kids",
+      "shopType": "Детские товары и игрушки",
       "niche": "Игрушки, товары для малышей",
       "basis": {
         "type": "hallmark",
@@ -993,24 +1208,33 @@
       "fonts": {
         "display": {
           "family": "M PLUS Rounded 1c",
-          "weight": 800
+          "weight": 800,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "M PLUS Rounded 1c"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C3",
         "hero": "G3",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/20-karamel.html"
     },
     {
-      "n": 21,
       "id": "stiker",
+      "n": 21,
       "name": "Стикер",
       "group": "kids",
+      "shopType": "Детские товары и игрушки",
       "niche": "Канцелярия, творчество, товары для школьников",
       "basis": {
         "type": "hallmark",
@@ -1043,24 +1267,32 @@
         "display": {
           "family": "Dela Gothic One",
           "weight": 400,
-          "scale": 0.86
+          "case": "none",
+          "italic": false,
+          "scale": 0.86,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Sofia Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C1",
         "hero": "G2",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/21-stiker.html"
     },
     {
-      "n": 22,
       "id": "opalubka",
+      "n": 22,
       "name": "Опалубка",
       "group": "tools",
+      "shopType": "Инструмент, стройка, авто",
       "niche": "Инструмент, стройматериалы, крепёж",
       "basis": {
         "type": "hallmark",
@@ -1094,7 +1326,10 @@
           "family": "Oswald",
           "weight": 600,
           "case": "upper",
-          "scale": 1.08
+          "italic": false,
+          "scale": 1.08,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "IBM Plex Sans"
@@ -1108,13 +1343,16 @@
         "card": "C4",
         "hero": "G1",
         "listing": "L3"
-      }
+      },
+      "extras": {},
+      "preview": "preview/22-opalubka.html"
     },
     {
-      "n": 23,
       "id": "chertyozh",
+      "n": 23,
       "name": "Чертёж",
       "group": "tools",
+      "shopType": "Инструмент, стройка, авто",
       "niche": "Электрика, сантехника, инженерные комплектующие",
       "basis": {
         "type": "hallmark",
@@ -1147,7 +1385,10 @@
           "family": "Tektur",
           "weight": 600,
           "case": "upper",
-          "scale": 0.9
+          "italic": false,
+          "scale": 0.9,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "IBM Plex Sans"
@@ -1161,13 +1402,16 @@
         "card": "C4",
         "hero": "G2",
         "listing": "L3"
-      }
+      },
+      "extras": {},
+      "preview": "preview/23-chertyozh.html"
     },
     {
-      "n": 24,
       "id": "garazh",
+      "n": 24,
       "name": "Гараж",
       "group": "tools",
+      "shopType": "Инструмент, стройка, авто",
       "niche": "Автозапчасти, шины, мото, автохимия",
       "basis": {
         "type": "hallmark",
@@ -1200,24 +1444,31 @@
           "family": "Russo One",
           "weight": 400,
           "case": "upper",
-          "scale": 0.88
+          "italic": false,
+          "scale": 0.88,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Roboto"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H3",
         "card": "C4",
         "hero": "G4",
         "listing": "L3"
-      }
+      },
+      "extras": {},
+      "preview": "preview/24-garazh.html"
     },
     {
-      "n": 25,
       "id": "terrakota",
+      "n": 25,
       "name": "Терракота",
       "group": "interior",
+      "shopType": "Мебель, декор, текстиль",
       "niche": "Мебель, предметы интерьера",
       "basis": {
         "type": "hallmark",
@@ -1249,24 +1500,32 @@
         "display": {
           "family": "Montserrat Alternates",
           "weight": 600,
-          "scale": 0.92
+          "case": "none",
+          "italic": false,
+          "scale": 0.92,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Montserrat"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C2",
         "hero": "G2",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/25-terrakota.html"
     },
     {
-      "n": 26,
       "id": "galereya",
+      "n": 26,
       "name": "Галерея",
       "group": "interior",
+      "shopType": "Мебель, декор, текстиль",
       "niche": "Декор, свет, постеры, предметы искусства",
       "basis": {
         "type": "hallmark",
@@ -1298,11 +1557,16 @@
         "display": {
           "family": "Spectral",
           "weight": 500,
-          "scale": 1.04
+          "case": "none",
+          "italic": false,
+          "scale": 1.04,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Onest"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
@@ -1312,13 +1576,15 @@
       },
       "extras": {
         "cropMarks": true
-      }
+      },
+      "preview": "preview/26-galereya.html"
     },
     {
-      "n": 27,
       "id": "hygge",
+      "n": 27,
       "name": "Хюгге",
       "group": "interior",
+      "shopType": "Мебель, декор, текстиль",
       "niche": "Домашний текстиль, свечи, уютные мелочи",
       "basis": {
         "type": "hallmark",
@@ -1350,24 +1616,32 @@
         "display": {
           "family": "Alice",
           "weight": 400,
-          "scale": 1.04
+          "case": "none",
+          "italic": false,
+          "scale": 1.04,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Mulish"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
         "card": "C3",
         "hero": "G2",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/27-hygge.html"
     },
     {
-      "n": 28,
       "id": "bento",
+      "n": 28,
       "name": "Бенто",
       "group": "neutral",
+      "shopType": "Нейтральные универсальные",
       "niche": "Любой ассортимент: светлая нейтральная витрина",
       "basis": {
         "type": "custom",
@@ -1398,24 +1672,33 @@
       "fonts": {
         "display": {
           "family": "Onest",
-          "weight": 600
+          "weight": 600,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Onest"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C3",
         "hero": "G3",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/28-bento.html"
     },
     {
-      "n": 29,
       "id": "klassika",
+      "n": 29,
       "name": "Классика",
       "group": "neutral",
+      "shopType": "Нейтральные универсальные",
       "niche": "Магазин широкого профиля",
       "basis": {
         "type": "hallmark",
@@ -1446,24 +1729,33 @@
       "fonts": {
         "display": {
           "family": "Noto Sans",
-          "weight": 700
+          "weight": 700,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Noto Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H1",
         "card": "C1",
         "hero": "G1",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/29-klassika.html"
     },
     {
-      "n": 30,
       "id": "prays",
+      "n": 30,
       "name": "Прайс",
       "group": "neutral",
+      "shopType": "Нейтральные универсальные",
       "niche": "Опт и B2B: каталог-прайс",
       "basis": {
         "type": "hallmark",
@@ -1494,7 +1786,12 @@
       "fonts": {
         "display": {
           "family": "Roboto Condensed",
-          "weight": 600
+          "weight": 600,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "IBM Plex Sans"
@@ -1508,17 +1805,20 @@
         "card": "C5",
         "hero": "G2",
         "listing": "L3"
-      }
+      },
+      "extras": {},
+      "preview": "preview/30-prays.html"
     },
     {
-      "n": 31,
       "id": "steklo",
+      "n": 31,
       "name": "Стекло",
       "group": "tech",
+      "shopType": "Бытовая и компьютерная техника",
       "niche": "Гаджеты, умный дом, носимая электроника",
       "basis": {
         "type": "custom",
-        "direction": "жидкое стекло",
+        "direction": "«жидкое стекло»",
         "genre": "modern-minimal"
       },
       "mood": "Мягкое цветное поле, полупрозрачные плитки с размытием, тёмно-синий текст, пилюли",
@@ -1545,11 +1845,17 @@
       "fonts": {
         "display": {
           "family": "Exo 2",
-          "weight": 600
+          "weight": 600,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Inter"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
@@ -1559,13 +1865,15 @@
       },
       "extras": {
         "backgroundImage": "radial-gradient(900px 520px at 10% 0%, #CFE0FF 0%, rgba(207,224,255,0) 62%), radial-gradient(820px 620px at 100% 34%, #FFE1CC 0%, rgba(255,225,204,0) 60%), #EDF1F8"
-      }
+      },
+      "preview": "preview/31-steklo.html"
     },
     {
-      "n": 32,
       "id": "terminal",
+      "n": 32,
       "name": "Терминал",
       "group": "tech",
+      "shopType": "Бытовая и компьютерная техника",
       "niche": "Комплектующие, одноплатники, сетевое оборудование",
       "basis": {
         "type": "hallmark",
@@ -1597,8 +1905,11 @@
         "display": {
           "family": "Martian Mono",
           "weight": 600,
+          "case": "none",
+          "italic": false,
           "scale": 0.7,
-          "lineHeight": 1.25
+          "lineHeight": 1.25,
+          "letterSpacing": null
         },
         "body": {
           "family": "JetBrains Mono"
@@ -1612,13 +1923,16 @@
         "card": "C4",
         "hero": "G2",
         "listing": "L3"
-      }
+      },
+      "extras": {},
+      "preview": "preview/32-terminal.html"
     },
     {
-      "n": 33,
       "id": "ambra",
+      "n": 33,
       "name": "Амбра",
       "group": "beauty",
+      "shopType": "Косметика",
       "niche": "Нишевая парфюмерия, ароматы для дома",
       "basis": {
         "type": "hallmark",
@@ -1651,24 +1965,31 @@
           "family": "Prata",
           "weight": 400,
           "case": "lower",
-          "scale": 0.94
+          "italic": false,
+          "scale": 0.94,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Onest"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
         "card": "C2",
         "hero": "G4",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/33-ambra.html"
     },
     {
-      "n": 34,
       "id": "rosa",
+      "n": 34,
       "name": "Роса",
       "group": "beauty",
+      "shopType": "Косметика",
       "niche": "Натуральная косметика, мыло ручной работы",
       "basis": {
         "type": "custom",
@@ -1699,11 +2020,17 @@
       "fonts": {
         "display": {
           "family": "Tenor Sans",
-          "weight": 400
+          "weight": 400,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Nunito Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
@@ -1713,13 +2040,15 @@
       },
       "extras": {
         "tileShape": "arch"
-      }
+      },
+      "preview": "preview/34-rosa.html"
     },
     {
-      "n": 35,
       "id": "modul",
+      "n": 35,
       "name": "Модуль",
       "group": "fashion",
+      "shopType": "Одежда и аксессуары",
       "niche": "Мультибрендовый магазин одежды и обуви",
       "basis": {
         "type": "custom",
@@ -1751,24 +2080,32 @@
         "display": {
           "family": "Inter Tight",
           "weight": 700,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
           "letterSpacing": "-0.03em"
         },
         "body": {
           "family": "Inter"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H1",
         "card": "C6",
         "hero": "G4",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/35-modul.html"
     },
     {
-      "n": 36,
       "id": "kross",
+      "n": 36,
       "name": "Кросс",
       "group": "fashion",
+      "shopType": "Одежда и аксессуары",
       "niche": "Кроссовки, спортивная обувь",
       "basis": {
         "type": "custom",
@@ -1802,24 +2139,30 @@
           "weight": 900,
           "case": "upper",
           "italic": true,
-          "scale": 1.34
+          "scale": 1.34,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Fira Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C2",
         "hero": "G4",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/36-kross.html"
     },
     {
-      "n": 37,
       "id": "matcha",
+      "n": 37,
       "name": "Матча",
       "group": "food",
+      "shopType": "Еда",
       "niche": "Чай, кофе, специи, посуда для заваривания",
       "basis": {
         "type": "custom",
@@ -1851,11 +2194,16 @@
         "display": {
           "family": "Forum",
           "weight": 400,
-          "scale": 1.12
+          "case": "none",
+          "italic": false,
+          "scale": 1.12,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Mulish"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
@@ -1865,13 +2213,15 @@
       },
       "extras": {
         "tileShape": "circle"
-      }
+      },
+      "preview": "preview/37-matcha.html"
     },
     {
-      "n": 38,
       "id": "batonchik",
+      "n": 38,
       "name": "Батончик",
       "group": "food",
+      "shopType": "Еда",
       "niche": "Снеки, батончики, здоровое питание",
       "basis": {
         "type": "custom",
@@ -1903,11 +2253,16 @@
         "display": {
           "family": "Days One",
           "weight": 400,
-          "scale": 0.84
+          "case": "none",
+          "italic": false,
+          "scale": 0.84,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Onest"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
@@ -1922,13 +2277,15 @@
           "#FFD166",
           "#9AD4FF"
         ]
-      }
+      },
+      "preview": "preview/38-batonchik.html"
     },
     {
-      "n": 39,
       "id": "markirovka",
+      "n": 39,
       "name": "Маркировка",
       "group": "chem",
+      "shopType": "Бытовая химия",
       "niche": "Профессиональная химия, клининг, расходники",
       "basis": {
         "type": "hallmark",
@@ -1960,8 +2317,11 @@
         "display": {
           "family": "Roboto Mono",
           "weight": 600,
+          "case": "none",
+          "italic": false,
           "scale": 0.8,
-          "lineHeight": 1.2
+          "lineHeight": 1.2,
+          "letterSpacing": null
         },
         "body": {
           "family": "Roboto Mono"
@@ -1981,13 +2341,15 @@
           "bg": "#FFB000",
           "ink": "#111A2B"
         }
-      }
+      },
+      "preview": "preview/39-markirovka.html"
     },
     {
-      "n": 40,
       "id": "pena",
+      "n": 40,
       "name": "Пена",
       "group": "chem",
+      "shopType": "Бытовая химия",
       "niche": "Гипоаллергенная химия, детская гигиена",
       "basis": {
         "type": "custom",
@@ -2018,24 +2380,33 @@
       "fonts": {
         "display": {
           "family": "Nunito",
-          "weight": 800
+          "weight": 800,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Nunito"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C3",
         "hero": "G2",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/40-pena.html"
     },
     {
-      "n": 41,
       "id": "farfor",
+      "n": 41,
       "name": "Фарфор",
       "group": "home",
+      "shopType": "Товары быта",
       "niche": "Посуда и керамика ручной работы",
       "basis": {
         "type": "hallmark",
@@ -2066,24 +2437,33 @@
       "fonts": {
         "display": {
           "family": "Golos Text",
-          "weight": 800
+          "weight": 800,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Literata"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
         "card": "C2",
         "hero": "G2",
         "listing": "L2"
-      }
+      },
+      "extras": {},
+      "preview": "preview/41-farfor.html"
     },
     {
-      "n": 42,
       "id": "bauhaus",
+      "n": 42,
       "name": "Баухаус",
       "group": "home",
+      "shopType": "Товары быта",
       "niche": "Хозтовары, сад и дача",
       "basis": {
         "type": "hallmark",
@@ -2115,11 +2495,16 @@
         "display": {
           "family": "Jost",
           "weight": 700,
-          "case": "upper"
+          "case": "upper",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Jost"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H3",
@@ -2132,13 +2517,15 @@
           "bg": "#F5C400",
           "ink": "#141414"
         }
-      }
+      },
+      "preview": "preview/42-bauhaus.html"
     },
     {
-      "n": 43,
       "id": "oblako",
+      "n": 43,
       "name": "Облако",
       "group": "kids",
+      "shopType": "Детские товары и игрушки",
       "niche": "Детская одежда и обувь",
       "basis": {
         "type": "custom",
@@ -2169,11 +2556,17 @@
       "fonts": {
         "display": {
           "family": "Balsamiq Sans",
-          "weight": 700
+          "weight": 700,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Nunito Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
@@ -2183,13 +2576,15 @@
       },
       "extras": {
         "backgroundImage": "radial-gradient(#FFFFFF 2.5px, rgba(255,255,255,0) 3px) 0 0 / 28px 28px, #E8F3FF"
-      }
+      },
+      "preview": "preview/43-oblako.html"
     },
     {
-      "n": 44,
       "id": "komiks",
+      "n": 44,
       "name": "Комикс",
       "group": "kids",
+      "shopType": "Детские товары и игрушки",
       "niche": "Настольные игры, комиксы, фигурки",
       "basis": {
         "type": "hallmark",
@@ -2220,11 +2615,17 @@
       "fonts": {
         "display": {
           "family": "Roboto Slab",
-          "weight": 900
+          "weight": 900,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Golos Text"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
@@ -2238,13 +2639,15 @@
           "bg": "#2A1A12",
           "ink": "#FBF1CF"
         }
-      }
+      },
+      "preview": "preview/44-komiks.html"
     },
     {
-      "n": 45,
       "id": "karkas",
+      "n": 45,
       "name": "Каркас",
       "group": "tools",
+      "shopType": "Инструмент, стройка, авто",
       "niche": "Стройматериалы, строительный гипермаркет",
       "basis": {
         "type": "hallmark",
@@ -2277,24 +2680,31 @@
           "family": "Libre Franklin",
           "weight": 900,
           "case": "upper",
-          "scale": 0.9
+          "italic": false,
+          "scale": 0.9,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Libre Franklin"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H3",
         "card": "C6",
         "hero": "G1",
         "listing": "L3"
-      }
+      },
+      "extras": {},
+      "preview": "preview/45-karkas.html"
     },
     {
-      "n": 46,
       "id": "ralli",
+      "n": 46,
       "name": "Ралли",
       "group": "tools",
+      "shopType": "Инструмент, стройка, авто",
       "niche": "Шины, диски, автоаксессуары",
       "basis": {
         "type": "custom",
@@ -2327,7 +2737,10 @@
           "family": "Yanone Kaffeesatz",
           "weight": 700,
           "case": "upper",
-          "scale": 1.2
+          "italic": false,
+          "scale": 1.2,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Golos Text"
@@ -2347,13 +2760,15 @@
           "bg": "#C8102E",
           "ink": "#FFFFFF"
         }
-      }
+      },
+      "preview": "preview/46-ralli.html"
     },
     {
-      "n": 47,
       "id": "palitra",
+      "n": 47,
       "name": "Палитра",
       "group": "interior",
+      "shopType": "Мебель, декор, текстиль",
       "niche": "Ковры, текстиль, обои",
       "basis": {
         "type": "custom",
@@ -2385,11 +2800,16 @@
         "display": {
           "family": "Golos Text",
           "weight": 500,
-          "scale": 0.92
+          "case": "none",
+          "italic": false,
+          "scale": 0.92,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Golos Text"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H4",
@@ -2410,13 +2830,15 @@
           "repeating-linear-gradient(45deg, rgba(255,255,255,0.32) 0 10px, rgba(255,255,255,0) 10px 30px)",
           "repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.32) 0 6px, rgba(255,255,255,0) 6px 22px)"
         ]
-      }
+      },
+      "preview": "preview/47-palitra.html"
     },
     {
-      "n": 48,
       "id": "retro",
+      "n": 48,
       "name": "Ретро",
       "group": "interior",
+      "shopType": "Мебель, декор, текстиль",
       "niche": "Мебель и свет в стиле середины века",
       "basis": {
         "type": "custom",
@@ -2447,24 +2869,33 @@
       "fonts": {
         "display": {
           "family": "Jost",
-          "weight": 600
+          "weight": 600,
+          "case": "none",
+          "italic": false,
+          "scale": 1.0,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Jost"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H2",
         "card": "C3",
         "hero": "G2",
         "listing": "L1"
-      }
+      },
+      "extras": {},
+      "preview": "preview/48-retro.html"
     },
     {
-      "n": 49,
       "id": "gazeta",
+      "n": 49,
       "name": "Газета",
       "group": "neutral",
+      "shopType": "Нейтральные универсальные",
       "niche": "Универсальный каталог: книги, хобби, подарки",
       "basis": {
         "type": "hallmark",
@@ -2496,11 +2927,16 @@
         "display": {
           "family": "Podkova",
           "weight": 700,
-          "scale": 1.06
+          "case": "none",
+          "italic": false,
+          "scale": 1.06,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Spectral"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H1",
@@ -2510,13 +2946,15 @@
       },
       "extras": {
         "headerRule": "4px double #1F1B16"
-      }
+      },
+      "preview": "preview/49-gazeta.html"
     },
     {
-      "n": 50,
       "id": "market",
+      "n": 50,
       "name": "Маркет",
       "group": "neutral",
+      "shopType": "Нейтральные универсальные",
       "niche": "Подача как у маркетплейса: плотный каталог",
       "basis": {
         "type": "custom",
@@ -2548,11 +2986,16 @@
         "display": {
           "family": "Open Sans",
           "weight": 700,
-          "scale": 0.94
+          "case": "none",
+          "italic": false,
+          "scale": 0.94,
+          "lineHeight": null,
+          "letterSpacing": null
         },
         "body": {
           "family": "Open Sans"
-        }
+        },
+        "mono": null
       },
       "blocks": {
         "header": "H3",
@@ -2562,7 +3005,8 @@
       },
       "extras": {
         "homeGridColumns": 5
-      }
+      },
+      "preview": "preview/50-market.html"
     }
   ]
 }
