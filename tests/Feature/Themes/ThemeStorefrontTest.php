@@ -159,20 +159,51 @@ describe('every theme renders the main pages (TH-32)', function (): void {
         $product = Product::factory()->inCategory($category)->create(['stock_qty' => 5]);
         setTheme($id);
 
+        // A product in the cart (cookie), otherwise /checkout redirects to /cart.
+        sales(['min_order_amount' => 0]);
+        $cart = cartWith(sellable());
+        $this->withCookie('cart', $cart->token);
+
         $urls = [route('home'), route('catalog.index'), route('catalog.category', $category->slug), route('product.show', $product->slug), route('cart'), route('checkout')];
 
         foreach ($urls as $url) {
-            $response = $this->get($url);
-            expect($response->status())->toBeIn([200, 302])->and($response->status() === 200 || $url === route('checkout'))->toBeTrue();
+            $html = $this->get($url)->assertOk()->getContent();
 
-            if ($response->status() === 200) {
-                $html = $response->getContent();
-                expect(rootBlock($html))->toContain('--shop-bg: '.strtolower($theme->colors['bg']).';')
-                    ->toContain('--shop-primary: '.strtolower($theme->colors['primary']).';')
-                    ->toContain('--shop-radius: '.$theme->shape['radius'].'px;')
-                    ->and($html)->not->toContain('fonts.googleapis.com')
-                    ->and($html)->not->toContain('fonts.gstatic.com');
-            }
+            expect(rootBlock($html))->toContain('--shop-bg: '.strtolower($theme->colors['bg']).';')
+                ->toContain('--shop-primary: '.strtolower($theme->colors['primary']).';')
+                ->toContain('--shop-radius: '.$theme->shape['radius'].'px;')
+                ->and($html)->not->toContain('fonts.googleapis.com')
+                ->and($html)->not->toContain('fonts.gstatic.com');
         }
     })->with(fn () => array_merge(['default'], array_column(json_decode((string) file_get_contents(dirname(__DIR__, 3).'/resources/themes/themes.json'), true)['themes'], 'id')));
+});
+
+describe('display font (TH-19, TH-20)', function (): void {
+    it('prints the display tokens of the theme and the built css applies them to headings', function (): void {
+        setTheme('arkada');
+        $html = $this->get(route('home'))->assertOk()->getContent();
+
+        expect(rootBlock($html))->toContain('--shop-font-display: "Press Start 2P"');
+
+        $built = glob(public_path('build/assets/*.css')) ?: [];
+        if ($built === []) {
+            $this->markTestSkipped('Vite build is absent.');
+        }
+
+        $css = (string) file_get_contents($built[0]);
+        expect($css)->toContain('font-family:var(--shop-font-display)')
+            ->and($css)->toContain('var(--shop-display-weight-set')
+            ->and($css)->toContain('var(--shop-display-scale)');
+    });
+
+    it('logs an unknown theme id once per day', function (): void {
+        Log::spy();
+        Cache::flush();
+        $registry = app(ThemeRegistry::class);
+
+        $registry->findOrDefault('gone-theme');
+        $registry->findOrDefault('gone-theme');
+
+        Log::shouldHaveReceived('warning')->once();
+    });
 });

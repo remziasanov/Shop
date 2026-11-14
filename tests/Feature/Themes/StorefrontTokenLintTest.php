@@ -5,6 +5,25 @@ declare(strict_types=1);
 use Symfony\Component\Finder\Finder;
 
 /**
+ * @return array<string, string> label => regex
+ */
+function storefrontTokenRules(): array
+{
+    $palette = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
+    $prefixes = 'bg|text|border|border-[trblxyse]|ring|ring-offset|inset-ring|inset-shadow|fill|stroke|from|to|via|divide|outline|decoration|placeholder|accent|caret|shadow';
+
+    return [
+        'palette color' => "/(?<![\\w-])(?:{$prefixes})-(?:(?:{$palette})-\\d{2,3}|white|black)(?![\\w-])/",
+        // A hex color in markup, an inline style or a JS string; anchors (href="#cart", id="#x"), HTML entities (&#039;) are skipped.
+        'hex literal' => '/(?<![\w&\/=])(?<!href="|href=\'|id="|id=\'|wire:target=")#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![\w-])/',
+        'font-family' => '/font-family\s*:/i',
+        'arbitrary color' => "/(?<![\\w-])(?:{$prefixes})-\\[(?:#|rgb|hsl|oklch)/",
+        // A color function anywhere inside an arbitrary value, e.g. shadow-[0_1px_0_rgb(...)].
+        'color function in arbitrary value' => '/\[[^\]\s]*(?:rgba?|hsla?|oklch)\(/i',
+    ];
+}
+
+/**
  * TH-06: storefront templates take colors, fonts and radii only from the --shop-* tokens (through the Tailwind
  * utilities mapped in resources/css/app.css), never from the Tailwind palette, hex literals or font-family.
  *
@@ -15,15 +34,7 @@ function storefrontTokenViolations(): array
     $base = resource_path('views');
     $dirs = ['storefront', 'components/storefront', 'components/account', 'livewire/storefront', 'errors'];
 
-    $palette = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
-    $prefixes = 'bg|text|border|ring|ring-offset|fill|stroke|from|to|via|divide|outline|decoration|placeholder|accent|caret|shadow';
-    $rules = [
-        'palette color' => "/(?<![\\w-])(?:{$prefixes})-(?:(?:{$palette})-\\d{2,3}|white|black)(?![\\w-])/",
-        // A hex color in markup or an inline style; anchors (href="#cart"), HTML entities (&#039;) and PHP regexes are skipped.
-        'hex literal' => '/(?<![\w&\/"\'=])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![\w-])(?!["\'])/',
-        'font-family' => '/font-family\s*:/i',
-        'arbitrary color' => '/(?<![\w-])(?:bg|text|border|ring|fill|stroke|from|to|via|divide|outline|decoration|placeholder|accent|caret|shadow)-\[(?:#|rgb|hsl|oklch)/',
-    ];
+    $rules = storefrontTokenRules();
 
     $violations = [];
     $finder = Finder::create()->files()->name('*.php')->in(array_map(fn (string $d): string => $base.'/'.$d, $dirs));
@@ -46,12 +57,25 @@ it('has no Tailwind palette colors, hex literals or font-family in storefront te
 });
 
 it('detects offenders (the linter itself works)', function () {
-    $palette = '/(?<![\w-])(?:bg|text)-(?:(?:slate|red)-\d{2,3}|white|black)(?![\w-])/';
+    $rules = storefrontTokenRules();
+    $hits = fn (string $rule, string $line): int => (int) preg_match($rules[$rule], $line);
 
-    expect(preg_match($palette, '<p class="hover:bg-slate-50">'))->toBe(1)
-        ->and(preg_match($palette, '<p class="text-white/80">'))->toBe(1)
-        ->and(preg_match($palette, '<p class="bg-surface-2 text-ink-soft">'))->toBe(0)
-        ->and(preg_match($palette, '<p class="text-whitespace">'))->toBe(0);
+    expect($hits('palette color', '<p class="hover:bg-slate-50">'))->toBe(1)
+        ->and($hits('palette color', '<p class="text-white/80">'))->toBe(1)
+        ->and($hits('palette color', '<p class="border-t-slate-200">'))->toBe(1)
+        ->and($hits('palette color', '<p class="border-b-gray-100 border-x-white">'))->toBe(1)
+        ->and($hits('palette color', '<p class="inset-ring-slate-200">'))->toBe(1)
+        ->and($hits('palette color', '<p class="inset-shadow-black">'))->toBe(1)
+        ->and($hits('palette color', '<p class="bg-surface-2 text-ink-soft border-t border-line">'))->toBe(0)
+        ->and($hits('palette color', '<p class="text-whitespace">'))->toBe(0)
+        ->and($hits('hex literal', '<p style="color:#fff">'))->toBe(1)
+        ->and($hits('hex literal', '<p :style="{ background: \'#ff0000\' }">'))->toBe(1)
+        ->and($hits('hex literal', '<a href="#cart" id="x">'))->toBe(0)
+        ->and($hits('hex literal', 'x-bind:style="\'color: #abcdef\'"'))->toBe(1)
+        ->and($hits('color function in arbitrary value', '<p class="shadow-[0_-1px_0_0_rgb(226_232_240)]">'))->toBe(1)
+        ->and($hits('color function in arbitrary value', '<p class="shadow-[0_1px_0_rgba(0,0,0,.1)]">'))->toBe(1)
+        ->and($hits('color function in arbitrary value', '<p class="shadow-[0_-1px_0_0_var(--shop-line)]">'))->toBe(0)
+        ->and($hits('arbitrary color', '<p class="border-t-[#fff]">'))->toBe(1);
 });
 
 it('defines every contract token in the CSS block (TH-05)', function () {

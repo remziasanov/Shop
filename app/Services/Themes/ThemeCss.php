@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Cache;
  */
 final class ThemeCss
 {
+    /** Bump when the generated CSS format changes, so a deploy never serves a stale cached block. */
+    private const FORMAT = 2;
+
     private const TTL = 86400;
 
     private const STACKS = [
@@ -45,7 +48,7 @@ final class ThemeCss
 
     public static function cacheKey(ResolvedTheme $theme, string $version): string
     {
-        return 'theme-css:'.$version.':'.$theme->id.':'.self::overridesHash($theme->overrides);
+        return 'theme-css:'.self::FORMAT.':'.$version.':'.$theme->id.':'.self::overridesHash($theme->overrides);
     }
 
     /**
@@ -150,9 +153,21 @@ final class ThemeCss
             'display-case' => $display['case'],
             'display-scale' => rtrim(rtrim(number_format((float) $display['scale'], 3, '.', ''), '0'), '.'),
             'display-style' => $display['italic'] ? 'italic' : 'normal',
-            'display-line-height' => $display['lineHeight'] !== null ? rtrim(rtrim(number_format((float) $display['lineHeight'], 3, '.', ''), '0'), '.') : 'normal',
-            'display-tracking' => $display['letterSpacing'] ?? 'normal',
         ];
+
+        // Printed only when the theme differs from the utility weights (700): the heading rule then forces the weight.
+        if ((int) $display['weight'] !== 700) {
+            $vars['display-weight-set'] = (string) $display['weight'];
+        }
+
+        // Optional tokens: printed only when the theme sets them (the CSS falls back to the utility values).
+        if ($display['lineHeight'] !== null) {
+            $vars['display-line-height'] = rtrim(rtrim(number_format((float) $display['lineHeight'], 3, '.', ''), '0'), '.');
+        }
+
+        if ($display['letterSpacing'] !== null) {
+            $vars['display-tracking'] = $display['letterSpacing'];
+        }
 
         $out = ':root{';
 

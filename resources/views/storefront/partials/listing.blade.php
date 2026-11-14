@@ -110,7 +110,7 @@
                 </label>
             @endif
 
-            <div class="flex gap-2 max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:-mb-4 max-md:bg-surface max-md:p-4 max-md:pb-[calc(1rem+var(--shop-safe-bottom))] max-md:shadow-[0_-1px_0_0_rgb(226_232_240)]">
+            <div class="flex gap-2 max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:-mb-4 max-md:bg-surface max-md:p-4 max-md:pb-[calc(1rem+var(--shop-safe-bottom))] max-md:shadow-[0_-1px_0_0_var(--shop-line)]">
                 <button type="submit" class="min-h-11 flex-1 rounded-btn bg-primary px-3 py-2 text-sm font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                     <span class="md:hidden">{{ trans_choice('storefront.filters.show_products', $paginator->total()) }}</span>
                     <span class="max-md:hidden">{{ __('storefront.filters.apply') }}</span>

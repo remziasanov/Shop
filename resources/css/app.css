@@ -35,6 +35,7 @@
         --shop-display-weight: 700;
         --shop-display-case: none;
         --shop-display-scale: 1;
+        --shop-display-style: normal;
 
         /* Derived: text tints between ink and muted, soft borders between line and muted, panels between surface and line. */
         --shop-ink-high: color-mix(in srgb, var(--shop-muted) 18%, var(--shop-ink));
@@ -219,6 +220,53 @@ html[data-kb] .shop-bottom-nav {
         display: flex;
         align-items: center;
         min-height: 2.75rem;
+    }
+}
+
+/*
+ * Display typography (TH-05, TH-19, TH-20). Headings and .font-display use the theme display tokens. Unlayered, so
+ * they win over the size / weight utilities on the heading itself. Theme `default` stays pixel-identical: the system
+ * stack, weight 700 (the utilities font-bold / font-semibold keep working: --shop-display-weight-set is printed only
+ * when the theme weight differs from 700), case none, scale 1. line-height and letter-spacing apply only when the
+ * theme prints the token (revert-layer otherwise).
+ */
+:is(h1, h2, h3, .font-display) {
+    font-family: var(--shop-font-display);
+    font-weight: var(--shop-display-weight-set, revert-layer);
+    font-style: var(--shop-display-style, normal);
+    text-transform: var(--shop-display-case);
+    line-height: var(--shop-display-line-height, revert-layer);
+    letter-spacing: var(--shop-display-tracking, revert-layer);
+}
+
+/* Heading sizes follow --shop-display-scale (the Tailwind sizes used on headings; 1 = unchanged). */
+:is(h1, h2, h3).text-lg {
+    font-size: calc(1.125rem * var(--shop-display-scale));
+}
+
+:is(h1, h2, h3).text-xl {
+    font-size: calc(1.25rem * var(--shop-display-scale));
+}
+
+:is(h1, h2, h3).text-2xl {
+    font-size: calc(1.5rem * var(--shop-display-scale));
+}
+
+:is(h1, h2, h3).text-3xl {
+    font-size: calc(1.875rem * var(--shop-display-scale));
+}
+
+@media (min-width: 48rem) {
+    :is(h1, h2, h3).md\:text-2xl {
+        font-size: calc(1.5rem * var(--shop-display-scale));
+    }
+
+    :is(h1, h2, h3).md\:text-3xl {
+        font-size: calc(1.875rem * var(--shop-display-scale));
+    }
+
+    :is(h1, h2, h3).md\:text-4xl {
+        font-size: calc(2.25rem * var(--shop-display-scale));
     }
 }
 

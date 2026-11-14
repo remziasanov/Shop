@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Themes;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -87,7 +88,12 @@ final class ThemeRegistry
         $theme = $id === null ? null : $this->find($id);
 
         if ($theme === null) {
-            Log::warning('Unknown theme id in settings, falling back to default.', ['theme_id' => is_string($id) ? mb_substr($id, 0, 64) : null]);
+            $safe = is_string($id) ? mb_substr($id, 0, 64) : null;
+
+            // Once per id per day: the warning must not flood the log on every request.
+            if (Cache::add('theme-unknown-logged:'.md5((string) $safe).':'.date('Ymd'), 1, 86400)) {
+                Log::warning('Unknown theme id in settings, falling back to default.', ['theme_id' => $safe]);
+            }
 
             return $this->default();
         }

@@ -46,8 +46,9 @@ final class ThemeManager
             return;
         }
 
+        $before = $this->activeResolved();
         $this->settings->theme_id = $themeId;
-        $this->persist();
+        $this->persist($before);
         $this->audit->record(AuditAction::ThemeChanged, $actor, null, ['from' => $from, 'to' => $themeId]);
     }
 
@@ -76,8 +77,9 @@ final class ThemeManager
             $all[$themeId] = $new;
         }
 
+        $before = $this->activeResolved();
         $this->settings->theme_overrides = $all;
-        $this->persist();
+        $this->persist($before);
 
         if (($old['colors'] ?? []) !== ($new['colors'] ?? [])) {
             $this->audit->record(AuditAction::ThemeColorsChanged, $actor, null, ['theme' => $themeId, 'from' => $old['colors'] ?? [], 'to' => $new['colors'] ?? []]);
@@ -116,26 +118,34 @@ final class ThemeManager
     }
 
     /**
-     * Saves the settings, drops the cached CSS of the previous state and mirrors the active primary and accent into the
-     * legacy fields.
+     * The active theme with its stored overrides, as it is before a change.
      */
-    private function persist(): void
+    private function activeResolved(): ResolvedTheme
     {
+        $theme = $this->themes->findOrDefault($this->settings->theme_id);
+
+        return $this->resolver->resolve($theme, $this->overridesFor($theme->id));
+    }
+
+    /**
+     * Drops the cached CSS of the state before the change (D-137), saves the settings and mirrors the active primary
+     * and accent into the legacy fields.
+     */
+    private function persist(ResolvedTheme $before): void
+    {
+        $this->css->forget($before);
         $this->settings->save();
         $this->mirrorLegacyColors();
     }
 
     private function mirrorLegacyColors(): void
     {
-        $theme = $this->themes->findOrDefault($this->settings->theme_id);
-        $resolved = $this->resolver->resolve($theme, $this->overridesFor($theme->id));
+        $resolved = $this->activeResolved();
 
         if ($this->settings->primary_color !== $resolved->colors['primary'] || $this->settings->accent_color !== $resolved->colors['accent']) {
             $this->settings->primary_color = $resolved->colors['primary'];
             $this->settings->accent_color = $resolved->colors['accent'];
             $this->settings->save();
         }
-
-        $this->css->forget($resolved);
     }
 }
