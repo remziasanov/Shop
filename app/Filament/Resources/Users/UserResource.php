@@ -11,10 +11,12 @@ use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Resources\Users\Pages\ListUsers;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Telegram\TelegramLinkService;
 use App\Services\Users\AdminGuard;
 use App\Services\Users\EscalationGuard;
 use App\Services\Users\StaffAccountService;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
@@ -29,6 +31,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rules\Password;
 use UnitEnum;
 
@@ -138,7 +141,7 @@ class UserResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('role:id,name'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['role:id,name', 'telegramAccount:id,user_id,username,first_name']))
             ->columns([
                 TextColumn::make('name')
                     ->label(__('shop.users.fields.name'))
@@ -152,6 +155,13 @@ class UserResource extends Resource
                     ->label(__('shop.users.fields.role'))
                     ->badge()
                     ->placeholder('—'),
+                // TS-02: the Telegram linked to the staff member.
+                TextColumn::make('telegramAccount.username')
+                    ->label(__('telegram_staff.users.column'))
+                    ->state(fn (User $record): string => $record->telegramAccount === null
+                        ? __('telegram_staff.users.not_linked')
+                        : (filled($record->telegramAccount->username) ? '@'.$record->telegramAccount->username : (string) $record->telegramAccount->first_name))
+                    ->color(fn (User $record): string => $record->telegramAccount === null ? 'gray' : 'success'),
                 IconColumn::make('is_active')
                     ->label(__('shop.users.fields.is_active'))
                     ->boolean(),
@@ -162,6 +172,20 @@ class UserResource extends Resource
             ])
             ->recordActions([
                 EditAction::make(),
+                // TS-02: an administrator removes the link; the buttons and the «Рабочее место» stop at once.
+                Action::make('unlink_telegram')
+                    ->label(__('telegram_staff.users.unlink'))
+                    ->icon(Heroicon::OutlinedLinkSlash)
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalDescription(__('telegram_staff.users.unlink_confirm'))
+                    ->visible(fn (User $record): bool => $record->telegramAccount !== null && Gate::allows('update', $record))
+                    ->action(function (User $record): void {
+                        abort_unless(Gate::allows('update', $record), 403);
+                        $actor = auth()->user();
+                        app(TelegramLinkService::class)->unlinkStaff($record, $actor instanceof User ? $actor : null);
+                        Notification::make()->success()->title(__('telegram_staff.users.unlinked'))->send();
+                    }),
                 DeleteAction::make()->using(fn (User $record) => static::deleteRecord($record)),
             ])
             ->defaultSort('name');

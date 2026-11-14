@@ -4,6 +4,32 @@ declare(strict_types=1);
 
 return [
 
+    'change_source' => [
+        'admin' => 'Админка',
+        'telegram' => 'Telegram',
+        'customer' => 'Покупатель',
+        'system' => 'Система',
+    ],
+
+    'message_kind' => [
+        'order_created' => 'Обращение принято',
+        'status_changed' => 'Смена статуса',
+        'reservation_expiring' => 'Резерв скоро истекает',
+        'reservation_expired' => 'Резерв истёк',
+        'items_changed' => 'Состав изменён',
+        'wholesale_decision' => 'Решение по заявке на опт',
+        'export_ready' => 'Выгрузка готова',
+        'staff_new_order' => 'Новое обращение (сотрудникам)',
+        'staff_order_action' => 'Действие сотрудника',
+    ],
+
+    'message_status' => [
+        'queued' => 'В очереди',
+        'sent' => 'Отправлено',
+        'failed' => 'Ошибка',
+        'skipped' => 'Пропущено',
+    ],
+
     'link_purpose' => [
         'customer' => 'Привязка к покупателю',
         'staff' => 'Привязка к сотруднику',

@@ -34,10 +34,16 @@ enum AuditAction: string
     case ThemeFontsChanged = 'theme.fonts_changed';
     case UserTelegramLinked = 'user.telegram_linked';
     case UserTelegramUnlinked = 'user.telegram_unlinked';
+    case OrderStatusChanged = 'order.status_changed';
+    case OrderReservationExtended = 'order.reservation_extended';
+    case OrderManagerCommentChanged = 'order.manager_comment_changed';
 
     public function label(): string
     {
-        return __('roles.audit.actions.'.$this->value);
+        // The codes contain dots, so `__('…actions.role.created')` would look for nested arrays: read the flat map itself.
+        $lines = trans('roles.audit.actions');
+
+        return is_array($lines) && is_string($lines[$this->value] ?? null) ? $lines[$this->value] : $this->value;
     }
 
     /**

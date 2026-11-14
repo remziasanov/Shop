@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Models\WholesaleApplication;
 use App\Services\Notifications\JobFanOut;
 use App\Services\Notifications\TelegramNotifier;
+use App\Services\Telegram\CustomerTelegramNotifier;
 use App\Services\Users\AuditLogger;
 use App\Services\Users\PermissionService;
 use App\Settings\NotificationSettings;
@@ -512,6 +513,13 @@ final class WholesaleApplicationService
             route('customer.wholesale', absolute: false),
             'wholesale:'.$application->id.':'.$application->status->value.':'.($application->decided_at?->getTimestamp() ?? 0),
         );
+
+        // TN-02: the decision as a message in the customer's Telegram (a queued job; its failure changes nothing).
+        try {
+            app(CustomerTelegramNotifier::class)->wholesaleDecision($application, $group);
+        } catch (Throwable $e) {
+            report($e);
+        }
 
         try {
             Mail::to($customer->email)->send(new WholesaleDecisionMail(

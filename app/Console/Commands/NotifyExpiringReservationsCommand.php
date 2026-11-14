@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Services\Customers\CustomerNotificationService;
 use App\Services\Notifications\JobFanOut;
 use App\Services\Notifications\TelegramNotifier;
+use App\Services\Telegram\CustomerTelegramNotifier;
 use App\Settings\NotificationSettings;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -28,11 +29,18 @@ class NotifyExpiringReservationsCommand extends Command
 
     protected $description = 'Telegram warning about reservations that expire within 6 hours, once per reservation (AD-10)';
 
-    public function handle(NotificationSettings $settings, TelegramNotifier $telegram, CustomerNotificationService $cabinet): int
+    public function handle(NotificationSettings $settings, TelegramNotifier $telegram, CustomerNotificationService $cabinet, CustomerTelegramNotifier $customerTelegram): int
     {
         // CA-18: the cabinet notification of the customer does not depend on the Telegram settings of the shop.
         try {
             $cabinet->notifyExpiringReservations(microtime(true) + 20);
+        } catch (Throwable $e) {
+            report($e);
+        }
+
+        // TN-02: the customer's Telegram message; own switches (TelegramSettings), independent of the shop's work chat.
+        try {
+            $customerTelegram->notifyExpiringReservations(microtime(true) + 15);
         } catch (Throwable $e) {
             report($e);
         }

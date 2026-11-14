@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\StatusChangeSource;
 use App\Services\Users\AuditLogger;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -19,10 +20,11 @@ use Illuminate\Support\Carbon;
  * @property string|null $subject_type
  * @property int|null $subject_id
  * @property array<string, mixed>|null $data
+ * @property StatusChangeSource $source admin or telegram (TS-07)
  * @property string|null $ip
  * @property Carbon $created_at
  */
-#[Fillable(['user_id', 'action', 'subject_type', 'subject_id', 'data', 'ip', 'created_at'])]
+#[Fillable(['user_id', 'action', 'subject_type', 'subject_id', 'data', 'source', 'ip', 'created_at'])]
 class AdminAuditEntry extends Model
 {
     protected $table = 'admin_audit_log';
@@ -33,6 +35,7 @@ class AdminAuditEntry extends Model
     {
         return [
             'data' => 'array',
+            'source' => StatusChangeSource::class,
             'created_at' => 'datetime',
         ];
     }

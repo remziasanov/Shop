@@ -7,10 +7,10 @@ namespace App\Services\Telegram;
 use App\Enums\OrderStatus;
 use App\Models\TelegramAccount;
 use App\Models\TelegramLinkToken;
+use App\Models\TelegramMessage;
 use App\Models\TelegramUpdate;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Daily housekeeping of the Telegram tables (TG-12). Every table is deleted in chunks until a deadline, so a long
@@ -63,20 +63,7 @@ class TelegramPruner
 
     private function pruneMessages(float $deadline): int
     {
-        // telegram_messages arrives with stage 18 (TN-07).
-        if (! Schema::hasTable('telegram_messages')) {
-            return 0;
-        }
-
-        $query = DB::table('telegram_messages')->where('created_at', '<', now()->subDays(self::MESSAGES_DAYS));
-        $deleted = 0;
-
-        do {
-            $ids = (clone $query)->limit(self::CHUNK)->pluck('id');
-            $deleted += $ids->isEmpty() ? 0 : DB::table('telegram_messages')->whereIn('id', $ids)->delete();
-        } while ($ids->count() === self::CHUNK && microtime(true) < $deadline);
-
-        return $deleted;
+        return $this->deleteChunked(TelegramMessage::query()->where('created_at', '<', now()->subDays(self::MESSAGES_DAYS)), 'id', $deadline);
     }
 
     /**

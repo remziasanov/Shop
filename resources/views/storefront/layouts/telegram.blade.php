@@ -34,8 +34,12 @@
     @livewireStyles
 </head>
 @php($noBottomNav = $__env->hasSection('no_bottom_nav'))
+{{-- TS-05: the «Рабочее место» is a staff screen: no shop search, cart, cookie banner or age gate around it. --}}
+@php($staffScreen = $__env->hasSection('staff'))
 <body class="flex min-h-screen flex-col overflow-x-clip bg-bg pb-[var(--shop-nav-total)] text-ink antialiased" x-data="tgBridge(@js($tgConfig))" @if ($noBottomNav) data-nav="off" @endif @if ($__env->hasSection('sticky_bar')) data-sticky @endif>
-    @include('storefront.partials.tg-topbar')
+    @unless ($staffScreen)
+        @include('storefront.partials.tg-topbar')
+    @endunless
 
     <main id="content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-4">
         @if (session('promo_link_notice'))
@@ -50,14 +54,16 @@
     @unless ($noBottomNav)
         @include('storefront.partials.bottom-bar')
     @endunless
-    @if ($cartEnabled)
-        @include('storefront.partials.cart-toast')
-    @endif
+    @unless ($staffScreen)
+        @if ($cartEnabled)
+            @include('storefront.partials.cart-toast')
+        @endif
 
-    @include('storefront.partials.cookie-banner')
-    @if ($ageOn && ! $ageStaff)
-        @include('storefront.partials.age-gate', ['gate' => $ageGate])
-    @endif
+        @include('storefront.partials.cookie-banner')
+        @if ($ageOn && ! $ageStaff)
+            @include('storefront.partials.age-gate', ['gate' => $ageGate])
+        @endif
+    @endunless
 
     @livewireScripts
 </body>

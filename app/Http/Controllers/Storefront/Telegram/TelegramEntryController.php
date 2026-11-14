@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\TelegramAccount;
 use App\Services\Telegram\MiniApp\InvalidInitDataException;
 use App\Services\Telegram\MiniApp\MiniAppConfig;
+use App\Services\Telegram\MiniApp\StaffSessionService;
 use App\Services\Telegram\MiniApp\TelegramSessionService;
 use App\Services\Telegram\MiniApp\TelegramStartParamResolver;
 use App\Settings\GeneralSettings;
@@ -43,7 +44,7 @@ class TelegramEntryController extends Controller
      * TM-02, TM-03: verifies `initData` (the only thing the server trusts), opens the session and tells the page where
      * to go: the home page, or `/tg/start` when the launch carried a `start_param` or a `?to=` hint.
      */
-    public function session(Request $request, MiniAppConfig $config, TelegramSessionService $sessions): JsonResponse
+    public function session(Request $request, MiniAppConfig $config, TelegramSessionService $sessions, StaffSessionService $staff): JsonResponse
     {
         if (! $config->enabled()) {
             return response()->json(['error' => 'disabled', 'message' => __('telegram_miniapp.entry.disabled')], 403);
@@ -51,6 +52,15 @@ class TelegramEntryController extends Controller
 
         $initData = $request->input('initData');
         $hint = $request->input('to');
+        $mode = $request->input('mode');
+
+        // TS-05: the staff mode (signed start_param `staff*` or the `mode=staff` hint of the web_app button) when every
+        // condition holds; any other launch is the customer entry, which also ends a staff sign-in of this session.
+        $staffUrl = $staff->tryOpen($request->session(), is_string($initData) ? $initData : '', is_string($mode) ? $mode : null);
+
+        if ($staffUrl !== null) {
+            return response()->json(['url' => $staffUrl]);
+        }
 
         try {
             $sessions->open($request->session(), is_string($initData) ? $initData : '', is_string($hint) ? $hint : null);

@@ -52,6 +52,12 @@ return [
             'driver' => 'session',
             'provider' => 'customers',
         ],
+        // Staff of the Telegram Mini App «Рабочее место» (TS-05, D-105): its own session key, the staff provider. Neither
+        // the Filament panel nor the `auth` / `auth:web` routes know it, so a Telegram sign-in never opens the admin.
+        'telegram_staff' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
     ],
 
     /*

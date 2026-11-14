@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Telegram\Handlers;
 
 use App\Jobs\EditTelegramMessage;
+use App\Services\Telegram\CustomerTelegramMessageBuilder;
 use App\Services\Telegram\TelegramAccountService;
 use App\Services\Telegram\TelegramApiException;
 use App\Services\Telegram\TelegramClient;
@@ -39,6 +40,13 @@ class CallbackQueryHandler
             return null;
         }
 
+        // TN-06: «Не присылать уведомления» under every customer message; the answer is a toast with the confirmation.
+        if ($data === CustomerTelegramMessageBuilder::STOP_CALLBACK) {
+            app(StopCommand::class)->disable($this->accounts->touch($from));
+
+            return $this->answer($id, __('telegram.bot.stopped'), true);
+        }
+
         if (preg_match('/^(lc|ln):(\d+):([0-9a-f]{8})$/', $data, $m)) {
             $account = $this->accounts->touch($from);
             $result = $this->links->answerConfirmation($account, $m[1], (int) $m[2], $m[3]);
@@ -52,16 +60,20 @@ class CallbackQueryHandler
             return $this->answer($id, $result['toast']);
         }
 
-        // TS-03 (stage 18) will route its action buttons here.
+        // TS-03, TS-04: the action buttons of the staff messages (`o:{action}:{order}:{version}`).
+        if (str_starts_with($data, StaffCallbackHandler::PREFIX.':')) {
+            return app(StaffCallbackHandler::class)->handle($query);
+        }
+
         return $this->answer($id, __('telegram.callback.soon'));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function answer(string $id, string $text): array
+    private function answer(string $id, string $text, bool $alert = false): array
     {
-        return ['method' => 'answerCallbackQuery', 'callback_query_id' => $id, 'text' => $text];
+        return ['method' => 'answerCallbackQuery', 'callback_query_id' => $id, 'text' => $text] + ($alert ? ['show_alert' => true] : []);
     }
 
     /**

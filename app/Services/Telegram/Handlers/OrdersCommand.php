@@ -43,7 +43,7 @@ class OrdersCommand
         $buttons = [$this->messages->shopButton(__('telegram.bot.my_orders'), 'orders')];
 
         if ($account->user_id !== null && $this->settings->staff_workplace_enabled && $this->settings->miniapp_enabled) {
-            $buttons[] = $this->messages->shopButton(__('telegram.bot.workplace'), 'staff');
+            $buttons[] = $this->messages->workplaceButton();
         }
 
         return $this->messages->reply($account, $text, ['inline_keyboard' => array_map(fn (array $button): array => [$button], $buttons)]);

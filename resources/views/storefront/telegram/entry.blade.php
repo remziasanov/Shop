@@ -62,6 +62,9 @@
                 var hint = query.get('to') || query.get('start_param');
                 var body = { initData: tg.initData };
                 if (hint) { body.to = hint; }
+                // TS-05: the `mode=staff` hint of the staff web_app button only says which mode to try.
+                var mode = query.get('mode');
+                if (mode) { body.mode = mode; }
 
                 fetch(@js(route('tg.session')), {
                     method: 'POST',

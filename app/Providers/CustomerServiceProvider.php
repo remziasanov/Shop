@@ -6,10 +6,12 @@ namespace App\Providers;
 
 use App\Events\CustomerAnonymizing;
 use App\Events\CustomerEmailVerified;
+use App\Events\OrderCreated;
 use App\Events\OrderItemsChanged;
 use App\Events\OrderStatusChanged;
 use App\Listeners\EraseWholesaleApplicationData;
 use App\Listeners\LinkGuestOrders;
+use App\Listeners\NotifyCustomerInTelegram;
 use App\Listeners\NotifyCustomerOfOrderChange;
 use App\Listeners\NotifyCustomerOfStatusChange;
 use Illuminate\Support\Facades\Event;
@@ -29,5 +31,10 @@ class CustomerServiceProvider extends ServiceProvider
         Event::listen(CustomerAnonymizing::class, [EraseWholesaleApplicationData::class, 'onAnonymizing']);
         Event::listen(OrderStatusChanged::class, [NotifyCustomerOfStatusChange::class, 'onStatusChanged']);
         Event::listen(OrderItemsChanged::class, [NotifyCustomerOfOrderChange::class, 'onItemsChanged']);
+
+        // Stage 18 (TN-02): the same events as messages in the customer's Telegram.
+        Event::listen(OrderCreated::class, [NotifyCustomerInTelegram::class, 'onOrderCreated']);
+        Event::listen(OrderStatusChanged::class, [NotifyCustomerInTelegram::class, 'onStatusChanged']);
+        Event::listen(OrderItemsChanged::class, [NotifyCustomerInTelegram::class, 'onItemsChanged']);
     }
 }

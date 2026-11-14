@@ -27,12 +27,14 @@ class EditTelegramMessage implements ShouldQueue
 
     /**
      * @param  array<string, mixed>  $markup  `reply_markup`
+     * @param  ?string  $parseMode  `HTML` for the staff messages (TS-03)
      */
     public function __construct(
         public readonly string $chatId,
         public readonly int $messageId,
         public readonly string $text,
         public readonly array $markup,
+        public readonly ?string $parseMode = null,
     ) {}
 
     /**
@@ -52,7 +54,7 @@ class EditTelegramMessage implements ShouldQueue
                     'message_id' => $this->messageId,
                     'text' => $this->text,
                     'reply_markup' => $this->markup,
-                ]);
+                ] + ($this->parseMode !== null ? ['parse_mode' => $this->parseMode, 'disable_web_page_preview' => true] : []));
             } catch (TelegramApiException $e) {
                 // A timed-out first attempt often was applied: «not modified» / «not found» mean there is nothing to redraw.
                 $description = (string) $e->description;

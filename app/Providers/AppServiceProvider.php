@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Http\Controllers\Admin\StaffLogoutController;
+use App\Http\Middleware\EnsureTelegramStaff;
 use App\Listeners\ApplyShopNameToMail;
 use App\Models\Category;
 use App\Models\Product;
@@ -43,6 +44,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Livewire\Livewire;
 use Spatie\LaravelSettings\Events\SettingsSaved;
 
 class AppServiceProvider extends ServiceProvider
@@ -117,6 +119,9 @@ class AppServiceProvider extends ServiceProvider
             : $this->app->make(StorefrontComposer::class)->compose($view));
         // TH-05: `$theme` and the theme assets for the storefront and the error pages.
         View::composer(['storefront.*', 'errors.*'], ThemeComposer::class);
+
+        // TS-05: a Livewire update of the «Рабочее место» runs the staff check of its page again (TS-02).
+        Livewire::addPersistentMiddleware([EnsureTelegramStaff::class]);
 
         // TM-09: the cached base of the «Открыть в Telegram» links follows the Telegram settings.
         Event::listen(SettingsSaved::class, function (SettingsSaved $event): void {

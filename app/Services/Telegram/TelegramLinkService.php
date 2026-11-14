@@ -516,12 +516,19 @@ class TelegramLinkService
         );
     }
 
-    public function unlinkStaff(User $user): void
+    /**
+     * «Отключить» in the profile, or an administrator's «Отвязать Telegram» in «Пользователи» (TS-02, `$actor`). Buttons
+     * and the «Рабочее место» stop working at once: they read the link on every action. The personal notifications
+     * (TS-08) end with the link.
+     */
+    public function unlinkStaff(User $user, ?User $actor = null): void
     {
         $updated = TelegramAccount::query()->where('user_id', $user->id)->update(['user_id' => null]);
 
         if ($updated > 0) {
-            $this->audit->record(AuditAction::UserTelegramUnlinked, $user, $user);
+            // TS-08: no link, no personal messages; linking again starts with the switch off.
+            User::query()->whereKey($user->id)->update(['telegram_personal_notify' => false]);
+            $this->audit->record(AuditAction::UserTelegramUnlinked, $actor ?? $user, $user);
         }
     }
 

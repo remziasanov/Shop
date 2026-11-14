@@ -69,7 +69,8 @@ class StorefrontOpen
     {
         $admin = trim((string) config('shop.admin_path'), '/');
 
-        return $request->is('up', 'robots.txt', 'livewire*', 'livewire-*/*')
+        // TS-05: the staff of the Mini App «Рабочее место» work with the requests of a closed shop too.
+        return $request->is('up', 'robots.txt', 'livewire*', 'livewire-*/*', 'tg', 'tg/session', 'tg/leave', 'tg/staff', 'tg/staff/*')
             || ($admin !== '' && $request->is($admin, $admin.'/*'));
     }
 }
