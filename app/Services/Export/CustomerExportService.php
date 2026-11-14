@@ -9,6 +9,7 @@ use App\Enums\ExportStatus;
 use App\Enums\ExportType;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
+use App\Exceptions\CustomerThrottledException;
 use App\Exceptions\ExportThrottledException;
 use App\Jobs\GenerateCustomerOrdersExport;
 use App\Mail\CustomerExportReadyMail;
@@ -36,6 +37,9 @@ use Throwable;
 final class CustomerExportService
 {
     public const DISK = 'local';
+
+    /** Suffix of the file under construction; it becomes the final name only when the build succeeded. */
+    private const PARTIAL_SUFFIX = '.part';
 
     private const HOUR = 3600;
 
@@ -99,7 +103,9 @@ final class CustomerExportService
         $key = $this->requestKey($customer);
 
         if (RateLimiter::tooManyAttempts($key, max(1, $this->settings->export_requests_per_hour))) {
-            throw new ExportThrottledException(__('customer_export.errors.too_many_requests'), max(1, RateLimiter::availableIn($key)));
+            $wait = max(1, RateLimiter::availableIn($key));
+
+            throw new ExportThrottledException(__('customer_export.errors.too_many_requests', ['time' => CustomerThrottledException::humanTime($wait)]), $wait);
         }
 
         $pending = Export::query()
@@ -108,7 +114,7 @@ final class CustomerExportService
             ->count();
 
         if ($pending >= max(1, $this->settings->export_max_pending)) {
-            throw new ExportThrottledException(__('customer_export.errors.too_many_pending', ['count' => $pending]), 60);
+            throw new ExportThrottledException(__('customer_export.errors.too_many_pending', ['count' => $pending, 'time' => CustomerThrottledException::humanTime(60)]), 60);
         }
     }
 
@@ -127,7 +133,9 @@ final class CustomerExportService
         $key = 'customer-export-download:'.$customer->id;
 
         if (RateLimiter::tooManyAttempts($key, max(1, $this->settings->export_downloads_per_hour))) {
-            throw new ExportThrottledException(__('customer_export.errors.too_many_downloads'), max(1, RateLimiter::availableIn($key)));
+            $wait = max(1, RateLimiter::availableIn($key));
+
+            throw new ExportThrottledException(__('customer_export.errors.too_many_downloads', ['time' => CustomerThrottledException::humanTime($wait)]), $wait);
         }
 
         RateLimiter::hit($key, self::HOUR);
@@ -199,33 +207,115 @@ final class CustomerExportService
 
         $export->update(['status' => ExportStatus::Processing, 'failure_message' => null]);
 
-        $relative = 'exports/customers/'.$customer->uuid.'/'.($export->uuid ?? $export->id).'.'.$export->type->extension();
+        // The customer may have been anonymized or deleted while the job waited in the queue.
+        if ($this->customerIsGone($export)) {
+            $this->abandon($export);
+
+            return;
+        }
+
+        $relative = $this->relativePath($customer, $export);
+        $temporary = $relative.self::PARTIAL_SUFFIX;
         $disk = Storage::disk(self::DISK);
         $disk->makeDirectory(dirname($relative));
 
         try {
+            // Written under a temporary name: a timeout or a crash must never leave a file that looks finished.
             /** @var Params $params */
             $params = $export->params ?? [];
-            $rows = $this->build($customer, $export->type, $params, $disk->path($relative));
+            $rows = $this->build($customer, $export->type, $params, $disk->path($temporary));
         } catch (Throwable $e) {
             report($e);
-            $disk->delete($relative);
+            $disk->delete($temporary);
 
             $this->markFailed($export, __('customer_export.errors.generation_failed'));
 
             return;
         }
 
-        $export->update([
-            'status' => ExportStatus::Completed,
-            'file_path' => $relative,
-            'file_size' => $disk->size($relative),
-            'rows' => $rows,
-            // The period of 24 hours runs from the moment the file is ready, not from the queue time (CX-07).
-            'expires_at' => now()->addHours(max(1, $this->settings->export_retention_hours)),
-        ]);
+        // The build takes up to 40 seconds: anonymization may have run meanwhile and removed the row and the directory.
+        if ($this->customerIsGone($export)) {
+            $disk->delete($temporary);
+            $this->abandon($export);
 
-        $this->notifyReady($export->refresh(), $customer);
+            return;
+        }
+
+        $disk->move($temporary, $relative);
+
+        $updated = Export::query()
+            ->whereKey($export->id)
+            ->where('status', ExportStatus::Processing->value)
+            ->update([
+                'status' => ExportStatus::Completed->value,
+                'file_path' => $relative,
+                'file_size' => $disk->size($relative),
+                'rows' => $rows,
+                // The period of 24 hours runs from the moment the file is ready, not from the queue time (CX-07).
+                'expires_at' => now()->addHours(max(1, $this->settings->export_retention_hours)),
+                'updated_at' => now(),
+            ]);
+
+        if ($updated === 0) {
+            $disk->delete($relative);
+
+            return;
+        }
+
+        $this->notifyReady($export->refresh(), $customer->refresh());
+    }
+
+    /**
+     * True when the row or its customer no longer exists, or the customer was anonymized (152-FZ): nothing is written
+     * or sent for such an export.
+     *
+     * @phpstan-impure
+     */
+    private function customerIsGone(Export $export): bool
+    {
+        $fresh = Export::query()->find($export->id);
+        $customer = $fresh?->customer_id === null ? null : Customer::query()->find($fresh->customer_id);
+
+        return $fresh === null || $customer === null || $customer->anonymized_at !== null;
+    }
+
+    /**
+     * Closes an export whose customer is gone: failed, its files removed, no notice and no e-mail.
+     */
+    private function abandon(Export $export): void
+    {
+        $this->deleteFiles($export);
+
+        Export::query()->whereKey($export->id)->update([
+            'status' => ExportStatus::Failed->value,
+            'failure_message' => mb_substr(__('customer_export.errors.generation_failed'), 0, 1000),
+            'file_path' => null,
+            'file_size' => null,
+        ]);
+    }
+
+    private function relativePath(Customer $customer, Export $export): string
+    {
+        return 'exports/customers/'.$customer->uuid.'/'.($export->uuid ?? $export->id).'.'.$export->type->extension();
+    }
+
+    /**
+     * Removes the finished file and the partial one of an export (also of a failed one, which has no `file_path`).
+     */
+    private function deleteFiles(Export $export): void
+    {
+        $disk = Storage::disk(self::DISK);
+
+        if ($export->file_path !== null) {
+            $disk->delete($export->file_path);
+        }
+
+        $customer = $export->customer_id === null ? null : Customer::query()->find($export->customer_id, ['id', 'uuid']);
+
+        if ($customer !== null && $export->type->isCustomerOrders()) {
+            $relative = $this->relativePath($customer, $export);
+            $disk->delete([$relative, $relative.self::PARTIAL_SUFFIX]);
+        }
     }
 
     /**
@@ -237,9 +327,10 @@ final class CustomerExportService
             return;
         }
 
-        $export->update(['status' => ExportStatus::Failed, 'failure_message' => mb_substr($message, 0, 1000)]);
+        $this->deleteFiles($export);
+        $export->update(['status' => ExportStatus::Failed, 'failure_message' => mb_substr($message, 0, 1000), 'file_path' => null, 'file_size' => null]);
 
-        if ($export->customer !== null) {
+        if ($export->customer !== null && $export->customer->anonymized_at === null) {
             $this->notifications->notify(
                 $export->customer,
                 CustomerNotificationType::ExportReady,
@@ -313,7 +404,6 @@ final class CustomerExportService
      */
     public function purgeExpired(?float $deadline = null): int
     {
-        $disk = Storage::disk(self::DISK);
         $purged = 0;
 
         Export::query()
@@ -321,11 +411,8 @@ final class CustomerExportService
             ->where('expires_at', '<', now())
             ->lazyById(200)
             ->takeUntil(fn (): bool => $deadline !== null && microtime(true) >= $deadline)
-            ->each(function (Export $export) use ($disk, &$purged): void {
-                if ($export->file_path !== null) {
-                    $disk->delete($export->file_path);
-                }
-
+            ->each(function (Export $export) use (&$purged): void {
+                $this->deleteFiles($export);
                 $export->delete();
                 $purged++;
             });

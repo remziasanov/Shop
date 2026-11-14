@@ -84,6 +84,17 @@ class Customer extends Authenticatable
     /**
      * @return BelongsTo<CustomerGroup, $this>
      */
+    /**
+     * The group that rules the customer's prices and rights (CG-16): a deactivated or missing group means «Розница».
+     */
+    public function effectiveGroup(): CustomerGroup
+    {
+        /** @var CustomerGroup|null $group */
+        $group = $this->group;
+
+        return $group !== null && $group->is_active ? $group : CustomerGroup::retail();
+    }
+
     public function group(): BelongsTo
     {
         return $this->belongsTo(CustomerGroup::class, 'customer_group_id');

@@ -12,12 +12,14 @@ use App\Models\CustomerNotification;
 use App\Models\Export;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\Customers\CustomerAnonymizer;
 use App\Services\Export\CustomerExportService;
 use App\Services\Export\CustomerOrdersExporter;
 use App\Settings\CustomerSettings;
 use App\Support\FileSize;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
@@ -481,4 +483,86 @@ it('formats file sizes in Russian units', function (): void {
         ->and(FileSize::format(1536))->toBe('1,5 КБ')
         ->and(FileSize::format(2048))->toBe('2 КБ')
         ->and(FileSize::format(5 * 1024 * 1024))->toBe('5 МБ');
+});
+
+it('leaves no file behind when the build fails and removes a stale partial file of a failed export', function (): void {
+    $export = Export::factory()->forCustomer($this->customer, ExportType::CustomerOrdersXlsx, [])->create(['params' => ['from' => '2026-01-01']]);
+    $directory = 'exports/customers/'.$this->customer->uuid;
+
+    app(CustomerExportService::class)->generate($export);
+
+    expect(Storage::disk('local')->allFiles($directory))->toBe([]);
+
+    // A killed worker leaves the temporary file; the failure handler of the job removes it.
+    $dead = Export::factory()->forCustomer($this->customer)->status(ExportStatus::Processing)->create();
+    Storage::disk('local')->put($directory.'/'.$dead->uuid.'.pdf.part', 'half');
+
+    (new GenerateCustomerOrdersExport($dead->id))->failed(new RuntimeException('timeout'));
+
+    expect(Storage::disk('local')->allFiles($directory))->toBe([]);
+});
+
+it('cleanup also deletes the files of failed exports', function (): void {
+    $export = Export::factory()->forCustomer($this->customer)->status(ExportStatus::Failed)->create(['expires_at' => now()->subMinute()]);
+    $path = 'exports/customers/'.$this->customer->uuid.'/'.$export->uuid.'.pdf';
+    Storage::disk('local')->put($path.'.part', 'half');
+    Storage::disk('local')->put($path, 'orphan');
+
+    app(CustomerExportService::class)->purgeExpired();
+
+    expect(Export::query()->find($export->id))->toBeNull()
+        ->and(Storage::disk('local')->allFiles('exports/customers/'.$this->customer->uuid))->toBe([]);
+});
+
+it('writes nothing and sends nothing when the customer was anonymized before the job ran', function (): void {
+    Mail::fake();
+    setSettings(CustomerSettings::class, ['export_email_link' => true]);
+    cxMakeOrders($this->customer, 1);
+    $export = Export::factory()->forCustomer($this->customer, ExportType::CustomerOrdersXlsx, cxExportParams())->create();
+    $this->customer->forceFill(['anonymized_at' => now()])->save();
+
+    app(CustomerExportService::class)->generate($export);
+
+    expect($export->refresh()->status)->toBe(ExportStatus::Failed)
+        ->and($export->file_path)->toBeNull()
+        ->and(Storage::disk('local')->allFiles('exports'))->toBe([])
+        ->and(CustomerNotification::query()->where('customer_id', $this->customer->id)->count())->toBe(0);
+    Mail::assertNothingQueued();
+});
+
+it('drops the file and the e-mail when the customer is anonymized while the job runs', function (): void {
+    Mail::fake();
+    setSettings(CustomerSettings::class, ['export_email_link' => true]);
+    cxMakeOrders($this->customer, 1);
+    $export = Export::factory()->forCustomer($this->customer, ExportType::CustomerOrdersXlsx, cxExportParams())->create();
+    $customer = $this->customer;
+    $fired = false;
+
+    DB::listen(function ($query) use (&$fired, $customer): void {
+        if (! $fired && preg_match('/from [`"]orders[`"]/', $query->sql) === 1) {
+            $fired = true;
+            app(CustomerAnonymizer::class)->anonymize($customer->fresh());
+        }
+    });
+
+    app(CustomerExportService::class)->generate($export);
+
+    expect($fired)->toBeTrue()
+        ->and(Storage::disk('local')->allFiles('exports'))->toBe([])
+        ->and(Export::query()->where('status', ExportStatus::Completed->value)->count())->toBe(0);
+    Mail::assertNothingQueued();
+});
+
+it('shows the waiting time on the 429 page (NF-53)', function (): void {
+    RateLimiter::clear('customer-export-download:'.$this->customer->id);
+    setSettings(CustomerSettings::class, ['export_downloads_per_hour' => 1]);
+    Storage::disk('local')->put('exports/customers/c/w.xlsx', 'x');
+    $export = Export::factory()->forCustomer($this->customer, ExportType::CustomerOrdersXlsx)->status(ExportStatus::Completed)
+        ->create(['file_path' => 'exports/customers/c/w.xlsx', 'file_size' => 1]);
+
+    $this->get(route('customer.exports.download', $export->uuid))->assertOk();
+    $response = $this->get(route('customer.exports.download', $export->uuid))->assertStatus(429);
+
+    expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+        ->and($response->getContent())->toMatch('/Повторите через \d+ (мин|сек|ч)\./');
 });

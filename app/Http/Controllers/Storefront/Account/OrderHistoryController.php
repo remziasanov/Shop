@@ -70,7 +70,7 @@ class OrderHistoryController extends Controller
             'order' => $order,
             'canRepeat' => in_array($order->type, [OrderType::Order, OrderType::Reservation], true),
             // CX-10: the blank / invoice button only for a group with the flag, and only where there are prices.
-            'canDownloadBlank' => $customer->group?->allow_order_blank === true && $order->total !== null,
+            'canDownloadBlank' => $customer->effectiveGroup()->allow_order_blank === true && $order->total !== null,
         ]);
     }
 

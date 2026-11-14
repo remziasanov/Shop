@@ -158,6 +158,22 @@ it('has empty bank requisites by default: the document is a blank', function ():
 
     expect($legal->hasBankRequisites())->toBeFalse()
         ->and($legal->vat_note)->toBe('Без НДС')
-        ->and($legal->invoice_footer)->toBe('')
+        ->and($legal->invoice_footer)->toContain('не является первичным')
         ->and($legal->signature_image)->toBeNull();
+});
+
+it('serves an export file to an administrator with the content type and the extension of its type', function (): void {
+    actingAs(User::factory()->admin()->create());
+    Storage::disk('local')->put('exports/customers/c/a.pdf', '%PDF-1');
+    Storage::disk('local')->put('exports/customers/c/b.xlsx', 'xlsx');
+    $pdf = Export::factory()->forCustomer(makeCustomer())->status(ExportStatus::Completed)->create(['file_path' => 'exports/customers/c/a.pdf']);
+    $xlsx = Export::factory()->forCustomer(makeCustomer(), ExportType::CustomerOrdersXlsx)->status(ExportStatus::Completed)->create(['file_path' => 'exports/customers/c/b.xlsx']);
+
+    $pdfResponse = $this->get(route('admin.exports.download', $pdf))->assertOk();
+    $xlsxResponse = $this->get(route('admin.exports.download', $xlsx))->assertOk();
+
+    expect($pdfResponse->headers->get('Content-Type'))->toBe('application/pdf')
+        ->and($pdfResponse->headers->get('Content-Disposition'))->toContain('.pdf')->not->toContain($pdf->uuid)
+        ->and($xlsxResponse->headers->get('Content-Type'))->toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        ->and($xlsxResponse->headers->get('Content-Disposition'))->toContain('.xlsx');
 });

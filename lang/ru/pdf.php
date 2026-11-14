@@ -14,7 +14,7 @@ return [
         'type' => 'Тип',
         'status' => 'Статус',
         'total' => 'Сумма',
-        'period_total' => 'Итого по периоду (обращений: :count)',
+        'period_total' => 'Итого (без отменённых и истёкших), обращений в таблице: :count',
         'types' => 'типы: :list',
         'statuses' => 'статусы: :list',
         'page' => 'Страница :page из :pages',

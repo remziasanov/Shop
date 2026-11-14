@@ -45,6 +45,7 @@ it('is idempotent', function (): void {
 });
 
 it('adds the data of version 2.0: wholesale tiers, variants, filters, a promo code and a promo link, idempotently', function (): void {
+    $this->withoutVite();
     $this->artisan('shop:demo', ['--no-images' => true])->assertSuccessful();
 
     $snapshot = fn (): array => [

@@ -27,7 +27,7 @@ class OrderBlankController extends Controller
         $order = $history->find($customer, $uuid);
 
         abort_unless($order !== null && Gate::forUser($customer)->allows('viewAsCustomer', $order), 404);
-        abort_unless($customer->group?->allow_order_blank === true, 403);
+        abort_unless($customer->effectiveGroup()->allow_order_blank === true, 403);
         // An inquiry has no prices: there is nothing to put on a blank.
         abort_if($order->total === null, 404);
 

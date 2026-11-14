@@ -111,3 +111,14 @@ it('redirects a guest to the sign-in page', function (): void {
 
     $this->get(route('customer.orders.blank', $order->uuid))->assertRedirect(route('customer.login'));
 });
+
+it('treats a deactivated group as «Розница»: no button and 403 (CG-16, CX-10)', function (): void {
+    $customer = cxWholesaleCustomer();
+    $order = cxBlankOrder($customer);
+    CustomerGroup::query()->where('code', 'opt')->update(['is_active' => false]);
+    Cache::flush();
+    signInCustomer($this, $customer->refresh());
+
+    $this->get(route('customer.orders.show', $order->uuid))->assertOk()->assertDontSee('Скачать бланк заказа');
+    $this->get(route('customer.orders.blank', $order->uuid))->assertForbidden();
+});

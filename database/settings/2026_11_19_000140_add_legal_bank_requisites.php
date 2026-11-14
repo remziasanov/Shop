@@ -17,7 +17,7 @@ return new class extends SettingsMigration
         $this->migrator->add('legal.account', null);
         $this->migrator->add('legal.corr_account', null);
         $this->migrator->add('legal.vat_note', 'Без НДС');
-        $this->migrator->add('legal.invoice_footer', '');
+        $this->migrator->add('legal.invoice_footer', 'Документ не является первичным бухгалтерским документом. Проверьте у бухгалтера.');
         $this->migrator->add('legal.signature_image', null);
     }
 

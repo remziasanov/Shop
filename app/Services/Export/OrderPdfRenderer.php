@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Export;
 
+use App\Enums\OrderStatus;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Settings\GeneralSettings;
@@ -57,7 +58,11 @@ final class OrderPdfRenderer
         foreach ($chunks as $orders) {
             foreach ($orders as $order) {
                 $count++;
-                $totalKopecks += $order->total === null ? 0 : Money::fromRubles($order->total);
+
+                // Cancelled and expired requests stay in the table but are not part of the period total.
+                if ($order->total !== null && ! in_array($order->status, [OrderStatus::Cancelled, OrderStatus::Expired], true)) {
+                    $totalKopecks += Money::fromRubles($order->total);
+                }
             }
 
             $body .= view($withItems ? 'pdf.partials.history-blocks' : 'pdf.partials.history-rows', ['orders' => $orders, 'money' => $money])->render();

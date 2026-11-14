@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrderStatus;
 use App\Filament\Resources\Orders\Pages\ViewOrder;
 use App\Models\CustomerCompany;
 use App\Models\Order;
@@ -179,7 +180,7 @@ it('renders the history with the customer, the period, the table and the total',
         ->and($text)->toContain('Анна Кузнецова')
         ->and($text)->toContain('01.01.2026 — 31.03.2026')
         ->and($text)->toContain('Z-00001')->toContain('Z-00002')
-        ->and($text)->toContain('Итого по периоду (обращений: 2)')
+        ->and($text)->toContain('Итого (без отменённых и истёкших), обращений в таблице: 2')
         ->and($text)->toContain('350,50 ₽');
 });
 
@@ -251,4 +252,25 @@ it('has the «Печать / скачать PDF» action next to the print form 
         ->assertActionExists('print_pdf')
         ->assertActionHasLabel('print_pdf', 'Печать / скачать PDF')
         ->assertActionHasUrl('print_pdf', route('admin.orders.pdf', $order));
+});
+
+it('leaves cancelled and expired requests out of the period total but keeps them in the table', function (): void {
+    $customer = makeCustomer();
+    Order::factory()->create(['customer_id' => $customer->id, 'number' => 'Z-00001', 'total' => '100.00', 'status' => OrderStatus::New, 'created_at' => '2026-02-10 12:00:00']);
+    Order::factory()->create(['customer_id' => $customer->id, 'number' => 'Z-00002', 'total' => '900.00', 'status' => OrderStatus::Cancelled, 'created_at' => '2026-02-11 12:00:00']);
+    Order::factory()->create(['customer_id' => $customer->id, 'number' => 'Z-00003', 'total' => '800.00', 'status' => OrderStatus::Expired, 'created_at' => '2026-02-12 12:00:00']);
+    $params = ['from' => '2026-01-01', 'until' => '2026-03-31', 'types' => [], 'statuses' => [], 'with_items' => false];
+
+    $text = pdfText(app(OrderPdfRenderer::class)->history($customer, $params, false, app(CustomerOrdersExporter::class)->chunks($customer, $params, false)));
+
+    expect($text)->toContain('Z-00002')->toContain('Z-00003')
+        ->and($text)->toContain('Итого (без отменённых и истёкших)')
+        ->and($text)->toContain('100 ₽')
+        ->and($text)->not->toContain('1 800 ₽')->not->toContain('1 800');
+});
+
+it('has the accounting disclaimer as the default footnote of a document (CX-11)', function (): void {
+    expect(app(LegalSettings::class)->invoice_footer)->toBe('Документ не является первичным бухгалтерским документом. Проверьте у бухгалтера.');
+
+    expect(pdfText(app(OrderPdfRenderer::class)->document(cxPdfOrder(['number' => 'Z-00140']))))->toContain('не является первичным бухгалтерским');
 });
