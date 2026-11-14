@@ -338,6 +338,85 @@ describe('the workplace (TS-06)', function (): void {
         expect($html)->not->toContain('Удалить')->not->toContain('Экспорт')->not->toContain('Редактировать состав');
     });
 
+    it('marks a reserved reservation «Выкуплен»: stock written off through the service, audit source telegram (TS-06)', function (): void {
+        $product = sellable(['stock_qty' => 10]);
+        $reservation = app(OrderService::class)->createReservation($product, reservationData(3));
+        app(OrderService::class)->changeStatus($reservation, OrderStatus::Reserved, $this->staff);
+        expect($product->refresh()->reserved_qty)->toBe(3);
+
+        Livewire::test(OrderCard::class, ['orderId' => $reservation->id])
+            ->assertSee('data-action="co"', false)->assertSee('Выкуплен')
+            ->call('act', 'co');
+
+        expect($reservation->refresh()->status)->toBe(OrderStatus::Completed)
+            ->and($product->refresh()->reserved_qty)->toBe(0)->and($product->stock_qty)->toBe(7);
+        $audit = AdminAuditEntry::query()->where('action', AuditAction::OrderStatusChanged->value)->latest('id')->firstOrFail();
+        expect($audit->source->value)->toBe('telegram')->and($audit->data['to'])->toBe('completed');
+        expect(OrderStatusHistory::query()->where('order_id', $reservation->id)->where('to_status', 'completed')->firstOrFail()->source->value)->toBe('telegram');
+    });
+
+    it('ships a confirmed order and completes it; a ready order is completed directly (TS-06)', function (): void {
+        $confirmed = Order::factory()->order()->status(OrderStatus::Confirmed)->create();
+        $card = Livewire::test(OrderCard::class, ['orderId' => $confirmed->id]);
+
+        $card->assertSee('data-action="sh"', false)->call('act', 'sh');
+        expect($confirmed->refresh()->status)->toBe(OrderStatus::Shipped);
+
+        $card->assertSee('Выполнен')->call('act', 'co');
+        expect($confirmed->refresh()->status)->toBe(OrderStatus::Completed);
+
+        $ready = Order::factory()->order()->status(OrderStatus::Ready)->create();
+        Livewire::test(OrderCard::class, ['orderId' => $ready->id])->call('act', 'co');
+        expect($ready->refresh()->status)->toBe(OrderStatus::Completed);
+    });
+
+    it('refuses completed for a status the matrix does not allow', function (): void {
+        $new = Order::factory()->order()->create();
+
+        Livewire::test(OrderCard::class, ['orderId' => $new->id])->call('act', 'co')->assertSee('Обращение уже изменено');
+        expect($new->refresh()->status)->toBe(OrderStatus::New);
+    });
+
+    it('refuses shipped and completed without orders.update', function (): void {
+        $order = Order::factory()->order()->status(OrderStatus::Confirmed)->create();
+
+        [$viewer] = linkedStaff(['orders.view'], 556, 'Смотрящий');
+        session(staffSession($viewer, 556));
+        Livewire::test(OrderCard::class, ['orderId' => $order->id])->call('act', 'sh')->assertSee('Недостаточно прав');
+        expect($order->refresh()->status)->toBe(OrderStatus::Confirmed);
+    });
+
+    it('locks the page size: a client cannot set it (it would load the whole table)', function (): void {
+        Order::factory()->order()->count(3)->create();
+
+        expect(fn () => Livewire::test(WorkplaceList::class)->set('limit', 100000))->toThrow(Exception::class, 'locked property');
+    });
+
+    it('clamps the page size at the maximum however often «Показать ещё» is pressed', function (): void {
+        Order::factory()->order()->count(3)->create();
+
+        $list = Livewire::test(WorkplaceList::class);
+        for ($i = 0; $i < 10; $i++) {
+            $list->call('more');
+        }
+        expect($list->get('limit'))->toBe(WorkplaceList::MAX_LIMIT);
+    });
+
+    it('takes the staff member explicitly: the default guard is not telegram_staff inside an action', function (): void {
+        $order = Order::factory()->order()->create();
+
+        // No default-guard user exists, yet the action works: the user comes from StaffSessionService, not from auth().
+        expect(Auth::guard('web')->check())->toBeFalse();
+        Livewire::test(OrderCard::class, ['orderId' => $order->id])->call('act', 'cf');
+        expect($order->refresh()->status)->toBe(OrderStatus::Confirmed);
+
+        // Pinned in the source: no default-guard lookups in the workplace code.
+        $files = array_merge(glob(app_path('Livewire/Staff/*.php')) ?: [], glob(app_path('Livewire/Staff/Concerns/*.php')) ?: [], [app_path('Services/Telegram/Staff/StaffOrderActions.php')]);
+        foreach ($files as $file) {
+            expect(file_get_contents($file))->not->toMatch('/\bauth\(\)->(user|id|check)\(|Auth::(user|id|check)\(|allowsCurrent/');
+        }
+    });
+
     it('refuses a Livewire action once the staff member lost access (NF-54)', function (): void {
         $order = Order::factory()->order()->create();
         $card = Livewire::test(OrderCard::class, ['orderId' => $order->id]);

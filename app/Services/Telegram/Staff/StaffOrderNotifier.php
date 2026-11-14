@@ -30,6 +30,7 @@ final class StaffOrderNotifier
         private readonly TelegramNotifier $notifier,
         private readonly TelegramClient $client,
         private readonly PermissionService $permissions,
+        private readonly StaffAccess $access,
     ) {}
 
     /**
@@ -61,7 +62,7 @@ final class StaffOrderNotifier
      */
     public function sendPersonal(Order $order, User $user): bool
     {
-        if (! $user->is_active || ! $user->telegram_personal_notify || ! $this->permissions->allows($user, 'orders.view')) {
+        if (! $this->access->botReady() || ! $user->is_active || ! $user->telegram_personal_notify || ! $this->permissions->allows($user, 'orders.view')) {
             return false;
         }
 
@@ -94,7 +95,7 @@ final class StaffOrderNotifier
      */
     public function personalRecipients(): Collection
     {
-        if (! $this->client->hasToken()) {
+        if (! $this->access->botReady()) {
             return new Collection;
         }
 

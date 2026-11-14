@@ -8,10 +8,12 @@ use App\Enums\TelegramMessageKind;
 use App\Enums\TelegramMessageStatus;
 use App\Jobs\EditTelegramMessage;
 use App\Models\Order;
+use App\Models\TelegramAccount;
 use App\Models\TelegramMessage;
 use App\Services\Telegram\TelegramApiException;
 use App\Services\Telegram\TelegramClient;
 use App\Services\Telegram\TelegramRateLimitedException;
+use App\Services\Users\PermissionService;
 use Throwable;
 
 /**
@@ -24,6 +26,8 @@ final class StaffMessageSync
     public function __construct(
         private readonly TelegramClient $client,
         private readonly StaffOrderNotifier $notifier,
+        private readonly StaffAccess $access,
+        private readonly PermissionService $permissions,
     ) {}
 
     /**
@@ -56,7 +60,8 @@ final class StaffMessageSync
     }
 
     /**
-     * Queues the redraw of every other logged staff message about the request.
+     * Queues the redraw of every other logged staff message about the request. A personal copy of a staff member who has
+     * unlinked Telegram or lost `orders.view` is left alone (the work chat copy is a shared one).
      */
     public function redrawCopies(Order $order, string|int|null $exceptChatId = null, ?int $exceptMessageId = null): void
     {
@@ -79,7 +84,24 @@ final class StaffMessageSync
                 continue;
             }
 
+            if ($copy->telegram_account_id !== null && ! $this->personalCopyAllowed($copy)) {
+                continue;
+            }
+
             EditTelegramMessage::dispatch((string) $copy->chat_id, (int) $copy->message_id, $content['text'], $content['markup'], 'HTML');
         }
+    }
+
+    private function personalCopyAllowed(TelegramMessage $copy): bool
+    {
+        $account = TelegramAccount::query()->find($copy->telegram_account_id);
+
+        if ($account === null) {
+            return false;
+        }
+
+        $user = $this->access->linkedUser($account);
+
+        return $user !== null && $this->permissions->allows($user, 'orders.view');
     }
 }

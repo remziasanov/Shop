@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Enums\TelegramMessageStatus;
 use App\Jobs\Concerns\DeliversTelegramMessages;
 use App\Models\TelegramMessage;
+use App\Services\Telegram\CustomerTelegramNotifier;
 use App\Services\Telegram\TelegramApiException;
 use App\Services\Telegram\TelegramClient;
 use App\Services\Telegram\TelegramRateLimitedException;
@@ -47,7 +48,7 @@ class SendCustomerTelegramMessage implements ShouldQueue
         return [60, 300];
     }
 
-    public function handle(TelegramClient $client): void
+    public function handle(TelegramClient $client, CustomerTelegramNotifier $notifier): void
     {
         $row = TelegramMessage::query()->with('account')->find($this->messageId);
 
@@ -59,6 +60,15 @@ class SendCustomerTelegramMessage implements ShouldQueue
 
         if ($account === null || ! $account->canMessage()) {
             $row->forceFill(['status' => TelegramMessageStatus::Skipped, 'error' => 'recipient_unavailable'])->save();
+
+            return;
+        }
+
+        // The shop switches, the customer's switch and the link of the account may have changed since the row was queued.
+        $block = $notifier->deliveryBlock($row);
+
+        if ($block !== null) {
+            $row->forceFill(['status' => TelegramMessageStatus::Skipped, 'error' => $block])->save();
 
             return;
         }

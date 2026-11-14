@@ -14,7 +14,9 @@ use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\TelegramMessage;
 use App\Services\Orders\OrderService;
+use App\Services\Telegram\Staff\StaffMessageSync;
 use App\Services\Telegram\Staff\StaffOrderActions;
+use App\Services\Telegram\Staff\StaffOrderMessage;
 use App\Services\Users\PermissionService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -386,5 +388,71 @@ describe('the redraw (TS-04, NF-60)', function (): void {
         tapButton($order, 'cf');
 
         Queue::assertPushed(EditTelegramMessage::class, fn (EditTelegramMessage $job): bool => ! str_contains(serialize($job), '123456:TEST-token_abc'));
+    });
+});
+
+describe('review round 1 fixes', function (): void {
+    it('a confirmation armed for an older version cannot make the next single tap cancel (TS-04)', function (): void {
+        [$user] = linkedStaff();
+        $order = Order::factory()->order()->create();
+
+        tapButton($order, 'cx'); // armed at v1
+        $oldVersion = $order->refresh()->version;
+        app(OrderService::class)->changeStatus($order, OrderStatus::Confirmed, $user); // a colleague: v2
+
+        telegramWebhook(pressStaffButton(5001, 'o:cx:'.$order->id.':'.$oldVersion))->assertJsonPath('text', 'Обращение уже изменено');
+        tapButton($order, 'cx')->assertJsonPath('text', 'Нажмите ещё раз в течение 30 секунд, чтобы отменить');
+
+        expect($order->refresh()->status)->toBe(OrderStatus::Confirmed);
+    });
+
+    it('refuses the workplace-only codes from a chat button (TS-01 lists no such buttons)', function (): void {
+        linkedStaff();
+        $order = Order::factory()->order()->status(OrderStatus::Confirmed)->create();
+
+        tapButton($order, 'sh')->assertJsonPath('text', 'Обращение уже изменено');
+        tapButton($order, 'co')->assertJsonPath('text', 'Обращение уже изменено');
+
+        expect($order->refresh()->status)->toBe(OrderStatus::Confirmed);
+        expect(array_map(fn ($a) => $a->value, app(StaffOrderActions::class)->available($order)))->toBe(['rd', 'cx']);
+    });
+
+    it('offers shipped and completed to the workplace only', function (): void {
+        $order = Order::factory()->order()->status(OrderStatus::Confirmed)->create();
+        $reservation = Order::factory()->reservation()->status(OrderStatus::Reserved)->create();
+        $actions = app(StaffOrderActions::class);
+
+        expect(array_map(fn ($a) => $a->value, $actions->available($order, workplace: true)))->toBe(['rd', 'sh', 'cx'])
+            ->and(array_map(fn ($a) => $a->value, $actions->available($reservation, workplace: true)))->toBe(['ex', 'co', 'cx']);
+    });
+
+    it('does not accept the staff buttons while the bot is switched off, although the token is kept (NF-63)', function (): void {
+        linkedStaff();
+        $order = Order::factory()->order()->create();
+        staffBot(['enabled' => false]);
+
+        tapButton($order, 'cf')->assertOk();
+
+        expect($order->refresh()->status)->toBe(OrderStatus::New);
+        expect(app(StaffOrderMessage::class)->markup($order))->toBeNull();
+    });
+
+    it('skips the redraw of a personal copy of a staff member who unlinked or lost orders.view', function (): void {
+        Queue::fake();
+        [$user, $account] = linkedStaff(['orders.view'], 601);
+        [$gone, $goneAccount] = linkedStaff(['orders.view'], 602);
+        [$noRight, $noRightAccount] = linkedStaff(['products.view'], 603);
+        $goneAccount->forceFill(['user_id' => null])->save();
+        $order = Order::factory()->order()->create();
+
+        foreach ([[$account, 31], [$goneAccount, 32], [$noRightAccount, 33]] as [$acc, $mid]) {
+            TelegramMessage::factory()->sent()->create(['order_id' => $order->id, 'kind' => 'staff_new_order', 'chat_id' => $acc->telegram_user_id, 'message_id' => $mid, 'telegram_account_id' => $acc->id]);
+        }
+
+        app(StaffMessageSync::class)->redrawCopies($order);
+
+        Queue::assertPushed(EditTelegramMessage::class, 1);
+        Queue::assertPushed(EditTelegramMessage::class, fn (EditTelegramMessage $job): bool => $job->messageId === 31);
+        expect([$user->id, $gone->id, $noRight->id])->each->toBeInt();
     });
 });

@@ -35,6 +35,7 @@ use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -275,8 +276,8 @@ describe('deduplication (TN-04)', function (): void {
         OrderCreated::dispatch($order);
         OrderCreated::dispatch($order);
         $row = TelegramMessage::query()->sole();
-        (new SendCustomerTelegramMessage($row->id, 'again'))->handle(app(TelegramClient::class));
-        (new SendCustomerTelegramMessage($row->id, 'again'))->handle(app(TelegramClient::class));
+        (new SendCustomerTelegramMessage($row->id, 'again'))->handle(app(TelegramClient::class), app(CustomerTelegramNotifier::class));
+        (new SendCustomerTelegramMessage($row->id, 'again'))->handle(app(TelegramClient::class), app(CustomerTelegramNotifier::class));
 
         expect(tnSent())->toHaveCount(1)->and(TelegramMessage::query()->count())->toBe(1);
     });
@@ -289,11 +290,11 @@ describe('deduplication (TN-04)', function (): void {
         $row = TelegramMessage::factory()->create(['telegram_account_id' => $account->id, 'kind' => TelegramMessageKind::StatusChanged, 'dedupe_key' => 'k1']);
         $job = new SendCustomerTelegramMessage($row->id, 'text');
 
-        expect(fn () => $job->handle(app(TelegramClient::class)))->toThrow(TelegramApiException::class);
+        expect(fn () => $job->handle(app(TelegramClient::class), app(CustomerTelegramNotifier::class)))->toThrow(TelegramApiException::class);
         expect($row->refresh()->status)->toBe(TelegramMessageStatus::Queued);
 
-        $job->handle(app(TelegramClient::class));
-        $job->handle(app(TelegramClient::class));
+        $job->handle(app(TelegramClient::class), app(CustomerTelegramNotifier::class));
+        $job->handle(app(TelegramClient::class), app(CustomerTelegramNotifier::class));
 
         expect($row->refresh()->status)->toBe(TelegramMessageStatus::Sent)->and($row->message_id)->toBe(78)->and(tnSent())->toHaveCount(2);
     });
@@ -467,7 +468,7 @@ describe('«Не присылать уведомления» (TN-06)', function 
         $row = TelegramMessage::factory()->create(['telegram_account_id' => $account->id, 'dedupe_key' => 'k3']);
         $account->forceFill(['notify_enabled' => false])->save();
 
-        (new SendCustomerTelegramMessage($row->id, 'text'))->handle(app(TelegramClient::class));
+        (new SendCustomerTelegramMessage($row->id, 'text'))->handle(app(TelegramClient::class), app(CustomerTelegramNotifier::class));
 
         Http::assertNothingSent();
         expect($row->refresh()->status)->toBe(TelegramMessageStatus::Skipped)->and($row->error)->toBe('recipient_unavailable');
@@ -605,4 +606,38 @@ describe('the order card block «Сообщения в Telegram» (TN-07)', func
 
         $this->get(OrderResource::getUrl('view', ['record' => $order]))->assertOk()->assertSee(__('telegram_notify.order.empty'));
     });
+});
+
+describe('send-time re-check of the recipient (TN-01, TN-05, NF-63)', function (): void {
+    it('skips a queued message when the customer unlinked Telegram during the queue delay', function (): void {
+        Queue::fake();
+        [$order, $telegram] = tnRecipient();
+        OrderCreated::dispatch($order);
+        $row = TelegramMessage::query()->sole();
+        expect($row->status)->toBe(TelegramMessageStatus::Queued);
+
+        $telegram->forceFill(['customer_id' => null])->save();
+        Queue::assertPushed(SendCustomerTelegramMessage::class);
+        (new SendCustomerTelegramMessage($row->id, 'text'))->handle(app(TelegramClient::class), app(CustomerTelegramNotifier::class));
+
+        Http::assertNothingSent();
+        expect($row->refresh()->status)->toBe(TelegramMessageStatus::Skipped)->and($row->error)->toBe('recipient_changed');
+    });
+
+    it('skips when the account moved to another customer, the cabinet switch or the shop switch went off', function (string $change): void {
+        Queue::fake();
+        [$order, $telegram, $customer] = tnRecipient();
+        OrderCreated::dispatch($order);
+        $row = TelegramMessage::query()->sole();
+
+        match ($change) {
+            'other customer' => $telegram->forceFill(['customer_id' => Customer::factory()->create()->id])->save(),
+            'cabinet' => $customer->forceFill(['telegram_notify_events' => ['order_created']])->save(),
+            'shop' => connectTelegramBot(['notify_order_created' => false]),
+        };
+        (new SendCustomerTelegramMessage($row->id, 'text'))->handle(app(TelegramClient::class), app(CustomerTelegramNotifier::class));
+
+        Http::assertNothingSent();
+        expect($row->refresh()->status)->toBe(TelegramMessageStatus::Skipped);
+    })->with(['other customer', 'cabinet', 'shop']);
 });

@@ -46,15 +46,20 @@ final class StaffOrderActions
 
     /**
      * Actions that fit the request right now, in button order: only transitions of Appendix B (the system-only `expired`
-     * and `completed` handovers are not offered here).
+     * is never offered). The chat buttons are the six of TS-01; with `$workplace` the «Рабочее место» (TS-06) also gets
+     * `shipped` and `completed` («Выполнен» / «Выкуплен»), i.e. every manual transition the admin panel allows.
      *
      * @return list<StaffOrderAction>
      */
-    public function available(Order $order): array
+    public function available(Order $order, bool $workplace = false): array
     {
         $actions = [];
 
         foreach (StaffOrderAction::cases() as $action) {
+            if ($action->isWorkplaceOnly() && ! $workplace) {
+                continue;
+            }
+
             if ($action === StaffOrderAction::Extend) {
                 if ($order->type === OrderType::Reservation && in_array($order->status, [OrderStatus::New, OrderStatus::Reserved], true)) {
                     $actions[] = $action;
@@ -94,7 +99,7 @@ final class StaffOrderActions
             return new StaffActionResult(StaffActionResult::STALE, $order, $action);
         }
 
-        if (! in_array($action, $this->available($order), true)) {
+        if (! in_array($action, $this->available($order, $via === 'workplace'), true)) {
             return new StaffActionResult(StaffActionResult::STALE, $order, $action);
         }
 
@@ -150,8 +155,10 @@ final class StaffOrderActions
     }
 
     /**
-     * TS-04: the first tap stores «request + staff member» for 30 seconds and returns false; the second one inside
-     * the window consumes the key and returns true. `Cache::add` makes two simultaneous first taps one.
+     * TS-04: the first tap stores «action + request + version + staff member» for 30 seconds and returns false; the second
+     * one inside the window consumes the key and returns true. The version is part of the key, so a confirmation armed
+     * for an older state of the request can never make a later single tap cancel. `Cache::add` keeps two simultaneous first
+     * taps one key; a double second tap is stopped by the version check under the lock.
      */
     private function confirmed(User $staff, Order $order, StaffOrderAction $action): bool
     {
@@ -161,14 +168,14 @@ final class StaffOrderActions
             return true;
         }
 
-        Cache::put($key, 1, self::CONFIRM_WINDOW_SECONDS);
+        Cache::add($key, 1, self::CONFIRM_WINDOW_SECONDS);
 
         return false;
     }
 
     public static function confirmKey(User $staff, Order $order, StaffOrderAction $action): string
     {
-        return 'tg-staff-confirm:'.$action->value.':'.$order->id.':'.$staff->id;
+        return 'tg-staff-confirm:'.$action->value.':'.$order->id.':'.$order->version.':'.$staff->id;
     }
 
     /**

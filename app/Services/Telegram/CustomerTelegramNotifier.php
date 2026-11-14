@@ -190,6 +190,48 @@ class CustomerTelegramNotifier
     }
 
     /**
+     * The send-time check of the delivery job (TN-01, TN-05, NF-63): the recipient is resolved again, because the shop
+     * switch, the customer's own switch or the link of the account may have changed during the queue delay.
+     *
+     * @return string|null the reason to skip the queued row, null when it may go out
+     */
+    public function deliveryBlock(TelegramMessage $row): ?string
+    {
+        $event = CustomerTelegramEvent::tryFrom($row->kind->value);
+        $account = $row->account;
+
+        if ($event === null || $account === null) {
+            return 'recipient_unavailable';
+        }
+
+        if (! $this->isActive($event)) {
+            return 'feature_disabled';
+        }
+
+        $order = $row->order_id !== null ? Order::query()->find($row->order_id) : null;
+
+        if ($order !== null) {
+            $resolved = $this->resolve($order, null);
+
+            // The account must still be the recipient of this request (TN-01): not unlinked, not relinked to another customer.
+            if ($resolved === null || $resolved[0]->id !== $account->id) {
+                return 'recipient_changed';
+            }
+
+            $customer = $resolved[1];
+        } else {
+            $customer = $account->customer;
+
+            // Wholesale and export messages go to the linked Telegram of the customer only.
+            if ($customer === null || $customer->anonymized_at !== null) {
+                return 'recipient_changed';
+            }
+        }
+
+        return $this->skipReason($event, $account, $customer);
+    }
+
+    /**
      * @return array{0: TelegramAccount, 1: Customer|null}|null the account and the customer whose cabinet settings apply
      */
     private function resolve(?Order $order, ?Customer $customer): ?array

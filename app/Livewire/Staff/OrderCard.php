@@ -110,7 +110,7 @@ class OrderCard extends Component
         return view('livewire.staff.order-card', [
             'order' => $order,
             'canUpdate' => $canUpdate,
-            'actions' => $canUpdate ? app(StaffOrderActions::class)->available($order) : [],
+            'actions' => $canUpdate ? app(StaffOrderActions::class)->available($order, workplace: true) : [],
             'messages' => $order->telegramMessages()
                 ->whereNotIn('kind', [TelegramMessageKind::StaffNewOrder->value, TelegramMessageKind::StaffOrderAction->value])
                 ->latest('id')

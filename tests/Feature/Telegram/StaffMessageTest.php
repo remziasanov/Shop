@@ -267,4 +267,17 @@ describe('/start staff (TS-01)', function (): void {
 
         expect(telegramWebhook(tgMessage(2, '/start staff', 556))->json('text'))->toContain('недоступно')->and($user->id)->toBeInt();
     });
+
+    it('does not queue or send personal messages while the bot is switched off with the token kept (NF-63)', function (): void {
+        Bus::fake([SendStaffPersonalNotification::class, SendTelegramNotification::class]);
+        Http::fake();
+        [$user] = linkedStaff(['orders.view'], 601);
+        $user->forceFill(['telegram_personal_notify' => true])->save();
+        $order = Order::factory()->order()->create();
+        staffBot(['enabled' => false]);
+
+        expect(app(StaffOrderNotifier::class)->personalRecipients())->toHaveCount(0)
+            ->and(app(StaffOrderNotifier::class)->sendPersonal($order, $user))->toBeFalse();
+        Http::assertNothingSent();
+    });
 });

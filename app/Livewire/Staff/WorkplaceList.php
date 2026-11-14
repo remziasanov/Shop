@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Support\PhoneNormalizer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
@@ -32,6 +33,10 @@ class WorkplaceList extends Component
 
     public string $search = '';
 
+    public const MAX_LIMIT = 100;
+
+    /** Server-controlled page size: the client cannot set it (a Livewire request must not load the whole table). */
+    #[Locked]
     public int $limit = self::PAGE;
 
     public function setTab(string $tab): void
@@ -47,7 +52,7 @@ class WorkplaceList extends Component
 
     public function more(): void
     {
-        $this->limit = min(200, $this->limit + self::PAGE);
+        $this->limit = min(self::MAX_LIMIT, $this->limit + self::PAGE);
     }
 
     public function render(): View
@@ -56,12 +61,13 @@ class WorkplaceList extends Component
 
         $tab = in_array($this->tab, self::TABS, true) ? $this->tab : 'new';
         $query = $this->query($tab);
-        $rows = $query->limit($this->limit + 1)->get();
+        $limit = min(self::MAX_LIMIT, max(self::PAGE, $this->limit));
+        $rows = $query->limit($limit + 1)->get();
 
         return view('livewire.staff.workplace-list', [
             'tab' => $tab,
-            'orders' => $rows->take($this->limit),
-            'hasMore' => $rows->count() > $this->limit,
+            'orders' => $rows->take($limit),
+            'hasMore' => $rows->count() > $limit,
             'newCount' => Order::query()->new()->count(),
         ]);
     }

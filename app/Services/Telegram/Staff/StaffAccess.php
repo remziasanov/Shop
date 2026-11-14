@@ -6,6 +6,7 @@ namespace App\Services\Telegram\Staff;
 
 use App\Models\TelegramAccount;
 use App\Models\User;
+use App\Services\Telegram\TelegramBotSetup;
 use App\Services\Users\PermissionService;
 use App\Settings\TelegramSettings;
 
@@ -19,6 +20,7 @@ final class StaffAccess
     public function __construct(
         private readonly PermissionService $permissions,
         private readonly TelegramSettings $settings,
+        private readonly TelegramBotSetup $setup,
     ) {}
 
     /**
@@ -53,15 +55,23 @@ final class StaffAccess
         return TelegramAccount::query()->where('telegram_user_id', $telegramUserId)->where('user_id', $user->id)->exists();
     }
 
-    /** The staff features (buttons, workplace) need a connected bot. */
+    /**
+     * The bot is connected (token, identity, «Подключить бота» done, the same check as the customer notifications) and
+     * switched on in «Настройки → Telegram» (NF-63, NF-64). Every staff feature needs it, not just a saved token.
+     */
+    public function botReady(): bool
+    {
+        return $this->settings->enabled && $this->setup->isConnected();
+    }
+
     public function workplaceEnabled(): bool
     {
-        return $this->settings->staff_workplace_enabled && $this->settings->miniapp_enabled && filled($this->settings->bot_token);
+        return $this->settings->staff_workplace_enabled && $this->settings->miniapp_enabled && $this->botReady();
     }
 
     public function buttonsEnabled(): bool
     {
-        return $this->settings->work_chat_buttons_enabled && filled($this->settings->bot_token);
+        return $this->settings->work_chat_buttons_enabled && $this->botReady();
     }
 
     /** TS-05: all entry conditions of the Mini App except the signature: feature on, active user, `orders.view`. */
