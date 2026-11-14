@@ -27,6 +27,10 @@ it('creates and drops the schema reversibly', function (): void {
         ->and(Schema::hasColumn('orders', 'telegram_account_id'))->toBeTrue()
         ->and(Schema::hasColumn('customers', 'telegram_notify_events'))->toBeTrue();
 
+    // telegram_messages (stage 18) references telegram_accounts: roll it back first, as `migrate:rollback` would.
+    $dependent = require database_path('migrations/2026_11_23_100001_create_telegram_messages_table.php');
+    $dependent->down();
+
     $migration = require database_path('migrations/'.TELEGRAM_MIGRATION.'.php');
     $migration->down();
 
@@ -38,8 +42,10 @@ it('creates and drops the schema reversibly', function (): void {
         ->and(Schema::hasColumn('customers', 'telegram_notify_events'))->toBeFalse();
 
     $migration->up();
+    $dependent->up();
 
     expect(Schema::hasTable('telegram_accounts'))->toBeTrue()
+        ->and(Schema::hasTable('telegram_messages'))->toBeTrue()
         ->and(Schema::hasColumn('orders', 'telegram_account_id'))->toBeTrue();
 });
 
