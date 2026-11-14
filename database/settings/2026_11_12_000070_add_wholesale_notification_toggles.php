@@ -12,4 +12,10 @@ return new class extends SettingsMigration
         $this->migrator->add('notifications.notify_wholesale_email', true);
         $this->migrator->add('notifications.notify_wholesale_telegram', true);
     }
+
+    public function down(): void
+    {
+        $this->migrator->delete('notifications.notify_wholesale_email');
+        $this->migrator->delete('notifications.notify_wholesale_telegram');
+    }
 };

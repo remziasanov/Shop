@@ -47,6 +47,9 @@ return [
         'catalog' => 'Каталог',
         'orders' => 'Обращения',
         'promo_batch' => 'Коды партии',
+        'customer_orders_xlsx' => 'История заказов покупателя (Excel)',
+        'customer_orders_pdf' => 'История заказов покупателя (PDF)',
+        'price_list' => 'Прайс-лист группы',
     ],
 
     'export_statuses' => [

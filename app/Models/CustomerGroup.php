@@ -46,12 +46,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property bool $is_wholesale_default CG-22: preselected by a wholesale approval (set by the migration / the service)
  * @property string $default_discount_percent GP-01: discount from the retail price, 0–99.99 (decimal string)
  * @property bool $show_retail_price GP-01: show the retail price struck through next to the group price
+ * @property bool $allow_order_blank CX-10: the customer may download the order blank / invoice (PDF)
  */
 #[ObservedBy(CustomerGroupObserver::class)]
 #[Fillable([
     'code', 'name', 'description', 'is_active', 'sort_order', 'visible_sections', 'category_access_mode',
     'price_display', 'allowed_sales_modes', 'min_order_amount', 'allowed_delivery_codes', 'allowed_payment_codes',
-    'stock_display', 'require_login_to_order', 'default_discount_percent', 'show_retail_price',
+    'stock_display', 'require_login_to_order', 'default_discount_percent', 'show_retail_price', 'allow_order_blank',
 ])]
 class CustomerGroup extends Model
 {
@@ -84,6 +85,7 @@ class CustomerGroup extends Model
             'stock_display' => GroupStockDisplay::class,
             'default_discount_percent' => 'decimal:2',
             'show_retail_price' => 'boolean',
+            'allow_order_blank' => 'boolean',
         ];
     }
 

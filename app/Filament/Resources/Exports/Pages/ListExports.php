@@ -15,13 +15,44 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Throwable;
 
 class ListExports extends ListRecords
 {
     protected static string $resource = ExportResource::class;
+
+    public const TAB_STAFF = 'staff';
+
+    public const TAB_CUSTOMERS = 'customers';
+
+    /**
+     * CX-13: «Выгрузки сотрудников» and, for administrators, «Выгрузки покупателей».
+     *
+     * @return array<string, Tab>
+     */
+    public function getTabs(): array
+    {
+        // A manager sees only their own exports: no tabs.
+        if (! ExportResource::isAdministrator()) {
+            return [];
+        }
+
+        return [
+            self::TAB_STAFF => Tab::make(__('customer_export.admin.tab_staff'))
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query->whereNull('exports.customer_id')),
+            self::TAB_CUSTOMERS => Tab::make(__('customer_export.admin.tab_customers'))
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query->whereNotNull('exports.customer_id')),
+        ];
+    }
+
+    public function getDefaultActiveTab(): string|int|null
+    {
+        return ExportResource::isAdministrator() ? self::TAB_STAFF : null;
+    }
 
     protected function getHeaderActions(): array
     {

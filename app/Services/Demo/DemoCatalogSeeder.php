@@ -7,6 +7,9 @@ namespace App\Services\Demo;
 use App\Enums\SalesMode;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\PromoCode;
+use App\Models\PromoLink;
+use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Media\ImageProcessor;
 use Throwable;
 
@@ -111,13 +114,17 @@ final class DemoCatalogSeeder
     /** Indexes (0-based) of products shown as "price on request". */
     public const PRICE_ON_REQUEST = [20, 47];
 
-    public function __construct(private readonly ImageProcessor $images, private readonly DemoImageDrawer $drawer = new DemoImageDrawer) {}
+    public function __construct(
+        private readonly ImageProcessor $images,
+        private readonly DemoImageDrawer $drawer = new DemoImageDrawer,
+        private readonly ?DemoWholesaleSeeder $wholesaleSeeder = null,
+    ) {}
 
     /**
      * Create or update the demo data.
      *
      * @param  int|null  $limit  only the first N products (categories are always created)
-     * @return array{categories_created: int, categories_updated: int, products_created: int, products_updated: int, images_created: int, images_skipped: int, warnings: list<string>}
+     * @return array{categories_created: int, categories_updated: int, products_created: int, products_updated: int, images_created: int, images_skipped: int, wholesale_prices: int, variants: int, promo: int, filters: int, warnings: list<string>}
      */
     public function run(bool $withImages = true, ?int $limit = null): array
     {
@@ -128,6 +135,10 @@ final class DemoCatalogSeeder
             'products_updated' => 0,
             'images_created' => 0,
             'images_skipped' => 0,
+            'wholesale_prices' => 0,
+            'variants' => 0,
+            'promo' => 0,
+            'filters' => 0,
             'warnings' => [],
         ];
 
@@ -151,6 +162,21 @@ final class DemoCatalogSeeder
             }
         }
 
+        // Version 2.0 data (wholesale prices, variants, filters, promo) only with the whole catalog.
+        if ($limit === null) {
+            try {
+                $extra = ($this->wholesaleSeeder ?? app(DemoWholesaleSeeder::class))->run($categories, $report);
+
+                foreach ($extra as $offset => $product) {
+                    if ($withImages) {
+                        $this->seedImages($product, 100 + $offset, $report);
+                    }
+                }
+            } catch (Throwable $e) {
+                $report['warnings'][] = 'v2: '.$e->getMessage();
+            }
+        }
+
         return $report;
     }
 
@@ -169,7 +195,20 @@ final class DemoCatalogSeeder
             $products++;
         });
 
-        $slugs = array_map(fn (string $key): string => self::SLUG_PREFIX.$key, array_keys(self::CATEGORIES));
+        $slugs = [
+            ...array_map(fn (string $key): string => self::SLUG_PREFIX.$key, array_keys(self::CATEGORIES)),
+            DemoWholesaleSeeder::WHOLESALE_CATEGORY,
+            DemoWholesaleSeeder::APPAREL_CATEGORY,
+        ];
+
+        // The promo link goes first (it points at a demo product); a code that was used stays, as it is history.
+        PromoLink::query()->where('slug', DemoWholesaleSeeder::PROMO_LINK)->delete();
+
+        try {
+            PromoCode::query()->where('code', DemoWholesaleSeeder::PROMO_CODE)->delete();
+        } catch (Throwable) {
+            // Used by an order: keep it.
+        }
 
         // Deepest first, so parents are empty by the time they are reached.
         $demo = Category::query()->whereIn('slug', $slugs)->orderByDesc('depth')->get();
@@ -248,12 +287,6 @@ final class DemoCatalogSeeder
             'description' => '<p><strong>'.e($name).'</strong> — демонстрационный товар бренда '.e($brand).'.</p>'
                 .'<ul><li>Материал: '.e($material).'</li><li>Гарантия производителя</li><li>Быстрая доставка по городу</li></ul>'
                 .'<p>Описание выдумано для демонстрации витрины и не относится к реальным товарам.</p>',
-            'attributes' => [
-                ['name' => 'Цвет', 'value' => self::COLORS[$index % count(self::COLORS)]],
-                ['name' => 'Материал', 'value' => $material],
-                ['name' => 'Размер', 'value' => 'M'.(($index % 4) + 1)],
-                ['name' => 'Гарантия', 'value' => (($index % 3) + 1).' '.(($index % 3) === 0 ? 'год' : 'года')],
-            ],
             'base_price' => number_format((float) $price, 2, '.', ''),
             'compare_at_price' => $onSale ? bcmul(number_format((float) $price, 2, '.', ''), '1.20', 2) : null,
             'price_on_request' => in_array($index, self::PRICE_ON_REQUEST, true),
@@ -264,6 +297,16 @@ final class DemoCatalogSeeder
             'is_new' => $index % 5 === 1,
             'sort_order' => $index,
         ]);
+
+        // Characteristics live in the tables once the migration from JSON has run (FL-04); the JSON is a mirror then.
+        if (! app(AttributeMigrationState::class)->isMigrated()) {
+            $product->setAttribute('attributes', [
+                ['name' => 'Цвет', 'value' => self::COLORS[$index % count(self::COLORS)]],
+                ['name' => 'Материал', 'value' => $material],
+                ['name' => 'Размер', 'value' => 'M'.(($index % 4) + 1)],
+                ['name' => 'Гарантия', 'value' => (($index % 3) + 1).' '.(($index % 3) === 0 ? 'год' : 'года')],
+            ]);
+        }
 
         if ($product->trashed()) {
             $product->restore();

@@ -64,6 +64,13 @@ class ViewOrder extends ViewRecord
                 ->color('gray')
                 ->url(fn (): string => route('admin.orders.print', $this->record))
                 ->openUrlInNewTab(),
+            // CX-13: the PDF document of the order (invoice or blank), to print or save.
+            Action::make('print_pdf')
+                ->label(__('customer_export.admin.print_pdf'))
+                ->icon(Heroicon::OutlinedDocumentArrowDown)
+                ->color('gray')
+                ->url(fn (): string => route('admin.orders.pdf', $this->record))
+                ->openUrlInNewTab(),
             DeleteAction::make()
                 ->label(__('admin_orders.actions.delete'))
                 ->using(function (Order $record): bool {

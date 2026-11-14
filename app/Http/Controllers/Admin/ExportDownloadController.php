@@ -24,8 +24,13 @@ final class ExportDownloadController
         /** @var string $path */
         $path = $export->file_path;
 
-        return Storage::disk(ExportManager::DISK)->download($path, basename($path), [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+        $extension = $export->type->extension();
+        $contentType = $extension === 'pdf'
+            ? 'application/pdf'
+            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        // A customer export is stored under its identifier: the download gets a neutral name with the right extension.
+        $name = $export->customer_id !== null ? 'customer-orders-'.$export->id.'.'.$extension : basename($path);
+
+        return Storage::disk(ExportManager::DISK)->download($path, $name, ['Content-Type' => $contentType]);
     }
 }

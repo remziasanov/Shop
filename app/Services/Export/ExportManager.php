@@ -16,6 +16,7 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -48,6 +49,7 @@ final class ExportManager
             ExportType::Catalog => $this->catalog->count($filters),
             ExportType::Orders => $this->orders->count($filters),
             ExportType::PromoBatch => $this->promoBatches->count($filters),
+            default => throw new InvalidArgumentException('Not a staff export: '.$type->value),
         };
     }
 
@@ -61,6 +63,7 @@ final class ExportManager
             ExportType::Orders => 'orders.export',
             ExportType::PromoBatch => 'promo_codes.generate',
             ExportType::Catalog => 'exports.create',
+            default => throw new InvalidArgumentException('Not a staff export: '.$type->value),
         };
 
         if ($user !== null && ! $this->permissions->allows($user, $permission)) {
@@ -109,6 +112,7 @@ final class ExportManager
                 ExportType::Catalog => $this->catalog->export($params, $disk->path($relative)),
                 ExportType::Orders => $this->orders->export($params, $disk->path($relative)),
                 ExportType::PromoBatch => $this->promoBatches->export($params, $disk->path($relative)),
+                default => throw new InvalidArgumentException('Not a staff export: '.$export->type->value),
             };
         } catch (Throwable $e) {
             $disk->delete($relative);
@@ -155,6 +159,8 @@ final class ExportManager
 
         Export::query()
             ->whereNotNull('file_path')
+            // Customer exports have their own, much shorter life (CX-07): see CustomerExportService::purgeExpired().
+            ->whereNull('customer_id')
             ->where('created_at', '<', now()->subDays($days))
             // lazyById, not each(): offset paging would skip rows because the loop clears file_path.
             ->lazyById(500)
