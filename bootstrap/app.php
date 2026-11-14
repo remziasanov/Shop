@@ -28,9 +28,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // TM-03: behind the nginx of Beget only X-Forwarded-For/Proto/Host count (the proxies come from TRUSTED_PROXIES,
+        // TM-03: behind the nginx of Beget ONLY X-Forwarded-Proto counts (for isSecure()). X-Forwarded-For/Host are never
+        // trusted, so the client IP cannot be spoofed even with TRUSTED_PROXIES=* (the proxies come from TRUSTED_PROXIES,
         // config/trustedproxy.php; none by default).
-        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_HOST);
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_PROTO);
         $middleware->append(SecurityHeaders::class);
         // SF-08: the consent cookie is set by JavaScript, so it is not encrypted. AG-06: the age cookie is read by
         // CSS and a tiny script without a server round trip, so it is plain too.

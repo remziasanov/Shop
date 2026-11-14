@@ -208,7 +208,7 @@ Route::post('/theme-preview/exit', [ThemePreviewController::class, 'exit'])->nam
 Route::get('/cart', [CartController::class, 'show'])->name('cart');
 Route::post('/cart/add', [CartController::class, 'add'])->middleware('throttle:60,1')->name('cart.add');
 Route::get('/checkout', CheckoutController::class)->name('checkout');
-Route::get('/order/{uuid}', OrderThanksController::class)->name('order.thanks');
+Route::get('/order/{uuid}', OrderThanksController::class)->middleware('throttle:30,1')->name('order.thanks');
 
 // Promo links (stage 13, PM-21…PM-25): 302 to an internal target, attribution and promo code cookies; noindex.
 Route::get('/go/{slug}', PromoLinkController::class)->where('slug', '[A-Za-z0-9-]{1,64}')->middleware('throttle:120,1')->name('promo-link');

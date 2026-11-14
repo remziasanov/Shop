@@ -7,12 +7,15 @@ require_once __DIR__.'/../../../Support/telegram_miniapp.php';
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\TelegramAccount;
+use App\Models\User;
 use App\Services\Telegram\TelegramLinkService;
 use App\Settings\GeneralSettings;
 use App\Settings\TelegramSettings;
 use App\Support\TelegramMode;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 
 /**
  * Review fixes of stage 17: the Telegram sign-in ends with the link (TM-04 г), `check` only from the signed start_param
@@ -212,4 +215,53 @@ it('throttles POST /tg/session on its own cap (TM-13)', function (): void {
     }
 
     $this->postJson('/tg/session', ['initData' => 'x'])->assertStatus(429);
+});
+
+it('keeps the Mini App session after a password change and shows the status (CA-08, TM-04 а)', function (): void {
+    $customer = makeCustomer();
+    $account = TelegramAccount::factory()->create(['telegram_user_id' => 777, 'customer_id' => $customer->id, 'customer_auth_version' => $customer->auth_version]);
+    $this->postJson('/tg/session', ['initData' => tgInitData()])->assertOk();
+    nextRequest();
+
+    $this->post(route('customer.profile.password'), ['current_password' => 'password-123', 'password' => 'N3w-Strong-pass-77', 'password_confirmation' => 'N3w-Strong-pass-77'])
+        ->assertRedirect()
+        ->assertSessionHas('status', __('account.profile.password_changed'));
+    nextRequest();
+
+    $this->get(route('customer.profile'))->assertOk()->assertSee(__('account.profile.password_changed'));
+    expect(session(TelegramMode::LOGIN_KEY))->toBeNull();
+
+    // The stale link ends on the next Mini App open: the version no longer matches (TM-04 а), the session stays a guest.
+    $this->postJson('/tg/session', ['initData' => tgInitData()])->assertOk();
+    expect($account->fresh()->customer_id)->toBeNull();
+});
+
+it('does not drop another customer who signs in by password after a staff session logout in the Mini App', function (): void {
+    $staff = User::factory()->admin()->create();
+    signInStaff($this, $staff);
+    $a = makeCustomer();
+    TelegramAccount::factory()->create(['telegram_user_id' => 777, 'customer_id' => $a->id, 'customer_auth_version' => $a->auth_version]);
+    $this->postJson('/tg/session', ['initData' => tgInitData()])->assertOk();
+    nextRequest();
+    $this->post(route('customer.logout'))->assertRedirect();
+    nextRequest();
+
+    $b = makeCustomer();
+    $this->post(route('customer.login.store'), ['email' => $b->email, 'password' => 'password-123'])->assertRedirect();
+    nextRequest();
+    $this->get(route('customer.profile'))->assertOk();
+    nextRequest();
+
+    expect(Auth::guard('customer')->id())->toBe($b->id);
+});
+
+it('trusts only X-Forwarded-Proto: a spoofed X-Forwarded-For / -Host changes neither ip() nor the host, even with * (TM-03, NF-12)', function (): void {
+    Route::get('/__probe_proxy', fn (Request $r): array => ['ip' => $r->ip(), 'secure' => $r->isSecure(), 'host' => $r->getHost()]);
+    config(['trustedproxy.proxies' => '*']);
+
+    $spoofed = $this->withHeaders(['X-Forwarded-For' => '203.0.113.7, 198.51.100.9', 'X-Forwarded-Host' => 'evil.example'])->getJson('http://localhost/__probe_proxy')->assertOk()->json();
+    expect($spoofed['ip'])->toBe('127.0.0.1')->and($spoofed['host'])->not->toBe('evil.example');
+
+    $https = $this->withHeaders(['X-Forwarded-Proto' => 'https', 'X-Forwarded-For' => '203.0.113.7'])->getJson('http://localhost/__probe_proxy')->assertOk()->json();
+    expect($https['secure'])->toBeTrue()->and($https['ip'])->toBe('127.0.0.1');
 });

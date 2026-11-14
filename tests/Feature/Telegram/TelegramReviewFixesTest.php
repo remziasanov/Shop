@@ -7,7 +7,9 @@ use App\Jobs\EditTelegramMessage;
 use App\Mail\TelegramLinkedMail;
 use App\Models\Customer;
 use App\Models\CustomerNotification;
+use App\Models\Order;
 use App\Models\TelegramAccount;
+use App\Services\Telegram\TelegramApiException;
 use App\Services\Telegram\TelegramBotSetup;
 use App\Services\Telegram\TelegramClient;
 use App\Services\Telegram\TelegramLinkService;
@@ -16,6 +18,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 
@@ -267,5 +270,42 @@ describe('synchronous redraw in the webhook (TG-05)', function (): void {
         (new EditTelegramMessage('555', 9, 'Готово', ['inline_keyboard' => []]))->handle(app(TelegramClient::class));
 
         Http::assertSent(fn ($request): bool => str_contains($request->url(), '/editMessageText') && $request['message_id'] === 9 && $request['text'] === 'Готово');
+    });
+});
+
+describe('round 2 fixes', function (): void {
+    it('does not bind an anonymized customer (fails gracefully, the account stays free)', function (): void {
+        $customer = Customer::factory()->create();
+        $account = TelegramAccount::factory()->create(['customer_id' => null]);
+        $customer->forceFill(['anonymized_at' => now()])->save();
+
+        expect(app(TelegramLinkService::class)->bindCustomer($account, $customer))->toBeFalse()
+            ->and($account->fresh()->customer_id)->toBeNull();
+    });
+
+    it('treats «message is not modified» and «message to edit not found» as done in the queued redraw', function (string $description): void {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => false, 'error_code' => 400, 'description' => 'Bad Request: '.$description], 400)]);
+        $job = new EditTelegramMessage('555', 9, 'Готово', ['inline_keyboard' => []]);
+        Log::spy();
+
+        $job->handle(app(TelegramClient::class));
+
+        Log::shouldNotHaveReceived('warning');
+    })->with(['message is not modified', 'message to edit not found']);
+
+    it('still retries other 400 answers of the queued redraw', function (): void {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => false, 'error_code' => 400, 'description' => 'Bad Request: can\'t parse entities'], 400)]);
+
+        expect(fn () => (new EditTelegramMessage('555', 9, 'x', []))->handle(app(TelegramClient::class)))->toThrow(TelegramApiException::class);
+    });
+
+    it('throttles the thanks page per IP (cookie-less link-preview fetches)', function (): void {
+        $order = Order::factory()->create();
+
+        foreach (range(1, 30) as $_) {
+            $this->get(route('order.thanks', $order->uuid))->assertOk();
+        }
+
+        $this->get(route('order.thanks', $order->uuid))->assertStatus(429);
     });
 });

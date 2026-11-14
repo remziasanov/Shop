@@ -317,6 +317,8 @@ final class CustomerAuthService
         $guard->setRememberDuration(self::REMEMBER_MINUTES);
         $guard->login($customer, $remember);
         $request->session()->put(self::SESSION_VERSION_KEY, $customer->auth_version);
+        // TM-04: a password, code or reset sign-in is not a Telegram sign-in (the per-request link check must not apply).
+        $request->session()->forget(TelegramMode::LOGIN_KEY);
         $customer->forceFill(['last_login_at' => now()])->save();
         $this->mergeGuestCart($customer, $request);
         $this->linkGuestOrders($customer);
@@ -331,7 +333,7 @@ final class CustomerAuthService
         Auth::guard('customer')->logout();
 
         $session = $request->session();
-        $session->forget(self::SESSION_VERSION_KEY);
+        $session->forget([self::SESSION_VERSION_KEY, TelegramMode::LOGIN_KEY]);
 
         if (Auth::guard('web')->check()) {
             $session->regenerateToken();
@@ -466,6 +468,9 @@ final class CustomerAuthService
         $customer->forceFill(['password' => $newPassword])->save();
         $customer->bumpAuthVersion();
         $session->put(self::SESSION_VERSION_KEY, $customer->auth_version);
+        // CA-08: the session continues. The password was just proved, so it becomes an ordinary sign-in; the Telegram link
+        // keeps the old version and ends at the next /tg/session (TM-04 а).
+        $session->forget(TelegramMode::LOGIN_KEY);
     }
 
     /**
@@ -535,6 +540,8 @@ final class CustomerAuthService
         });
 
         $session->put(self::SESSION_VERSION_KEY, $customer->auth_version);
+        // CA-08: same as changePassword(): the session continues as an ordinary sign-in (TM-04 а).
+        $session->forget(TelegramMode::LOGIN_KEY);
 
         Mail::to($old)->queue(new CustomerEmailChangedMail(PiiMask::email($newEmail)));
         CustomerEmailVerified::dispatch($customer);

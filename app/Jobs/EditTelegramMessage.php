@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Jobs\Concerns\DeliversTelegramMessages;
+use App\Services\Telegram\TelegramApiException;
 use App\Services\Telegram\TelegramClient;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -45,12 +46,23 @@ class EditTelegramMessage implements ShouldQueue
     public function handle(TelegramClient $client): void
     {
         $this->deliverTelegram(function () use ($client): void {
-            $client->call('editMessageText', [
-                'chat_id' => $this->chatId,
-                'message_id' => $this->messageId,
-                'text' => $this->text,
-                'reply_markup' => $this->markup,
-            ]);
+            try {
+                $client->call('editMessageText', [
+                    'chat_id' => $this->chatId,
+                    'message_id' => $this->messageId,
+                    'text' => $this->text,
+                    'reply_markup' => $this->markup,
+                ]);
+            } catch (TelegramApiException $e) {
+                // A timed-out first attempt often was applied: «not modified» / «not found» mean there is nothing to redraw.
+                $description = (string) $e->description;
+
+                if ($e->status === 400 && (stripos($description, 'message is not modified') !== false || stripos($description, 'message to edit not found') !== false)) {
+                    return;
+                }
+
+                throw $e;
+            }
         });
     }
 

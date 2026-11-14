@@ -67,3 +67,16 @@ function fakeTelegramApi(): void
 {
     Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => true])]);
 }
+
+/**
+ * A callback_query update (inline button press) for the webhook.
+ *
+ * @return array<string, mixed>
+ */
+function pressButton(int $updateId, string $data, int $userId = 555): array
+{
+    return [
+        'update_id' => $updateId,
+        'callback_query' => ['id' => 'cb'.$updateId, 'from' => ['id' => $userId, 'is_bot' => false, 'first_name' => 'Ivan', 'username' => 'ivan_tg'], 'data' => $data, 'message' => ['message_id' => 9, 'chat' => ['id' => $userId, 'type' => 'private']]],
+    ];
+}

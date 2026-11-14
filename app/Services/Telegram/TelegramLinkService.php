@@ -36,10 +36,10 @@ class TelegramLinkService
 
     public const ORDER_TTL_DAYS = 7;
 
-    /** Callback data prefixes of the confirmation buttons (≤ 64 bytes: prefix, token id, 8 hash characters). */
     /** Session key prefix of the order link of the thanks page (one token per order set). */
     public const ORDER_LINK_SESSION_PREFIX = 'telegram_order_link_';
 
+    /** Callback data prefixes of the confirmation buttons (≤ 64 bytes: prefix, token id, 8 hash characters). */
     public const CALLBACK_CONFIRM = 'lc';
 
     public const CALLBACK_DECLINE = 'ln';
@@ -351,10 +351,14 @@ class TelegramLinkService
 
         try {
             $linked = DB::transaction(function () use ($account, $token, $customer, $replaceExisting, &$detachedOwner): bool {
+                // Lock order customer → token → account (as CustomerAnonymizer); serialises concurrent links of one customer.
+                $lockedCustomer = Customer::query()->lockForUpdate()->whereKey($customer->id)->first();
                 $fresh = $token !== null ? TelegramLinkToken::query()->lockForUpdate()->whereKey($token->id)->first() : null;
                 $locked = TelegramAccount::query()->lockForUpdate()->find($account->id);
-                // Serialises concurrent links of the same customer.
-                Customer::query()->lockForUpdate()->whereKey($customer->id)->first(['id']);
+
+                if ($lockedCustomer === null || $lockedCustomer->anonymized_at !== null || ! $lockedCustomer->canSignIn()) {
+                    return false;
+                }
 
                 if ($locked === null || ($token !== null && ($fresh === null || $fresh->used_at !== null))) {
                     return false;
