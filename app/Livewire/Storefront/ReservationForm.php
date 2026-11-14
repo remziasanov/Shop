@@ -131,6 +131,7 @@ class ReservationForm extends Component
                 userAgent: $this->clientUserAgent(),
                 ageConfirmed: $this->ageConfirmed,
                 promoLinkId: $this->promoLinkId(),
+                channel: $this->orderChannel(),
             ), $this->selectedVariantId());
         } catch (SalesException $e) {
             $this->addError('form', $e->getMessage());

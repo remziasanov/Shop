@@ -6,6 +6,7 @@ namespace App\Services\Orders;
 
 use App\Enums\AgeRestriction;
 use App\Enums\CheckoutChoice;
+use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Events\OrderCreated;
@@ -290,6 +291,7 @@ final class OrderService
                     $ageLevel,
                     $data->promoLinkId,
                     viaCart: true,
+                    channel: $data->channel,
                 );
 
                 // MR-05: the two requests of one checkout point at each other.
@@ -395,6 +397,7 @@ final class OrderService
             'total' => Money::toRubles($itemsTotal - $promoDiscount + $deliveryPrice),
             'customer_comment' => $this->blankToNull($data->comment),
             'age_confirmed_level' => $ageLevel,
+            'channel' => $data->channel,
         ], $data->ip, $data->userAgent, $lines, [
             'promo_code_id' => $promo?->code?->id,
             'promo_code' => $promo?->code?->code,
@@ -421,7 +424,7 @@ final class OrderService
      *
      * @throws SalesException
      */
-    private function storeReservation(array $lines, string $name, string $phone, ?string $email, ?CarbonInterface $desiredDate, ?string $comment, string $ip, ?string $userAgent, ?AgeRestriction $ageLevel, ?int $promoLinkId, bool $viaCart): Order
+    private function storeReservation(array $lines, string $name, string $phone, ?string $email, ?CarbonInterface $desiredDate, ?string $comment, string $ip, ?string $userAgent, ?AgeRestriction $ageLevel, ?int $promoLinkId, bool $viaCart, OrderChannel $channel = OrderChannel::Web): Order
     {
         $reservedUntil = now()->addHours($this->settings->reservation_hours);
 
@@ -446,6 +449,7 @@ final class OrderService
             'reserved_until' => $reservedUntil,
             'desired_date' => $desiredDate?->copy()->startOfDay(),
             'age_confirmed_level' => $ageLevel,
+            'channel' => $channel,
         ], $ip, $userAgent, $lines, [
             // PM-07, PM-24: no promo code, but the order is attributed to the promo link.
             'promo_link_id' => $this->promos->validLinkId($promoLinkId),
@@ -508,6 +512,7 @@ final class OrderService
                 $ageLevel,
                 $data->promoLinkId,
                 viaCart: false,
+                channel: $data->channel,
             );
         }, self::DEADLOCK_ATTEMPTS);
     }
@@ -549,6 +554,7 @@ final class OrderService
                 'items_total' => $total,
                 'total' => $total,
                 'customer_comment' => $this->blankToNull($data->comment),
+                'channel' => $data->channel,
             ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price, 'resolved' => $resolved]], [
                 'promo_link_id' => $this->promos->validLinkId($data->promoLinkId),
             ]);

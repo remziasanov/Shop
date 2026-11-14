@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Models\Order;
@@ -47,7 +48,13 @@ class OrderFactory extends Factory
             'consent_at' => now(),
             'consent_ip' => '127.0.0.1',
             'user_agent' => 'Pest',
+            'channel' => OrderChannel::Web,
         ];
+    }
+
+    public function channel(OrderChannel $channel): static
+    {
+        return $this->state(fn (): array => ['channel' => $channel]);
     }
 
     public function order(): static

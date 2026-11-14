@@ -103,6 +103,7 @@ class InquiryForm extends Component
                 ip: $this->clientIp(),
                 userAgent: $this->clientUserAgent(),
                 promoLinkId: $this->promoLinkId(),
+                channel: $this->orderChannel(),
             ), $this->selectedVariantId());
         } catch (SalesException $e) {
             $this->addError('form', $e->getMessage());

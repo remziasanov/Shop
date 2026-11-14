@@ -3,7 +3,7 @@
 @section('content')
     <div class="mx-auto w-full max-w-xl py-6">
         @if ($customer)
-            <p class="text-sm"><a href="{{ route('account') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('wholesale.page.back') }}</a></p>
+            <p class="text-sm"><a href="{{ route('account') }}" class="inline-flex min-h-11 items-center text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('wholesale.page.back') }}</a></p>
         @endif
         <h1 class="mt-2 text-2xl font-bold md:text-3xl">{{ __('wholesale.page.title') }}</h1>
         <div class="mt-4">

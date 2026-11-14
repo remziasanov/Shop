@@ -5,7 +5,7 @@
             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
 
-        <a href="{{ route('home') }}" class="flex items-center gap-2 rounded text-lg font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+        <a href="{{ route('home') }}" class="flex min-h-11 items-center gap-2 rounded text-lg font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
             @if ($shopLogoUrl)
                 <img src="{{ $shopLogoUrl }}" alt="" height="32" class="h-8 w-auto">
             @endif
@@ -63,7 +63,7 @@
                 @if ($accountCustomerName !== null)
                     {{-- CA-19: the customer's name with a small menu. --}}
                     <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false">
-                        <button type="button" class="flex max-w-40 items-center gap-1 rounded px-2 py-1 text-sm font-medium hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                        <button type="button" class="flex min-w-11 max-w-40 items-center justify-center gap-1 rounded px-2 py-1 text-sm font-medium hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                                 aria-haspopup="true" aria-label="{{ __('account.header.account_menu') }}" :aria-expanded="open.toString()" aria-expanded="false" @click="open = ! open" data-account-menu>
                             <svg class="h-5 w-5 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5.5 20a6.5 6.5 0 0113 0M12 12a4 4 0 100-8 4 4 0 000 8z"/></svg>
                             <span class="hidden truncate md:inline">{{ $accountCustomerName }}</span>
@@ -85,7 +85,7 @@
                         </ul>
                     </div>
                 @else
-                    <a href="{{ route('customer.login') }}" class="rounded px-2 py-1 text-sm font-medium hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-account-login>{{ __('account.header.login') }}</a>
+                    <a href="{{ route('customer.login') }}" class="inline-flex min-h-11 items-center rounded px-2 text-sm font-medium hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-account-login>{{ __('account.header.login') }}</a>
                 @endif
             @endif
             @if ($cartEnabled)
@@ -115,14 +115,14 @@
 
         {{-- Mobile menu (burger). --}}
         <nav id="mobile-menu" x-cloak x-show="menu" class="border-t border-slate-200 md:hidden" aria-label="{{ __('storefront.header.categories') }}">
-            <ul class="px-4 py-2 text-sm">
+            <ul class="shop-touch-list px-4 py-2 text-sm">
                 @foreach ($menuCategories as $item)
                     <li class="py-1">
-                        <a href="{{ $item['url'] }}" class="block py-1 font-medium">{{ $item['name'] }}</a>
+                        <a href="{{ $item['url'] }}" class="font-medium">{{ $item['name'] }}</a>
                         @if ($item['children'] !== [])
                             <ul class="ml-4 border-l border-slate-200 pl-3">
                                 @foreach ($item['children'] as $child)
-                                    <li><a href="{{ $child['url'] }}" class="block py-1 text-slate-600">{{ $child['name'] }}</a></li>
+                                    <li><a href="{{ $child['url'] }}" class="text-slate-600">{{ $child['name'] }}</a></li>
                                 @endforeach
                             </ul>
                         @endif
@@ -131,4 +131,26 @@
             </ul>
         </nav>
     @endif
+
+    {{-- MB-10: phone and messenger buttons in the mobile menu. --}}
+    @if ($shopPhones !== [] || $telegramBotUrl || $whatsappUrl)
+        <div x-cloak x-show="menu" class="border-t border-slate-200 px-4 py-3 md:hidden" data-mobile-contacts>
+            <p class="mb-2 text-sm font-semibold">{{ __('mobile.contacts.menu_title') }}</p>
+            <ul class="flex flex-wrap gap-2 text-sm font-medium">
+                @if ($shopPhones !== [])
+                    <li><a href="tel:{{ preg_replace('/[^\d+]/', '', $shopPhones[0]) }}" class="inline-flex min-h-11 items-center rounded border border-primary px-4 text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-contact="phone">{{ __('mobile.contacts.call') }}: {{ $shopPhones[0] }}</a></li>
+                @endif
+                @if ($telegramBotUrl)
+                    <li><a href="{{ $telegramBotUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center rounded border border-slate-300 px-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-contact="telegram">{{ __('mobile.contacts.telegram') }}</a></li>
+                @endif
+                @if ($whatsappUrl)
+                    <li><a href="{{ $whatsappUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center rounded border border-slate-300 px-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-contact="whatsapp">{{ __('mobile.contacts.whatsapp') }}</a></li>
+                @endif
+            </ul>
+        </div>
+    @endif
+    {{-- MB-22: «Установить приложение» in the mobile menu (renders nothing unless the PWA hint is on). --}}
+    <div x-cloak x-show="menu" class="px-4 pb-2 md:hidden" data-mobile-install>
+        @include('storefront.partials.install-button')
+    </div>
 </header>

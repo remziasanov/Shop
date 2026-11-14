@@ -1,6 +1,8 @@
 // Alpine.js is provided by Livewire (@livewireScripts), see docs/DECISIONS.md D-008.
 // Components are registered on "alpine:init" (Livewire starts Alpine on DOMContentLoaded, after this module ran).
 
+import './pwa';
+
 document.addEventListener('alpine:init', () => {
     const Alpine = window.Alpine;
 
@@ -159,15 +161,18 @@ document.addEventListener('alpine:init', () => {
             this.go(this.index - 1);
         },
 
+        init() {
+            // The state decides the scroll lock: the browser's back gesture (x-overlay) closes the view as well (MB-04, MB-12).
+            this.$watch('fullscreen', (value) => document.body.classList.toggle('overflow-hidden', value));
+        },
+
         openFullscreen() {
             this.fullscreen = true;
-            document.body.classList.add('overflow-hidden');
             this.$nextTick(() => this.$refs.close?.focus());
         },
 
         closeFullscreen() {
             this.fullscreen = false;
-            document.body.classList.remove('overflow-hidden');
             this.$nextTick(() => this.$root.querySelectorAll('[data-gallery-open]')[this.index]?.focus());
         },
 
@@ -609,4 +614,252 @@ document.addEventListener('alpine:init', () => {
             return this.left > 0 ? this.text() : label;
         },
     }));
+});
+
+/*
+ * Phone behaviour (TZ 27, MB-03, MB-06, MB-07, MB-12).
+ */
+
+const root = document.documentElement;
+const isPhone = () => window.matchMedia('(max-width: 767px)').matches;
+
+/** MB-03: the bottom bar is hidden while a text field has the focus (the on-screen keyboard covers the page). */
+const typesText = (element) => element instanceof HTMLElement
+    && (element.matches('textarea')
+        || (element.matches('input') && !/^(checkbox|radio|button|submit|reset|file|range|color|hidden|image)$/i.test(element.type)));
+
+document.addEventListener('focusin', (event) => {
+    if (typesText(event.target)) {
+        root.dataset.kb = '';
+    }
+});
+
+document.addEventListener('focusout', () => {
+    // The focus may move to the next field: look at the active element after the browser has moved it.
+    setTimeout(() => {
+        if (!typesText(document.activeElement)) {
+            delete root.dataset.kb;
+        }
+    }, 60);
+});
+
+/**
+ * MB-06: the first field with an error is scrolled into view. A server-rendered page does it on load, a Livewire form after
+ * the answer to a submit (a collapsed block that holds the field is opened first).
+ */
+const revealFirstError = () => {
+    const field = document.querySelector('[aria-invalid="true"], [data-field-error]');
+
+    if (!field) {
+        return;
+    }
+
+    const block = field.closest('[data-collapse]');
+
+    if (block && window.Alpine) {
+        window.Alpine.$data(block).open = true;
+    }
+
+    setTimeout(() => {
+        field.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+
+        if (field.matches('input, select, textarea, button, a')) {
+            field.focus({ preventScroll: true });
+        }
+    }, 30);
+};
+
+let submitted = false;
+
+document.addEventListener('submit', () => {
+    submitted = true;
+}, true);
+
+document.addEventListener('DOMContentLoaded', () => window.setTimeout(revealFirstError, 0));
+
+document.addEventListener('livewire:init', () => {
+    window.Livewire.hook('commit', ({ succeed }) => {
+        succeed(() => {
+            if (submitted) {
+                submitted = false;
+                setTimeout(revealFirstError, 50);
+            }
+        });
+    });
+});
+
+document.addEventListener('alpine:init', () => {
+    const Alpine = window.Alpine;
+
+    /**
+     * MB-12: `x-overlay="open"` on a dialog, sheet or slide-over. On a phone opening it adds a history entry, so the back
+     * button / the back gesture closes the window instead of leaving the page; closing it by hand removes that entry.
+     */
+    const stack = [];
+    let ignorePops = 0;
+
+    window.addEventListener('popstate', () => {
+        if (ignorePops > 0) {
+            ignorePops--;
+
+            return;
+        }
+
+        const close = stack.pop();
+
+        if (close) {
+            close();
+        }
+    });
+
+    Alpine.directive('overlay', (el, { expression }, { evaluate, evaluateLater, effect }) => {
+        const read = evaluateLater(expression);
+        let entry = null;
+
+        effect(() => read((open) => {
+            if (open && entry === null && isPhone()) {
+                entry = () => {
+                    entry = null;
+                    evaluate(`${expression} = false`);
+                };
+                stack.push(entry);
+                window.history.pushState({ shopOverlay: true }, '');
+            } else if (!open && entry !== null) {
+                const index = stack.indexOf(entry);
+
+                entry = null;
+
+                if (index >= 0) {
+                    stack.splice(index, 1);
+                    ignorePops++;
+                    window.history.back();
+                }
+            }
+        }));
+    });
+
+    /**
+     * MB-07: «Показать ещё» fetches the next page of the listing, appends its cards and moves the address to ?page=N
+     * (history.replaceState). The classic pagination stays in the markup for robots and visitors without JavaScript;
+     * on a phone it is hidden once this component runs.
+     */
+    Alpine.data('loadMore', (labels) => ({
+        busy: false,
+        failed: false,
+        status: '',
+        active: true,
+
+        async load() {
+            const button = this.$refs.more;
+            const url = button?.dataset.next;
+
+            if (!url || this.busy) {
+                return;
+            }
+
+            this.busy = true;
+            this.failed = false;
+
+            try {
+                const response = await fetch(url, { headers: { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+
+                if (!response.ok) {
+                    throw new Error('load-more');
+                }
+
+                const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+                const grid = this.$root.querySelector('[data-listing-grid]');
+                const items = [...page.querySelectorAll('[data-listing-grid] > li')];
+
+                items.forEach((item) => grid.appendChild(document.importNode(item, true)));
+
+                const next = page.querySelector('[data-load-more]')?.dataset.next ?? '';
+
+                button.dataset.next = next;
+
+                if (next === '') {
+                    this.$refs.wrap.hidden = true;
+                }
+
+                window.history.replaceState(null, '', url);
+                this.status = labels.loaded.replace(':count', String(items.length));
+            } catch (error) {
+                this.failed = true;
+            } finally {
+                this.busy = false;
+            }
+        },
+    }));
+
+    /**
+     * MB-04: the sticky bar at the bottom of the product page. Its button presses the main button of the buy block
+     * (cart, reservation or inquiry; the block keeps the quantity field and the forms). Without a selected variant it
+     * scrolls to the picker and highlights it.
+     */
+    Alpine.data('stickyBuy', () => ({
+        label: '',
+        kind: null,
+
+        init() {
+            this.refresh();
+        },
+
+        /** The main button: the first visible one in the order cart, reservation, inquiry. */
+        main() {
+            const block = document.querySelector('[data-buy]');
+
+            if (!block) {
+                return null;
+            }
+
+            for (const key of ['cart', 'reservation', 'inquiry']) {
+                const candidate = [...block.querySelectorAll(`[data-action^="${key}"]`)].find((item) => item.offsetParent !== null && !item.disabled);
+
+                if (candidate) {
+                    return candidate;
+                }
+            }
+
+            return null;
+        },
+
+        refresh() {
+            const button = this.main();
+
+            this.kind = button ? button.dataset.action.split('-')[0] : null;
+
+            if (!button) {
+                this.label = '';
+
+                return;
+            }
+
+            const copy = button.cloneNode(true);
+
+            copy.querySelectorAll('.sr-only').forEach((node) => node.remove());
+            this.label = copy.textContent.replace(/\s+/g, ' ').trim();
+        },
+
+        press(current, hasPicker) {
+            if (hasPicker && !current) {
+                const picker = document.querySelector('[data-variant-picker]');
+
+                picker?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                picker?.classList.remove('shop-highlight');
+                // Restart the animation.
+                void picker?.offsetWidth;
+                picker?.classList.add('shop-highlight');
+
+                return;
+            }
+
+            this.main()?.click();
+        },
+    }));
+
+    /**
+     * MB-08: a block that collapses on a phone (the content is always shown from 768 px). The state is kept by Alpine,
+     * Livewire does not touch the element (wire:ignore.self in the markup).
+     */
+    Alpine.data('collapse', (open = false) => ({ open }));
 });

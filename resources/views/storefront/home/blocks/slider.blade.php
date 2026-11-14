@@ -31,17 +31,19 @@
     @if ($count > 1)
         <div class="mt-3 flex items-center justify-center gap-3" x-cloak>
             @if ($autoplay)
-                <button type="button" @click="toggle()" class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                <button type="button" @click="toggle()" class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                         :aria-label="playing ? @js(__('home.storefront.pause')) : @js(__('home.storefront.play'))">
                     <svg x-show="playing" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
                     <svg x-show="! playing" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
                 </button>
             @endif
-            <div class="flex gap-2">
+            <div class="flex">
                 @foreach ($slides as $slide)
                     <button type="button" @click="go({{ $loop->index }})" :aria-current="index === {{ $loop->index }} ? 'true' : null"
-                            class="h-2.5 w-2.5 rounded-full bg-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" :class="index === {{ $loop->index }} ? '!bg-primary' : ''"
-                            aria-label="{{ __('home.storefront.go_to', ['n' => $loop->iteration]) }}"></button>
+                            class="group flex h-11 w-7 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            aria-label="{{ __('home.storefront.go_to', ['n' => $loop->iteration]) }}">
+                        <span class="h-2.5 w-2.5 rounded-full bg-slate-300" :class="index === {{ $loop->index }} ? '!bg-primary' : ''"></span>
+                    </button>
                 @endforeach
             </div>
         </div>

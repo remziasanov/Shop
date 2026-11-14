@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Orders\Schemas;
 
+use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\PriceSource;
@@ -24,6 +25,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -51,6 +53,11 @@ final class OrderInfolist
                             ->color(fn (OrderStatus|string $state): string => ($state instanceof OrderStatus ? $state : OrderStatus::from($state))->color())
                             ->formatStateUsing(fn (OrderStatus|string $state, Order $record): string => ($state instanceof OrderStatus ? $state : OrderStatus::from($state))->label($record->type)),
                         TextEntry::make('created_at')->label(__('admin_orders.view.created_at'))->dateTime('d.m.Y H:i'),
+                        TextEntry::make('channel')
+                            ->label(__('pwa.admin.channel'))
+                            ->badge()
+                            ->color(fn (OrderChannel|string $state): string => ($state instanceof OrderChannel ? $state : OrderChannel::from($state))->color())
+                            ->formatStateUsing(fn (OrderChannel|string $state): string => ($state instanceof OrderChannel ? $state : OrderChannel::from($state))->label()),
                         TextEntry::make('reserved_until')
                             ->label(__('admin_orders.view.reserved_until'))
                             ->dateTime('d.m.Y H:i')
@@ -81,6 +88,10 @@ final class OrderInfolist
                         TextEntry::make('customer_name')->label(__('admin_orders.view.name')),
                         TextEntry::make('customer_phone')
                             ->label(__('admin_orders.view.phone'))
+                            // MB-14: a clearly tappable call link on a phone.
+                            ->color('primary')
+                            ->icon(Heroicon::OutlinedPhone)
+                            ->extraAttributes(['class' => 'min-h-11 items-center'])
                             ->url(fn (Order $record): string => 'tel:'.$record->customer_phone),
                         TextEntry::make('whatsapp')
                             ->label(__('admin_orders.view.whatsapp'))

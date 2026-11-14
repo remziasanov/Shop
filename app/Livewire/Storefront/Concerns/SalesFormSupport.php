@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Livewire\Storefront\Concerns;
 
 use App\Enums\AgeRestriction;
+use App\Enums\OrderChannel;
 use App\Exceptions\FormGuardException;
 use App\Rules\CanonicalEmail;
 use App\Services\Access\ViewerContext;
 use App\Services\Content\MenuService;
 use App\Services\Customers\EmailNormalizer;
+use App\Services\Orders\OrderChannelResolver;
 use App\Services\Sales\FormGuard;
 use App\Settings\LegalSettings;
 use App\Support\PhoneNormalizer;
@@ -29,6 +31,9 @@ trait SalesFormSupport
     /** Honeypot: real visitors never see or fill it. */
     public string $website = '';
 
+    /** MB-23: filled with `pwa` by the page script in the installed app; only {@see OrderChannel()} may interpret it. */
+    public string $channel = 'web';
+
     public function mountSalesFormSupport(): void
     {
         $this->formToken = app(FormGuard::class)->issueToken();
@@ -41,6 +46,15 @@ trait SalesFormSupport
             $this->phone = (string) $customer->phone;
             $this->email = $customer->email;
         }
+    }
+
+    /**
+     * TM-14: the channel of the new request; the client value is only a hint, the server accepts the enum values it
+     * allows (OrderChannelResolver).
+     */
+    protected function orderChannel(): OrderChannel
+    {
+        return app(OrderChannelResolver::class)->resolve($this->channel);
     }
 
     /**

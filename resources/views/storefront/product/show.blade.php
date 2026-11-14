@@ -1,5 +1,8 @@
 @extends('storefront.layouts.app')
 
+{{-- MB-04: the page has a sticky buy bar on a phone. --}}
+@section('sticky_bar', '1')
+
 @section('content')
     @include('storefront.partials.breadcrumbs')
 
@@ -13,7 +16,7 @@
                     @include('storefront.partials.image-placeholder', ['url' => $view->placeholderUrl, 'alt' => $product->name])
                 </div>
             @else
-                <div class="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                <div class="relative touch-pan-y overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
                      @touchstart.passive="touchStart($event)" @touchend.passive="touchEnd($event)"
                      @keydown.arrow-left="prev()" @keydown.arrow-right="next()">
                     @foreach ($gallery as $i => $image)
@@ -27,16 +30,23 @@
                     @endforeach
 
                     @if (count($gallery) > 1)
-                        <button type="button" @click="prev()" class="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.gallery.prev') }}">
+                        <button type="button" @click="prev()" class="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 p-2 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.gallery.prev') }}">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                         </button>
-                        <button type="button" @click="next()" class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.gallery.next') }}">
+                        <button type="button" @click="next()" class="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 p-2 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.gallery.next') }}">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                         </button>
                     @endif
                 </div>
 
                 @if (count($gallery) > 1)
+                    {{-- MB-04: position dots on a phone (the photo changes by swipe, the arrows and the thumbnails stay). --}}
+                    <div class="mt-2 flex justify-center gap-2 md:hidden" aria-hidden="true" data-gallery-dots>
+                        <template x-for="i in shown()" :key="i">
+                            <span class="h-2 w-2 rounded-full" :class="i === index ? 'bg-primary' : 'bg-slate-300'"></span>
+                        </template>
+                    </div>
+                    <p class="sr-only" aria-live="polite" x-text="@js(__('storefront.gallery.counter', ['current' => ':c', 'total' => ':t'])).replace(':c', position()).replace(':t', total())"></p>
                     <ul class="mt-3 flex gap-2 overflow-x-auto pb-1">
                         @foreach ($gallery as $i => $image)
                             <li class="flex-none" x-show="allowed({{ $i }})">
@@ -52,10 +62,10 @@
                 @endif
 
                 {{-- Fullscreen view. --}}
-                <div x-cloak x-show="fullscreen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+                <div x-cloak x-show="fullscreen" x-overlay="fullscreen" x-trap.noscroll="fullscreen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
                      role="dialog" aria-modal="true" aria-label="{{ __('storefront.gallery.label') }}"
                      @touchstart.passive="touchStart($event)" @touchend.passive="touchEnd($event)">
-                    <button type="button" x-ref="close" @click="closeFullscreen()" class="absolute right-3 top-3 rounded-full bg-white/90 p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="{{ __('storefront.gallery.close') }}">
+                    <button type="button" x-ref="close" @click="closeFullscreen()" style="top: calc(0.75rem + var(--shop-safe-top)); right: calc(0.75rem + var(--shop-safe-right))" class="absolute flex h-11 w-11 items-center justify-center rounded-full bg-white/90 p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="{{ __('storefront.gallery.close') }}">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
                     @foreach ($gallery as $i => $image)
@@ -70,7 +80,7 @@
                         <button type="button" @click="next()" class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="{{ __('storefront.gallery.next') }}">
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                         </button>
-                        <p class="absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-black/60 px-3 py-1 text-sm text-white" aria-live="polite" x-text="@js(__('storefront.gallery.counter', ['current' => ':c', 'total' => ':t'])).replace(':c', position()).replace(':t', total())"></p>
+                        <p style="bottom: calc(0.75rem + var(--shop-safe-bottom))" class="absolute left-1/2 -translate-x-1/2 rounded bg-black/60 px-3 py-1 text-sm text-white" aria-live="polite" x-text="@js(__('storefront.gallery.counter', ['current' => ':c', 'total' => ':t'])).replace(':c', position()).replace(':t', total())"></p>
                     @endif
                 </div>
             @endif
@@ -155,7 +165,7 @@
                 {{-- VR-09, VR-14: the picker shows the buttons that are possible for the selected variant; the components send the variant id with their action. --}}
                 @php($pa = $view->productActions)
                 @if ($pa->mode !== \App\Enums\SalesMode::Showcase)
-                    <div class="mt-6 flex flex-wrap items-end gap-2">
+                    <div class="mt-6 flex flex-wrap items-end gap-2" data-buy>
                         @if ($pa->hasCartButton() || ($pa->hasReservationButton() && app(\App\Settings\SalesSettings::class)->reservation_via_cart))
                             <livewire:storefront.add-to-cart :product-id="$product->id" :show-qty="true" :variant-id="$picker->selected->id" :key="'cart-'.$product->id" />
                         @else
@@ -171,7 +181,7 @@
                 {{-- No active variant: nothing can be bought. --}}
                 <div class="mt-6"><button type="button" disabled class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="unavailable">{{ __('sales.actions.out_of_stock') }}</button></div>
             @elseif ($view->actions !== [])
-                <div class="mt-6 flex flex-wrap items-end gap-2">
+                <div class="mt-6 flex flex-wrap items-end gap-2" data-buy>
                     @foreach ($view->actions as $action)
                         @if ($action['disabled'])
                             <button type="button" disabled class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="{{ $action['key'] }}">{{ $action['label'] }}</button>
@@ -185,12 +195,14 @@
                     @endforeach
                 </div>
             @endif
+
+            @include('storefront.product.sticky-bar', ['picker' => $picker])
         </div>
     </div>
 
-    {{-- SF-34: tabs. --}}
-    <section class="mt-10" x-data="{ tab: 'description' }">
-        <div role="tablist" aria-label="{{ $product->name }}" class="flex gap-1 border-b border-slate-200">
+    {{-- SF-34: tabs from 768 px; MB-04: on a phone the same two blocks are folding sections («Описание» open, «Характеристики» closed). --}}
+    <section class="mt-10" x-data="{ tab: 'description', open: { description: true, specs: false } }">
+        <div role="tablist" aria-label="{{ $product->name }}" class="flex gap-1 border-b border-slate-200 max-md:hidden">
             @foreach (['description' => __('storefront.product.tab_description'), 'specs' => __('storefront.product.tab_specs')] as $key => $label)
                 <button type="button" role="tab" id="tab-{{ $key }}" aria-controls="panel-{{ $key }}"
                         :aria-selected="(tab === '{{ $key }}').toString()" :tabindex="tab === '{{ $key }}' ? 0 : -1"
@@ -202,51 +214,67 @@
             @endforeach
         </div>
 
-        <div id="panel-description" role="tabpanel" aria-labelledby="tab-description" x-show="tab === 'description'" class="py-4">
-            @if ($description !== '')
-                {{-- Sanitized by HtmlSanitizer (NF-10). --}}
-                <div class="max-w-3xl space-y-3 text-slate-700 [&_a]:text-primary [&_a]:underline [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_ul]:list-disc [&_ul]:pl-5">{!! $description !!}</div>
+        @foreach (['description' => __('storefront.product.tab_description'), 'specs' => __('storefront.product.tab_specs')] as $key => $label)
+            <div class="border-b border-slate-200 md:hidden" data-accordion="{{ $key }}">
+                <h2>
+                    <button type="button" class="flex min-h-12 w-full items-center justify-between gap-3 text-left text-lg font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                            aria-controls="panel-{{ $key }}" :aria-expanded="open.{{ $key }}.toString()" aria-expanded="{{ $key === 'description' ? 'true' : 'false' }}" @click="open.{{ $key }} = ! open.{{ $key }}">
+                        {{ $label }}
+                        <svg class="h-5 w-5 flex-none transition-transform" :class="{ 'rotate-180': open.{{ $key }} }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </h2>
+            </div>
+            @if ($key === 'description')
+                <div id="panel-description" role="tabpanel" aria-labelledby="tab-description" :class="{ 'md:hidden': tab !== 'description', 'max-md:hidden': ! open.description }" class="py-4">
+                    @if ($description !== '')
+                        {{-- Sanitized by HtmlSanitizer (NF-10). Wide tables, code and embeds scroll inside the block (MB-01). --}}
+                        <div class="max-w-3xl space-y-3 break-words text-slate-700 [&_a]:text-primary [&_a]:underline [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_iframe]:max-w-full [&_img]:h-auto [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_ul]:list-disc [&_ul]:pl-5">{!! $description !!}</div>
+                    @else
+                        <p class="text-slate-500">{{ __('storefront.product.no_description') }}</p>
+                    @endif
+                </div>
             @else
-                <p class="text-slate-500">{{ __('storefront.product.no_description') }}</p>
+                <div id="panel-specs" role="tabpanel" aria-labelledby="tab-specs" class="max-md:hidden md:hidden py-4" :class="{ 'md:hidden': tab !== 'specs', 'max-md:hidden': ! open.specs }">
+                    @if ($specs !== [])
+                        <table class="w-full max-w-3xl table-fixed text-sm md:table-auto">
+                            <caption class="sr-only">{{ __('storefront.product.tab_specs') }}</caption>
+                            <tbody>
+                                @foreach ($specs as $spec)
+                                    <tr class="border-b border-slate-100 odd:bg-slate-50">
+                                        <th scope="row" class="w-2/5 break-words px-3 py-2 text-left font-normal text-slate-600 md:w-1/3">{{ $spec['name'] }}</th>
+                                        <td class="break-words px-3 py-2">
+                                            @if ($spec['links'] !== [])
+                                                @foreach ($spec['links'] as $link)
+                                                    <a href="{{ $link['url'] }}" class="text-primary underline">{{ $link['text'] }}</a>@if (! $loop->last), @endif
+                                                @endforeach
+                                            @else
+                                                {{ $spec['value'] }}
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @else
+                        <p class="text-slate-500">{{ __('storefront.product.no_specs') }}</p>
+                    @endif
+                </div>
             @endif
-        </div>
-
-        <div id="panel-specs" role="tabpanel" aria-labelledby="tab-specs" x-show="tab === 'specs'" x-cloak class="py-4">
-            @if ($specs !== [])
-                <table class="w-full max-w-3xl text-sm">
-                    <caption class="sr-only">{{ __('storefront.product.tab_specs') }}</caption>
-                    <tbody>
-                        @foreach ($specs as $spec)
-                            <tr class="border-b border-slate-100 odd:bg-slate-50">
-                                <th scope="row" class="w-1/3 px-3 py-2 text-left font-normal text-slate-600">{{ $spec['name'] }}</th>
-                                <td class="px-3 py-2">
-                                    @if ($spec['links'] !== [])
-                                        @foreach ($spec['links'] as $link)
-                                            <a href="{{ $link['url'] }}" class="text-primary underline">{{ $link['text'] }}</a>@if (! $loop->last), @endif
-                                        @endforeach
-                                    @else
-                                        {{ $spec['value'] }}
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            @else
-                <p class="text-slate-500">{{ __('storefront.product.no_specs') }}</p>
-            @endif
-        </div>
+        @endforeach
     </section>
 
     {{-- SF-35: similar products. --}}
     @if ($similar !== [])
         <section class="mt-10" aria-labelledby="similar-heading">
             <h2 id="similar-heading" class="mb-4 text-xl font-semibold">{{ __('storefront.product.similar') }}</h2>
-            <ul class="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+            <ul class="grid {{ ($mobileColumns ?? 2) === 1 ? 'grid-cols-1 min-[30rem]:grid-cols-2' : 'grid-cols-2' }} gap-3 md:gap-4 lg:grid-cols-4">
                 @foreach ($similar as $card)
                     <li>@include('storefront.partials.product-card', ['view' => $card, 'eager' => false])</li>
                 @endforeach
             </ul>
         </section>
     @endif
+
+    {{-- MB-04: room for the sticky bar. --}}
+    <div class="shop-sticky-spacer md:hidden" aria-hidden="true"></div>
 @endsection

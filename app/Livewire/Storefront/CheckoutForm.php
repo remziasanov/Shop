@@ -205,6 +205,7 @@ class CheckoutForm extends Component
                 choice: $this->summaryChoice(),
                 desiredDate: $desired ?: null,
                 shownTargets: $this->shownTargets === [] ? null : $this->shownTargets,
+                channel: $this->orderChannel(),
             ));
         } catch (CartChangedException $e) {
             // SF-46: the cart was already corrected; the customer re-checks it and confirms again.

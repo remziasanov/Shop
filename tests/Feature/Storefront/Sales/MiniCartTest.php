@@ -18,7 +18,7 @@ beforeEach(function () {
 it('shows the cart icon in the header and the bottom bar when the shop mode includes the cart (SF-01, SF-03)', function () {
     $this->get(route('home'))->assertOk()
         ->assertSee('aria-label="Корзина, товаров: 0"', false)
-        ->assertSee('grid-cols-4', false);
+        ->assertSee('data-bar-item="cart"', false);
 });
 
 it('hides the cart everywhere when no mode allows it (SF-01)', function () {
@@ -27,7 +27,8 @@ it('hides the cart everywhere when no mode allows it (SF-01)', function () {
     $this->get(route('home'))->assertOk()
         ->assertDontSee('Корзина, товаров', false)
         ->assertDontSee('cartToast', false)
-        ->assertSee('grid-cols-3', false);
+        ->assertDontSee('data-bar-item="cart"', false)
+        ->assertSee('data-bar-item="catalog"', false);
 });
 
 it('shows the cart when only a category or a product has a cart mode', function () {

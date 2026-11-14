@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Orders;
 
+use App\Enums\OrderChannel;
+
 /**
  * Inquiry form (SF-60).
  */
@@ -20,5 +22,7 @@ final readonly class InquiryData
         public ?string $userAgent = null,
         /** PM-24: the promo link of the `shop_pl` cookie (last click). */
         public ?int $promoLinkId = null,
+        /** TM-14: where the request came from (decided by OrderChannelResolver). */
+        public OrderChannel $channel = OrderChannel::Web,
     ) {}
 }

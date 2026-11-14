@@ -9,9 +9,32 @@ declare(strict_types=1);
  */
 function pdfText(string $pdf): string
 {
+    // Binary streams can exhaust the PCRE JIT stack late in a long test run, which makes preg_* return false
+    // silently: run without JIT and with a high backtrack limit, and fail loudly on any PCRE error.
+    $jit = ini_get('pcre.jit');
+    $limit = ini_get('pcre.backtrack_limit');
+    ini_set('pcre.jit', '0');
+    ini_set('pcre.backtrack_limit', '100000000');
+
+    try {
+        return pdfTextExtract($pdf);
+    } finally {
+        ini_set('pcre.jit', (string) $jit);
+        ini_set('pcre.backtrack_limit', (string) $limit);
+    }
+}
+
+function pdfTextExtract(string $pdf): string
+{
+    if (! str_starts_with($pdf, '%PDF')) {
+        throw new RuntimeException('Not a PDF: '.substr($pdf, 0, 200));
+    }
+
     $text = [];
 
-    preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $streams);
+    if (preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $streams) === false) {
+        throw new RuntimeException('PCRE error: '.preg_last_error_msg());
+    }
 
     foreach ($streams[1] as $raw) {
         $content = @gzuncompress($raw);
@@ -20,7 +43,9 @@ function pdfText(string $pdf): string
             continue;
         }
 
-        preg_match_all('/\[((?:\((?:\\\\.|[^\\\\)])*\)|[^\]\(])*)\]\s*TJ/s', $content, $arrays);
+        if (preg_match_all('/\[((?:\((?:\\\\.|[^\\\\)])*\)|[^\]\(])*)\]\s*TJ/s', $content, $arrays) === false) {
+            throw new RuntimeException('PCRE error: '.preg_last_error_msg());
+        }
 
         foreach ($arrays[1] as $array) {
             preg_match_all('/\(((?:\\\\.|[^\\\\)])*)\)/s', $array, $strings);

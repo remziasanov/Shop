@@ -96,4 +96,13 @@ return [
     */
     'audit_retention_days' => 365,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Messengers (MB-10)
+    |--------------------------------------------------------------------------
+    | Username of the shop's Telegram bot without «@» (TELEGRAM_BOT_USERNAME). It is a config value until the bot
+    | settings of stage 17 exist; with no value the «Написать в Telegram» button is not rendered.
+    */
+    'telegram_bot_username' => env('TELEGRAM_BOT_USERNAME'),
+
 ];

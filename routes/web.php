@@ -29,6 +29,7 @@ use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CatalogController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
+use App\Http\Controllers\Storefront\ManifestController;
 use App\Http\Controllers\Storefront\OrderThanksController;
 use App\Http\Controllers\Storefront\PageController;
 use App\Http\Controllers\Storefront\PriceListController;
@@ -47,6 +48,9 @@ Route::get('/', HomeController::class)->name('home');
 // SF-82: robots.txt from the SEO settings; sitemap.xml is a static file written by shop:sitemap (this route is the fallback).
 Route::get('/robots.txt', RobotsController::class)->name('robots');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
+
+// MB-20: the web app manifest of the installable shop (404 while the setting is off).
+Route::get('/manifest.webmanifest', ManifestController::class)->name('pwa.manifest');
 
 Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
 Route::get('/catalog/{slug}', [CatalogController::class, 'category'])->name('catalog.category');

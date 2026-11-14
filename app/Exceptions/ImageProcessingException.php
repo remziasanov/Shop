@@ -50,6 +50,21 @@ final class ImageProcessingException extends RuntimeException
         return $this->getCode() === self::STORAGE_FAILED;
     }
 
+    public static function appIconUnsupportedType(): self
+    {
+        return new self(__('pwa.errors.icon_type'));
+    }
+
+    public static function appIconTooSmall(int $min): self
+    {
+        return new self(__('pwa.errors.icon_small', ['min' => $min]));
+    }
+
+    public static function appIconNotSquare(): self
+    {
+        return new self(__('pwa.errors.icon_square'));
+    }
+
     public static function limitReached(int $max): self
     {
         return new self(__('catalog.errors.image_limit_reached', ['max' => $max]));

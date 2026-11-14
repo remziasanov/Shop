@@ -10,6 +10,153 @@
     --shop-accent: #f59e0b;
 }
 
+/*
+ * Phone layout (TZ 27, MB-02). Safe-area insets are CSS variables, so that the Telegram mode (TM-07) can replace them
+ * with the values of the Mini App on <html>. --shop-nav-total is the height the bottom bar takes (0 while the bar is
+ * hidden: the on-screen keyboard is open or the page has no bar); sticky bars and sheets sit above it.
+ */
+:root {
+    --shop-safe-top: env(safe-area-inset-top, 0px);
+    --shop-safe-right: env(safe-area-inset-right, 0px);
+    --shop-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --shop-safe-left: env(safe-area-inset-left, 0px);
+    --shop-nav-h: 3.5rem;
+    --shop-nav-total: calc(var(--shop-nav-h) + var(--shop-safe-bottom));
+    --shop-sticky-pad: 0.5rem;
+    --shop-sticky-h: 4.75rem;
+}
+
+html[data-kb] {
+    --shop-nav-total: 0px;
+}
+
+/* Pages without the bottom bar (checkout): the sticky bar itself covers the safe area. */
+body[data-nav='off'] {
+    --shop-nav-total: 0px;
+    --shop-sticky-pad: calc(0.5rem + var(--shop-safe-bottom));
+}
+
+html[data-kb] .shop-bottom-nav {
+    display: none;
+}
+
+.shop-bottom-nav {
+    padding-bottom: var(--shop-safe-bottom);
+    padding-left: var(--shop-safe-left);
+    padding-right: var(--shop-safe-right);
+}
+
+.shop-bottom-nav a {
+    min-height: var(--shop-nav-h);
+}
+
+/* Sticky bar at the bottom edge of the product page, the cart and the checkout (MB-04, MB-08). */
+.shop-sticky-bar {
+    position: fixed;
+    right: 0;
+    bottom: var(--shop-nav-total);
+    left: 0;
+    z-index: 30;
+    padding: 0.5rem calc(1rem + var(--shop-safe-right)) var(--shop-sticky-pad) calc(1rem + var(--shop-safe-left));
+    border-top: 1px solid rgb(226 232 240);
+    background: #fff;
+}
+
+.shop-sticky-spacer {
+    height: var(--shop-sticky-h);
+}
+
+/* Floating elements that must stay above the bottom bar (phones only; wide screens keep their utility classes). */
+@media (max-width: 767px) {
+    .shop-above-nav {
+        bottom: calc(var(--shop-nav-total) + 0.75rem);
+    }
+
+    body[data-sticky] .shop-above-nav {
+        bottom: calc(var(--shop-nav-total) + var(--shop-sticky-h));
+    }
+
+    .shop-above-nav-flush {
+        bottom: var(--shop-nav-total);
+    }
+
+    body[data-sticky] .shop-above-nav-flush {
+        bottom: calc(var(--shop-nav-total) + var(--shop-sticky-h));
+    }
+}
+
+/* Bottom sheet and slide-over (MB-12): padding keeps the content out of the home indicator zone. */
+.shop-sheet-pad {
+    padding-bottom: calc(1rem + var(--shop-safe-bottom));
+}
+
+.shop-highlight {
+    animation: shop-highlight 1.6s ease-out;
+}
+
+@keyframes shop-highlight {
+    0%,
+    60% {
+        box-shadow: 0 0 0 4px var(--shop-primary);
+        border-radius: 0.5rem;
+    }
+
+    100% {
+        box-shadow: 0 0 0 4px transparent;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .shop-highlight {
+        animation: none;
+        box-shadow: 0 0 0 4px var(--shop-primary);
+    }
+}
+
+/*
+ * Phones (MB-05, MB-06): fields are at least 16 px (iOS does not zoom the page on focus) and 44 px high, buttons and
+ * icon-only buttons are at least 44 px. Unlayered rules win over the Tailwind utilities.
+ */
+@media (max-width: 767px) {
+    input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file'], [type='color']),
+    select,
+    textarea {
+        font-size: 16px;
+    }
+
+    input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file'], [type='color'], [tabindex='-1']),
+    select {
+        min-height: 2.75rem;
+    }
+
+    button,
+    summary,
+    [role='button'] {
+        min-height: 2.75rem;
+    }
+
+    button:has(> svg:only-child) {
+        min-width: 2.75rem;
+    }
+
+    input[type='checkbox'],
+    input[type='radio'] {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+
+    label:has(> input[type='checkbox'], > input[type='radio']) {
+        min-height: 2.75rem;
+    }
+
+    /* Menus and link lists: the whole row is the target and rows do not touch. */
+    .shop-touch-list a {
+        display: flex;
+        align-items: center;
+        min-height: 2.75rem;
+    }
+}
+
 @theme inline {
     --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
@@ -77,6 +224,21 @@ html[data-age-ok='16'] [data-age='16'] .age-badge {
     padding: 1rem;
     background: rgb(15 23 42 / 0.85);
     overflow-y: auto;
+}
+
+/* MB-12: on a phone the age question is a bottom sheet. */
+@media (max-width: 767px) {
+    .age-gate {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .age-gate > div {
+        max-width: none;
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        padding-bottom: calc(1.5rem + var(--shop-safe-bottom));
+    }
 }
 
 html[data-age-ok='18'] .age-gate,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\AgeRestriction;
+use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Services\Stock\StockService;
@@ -60,6 +61,7 @@ use Illuminate\Support\Str;
  * @property int|null $related_order_id MR-05: the other request (order or reservation) of the same checkout
  * @property bool $reserved_via_cart MR-12: a reservation made from the cart
  * @property int $version OE-08: optimistic lock of the order editor, moved by every edit and status change
+ * @property OrderChannel $channel TM-14: web, pwa or telegram
  * @property int|null $source_order_id OE-12: the inquiry this order was created from
  * @property int|null $updated_by_user_id the staff member of the last edit or status change (OE-08)
  * @property CarbonInterface|null $created_at
@@ -95,6 +97,7 @@ class Order extends Model
         'consent_ip',
         'user_agent',
         'age_confirmed_level',
+        'channel',
     ];
 
     protected static function booted(): void
@@ -128,6 +131,7 @@ class Order extends Model
             'consent_at' => 'datetime',
             'stock_applied' => 'boolean',
             'age_confirmed_level' => AgeRestriction::class,
+            'channel' => OrderChannel::class,
             'customer_id' => 'integer',
             'customer_group_id' => 'integer',
             'expiring_notified_at' => 'datetime',

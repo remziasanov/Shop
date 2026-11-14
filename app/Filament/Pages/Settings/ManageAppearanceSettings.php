@@ -6,6 +6,7 @@ namespace App\Filament\Pages\Settings;
 
 use App\Filament\Concerns\AdminOnlySettingsPage;
 use App\Filament\Concerns\DeletesReplacedSettingFiles;
+use App\Filament\Pages\Settings\Sections\PwaSettingsSection;
 use App\Settings\AppearanceSettings;
 use BackedEnum;
 use Filament\Forms\Components\ColorPicker;
@@ -19,7 +20,9 @@ use Filament\Support\Icons\Heroicon;
 class ManageAppearanceSettings extends SettingsPage
 {
     use AdminOnlySettingsPage;
-    use DeletesReplacedSettingFiles;
+    use DeletesReplacedSettingFiles {
+        afterSave as protected deleteReplacedSettingFiles;
+    }
 
     private const HEX_COLOR_PATTERN = '/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/';
 
@@ -36,7 +39,7 @@ class ManageAppearanceSettings extends SettingsPage
      */
     protected function settingsFileFields(): array
     {
-        return ['placeholder_image'];
+        return ['placeholder_image', 'pwa_icon'];
     }
 
     public function form(Schema $schema): Schema
@@ -57,6 +60,11 @@ class ManageAppearanceSettings extends SettingsPage
                 ->options([3 => '3', 4 => '4'])
                 ->required()
                 ->native(false),
+            Select::make('mobile_columns')
+                ->label(__('shop.settings.appearance.fields.mobile_columns'))
+                ->options([1 => '1', 2 => '2'])
+                ->required()
+                ->native(false),
             TextInput::make('per_page')
                 ->label(__('shop.settings.appearance.fields.per_page'))
                 ->numeric()
@@ -72,14 +80,26 @@ class ManageAppearanceSettings extends SettingsPage
                 ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
                 ->maxSize(2048)
                 ->columnSpanFull(),
+            // MB-24: «Приложение на телефоне».
+            PwaSettingsSection::make()->columnSpanFull(),
         ]);
+    }
+
+    /**
+     * MB-21: the icon set follows the saved icon and background color; then the replaced source file is removed.
+     */
+    protected function afterSave(): void
+    {
+        PwaSettingsSection::afterSave();
+        $this->deleteReplacedSettingFiles();
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $data['grid_columns'] = (int) $data['grid_columns'];
+        $data['mobile_columns'] = (int) $data['mobile_columns'] === 1 ? 1 : 2;
         $data['per_page'] = (int) $data['per_page'];
 
-        return $data;
+        return PwaSettingsSection::mutate($data);
     }
 }
