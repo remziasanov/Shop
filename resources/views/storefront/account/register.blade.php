@@ -15,10 +15,10 @@
             {{-- CA-02: consent, never checked by default; the time and the IP are stored with the account. --}}
             <div class="flex items-start gap-2">
                 <input id="rg-consent" name="consent" type="checkbox" value="1" required aria-required="true" @checked(old('consent'))
-                       class="mt-1 h-4 w-4 flex-none rounded border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                       class="mt-1 h-4 w-4 flex-none rounded-btn border-line-heavy focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                        @if ($errors->has('consent')) aria-invalid="true" @endif>
                 <label for="rg-consent" class="text-sm">
-                    {{ $consentLink['text'] }} <span class="text-red-700" aria-hidden="true">*</span>
+                    {{ $consentLink['text'] }} <span class="text-danger" aria-hidden="true">*</span>
                     @if (! empty($consentLink['url']))
                         <a href="{{ $consentLink['url'] }}" target="_blank" rel="noopener" class="whitespace-nowrap text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.checkout.consent_link') }}</a>
                     @endif
@@ -34,7 +34,7 @@
             <x-account.button>{{ __('account.register.submit') }}</x-account.button>
         </form>
 
-        <p class="mt-6 text-sm text-slate-600">
+        <p class="mt-6 text-sm text-ink-mid">
             {{ __('account.register.have_account') }}
             <a href="{{ route('customer.login') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.login.submit') }}</a>
         </p>

@@ -6,25 +6,25 @@
     <label for="{{ $id }}" class="mb-1 block text-sm font-medium">
         {{ $label }}
         @if ($required)
-            <span class="text-red-700" aria-hidden="true">*</span>
+            <span class="text-danger" aria-hidden="true">*</span>
         @else
-            <span class="font-normal text-slate-500">{{ __('storefront_sales.fields.optional') }}</span>
+            <span class="font-normal text-muted">{{ __('storefront_sales.fields.optional') }}</span>
         @endif
     </label>
     @if ($type === 'textarea')
         <textarea id="{{ $id }}" rows="3" wire:model="{{ $name }}" @if ($required) aria-required="true" @endif
                   @if ($errors->has($name)) aria-invalid="true" @endif @if ($describedBy !== '') aria-describedby="{{ $describedBy }}" @endif
-                  {{ $attributes->merge(['class' => 'w-full rounded border border-slate-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-invalid:border-red-600']) }}></textarea>
+                  {{ $attributes->merge(['class' => 'w-full rounded-btn border border-line-strong px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-invalid:border-danger-solid']) }}></textarea>
     @else
         <input id="{{ $id }}" type="{{ $type }}" wire:model{{ $live ? '.live' : '' }}="{{ $name }}" @if ($required) aria-required="true" @endif
                @if ($type === 'number' && ! $attributes->has('inputmode')) inputmode="numeric" @endif
                @if ($errors->has($name)) aria-invalid="true" @endif @if ($describedBy !== '') aria-describedby="{{ $describedBy }}" @endif
-               {{ $attributes->merge(['class' => 'w-full rounded border border-slate-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-invalid:border-red-600']) }}>
+               {{ $attributes->merge(['class' => 'w-full rounded-btn border border-line-strong px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-invalid:border-danger-solid']) }}>
     @endif
     @if ($hint)
-        <p id="{{ $id }}-hint" class="mt-1 text-xs text-slate-500">{{ $hint }}</p>
+        <p id="{{ $id }}-hint" class="mt-1 text-xs text-muted">{{ $hint }}</p>
     @endif
     @error($name)
-        <p id="{{ $id }}-error" class="mt-1 text-sm text-red-700">{{ $message }}</p>
+        <p id="{{ $id }}-error" class="mt-1 text-sm text-danger">{{ $message }}</p>
     @enderror
 </div>

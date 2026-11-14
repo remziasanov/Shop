@@ -4,12 +4,12 @@
         <fieldset :data-axis="axis.id">
             <legend class="mb-1 text-sm font-medium">
                 <span x-text="axis.name"></span>:
-                <span class="font-normal text-slate-600" x-text="valueText(axis.id)"></span>
+                <span class="font-normal text-ink-mid" x-text="valueText(axis.id)"></span>
             </legend>
 
             <template x-if="axis.display === 'select'">
                 <select :aria-label="axis.name" @change="pick(axis.id, Number($event.target.value))"
-                        class="min-h-11 w-full max-w-xs rounded border border-slate-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                        class="min-h-11 w-full max-w-xs rounded-btn border border-line-strong px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                     <template x-for="value in axis.values" :key="value.id">
                         <option :value="value.id" :selected="selection[axis.id] === value.id" x-text="value.text + (shaded(axis.id, value.id) ? ' — ' + labels.unavailable : '')"></option>
                     </template>
@@ -25,9 +25,9 @@
                                 :title="value.text + (shaded(axis.id, value.id) ? ' — ' + labels.unavailable : '')"
                                 :aria-label="value.text + (shaded(axis.id, value.id) ? ' — ' + labels.unavailable : '')"
                                 :class="[
-                                    selection[axis.id] === value.id ? 'border-primary ring-2 ring-primary' : 'border-slate-300 hover:border-slate-500',
+                                    selection[axis.id] === value.id ? 'border-primary ring-2 ring-primary' : 'border-line-strong hover:border-muted',
                                     shaded(axis.id, value.id) ? 'opacity-40' : '',
-                                    axis.display === 'color' ? 'h-11 w-11 rounded-full border bg-cover bg-center' : 'min-h-11 min-w-11 rounded border px-3 py-2 text-sm',
+                                    axis.display === 'color' ? 'h-11 w-11 rounded-full border bg-cover bg-center' : 'min-h-11 min-w-11 rounded-btn border px-3 py-2 text-sm',
                                 ]"
                                 :style="axis.display === 'color' ? swatch(value) : ''"
                                 class="relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">

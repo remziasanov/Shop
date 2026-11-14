@@ -1,0 +1,53 @@
+{
+    "id": "default",
+    "n": 0,
+    "name": "По умолчанию",
+    "group": null,
+    "shopType": null,
+    "niche": "Текущий вид витрины",
+    "basis": null,
+    "mood": "Белый фон, графитовый текст, синяя основная кнопка, янтарный акцент",
+    "colors": {
+        "bg": "#FFFFFF",
+        "surface": "#FFFFFF",
+        "ink": "#0F172B",
+        "muted": "#62748E",
+        "line": "#E2E8F0",
+        "primary": "#2563EB",
+        "onPrimary": "#FFFFFF",
+        "accent": "#F59E0B",
+        "onAccent": "#0F172B",
+        "heroBg": "#FFFFFF",
+        "heroInk": "#0F172B",
+        "tile": "#F8FAFC"
+    },
+    "shape": {
+        "radius": 8,
+        "buttonRadius": 4,
+        "surface": "line",
+        "borderWidth": 1
+    },
+    "fonts": {
+        "display": {
+            "family": "system",
+            "weight": 700,
+            "case": "none",
+            "italic": false,
+            "scale": 1.0,
+            "lineHeight": null,
+            "letterSpacing": null
+        },
+        "body": {
+            "family": "system"
+        },
+        "mono": null
+    },
+    "blocks": {
+        "header": "H1",
+        "card": "C1",
+        "hero": "G1",
+        "listing": "L1"
+    },
+    "extras": {},
+    "preview": null
+}

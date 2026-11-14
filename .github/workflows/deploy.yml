@@ -294,6 +294,7 @@ jobs:
           /.github/
           /.claude/
           /skills-lock.json
+          /docs/themes/preview/
           /node_modules/
           /tests/
           /junit.xml

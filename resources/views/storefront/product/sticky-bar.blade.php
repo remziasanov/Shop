@@ -16,18 +16,18 @@
                 <p class="truncate text-lg font-bold leading-tight">{{ $view->price }}</p>
             @endif
             @unless ($view->priceOnRequest)
-                <p class="truncate text-xs text-slate-500">{{ __('storefront.product.per_unit', ['unit' => $product->unit]) }}</p>
+                <p class="truncate text-xs text-muted">{{ __('storefront.product.per_unit', ['unit' => $product->unit]) }}</p>
             @endunless
         </div>
 
         @if ($showcase)
             @if ($callPhone)
-                <a href="tel:{{ preg_replace('/[^\d+]/', '', $callPhone) }}" class="flex min-h-11 flex-none items-center justify-center rounded bg-primary px-6 py-2 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-sticky-action="call">{{ __('mobile.product.call') }}</a>
+                <a href="tel:{{ preg_replace('/[^\d+]/', '', $callPhone) }}" class="flex min-h-11 flex-none items-center justify-center rounded-btn bg-primary px-6 py-2 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-sticky-action="call">{{ __('mobile.product.call') }}</a>
             @endif
         @else
             <button type="button" @click="press({{ $picker !== null ? 'current' : 'null' }}, {{ $picker !== null ? 'true' : 'false' }})"
                     :disabled="kind === null && ! {{ $picker !== null ? '(! current)' : 'false' }}"
-                    class="flex min-h-11 max-w-[60%] flex-none items-center justify-center rounded bg-primary px-5 py-2 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500" data-sticky-action="buy">
+                    class="flex min-h-11 max-w-[60%] flex-none items-center justify-center rounded-btn bg-primary px-5 py-2 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:bg-line disabled:text-muted" data-sticky-action="buy">
                 <span class="truncate" x-text="label !== '' ? label : @js(__('mobile.product.unavailable'))">{{ $initialLabel }}</span>
             </button>
         @endif

@@ -28,8 +28,7 @@ it('shows the new shop name after settings change', function () {
 
 it('exposes configured colors as CSS variables', function () {
     $appearance = app(AppearanceSettings::class);
-    $appearance->primary_color = '#112233';
-    $appearance->accent_color = '#abcdef';
+    $appearance->theme_overrides = ['default' => ['colors' => ['primary' => '#112233', 'accent' => '#abcdef']]];
     $appearance->save();
 
     $this->get('/')
@@ -40,7 +39,7 @@ it('exposes configured colors as CSS variables', function () {
 
 it('rejects non-hex colors', function () {
     $appearance = app(AppearanceSettings::class);
-    $appearance->primary_color = 'red;} body{display:none';
+    $appearance->theme_overrides = ['default' => ['colors' => ['primary' => 'red;} body{display:none']]];
     $appearance->save();
 
     $this->get('/')

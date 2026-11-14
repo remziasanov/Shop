@@ -17,13 +17,18 @@ use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Pricing\PriceRuleRepository;
 use App\Services\Sales\CartAvailability;
+use App\Services\Themes\ActiveTheme;
+use App\Services\Themes\FontRegistry;
+use App\Services\Themes\ThemeRegistry;
 use App\Services\Users\PermissionService;
 use App\Services\Variants\VariantAggregator;
 use App\View\Composers\StorefrontComposer;
+use App\View\Composers\ThemeComposer;
 use Filament\Auth\Http\Controllers\LogoutController as FilamentLogoutController;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Mail\Events\MessageSending;
@@ -57,6 +62,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PermissionService::class);
         $this->app->singleton(ImageProcessor::class);
         $this->app->singleton(StorefrontComposer::class);
+        // Themes (stage 20): the registries are read once, the active theme is resolved once per request.
+        $this->app->singleton(ThemeRegistry::class);
+        $this->app->singleton(FontRegistry::class);
+        $this->app->singleton(ActiveTheme::class);
+        $this->app->singleton(ThemeComposer::class);
         $this->app->bind(HostResolver::class, DnsHostResolver::class);
         // CA-32: the admin sign-out must not end a customer session of the same browser.
         $this->app->bind(FilamentLogoutController::class, StaffLogoutController::class);
@@ -84,7 +94,13 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(RequestHandled::class, fn () => $this->app->make(PermissionService::class)->flush());
         Event::listen(MessageSending::class, ApplyShopNameToMail::class);
 
-        View::composer('storefront.*', StorefrontComposer::class);
+        // The theme head partial is also printed by the error pages, which must render without the settings or the
+        // database (SF-07): it gets the theme from ThemeComposer only, so the storefront composer skips it.
+        View::composer('storefront.*', fn (ViewContract $view) => $view->name() === 'storefront.partials.theme-head'
+            ? null
+            : $this->app->make(StorefrontComposer::class)->compose($view));
+        // TH-05: `$theme` and the theme assets for the storefront and the error pages.
+        View::composer(['storefront.*', 'errors.*'], ThemeComposer::class);
 
         $this->forgetCartFlagOnChanges();
 

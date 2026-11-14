@@ -4,7 +4,7 @@
     <div class="mx-auto w-full max-w-xl py-6">
         <p class="text-sm"><a href="{{ route('account') }}" class="inline-flex min-h-11 items-center text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.index.title') }}</a></p>
         <h1 class="mt-2 text-2xl font-bold md:text-3xl">{{ __('account.company.title') }}</h1>
-        <p class="mt-1 text-sm text-slate-600">{{ __('account.company.lead') }}</p>
+        <p class="mt-1 text-sm text-ink-mid">{{ __('account.company.lead') }}</p>
         <div class="mt-4">
             <x-account.errors />
         </div>
@@ -20,7 +20,7 @@
         </form>
 
         @if ($company)
-            <form method="POST" action="{{ route('customer.company.destroy') }}" class="mt-6 border-t border-slate-200 pt-6">
+            <form method="POST" action="{{ route('customer.company.destroy') }}" class="mt-6 border-t border-line pt-6">
                 @csrf
                 <x-account.button variant="secondary">{{ __('account.company.delete') }}</x-account.button>
             </form>

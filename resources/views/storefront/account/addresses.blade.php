@@ -4,27 +4,27 @@
     <div class="mx-auto w-full max-w-2xl py-6">
         <p class="text-sm"><a href="{{ route('account') }}" class="inline-flex min-h-11 items-center text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.index.title') }}</a></p>
         <h1 class="mt-2 text-2xl font-bold md:text-3xl">{{ __('account.addresses.title') }}</h1>
-        <p class="mt-1 text-sm text-slate-600">{{ __('account.addresses.lead', ['max' => $max]) }}</p>
+        <p class="mt-1 text-sm text-ink-mid">{{ __('account.addresses.lead', ['max' => $max]) }}</p>
         <div class="mt-4">
             <x-account.errors />
         </div>
 
         @if ($addresses->isEmpty())
-            <p class="mt-4 rounded-lg border border-slate-200 p-4 text-slate-600" data-addresses-empty>{{ __('account.addresses.empty') }}</p>
+            <p class="mt-4 rounded-card border border-line p-4 text-ink-mid" data-addresses-empty>{{ __('account.addresses.empty') }}</p>
         @else
             <ul class="mt-4 space-y-3">
                 @foreach ($addresses as $item)
-                    <li class="rounded-lg border border-slate-200 p-4" data-address>
+                    <li class="rounded-card border border-line p-4" data-address>
                         <div class="flex flex-wrap items-start justify-between gap-2">
                             <div>
                                 <p class="font-semibold">
                                     {{ $item->label }}
                                     @if ($item->is_default)
-                                        <span class="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{{ __('account.addresses.default_badge') }}</span>
+                                        <span class="ml-2 rounded-btn bg-surface-3 px-2 py-0.5 text-xs font-medium text-ink-soft">{{ __('account.addresses.default_badge') }}</span>
                                     @endif
                                 </p>
-                                <p class="text-sm text-slate-700">{{ $item->recipient_name }}, {{ $item->phone }}</p>
-                                <p class="whitespace-pre-line text-sm text-slate-700">{{ $item->address }}</p>
+                                <p class="text-sm text-ink-soft">{{ $item->recipient_name }}, {{ $item->phone }}</p>
+                                <p class="whitespace-pre-line text-sm text-ink-soft">{{ $item->address }}</p>
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 @unless ($item->is_default)
@@ -50,7 +50,7 @@
                                                  x-data="phoneMask" x-on:input="format($event)" />
                                 <x-account.field :prefix="'ae'.$item->id" name="address" :label="__('account.addresses.fields.address')" :value="$item->address" autocomplete="street-address" maxlength="500" />
                                 <label class="flex items-center gap-2 text-sm">
-                                    <input type="checkbox" name="is_default" value="1" @checked($item->is_default) class="h-4 w-4 rounded border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                                    <input type="checkbox" name="is_default" value="1" @checked($item->is_default) class="h-4 w-4 rounded-btn border-line-heavy focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                                     {{ __('account.addresses.fields.is_default') }}
                                 </label>
                                 <x-account.button>{{ __('account.addresses.save') }}</x-account.button>
@@ -62,7 +62,7 @@
         @endif
 
         @if ($addresses->count() < $max)
-            <section class="mt-8 border-t border-slate-200 pt-6" aria-labelledby="address-add-title">
+            <section class="mt-8 border-t border-line pt-6" aria-labelledby="address-add-title">
                 <h2 id="address-add-title" class="text-lg font-semibold">{{ __('account.addresses.add') }}</h2>
                 <form method="POST" action="{{ route('customer.addresses.store') }}" class="mt-3 space-y-4" novalidate>
                     @csrf
@@ -72,14 +72,14 @@
                                      x-data="phoneMask" x-on:input="format($event)" />
                     <x-account.field prefix="an" name="address" :label="__('account.addresses.fields.address')" autocomplete="street-address" maxlength="500" />
                     <label class="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="is_default" value="1" @checked(old('is_default')) class="h-4 w-4 rounded border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                        <input type="checkbox" name="is_default" value="1" @checked(old('is_default')) class="h-4 w-4 rounded-btn border-line-heavy focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                         {{ __('account.addresses.fields.is_default') }}
                     </label>
                     <x-account.button>{{ __('account.addresses.add_submit') }}</x-account.button>
                 </form>
             </section>
         @else
-            <p class="mt-6 text-sm text-slate-600">{{ __('account.addresses.limit', ['max' => $max]) }}</p>
+            <p class="mt-6 text-sm text-ink-mid">{{ __('account.addresses.limit', ['max' => $max]) }}</p>
         @endif
     </div>
 @endsection

@@ -1,5 +1,5 @@
 {{-- One banner / slide of the home page (5.2). $slide from HomePageRenderer, $eager = first screen image (NF-03). --}}
-<div class="relative overflow-hidden rounded-lg bg-slate-100">
+<div class="relative overflow-hidden rounded-card bg-surface-3">
     <picture>
         @if ($slide['mobileSrcset'])
             <source media="(max-width: 767px)" srcset="{{ $slide['mobileSrcset'] }}" sizes="100vw">
@@ -11,7 +11,7 @@
     </picture>
 
     @if ($slide['title'] || $slide['subtitle'] || $slide['buttonText'])
-        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white md:p-8">
+        <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-scrim/70 to-transparent p-4 text-on-solid md:p-8">
             @if ($slide['title'])
                 <h2 class="text-xl font-bold leading-tight md:text-4xl">{{ $slide['title'] }}</h2>
             @endif
@@ -19,7 +19,7 @@
                 <p class="mt-1 max-w-2xl text-sm md:mt-2 md:text-lg">{{ $slide['subtitle'] }}</p>
             @endif
             @if ($slide['buttonText'])
-                <a href="{{ $slide['url'] }}" class="mt-3 inline-block rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white md:mt-4 md:px-6 md:py-3">{{ $slide['buttonText'] }}</a>
+                <a href="{{ $slide['url'] }}" class="mt-3 inline-block rounded-btn bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bg md:mt-4 md:px-6 md:py-3">{{ $slide['buttonText'] }}</a>
             @endif
         </div>
     @endif

@@ -5,11 +5,11 @@
     $onSearch = request()->routeIs('search');
     $onAccount = request()->routeIs('account', 'customer.*') && ! request()->routeIs('customer.login*', 'customer.register*');
 @endphp
-<nav class="shop-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white md:hidden" aria-label="{{ __('storefront.bottom_bar.label') }}" data-bottom-nav>
+<nav class="shop-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface md:hidden" aria-label="{{ __('storefront.bottom_bar.label') }}" data-bottom-nav>
     <ul class="grid grid-flow-col auto-cols-fr">
         @if ($catalogEnabled)
             <li>
-                <a href="{{ route('catalog.index') }}" class="{{ $item }} {{ $onCatalog ? 'font-semibold text-primary' : 'text-slate-700' }}" @if ($onCatalog) aria-current="page" @endif data-bar-item="catalog">
+                <a href="{{ route('catalog.index') }}" class="{{ $item }} {{ $onCatalog ? 'font-semibold text-primary' : 'text-ink-soft' }}" @if ($onCatalog) aria-current="page" @endif data-bar-item="catalog">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h7v7H4zM13 6h7v7h-7zM4 15h7v5H4zM13 15h7v5h-7z"/></svg>
                     <span>{{ __('storefront.bottom_bar.catalog') }}</span>
                 </a>
@@ -17,7 +17,7 @@
         @endif
         @if ($searchEnabled)
             <li>
-                <a href="{{ route('search') }}" class="{{ $item }} {{ $onSearch ? 'font-semibold text-primary' : 'text-slate-700' }}" @if ($onSearch) aria-current="page" @endif data-bar-item="search"
+                <a href="{{ route('search') }}" class="{{ $item }} {{ $onSearch ? 'font-semibold text-primary' : 'text-ink-soft' }}" @if ($onSearch) aria-current="page" @endif data-bar-item="search"
                    x-data @click.prevent="window.scrollTo({ top: 0 }); document.getElementById('header-search').focus()">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z"/></svg>
                     <span>{{ __('storefront.bottom_bar.search') }}</span>
@@ -29,11 +29,11 @@
         @endif
         @if ($accountLinks)
             <li>
-                <a href="{{ $accountCustomerName !== null ? route('account') : route('customer.login') }}" class="{{ $item }} relative {{ $onAccount ? 'font-semibold text-primary' : 'text-slate-700' }}" @if ($onAccount) aria-current="page" @endif data-account-bar data-bar-item="account">
+                <a href="{{ $accountCustomerName !== null ? route('account') : route('customer.login') }}" class="{{ $item }} relative {{ $onAccount ? 'font-semibold text-primary' : 'text-ink-soft' }}" @if ($onAccount) aria-current="page" @endif data-account-bar data-bar-item="account">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5.5 20a6.5 6.5 0 0113 0M12 12a4 4 0 100-8 4 4 0 000 8z"/></svg>
                     <span>{{ $accountCustomerName !== null ? __('mobile.bottom_nav.cabinet') : __('account.header.login') }}</span>
                     @if ($accountUnread > 0)
-                        <span class="absolute right-1/4 top-0.5 min-w-5 rounded-full bg-primary px-1 text-center text-xs font-medium leading-5 text-white" data-unread-badge><span class="sr-only">{{ __('account.header.unread') }}</span>{{ $accountUnread }}</span>
+                        <span class="absolute right-1/4 top-0.5 min-w-5 rounded-full bg-primary px-1 text-center text-xs font-medium leading-5 text-on-primary" data-unread-badge><span class="sr-only">{{ __('account.header.unread') }}</span>{{ $accountUnread }}</span>
                     @endif
                 </a>
             </li>

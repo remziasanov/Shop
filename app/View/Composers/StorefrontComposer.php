@@ -12,6 +12,7 @@ use App\Services\Catalog\CategoryTree;
 use App\Services\Content\MenuService;
 use App\Services\Customers\CustomerNotificationService;
 use App\Services\Sales\CartAvailability;
+use App\Services\Themes\ActiveTheme;
 use App\Settings\AppearanceSettings;
 use App\Settings\CustomerSettings;
 use App\Settings\GeneralSettings;
@@ -24,10 +25,6 @@ use Illuminate\Support\Facades\Storage;
  */
 class StorefrontComposer
 {
-    private const DEFAULT_PRIMARY = '#2563eb';
-
-    private const DEFAULT_ACCENT = '#f59e0b';
-
     public function __construct(
         private readonly GeneralSettings $general,
         private readonly AppearanceSettings $appearance,
@@ -37,6 +34,7 @@ class StorefrontComposer
         private readonly ViewerContext $viewer,
         private readonly CustomerSettings $customers,
         private readonly CustomerNotificationService $notifications,
+        private readonly ActiveTheme $activeTheme,
     ) {}
 
     /** @var array<string, mixed>|null Data built once per request (the composer runs for every storefront view and partial). */
@@ -77,8 +75,9 @@ class StorefrontComposer
             'shopAddress' => $this->general->address,
             'shopWorkingHours' => $this->general->working_hours,
             'shopFooterText' => $this->general->footer_text,
-            'primaryColor' => $this->safeColor($this->appearance->primary_color, self::DEFAULT_PRIMARY),
-            'accentColor' => $this->safeColor($this->appearance->accent_color, self::DEFAULT_ACCENT),
+            // Kept for views that still read them; the source is the active theme (TH-05), not the legacy fields.
+            'primaryColor' => $this->activeTheme->current()->colors['primary'],
+            'accentColor' => $this->activeTheme->current()->colors['accent'],
             'searchQuery' => is_string(request()->query('q')) ? request()->query('q') : '',
             'menuCategories' => $this->headerMenu($menus['header']),
             'footerMenu' => $menus['footer'],
@@ -202,13 +201,5 @@ class StorefrontComposer
         }
 
         return $menu;
-    }
-
-    /**
-     * Only #rgb / #rrggbb values are allowed inside the inline <style> block.
-     */
-    private function safeColor(string $value, string $default): string
-    {
-        return preg_match('/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $value) === 1 ? $value : $default;
     }
 }

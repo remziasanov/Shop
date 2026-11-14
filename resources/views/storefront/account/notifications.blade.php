@@ -12,22 +12,22 @@
                 </form>
             @endif
         </div>
-        <p class="mt-1 text-sm text-slate-600">{{ __('account.notifications.retention', ['days' => \App\Models\CustomerNotification::RETENTION_DAYS]) }}</p>
+        <p class="mt-1 text-sm text-ink-mid">{{ __('account.notifications.retention', ['days' => \App\Models\CustomerNotification::RETENTION_DAYS]) }}</p>
         <div class="mt-4">
             <x-account.errors />
         </div>
 
         @if ($notifications->isEmpty())
-            <p class="rounded-lg border border-slate-200 p-4 text-slate-600" data-notifications-empty>{{ __('account.notifications.empty') }}</p>
+            <p class="rounded-card border border-line p-4 text-ink-mid" data-notifications-empty>{{ __('account.notifications.empty') }}</p>
         @else
-            <ul class="space-y-3 md:space-y-0 md:divide-y md:divide-slate-200 md:rounded-lg md:border md:border-slate-200">
+            <ul class="space-y-3 md:space-y-0 md:divide-y md:divide-line md:rounded-card md:border md:border-line">
                 @foreach ($notifications as $notification)
-                    <li class="p-4 max-md:rounded-lg max-md:border max-md:border-slate-200 {{ $notification->read_at === null ? 'bg-slate-50' : '' }}" data-notification @if ($notification->read_at === null) data-unread @endif>
+                    <li class="p-4 max-md:rounded-card max-md:border max-md:border-line {{ $notification->read_at === null ? 'bg-surface-2' : '' }}" data-notification @if ($notification->read_at === null) data-unread @endif>
                         <div class="flex flex-wrap items-start justify-between gap-2">
                             <div>
                                 <p class="{{ $notification->read_at === null ? 'font-semibold' : 'font-medium' }}">{{ $notification->title }}</p>
-                                <p class="text-sm text-slate-700">{{ $notification->body }}</p>
-                                <p class="mt-1 text-xs text-slate-500">{{ $notification->created_at?->format('d.m.Y H:i') }}</p>
+                                <p class="text-sm text-ink-soft">{{ $notification->body }}</p>
+                                <p class="mt-1 text-xs text-muted">{{ $notification->created_at?->format('d.m.Y H:i') }}</p>
                             </div>
                             <form method="POST" action="{{ route('customer.notifications.read', $notification->id) }}">
                                 @csrf

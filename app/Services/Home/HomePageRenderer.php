@@ -15,6 +15,7 @@ use App\Services\Catalog\ProductPresenter;
 use App\Services\Content\HtmlSanitizer;
 use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\GroupPriceSql;
+use App\Services\Themes\ActiveTheme;
 use App\Settings\AppearanceSettings;
 use App\Settings\HomePageSettings;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,7 +26,7 @@ use Illuminate\Support\Facades\Storage;
  * Renders the home page blocks (5.2, D-054). Only visible blocks are rendered, in their saved order.
  * Without any renderable block the page shows the root categories and the 12 latest products.
  *
- * The HTML is cached for 10 minutes per customer group under `home:{group}:{catalog_version}` ({@see cacheKey()}, CG-19);
+ * The HTML is cached for 10 minutes per customer group under `home:{group}:{catalog_version}:{theme}` ({@see cacheKey()}, CG-19);
  * the {@see HomePageServiceProvider} listeners move the catalog version on, which retires every group's copy. Product cards contain plain POST forms with a CSRF token (NF-02), which is per session:
  * the token is swapped for a placeholder before caching and filled in for the current session on every
  * {@see render()}, so the cached markup never serves a foreign or stale token.
@@ -64,12 +65,17 @@ final class HomePageRenderer
      */
     public function page(): array
     {
-        $key = self::cacheKey();
-        $cached = Cache::get($key);
-
-        if (! is_array($cached) || ! is_string($cached['html'] ?? null) || ! is_array($cached['preload'] ?? null)) {
+        // TH-30: a staff theme preview is rendered fresh and never stored.
+        if (app(ActiveTheme::class)->isPreview()) {
             $cached = $this->build();
-            Cache::put($key, $cached, self::CACHE_TTL);
+        } else {
+            $key = self::cacheKey();
+            $cached = Cache::get($key);
+
+            if (! is_array($cached) || ! is_string($cached['html'] ?? null) || ! is_array($cached['preload'] ?? null)) {
+                $cached = $this->build();
+                Cache::put($key, $cached, self::CACHE_TTL);
+            }
         }
 
         return [
@@ -79,11 +85,12 @@ final class HomePageRenderer
     }
 
     /**
-     * Cache key of the home page of the current viewer's group (CG-19): `home:{group}:{catalog_version}`.
+     * Cache key of the home page of the current viewer's group (CG-19): `home:{group}:{catalog_version}:{theme}`.
      */
     public static function cacheKey(): string
     {
-        return self::CACHE_KEY.':'.app(ViewerContext::class)->access()->cacheKey().':'.CatalogVersion::current();
+        // TH-12: the theme and its overrides are part of the key (variants of the first screen change the markup).
+        return self::CACHE_KEY.':'.app(ViewerContext::class)->access()->cacheKey().':'.CatalogVersion::current().':'.app(ActiveTheme::class)->cacheKey();
     }
 
     /**

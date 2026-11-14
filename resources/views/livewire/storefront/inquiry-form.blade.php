@@ -4,14 +4,14 @@
 <div x-data="{ open: @js((bool) ($open && $product !== null && $canInquire)) }" @if ($variantMode) x-cloak x-show="current && current.can.inquire" x-effect="$wire.variantId = current ? current.id : 0" @endif>
     @if ($product !== null && $canInquire && $mustSignIn)
         <a href="{{ route('customer.login') }}" data-action="inquiry-login"
-           class="inline-block rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('account.actions.login_to_inquire') }}</a>
+           class="inline-block rounded-btn border border-primary px-6 py-3 font-medium text-primary hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('account.actions.login_to_inquire') }}</a>
     @elseif ($product !== null && $canInquire)
         <button type="button" @click="open = true" aria-haspopup="dialog" data-action="inquiry"
-                class="rounded border border-primary px-6 py-3 font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.inquiry') }}</button>
+                class="rounded-btn border border-primary px-6 py-3 font-medium text-primary hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('storefront.actions.inquiry') }}</button>
 
         <x-storefront.modal id="inquiry-{{ $productId }}" :title="__('storefront_sales.inquiry.title')">
             <form wire:submit="submit" class="space-y-4" novalidate>
-                <p class="text-sm text-slate-600">{{ __('storefront_sales.inquiry.text') }}</p>
+                <p class="text-sm text-ink-mid">{{ __('storefront_sales.inquiry.text') }}</p>
                 @if ($variantMode)
                     <p class="text-sm font-medium" data-variant-label x-text="current ? current.label : ''"></p>
                 @endif
@@ -27,8 +27,8 @@
                 <x-storefront.guard />
 
                 <div class="flex flex-wrap justify-end gap-2">
-                    <button type="button" @click="open = false" class="rounded border border-slate-300 px-4 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.modal.cancel') }}</button>
-                    <button type="submit" wire:loading.attr="disabled" wire:target="submit" class="rounded bg-primary px-6 py-2 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{{ __('storefront_sales.inquiry.submit') }}</button>
+                    <button type="button" @click="open = false" class="rounded-btn border border-line-strong px-4 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.modal.cancel') }}</button>
+                    <button type="submit" wire:loading.attr="disabled" wire:target="submit" class="rounded-btn bg-primary px-6 py-2 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{{ __('storefront_sales.inquiry.submit') }}</button>
                 </div>
             </form>
         </x-storefront.modal>

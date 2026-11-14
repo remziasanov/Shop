@@ -169,6 +169,9 @@ return [
             'customer.unblocked' => 'Покупатель разблокирован',
             'customer.anonymized' => 'Покупатель обезличен',
             'customer.code_resent' => 'Покупателю повторно отправлен код подтверждения',
+            'theme.changed' => 'Тема оформления изменена',
+            'theme.colors_changed' => 'Цвета темы изменены',
+            'theme.fonts_changed' => 'Шрифты темы изменены',
         ],
     ],
 

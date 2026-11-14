@@ -8,10 +8,23 @@ use Spatie\LaravelSettings\Settings;
 
 class AppearanceSettings extends Settings
 {
-    /** Hex color, e.g. #2563eb. */
+    /**
+     * Legacy SF-04 colors. Since TH-03 the live values are the `default` theme overrides in {@see $theme_overrides};
+     * these two mirror the resolved primary and accent of the active theme for code outside the theme system
+     * (error pages), see ThemeManager.
+     */
     public string $primary_color;
 
     public string $accent_color;
+
+    /** Id of the active theme (TH-01…TH-04); `default` is the previous look. */
+    public string $theme_id;
+
+    /**
+     * Overrides per theme id (TH-04, D-136): `{<theme id>: {colors: {bg, surface, ink, primary, accent}, fonts: {display, body}}}`,
+     * every key optional; sanitized on read by ThemeResolver.
+     */
+    public array $theme_overrides;
 
     /** Product grid columns on desktop: 3 or 4. */
     public int $grid_columns;
