@@ -126,26 +126,26 @@ it('caps money settings at the decimal(12,2) maximum', function () {
         ->assertHasNoFormErrors();
 });
 
-it('rejects invalid hex colors on the appearance page', function (string $field, string $value) {
+it('rejects invalid hex colors on the appearance page (TH-09)', function (string $field, string $value) {
     Livewire::test(ManageAppearanceSettings::class)
-        ->fillForm([$field => $value])
+        ->fillForm(['ov_colors' => [$field => $value]])
         ->call('save')
-        ->assertHasFormErrors([$field])
+        ->assertHasFormErrors(['ov_colors.'.$field])
         ->assertSee('Укажите цвет в формате');
 })->with([
-    ['primary_color', 'red'],
-    ['primary_color', '#12345'],
-    ['accent_color', '#gggggg'],
-    ['accent_color', 'rgb(1,2,3)'],
+    ['primary', 'red'],
+    ['primary', '#12345'],
+    ['accent', '#gggggg'],
+    ['accent', 'rgb(1,2,3)'],
 ]);
 
 it('accepts short and long hex colors', function () {
     Livewire::test(ManageAppearanceSettings::class)
-        ->fillForm(['primary_color' => '#abc', 'accent_color' => '#A1B2C3'])
+        ->fillForm(['ov_colors' => ['primary' => '#abc', 'accent' => '#A1B2C3']])
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect(app(AppearanceSettings::class)->primary_color)->toBe('#abc');
+    expect(app(AppearanceSettings::class)->theme_overrides['default']['colors'])->toBe(['primary' => '#aabbcc', 'accent' => '#A1B2C3']);
 });
 
 it('deletes the old logo from the public disk when it is replaced', function () {

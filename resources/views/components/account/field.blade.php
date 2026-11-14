@@ -6,18 +6,18 @@
     <label for="{{ $id }}" class="mb-1 block text-sm font-medium">
         {{ $label }}
         @if ($required)
-            <span class="text-red-700" aria-hidden="true">*</span>
+            <span class="text-danger" aria-hidden="true">*</span>
         @endif
     </label>
     <input id="{{ $id }}" name="{{ $name }}" type="{{ $type }}" @if ($type !== 'password') value="{{ old($name, $value) }}" @endif
            @if ($required) required aria-required="true" @endif
            @if ($errors->has($name)) aria-invalid="true" @endif @if ($describedBy !== '') aria-describedby="{{ $describedBy }}" @endif
-           {{ $attributes->merge(['class' => 'w-full rounded border border-slate-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-invalid:border-red-600']) }}>
+           {{ $attributes->merge(['class' => 'w-full rounded-btn border border-line-strong px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary aria-invalid:border-danger-solid']) }}>
     @if ($hint)
-        <p id="{{ $id }}-hint" class="mt-1 text-xs text-slate-500">{{ $hint }}</p>
+        <p id="{{ $id }}-hint" class="mt-1 text-xs text-muted">{{ $hint }}</p>
     @endif
     {{-- MB-06: the error stands under its field (the list above the form stays for screen readers and the page scrolls to the first field with an error). --}}
     @error($name)
-        <p id="{{ $id }}-error" class="mt-1 text-sm text-red-700" data-field-error-text>{{ $message }}</p>
+        <p id="{{ $id }}-error" class="mt-1 text-sm text-danger" data-field-error-text>{{ $message }}</p>
     @enderror
 </div>

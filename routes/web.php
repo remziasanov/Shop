@@ -39,6 +39,7 @@ use App\Http\Controllers\Storefront\RobotsController;
 use App\Http\Controllers\Storefront\SearchController;
 use App\Http\Controllers\Storefront\SearchSuggestController;
 use App\Http\Controllers\Storefront\SitemapController;
+use App\Http\Controllers\Storefront\ThemePreviewController;
 use App\Http\Controllers\Storefront\ViewerPreviewController;
 use Filament\Http\Middleware\Authenticate as FilamentAuthenticate;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -169,6 +170,11 @@ Route::get('/price-list.xlsx', [PriceListController::class, 'guest'])->middlewar
 // CG-18: staff look at the storefront as a customer group (a flag of the staff session, not a customer login); POST so that CSRF protects it.
 Route::post('/preview-as/exit', [ViewerPreviewController::class, 'exit'])->name('viewer.preview.exit');
 Route::post('/preview-as/{group}', [ViewerPreviewController::class, 'enter'])->whereNumber('group')->name('viewer.preview');
+
+// TH-27: buttons of the staff theme preview bar (a flag of the staff session; each action re-checks the right).
+Route::post('/theme-preview/step', [ThemePreviewController::class, 'step'])->name('theme.preview.step');
+Route::post('/theme-preview/apply', [ThemePreviewController::class, 'apply'])->name('theme.preview.apply');
+Route::post('/theme-preview/exit', [ThemePreviewController::class, 'exit'])->name('theme.preview.exit');
 
 // Sales (stage 4): cart, checkout and the "thank you" page addressed by the order UUID (SF-40…47).
 Route::get('/cart', [CartController::class, 'show'])->name('cart');

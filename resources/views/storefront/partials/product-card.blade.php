@@ -1,7 +1,7 @@
 {{-- SF-15. $eager: first cards of a listing are above the fold and load eagerly (NF-03). $view: App\Services\Catalog\ProductView. Cart button = plain POST form (no Livewire component per card, NF-02), enhanced by Alpine `cardAdd`; reservation / inquiry open the product page with the modal. --}}
 @php($product = $view->product)
-<article class="group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-3 transition hover:shadow-md focus-within:shadow-md" @if ($view->age) data-age="{{ $view->age->value }}" @endif>
-    <a href="{{ $view->url }}" class="age-media relative block aspect-square overflow-hidden rounded bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" tabindex="-1">
+<article class="group flex h-full flex-col rounded-card border border-line bg-surface p-3 transition hover:shadow-md focus-within:shadow-md" @if ($view->age) data-age="{{ $view->age->value }}" @endif>
+    <a href="{{ $view->url }}" class="age-media relative block aspect-square overflow-hidden rounded-btn bg-tile focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" tabindex="-1">
         @if ($view->image)
             <img src="{{ $view->image['src'] }}" srcset="{{ $view->image['srcset'] }}" sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, {{ ($mobileColumns ?? 2) === 1 ? 'calc(100vw - 2rem)' : 'min(400px, calc(50vw - 1.5rem))' }}"
                  width="{{ $view->image['width'] }}" height="{{ $view->image['height'] }}" alt="{{ $view->image['alt'] }}" @if (! ($eager ?? false)) loading="lazy" @endif decoding="async"
@@ -22,7 +22,7 @@
     @include('storefront.partials.price', ['view' => $view, 'class' => 'mt-2'])
     @if ($view->tierCaption)
         {{-- GP-09: the first quantity tier of the viewer's group. --}}
-        <p class="text-xs text-slate-600" data-tier-caption>{{ $view->tierCaption }}</p>
+        <p class="text-xs text-ink-mid" data-tier-caption>{{ $view->tierCaption }}</p>
     @endif
     <div class="mt-1 min-h-5">@include('storefront.partials.availability', ['availability' => $view->availability])</div>
 
@@ -32,18 +32,18 @@
                 {{-- MR-03: a «Резерв» card has «В резерв» already; a «Корзина и резерв» card keeps the quick link to the one-product form. --}}
                 @continue(($action['single'] ?? false) && $view->mode === \App\Enums\SalesMode::Reservation)
                 @if ($action['disabled'])
-                    <span aria-disabled="true" class="flex min-h-11 cursor-not-allowed items-center justify-center rounded bg-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-500">{{ $action['label'] }}</span>
+                    <span aria-disabled="true" class="flex min-h-11 cursor-not-allowed items-center justify-center rounded-btn bg-line px-3 py-2 text-center text-sm font-medium text-muted">{{ $action['label'] }}</span>
                 @elseif ($action['key'] === 'cart')
                     <form method="post" action="{{ route('cart.add', [], false) }}" x-data="cardAdd" @submit.prevent="submit($event)" data-error="{{ __('sales.guard.generic') }}">
                         @csrf
                         <input type="hidden" name="product_id" value="{{ $product->id }}">
-                        <button type="submit" data-action="cart" :disabled="busy" class="w-full rounded bg-primary px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></button>
+                        <button type="submit" data-action="cart" :disabled="busy" class="w-full rounded-btn bg-primary px-3 py-2 text-center text-sm font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></button>
                     </form>
                 @elseif ($action['key'] === 'select')
                     {{-- VR-08: a card with variants cannot be bought from a list; «Выбрать» opens the card. --}}
-                    <a href="{{ $view->url }}" data-action="select" class="flex min-h-11 items-center justify-center rounded bg-primary px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
+                    <a href="{{ $view->url }}" data-action="select" class="flex min-h-11 items-center justify-center rounded-btn bg-primary px-3 py-2 text-center text-sm font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
                 @else
-                    <a href="{{ $view->url }}{{ str_contains($view->url, '?') ? '&' : '?' }}{{ $action['key'] === 'inquiry' ? 'inquiry' : 'reserve' }}=1" class="flex min-h-11 items-center justify-center rounded px-3 py-2 text-center text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-white hover:opacity-90' : 'border border-primary text-primary hover:bg-slate-50' }}">{{ ($action['single'] ?? false) ? __('storefront.actions.reservation') : $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
+                    <a href="{{ $view->url }}{{ str_contains($view->url, '?') ? '&' : '?' }}{{ $action['key'] === 'inquiry' ? 'inquiry' : 'reserve' }}=1" class="flex min-h-11 items-center justify-center rounded-btn px-3 py-2 text-center text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {{ $action['primary'] ? 'bg-primary text-on-primary hover:opacity-90' : 'border border-primary text-primary hover:bg-surface-2' }}">{{ ($action['single'] ?? false) ? __('storefront.actions.reservation') : $action['label'] }}<span class="sr-only">: {{ $product->name }}</span></a>
                 @endif
             @endforeach
         </div>

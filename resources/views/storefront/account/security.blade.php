@@ -10,7 +10,7 @@
 
         <section aria-labelledby="security-delete-title">
             <h2 id="security-delete-title" class="text-lg font-semibold">{{ __('account.security.delete_title') }}</h2>
-            <p class="mt-2 text-sm text-slate-700">{{ __('account.security.delete_text', ['days' => $graceDays]) }}</p>
+            <p class="mt-2 text-sm text-ink-soft">{{ __('account.security.delete_text', ['days' => $graceDays]) }}</p>
             <form method="POST" action="{{ route('customer.security.delete.request') }}" class="mt-4">
                 @csrf
                 <x-account.button variant="secondary">{{ __('account.security.delete_button') }}</x-account.button>

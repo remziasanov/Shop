@@ -12,11 +12,11 @@
                  @variant-color.window="setColor($event.detail.id)"
                  @keydown.arrow-left="fullscreen && prev()" @keydown.arrow-right="fullscreen && next()" @keydown.escape.window="fullscreen && closeFullscreen()">
             @if ($gallery === [])
-                <div class="aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                <div class="aspect-square overflow-hidden rounded-card border border-line bg-tile">
                     @include('storefront.partials.image-placeholder', ['url' => $view->placeholderUrl, 'alt' => $product->name])
                 </div>
             @else
-                <div class="relative touch-pan-y overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                <div class="relative touch-pan-y overflow-hidden rounded-card border border-line bg-surface-2"
                      @touchstart.passive="touchStart($event)" @touchend.passive="touchEnd($event)"
                      @keydown.arrow-left="prev()" @keydown.arrow-right="next()">
                     @foreach ($gallery as $i => $image)
@@ -30,10 +30,10 @@
                     @endforeach
 
                     @if (count($gallery) > 1)
-                        <button type="button" @click="prev()" class="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 p-2 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.gallery.prev') }}">
+                        <button type="button" @click="prev()" class="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 p-2 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.gallery.prev') }}">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                         </button>
-                        <button type="button" @click="next()" class="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 p-2 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.gallery.next') }}">
+                        <button type="button" @click="next()" class="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 p-2 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" aria-label="{{ __('storefront.gallery.next') }}">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                         </button>
                     @endif
@@ -43,7 +43,7 @@
                     {{-- MB-04: position dots on a phone (the photo changes by swipe, the arrows and the thumbnails stay). --}}
                     <div class="mt-2 flex justify-center gap-2 md:hidden" aria-hidden="true" data-gallery-dots>
                         <template x-for="i in shown()" :key="i">
-                            <span class="h-2 w-2 rounded-full" :class="i === index ? 'bg-primary' : 'bg-slate-300'"></span>
+                            <span class="h-2 w-2 rounded-full" :class="i === index ? 'bg-primary' : 'bg-line-strong'"></span>
                         </template>
                     </div>
                     <p class="sr-only" aria-live="polite" x-text="@js(__('storefront.gallery.counter', ['current' => ':c', 'total' => ':t'])).replace(':c', position()).replace(':t', total())"></p>
@@ -51,8 +51,8 @@
                         @foreach ($gallery as $i => $image)
                             <li class="flex-none" x-show="allowed({{ $i }})">
                                 <button type="button" @click="go({{ $i }})" :aria-current="(index === {{ $i }}).toString()"
-                                        class="block h-16 w-16 overflow-hidden rounded border bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                                        :class="index === {{ $i }} ? 'border-primary ring-1 ring-primary' : 'border-slate-200'"
+                                        class="block h-16 w-16 overflow-hidden rounded-btn border bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                                        :class="index === {{ $i }} ? 'border-primary ring-1 ring-primary' : 'border-line'"
                                         aria-label="{{ __('storefront.gallery.thumb', ['n' => $i + 1]) }}">
                                     <img src="{{ $image['thumb'] }}" alt="" width="64" height="64" loading="lazy" class="h-full w-full object-cover">
                                 </button>
@@ -62,10 +62,10 @@
                 @endif
 
                 {{-- Fullscreen view. --}}
-                <div x-cloak x-show="fullscreen" x-overlay="fullscreen" x-trap.noscroll="fullscreen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+                <div x-cloak x-show="fullscreen" x-overlay="fullscreen" x-trap.noscroll="fullscreen" class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/90"
                      role="dialog" aria-modal="true" aria-label="{{ __('storefront.gallery.label') }}"
                      @touchstart.passive="touchStart($event)" @touchend.passive="touchEnd($event)">
-                    <button type="button" x-ref="close" @click="closeFullscreen()" style="top: calc(0.75rem + var(--shop-safe-top)); right: calc(0.75rem + var(--shop-safe-right))" class="absolute flex h-11 w-11 items-center justify-center rounded-full bg-white/90 p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="{{ __('storefront.gallery.close') }}">
+                    <button type="button" x-ref="close" @click="closeFullscreen()" style="top: calc(0.75rem + var(--shop-safe-top)); right: calc(0.75rem + var(--shop-safe-right))" class="absolute flex h-11 w-11 items-center justify-center rounded-full bg-surface/90 p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bg" aria-label="{{ __('storefront.gallery.close') }}">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
                     @foreach ($gallery as $i => $image)
@@ -74,13 +74,13 @@
                              width="{{ $image['width'] }}" height="{{ $image['height'] }}" alt="{{ $image['alt'] }}" class="max-h-full max-w-full object-contain p-4">
                     @endforeach
                     @if (count($gallery) > 1)
-                        <button type="button" @click="prev()" class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="{{ __('storefront.gallery.prev') }}">
+                        <button type="button" @click="prev()" class="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bg" aria-label="{{ __('storefront.gallery.prev') }}">
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                         </button>
-                        <button type="button" @click="next()" class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label="{{ __('storefront.gallery.next') }}">
+                        <button type="button" @click="next()" class="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bg" aria-label="{{ __('storefront.gallery.next') }}">
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                         </button>
-                        <p style="bottom: calc(0.75rem + var(--shop-safe-bottom))" class="absolute left-1/2 -translate-x-1/2 rounded bg-black/60 px-3 py-1 text-sm text-white" aria-live="polite" x-text="@js(__('storefront.gallery.counter', ['current' => ':c', 'total' => ':t'])).replace(':c', position()).replace(':t', total())"></p>
+                        <p style="bottom: calc(0.75rem + var(--shop-safe-bottom))" class="absolute left-1/2 -translate-x-1/2 rounded-btn bg-scrim/60 px-3 py-1 text-sm text-on-solid" aria-live="polite" x-text="@js(__('storefront.gallery.counter', ['current' => ':c', 'total' => ':t'])).replace(':c', position()).replace(':t', total())"></p>
                     @endif
                 </div>
             @endif
@@ -97,20 +97,20 @@
             @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mb-2'])
             <h1 class="text-2xl font-bold md:text-3xl">{{ $product->name }}</h1>
 
-            <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-slate-600">
+            <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-ink-mid">
                 <dt>{{ __('storefront.product.sku') }}</dt>
                 @if ($picker !== null)
-                    <dd class="text-slate-900" data-variant-sku x-text="current ? current.sku : ''">{{ $picker->selected->sku }}</dd>
+                    <dd class="text-ink" data-variant-sku x-text="current ? current.sku : ''">{{ $picker->selected->sku }}</dd>
                     @if (collect($picker->variants)->contains(fn ($v) => ! empty($v['bc'])))
                         <dt x-show="current && current.bc">{{ __('variant_storefront.barcode') }}</dt>
-                        <dd class="text-slate-900" data-variant-barcode x-show="current && current.bc" x-text="current ? current.bc : ''">{{ $picker->selected->barcode }}</dd>
+                        <dd class="text-ink" data-variant-barcode x-show="current && current.bc" x-text="current ? current.bc : ''">{{ $picker->selected->barcode }}</dd>
                     @endif
                 @else
-                    <dd class="text-slate-900">{{ $product->sku }}</dd>
+                    <dd class="text-ink">{{ $product->sku }}</dd>
                 @endif
                 @if ($product->brand)
                     <dt>{{ __('storefront.product.brand') }}</dt>
-                    <dd class="text-slate-900">{{ $product->brand }}</dd>
+                    <dd class="text-ink">{{ $product->brand }}</dd>
                 @endif
             </dl>
 
@@ -121,15 +121,15 @@
             @if ($picker !== null && ! $view->priceOnRequest)
                 <p class="mt-4 flex flex-wrap items-baseline gap-x-2" data-variant-price>
                     <span class="text-3xl font-bold" x-text="current ? current.p : ''">{{ $view->price }}</span>
-                    <s class="text-sm text-slate-500" x-cloak x-show="current && current.o"><span class="sr-only">{{ __('storefront.labels.sale') }}:</span> <span x-text="current ? current.o : ''">{{ $view->oldPrice }}</span></s>
-                    <span class="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700" x-cloak x-show="current && current.d" x-text="current && current.d ? @js(__('storefront.product.discount', ['percent' => ':p'])).replace(':p', current.d) : ''">@if ($view->discount) {{ __('storefront.product.discount', ['percent' => $view->discount]) }} @endif</span>
-                    <s class="text-sm text-slate-500" data-retail-price x-cloak x-show="current && current.r"><span class="sr-only">{{ __('group_prices.retail_price') }}:</span> <span x-text="current ? current.r : ''"></span></s>
+                    <s class="text-sm text-muted" x-cloak x-show="current && current.o"><span class="sr-only">{{ __('storefront.labels.sale') }}:</span> <span x-text="current ? current.o : ''">{{ $view->oldPrice }}</span></s>
+                    <span class="rounded-btn bg-danger-wash-2 px-1.5 py-0.5 text-xs font-semibold text-danger" x-cloak x-show="current && current.d" x-text="current && current.d ? @js(__('storefront.product.discount', ['percent' => ':p'])).replace(':p', current.d) : ''">@if ($view->discount) {{ __('storefront.product.discount', ['percent' => $view->discount]) }} @endif</span>
+                    <s class="text-sm text-muted" data-retail-price x-cloak x-show="current && current.r"><span class="sr-only">{{ __('group_prices.retail_price') }}:</span> <span x-text="current ? current.r : ''"></span></s>
                 </p>
             @else
                 @include('storefront.partials.price', ['view' => $view, 'class' => 'mt-4', 'size' => 'text-3xl'])
             @endif
             @unless ($view->priceOnRequest)
-                <p class="text-sm text-slate-500">{{ __('storefront.product.per_unit', ['unit' => $product->unit]) }}</p>
+                <p class="text-sm text-muted">{{ __('storefront.product.per_unit', ['unit' => $product->unit]) }}</p>
             @endunless
 
             @unless ($view->priceOnRequest)
@@ -139,8 +139,8 @@
             <div class="mt-2">
                 @if ($picker !== null)
                     <p class="flex items-center gap-1.5 text-sm" data-variant-stock x-cloak x-show="current && current.s"
-                       :class="current ? ({ in: 'text-emerald-700', low: 'text-amber-700', out: 'text-slate-500' }[current.st] || '') : ''">
-                        <span class="h-2 w-2 rounded-full" aria-hidden="true" :class="current ? ({ in: 'bg-emerald-600', low: 'bg-amber-500', out: 'bg-slate-400' }[current.st] || '') : ''"></span>
+                       :class="current ? ({ in: 'text-success', low: 'text-warn-deep', out: 'text-muted' }[current.st] || '') : ''">
+                        <span class="h-2 w-2 rounded-full" aria-hidden="true" :class="current ? ({ in: 'bg-success-solid', low: 'bg-warn', out: 'bg-faint' }[current.st] || '') : ''"></span>
                         <span x-text="current ? current.s : ''">{{ $view->availability['text'] ?? '' }}</span>
                     </p>
                 @else
@@ -149,12 +149,12 @@
             </div>
 
             @if ($product->short_description)
-                <p class="mt-4 whitespace-pre-line text-slate-700">{{ $product->short_description }}</p>
+                <p class="mt-4 whitespace-pre-line text-ink-soft">{{ $product->short_description }}</p>
             @endif
 
             @if ($view->mode === \App\Enums\SalesMode::Showcase && ! empty($shopPhones))
                 {{-- Showcase mode (5.6): the shop phone instead of buttons. --}}
-                <p class="mt-6 text-slate-700" data-showcase-phone>
+                <p class="mt-6 text-ink-soft" data-showcase-phone>
                     {{ __('storefront.product.showcase_call') }}
                     <a href="tel:{{ preg_replace('/[^\d+]/', '', $shopPhones[0]) }}" class="font-semibold text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ $shopPhones[0] }}</a>
                 </p>
@@ -169,7 +169,7 @@
                         @if ($pa->hasCartButton() || ($pa->hasReservationButton() && app(\App\Settings\SalesSettings::class)->reservation_via_cart))
                             <livewire:storefront.add-to-cart :product-id="$product->id" :show-qty="true" :variant-id="$picker->selected->id" :key="'cart-'.$product->id" />
                         @else
-                            <button type="button" disabled x-cloak x-show="current && current.can.out" class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="unavailable">{{ __('sales.actions.out_of_stock') }}</button>
+                            <button type="button" disabled x-cloak x-show="current && current.can.out" class="cursor-not-allowed rounded-btn bg-line px-6 py-3 font-medium text-muted" data-action="unavailable">{{ __('sales.actions.out_of_stock') }}</button>
                         @endif
                         @if ($pa->hasReservationButton())
                             <livewire:storefront.reservation-form :product-id="$product->id" :variant-id="$picker->selected->id" :open="request()->boolean('reserve')" :key="'reserve-'.$product->id" />
@@ -179,12 +179,12 @@
                 @endif
             @elseif ($product->has_variants)
                 {{-- No active variant: nothing can be bought. --}}
-                <div class="mt-6"><button type="button" disabled class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="unavailable">{{ __('sales.actions.out_of_stock') }}</button></div>
+                <div class="mt-6"><button type="button" disabled class="cursor-not-allowed rounded-btn bg-line px-6 py-3 font-medium text-muted" data-action="unavailable">{{ __('sales.actions.out_of_stock') }}</button></div>
             @elseif ($view->actions !== [])
                 <div class="mt-6 flex flex-wrap items-end gap-2" data-buy>
                     @foreach ($view->actions as $action)
                         @if ($action['disabled'])
-                            <button type="button" disabled class="cursor-not-allowed rounded bg-slate-200 px-6 py-3 font-medium text-slate-500" data-action="{{ $action['key'] }}">{{ $action['label'] }}</button>
+                            <button type="button" disabled class="cursor-not-allowed rounded-btn bg-line px-6 py-3 font-medium text-muted" data-action="{{ $action['key'] }}">{{ $action['label'] }}</button>
                         @elseif ($action['key'] === 'cart')
                             <livewire:storefront.add-to-cart :product-id="$product->id" :show-qty="true" :key="'cart-'.$product->id" />
                         @elseif ($action['key'] === 'reservation')
@@ -202,7 +202,7 @@
 
     {{-- SF-34: tabs from 768 px; MB-04: on a phone the same two blocks are folding sections («Описание» open, «Характеристики» closed). --}}
     <section class="mt-10" x-data="{ tab: 'description', open: { description: true, specs: false } }">
-        <div role="tablist" aria-label="{{ $product->name }}" class="flex gap-1 border-b border-slate-200 max-md:hidden">
+        <div role="tablist" aria-label="{{ $product->name }}" class="flex gap-1 border-b border-line max-md:hidden">
             @foreach (['description' => __('storefront.product.tab_description'), 'specs' => __('storefront.product.tab_specs')] as $key => $label)
                 <button type="button" role="tab" id="tab-{{ $key }}" aria-controls="panel-{{ $key }}"
                         :aria-selected="(tab === '{{ $key }}').toString()" :tabindex="tab === '{{ $key }}' ? 0 : -1"
@@ -210,12 +210,12 @@
                         @keydown.arrow-right.prevent="tab = tab === 'description' ? 'specs' : 'description'; $nextTick(() => document.getElementById('tab-' + tab).focus())"
                         @keydown.arrow-left.prevent="tab = tab === 'description' ? 'specs' : 'description'; $nextTick(() => document.getElementById('tab-' + tab).focus())"
                         class="-mb-px border-b-2 px-4 py-2 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                        :class="tab === '{{ $key }}' ? 'border-primary text-primary' : 'border-transparent text-slate-600 hover:text-slate-900'">{{ $label }}</button>
+                        :class="tab === '{{ $key }}' ? 'border-primary text-primary' : 'border-transparent text-ink-mid hover:text-ink'">{{ $label }}</button>
             @endforeach
         </div>
 
         @foreach (['description' => __('storefront.product.tab_description'), 'specs' => __('storefront.product.tab_specs')] as $key => $label)
-            <div class="border-b border-slate-200 md:hidden" data-accordion="{{ $key }}">
+            <div class="border-b border-line md:hidden" data-accordion="{{ $key }}">
                 <h2>
                     <button type="button" class="flex min-h-12 w-full items-center justify-between gap-3 text-left text-lg font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                             aria-controls="panel-{{ $key }}" :aria-expanded="open.{{ $key }}.toString()" aria-expanded="{{ $key === 'description' ? 'true' : 'false' }}" @click="open.{{ $key }} = ! open.{{ $key }}">
@@ -228,9 +228,9 @@
                 <div id="panel-description" role="tabpanel" aria-labelledby="tab-description" :class="{ 'md:hidden': tab !== 'description', 'max-md:hidden': ! open.description }" class="py-4">
                     @if ($description !== '')
                         {{-- Sanitized by HtmlSanitizer (NF-10). Wide tables, code and embeds scroll inside the block (MB-01). --}}
-                        <div class="max-w-3xl space-y-3 break-words text-slate-700 [&_a]:text-primary [&_a]:underline [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_iframe]:max-w-full [&_img]:h-auto [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_ul]:list-disc [&_ul]:pl-5">{!! $description !!}</div>
+                        <div class="max-w-3xl space-y-3 break-words text-ink-soft [&_a]:text-primary [&_a]:underline [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_iframe]:max-w-full [&_img]:h-auto [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_ul]:list-disc [&_ul]:pl-5">{!! $description !!}</div>
                     @else
-                        <p class="text-slate-500">{{ __('storefront.product.no_description') }}</p>
+                        <p class="text-muted">{{ __('storefront.product.no_description') }}</p>
                     @endif
                 </div>
             @else
@@ -240,8 +240,8 @@
                             <caption class="sr-only">{{ __('storefront.product.tab_specs') }}</caption>
                             <tbody>
                                 @foreach ($specs as $spec)
-                                    <tr class="border-b border-slate-100 odd:bg-slate-50">
-                                        <th scope="row" class="w-2/5 break-words px-3 py-2 text-left font-normal text-slate-600 md:w-1/3">{{ $spec['name'] }}</th>
+                                    <tr class="border-b border-hairline odd:bg-surface-2">
+                                        <th scope="row" class="w-2/5 break-words px-3 py-2 text-left font-normal text-ink-mid md:w-1/3">{{ $spec['name'] }}</th>
                                         <td class="break-words px-3 py-2">
                                             @if ($spec['links'] !== [])
                                                 @foreach ($spec['links'] as $link)
@@ -256,7 +256,7 @@
                             </tbody>
                         </table>
                     @else
-                        <p class="text-slate-500">{{ __('storefront.product.no_specs') }}</p>
+                        <p class="text-muted">{{ __('storefront.product.no_specs') }}</p>
                     @endif
                 </div>
             @endif

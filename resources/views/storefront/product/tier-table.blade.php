@@ -1,6 +1,6 @@
 {{-- GP-10: «Цены при покупке оптом» for the viewer's group only (the page never carries the tiers of another group, 21.7). Plain card: rendered on the server, highlighted by Alpine `tierPrice`; card with variants: the tiers of the selected variant (Alpine `variantPicker`). $view: ProductView, $picker: VariantPickerData|null, $unit: unit of measure. --}}
 @if ($picker === null && $view->tiers !== [])
-    <section class="mt-4 max-w-sm rounded-lg border border-slate-200 p-3" data-tier-table aria-labelledby="tier-table-heading">
+    <section class="mt-4 max-w-sm rounded-card border border-line p-3" data-tier-table aria-labelledby="tier-table-heading">
         <h2 id="tier-table-heading" class="text-sm font-semibold">{{ __('group_prices.table.title') }}</h2>
         <table class="mt-2 w-full text-sm">
             <thead class="sr-only">
@@ -20,7 +20,7 @@
                     <tr :class="qty >= {{ $tier['min'] }}@if (isset($view->tiers[$i + 1])) && qty < {{ $view->tiers[$i + 1]['min'] }}@endif ? 'font-semibold text-primary' : ''" data-tier-row="{{ $tier['min'] }}">
                         <td class="py-0.5">{{ __('group_prices.table.from', ['qty' => $tier['min'], 'unit' => $unit]) }}</td>
                         <td class="py-0.5">{{ $tier['price'] }}</td>
-                        <td class="py-0.5 text-emerald-700">@if ($tier['saving'] > 0){{ __('group_prices.table.saving_percent', ['percent' => $tier['saving']]) }}@endif</td>
+                        <td class="py-0.5 text-success">@if ($tier['saving'] > 0){{ __('group_prices.table.saving_percent', ['percent' => $tier['saving']]) }}@endif</td>
                     </tr>
                 @endforeach
             </tbody>
@@ -31,7 +31,7 @@
         </p>
     </section>
 @elseif ($picker !== null)
-    <section class="mt-4 max-w-sm rounded-lg border border-slate-200 p-3" data-tier-table aria-labelledby="tier-table-heading" x-cloak x-show="current && current.t.length > 0">
+    <section class="mt-4 max-w-sm rounded-card border border-line p-3" data-tier-table aria-labelledby="tier-table-heading" x-cloak x-show="current && current.t.length > 0">
         <h2 id="tier-table-heading" class="text-sm font-semibold">{{ __('group_prices.table.title') }}</h2>
         <table class="mt-2 w-full text-sm">
             <tbody>
@@ -44,7 +44,7 @@
                     <tr :class="qty >= tier[0] && (!current.t[i + 1] || qty < current.t[i + 1][0]) ? 'font-semibold text-primary' : ''" :data-tier-row="tier[0]">
                         <td class="py-0.5" x-text="@js(__('group_prices.table.from', ['qty' => ':q', 'unit' => $unit])).replace(':q', tier[0])"></td>
                         <td class="py-0.5" x-text="format(tier[1])"></td>
-                        <td class="py-0.5 text-emerald-700" x-text="current.k > tier[1] ? @js(__('group_prices.table.saving_percent', ['percent' => ':p'])).replace(':p', Math.round((current.k - tier[1]) * 100 / current.k)) : ''"></td>
+                        <td class="py-0.5 text-success" x-text="current.k > tier[1] ? @js(__('group_prices.table.saving_percent', ['percent' => ':p'])).replace(':p', Math.round((current.k - tier[1]) * 100 / current.k)) : ''"></td>
                     </tr>
                 </template>
             </tbody>

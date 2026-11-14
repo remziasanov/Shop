@@ -36,23 +36,19 @@
     <link rel="icon" href="{{ $shopFaviconUrl ?: asset('favicon.ico') }}">
     @include('storefront.partials.pwa-head')
     {!! $headStack !!}
-    <style>
-        :root {
-            --shop-primary: {{ $primaryColor }};
-            --shop-accent: {{ $accentColor }};
-        }
-    </style>
+    {{-- TH-05: the :root tokens (theme + overrides) and the @font-face rules. Defaults live in resources/css/app.css, so the page still renders if the partial is absent. --}}
+    @includeIf('storefront.partials.theme-head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
 {{-- MB-03: a page may drop the bottom bar (@section('no_bottom_nav')); MB-04, MB-08: a page with a sticky bar says so (@section('sticky_bar')). --}}
 @php($noBottomNav = $__env->hasSection('no_bottom_nav'))
-<body class="flex min-h-screen flex-col overflow-x-clip bg-white pb-[var(--shop-nav-total)] text-slate-900 antialiased md:pb-0" @if ($noBottomNav) data-nav="off" @endif @if ($__env->hasSection('sticky_bar')) data-sticky @endif>
-    <a href="#content" class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-white focus:p-2">{{ __('storefront.skip_to_content') }}</a>
+<body class="flex min-h-screen flex-col overflow-x-clip bg-bg pb-[var(--shop-nav-total)] text-ink antialiased md:pb-0" @if ($noBottomNav) data-nav="off" @endif @if ($__env->hasSection('sticky_bar')) data-sticky @endif>
+    <a href="#content" class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-surface focus:p-2">{{ __('storefront.skip_to_content') }}</a>
 
     @if ($previewGroup ?? null)
         {{-- CG-18: a staff member looks at the storefront as a customer group. --}}
-        <div class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900" role="status">
+        <div class="bg-warn-wash-2 px-4 py-2 text-center text-sm text-warn-ink" role="status">
             {{ __('customer_groups.storefront.preview_banner', ['group' => $previewGroup]) }}
             <form method="POST" action="{{ route('viewer.preview.exit') }}" class="ml-2 inline">
                 @csrf
@@ -61,13 +57,14 @@
         </div>
     @endif
 
+    @includeIf('storefront.partials.theme-preview-bar')
     @include('storefront.partials.header')
     @include('storefront.partials.standalone-back')
 
     <main id="content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
         {{-- PM-22: a promo link that leads nowhere. --}}
         @if (session('promo_link_notice'))
-            <p role="status" class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900" data-promo-link-notice>{{ session('promo_link_notice') }}</p>
+            <p role="status" class="mb-4 rounded-card border border-warn-line bg-warn-wash p-3 text-warn-ink" data-promo-link-notice>{{ session('promo_link_notice') }}</p>
         @endif
         @yield('content')
     </main>

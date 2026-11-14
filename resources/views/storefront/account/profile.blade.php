@@ -17,9 +17,9 @@
             <x-account.button>{{ __('account.profile.save') }}</x-account.button>
         </form>
 
-        <section class="mt-8 border-t border-slate-200 pt-6" aria-labelledby="profile-email-title">
+        <section class="mt-8 border-t border-line pt-6" aria-labelledby="profile-email-title">
             <h2 id="profile-email-title" class="text-lg font-semibold">{{ __('account.profile.email_title') }}</h2>
-            <p class="mb-3 text-sm text-slate-600">{{ __('account.profile.email_current', ['email' => $customer->email]) }}</p>
+            <p class="mb-3 text-sm text-ink-mid">{{ __('account.profile.email_current', ['email' => $customer->email]) }}</p>
             <form method="POST" action="{{ route('customer.email.request') }}" class="space-y-4" novalidate>
                 @csrf
                 <x-account.field prefix="pe" name="email" type="email" :label="__('account.profile.new_email')" autocomplete="email" maxlength="190" />
@@ -27,7 +27,7 @@
             </form>
         </section>
 
-        <section class="mt-8 border-t border-slate-200 pt-6" aria-labelledby="profile-password-title">
+        <section class="mt-8 border-t border-line pt-6" aria-labelledby="profile-password-title">
             <h2 id="profile-password-title" class="text-lg font-semibold">{{ __('account.profile.password_title') }}</h2>
             <form method="POST" action="{{ route('customer.profile.password') }}" class="mt-3 space-y-4" novalidate>
                 @csrf

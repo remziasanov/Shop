@@ -4,8 +4,8 @@
         <ul class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             @foreach ($tiles as $tile)
                 <li>
-                    <a href="{{ $tile['url'] }}" class="flex h-full items-center gap-3 rounded-lg border max-sm:flex-col max-sm:items-start border-slate-200 p-3 hover:border-primary hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                        <span class="h-14 w-14 flex-none overflow-hidden rounded bg-slate-50">
+                    <a href="{{ $tile['url'] }}" class="flex h-full items-center gap-3 rounded-card border max-sm:flex-col max-sm:items-start border-line p-3 hover:border-primary hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                        <span class="h-14 w-14 flex-none overflow-hidden rounded-btn bg-surface-2">
                             @if ($tile['image'])
                                 <img src="{{ $tile['image'] }}" alt="" width="56" height="56" loading="lazy" class="h-full w-full object-cover">
                             @else
@@ -14,7 +14,7 @@
                         </span>
                         <span class="min-w-0 max-w-full break-words">
                             <span class="block font-medium leading-snug">{{ $tile['name'] }}</span>
-                            <span class="block text-xs text-slate-500">{{ trans_choice('storefront.catalog.products_count', $tile['count']) }}</span>
+                            <span class="block text-xs text-muted">{{ trans_choice('storefront.catalog.products_count', $tile['count']) }}</span>
                         </span>
                     </a>
                 </li>

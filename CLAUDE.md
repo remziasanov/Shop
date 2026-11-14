@@ -40,6 +40,7 @@ php artisan shop:demo               # demo catalog (stage 1+)
 - All UI texts via `lang/ru` translation files (`__('shop.…')`). Code, comments, commits — English.
 - Migrations: portable syntax only (SQLite + MySQL 5.7/8.0), utf8mb4, explicit foreign keys, reversible `down()`.
 - Roles: until stage 8 `users.role` (`admin`, `manager`) + Laravel policies; no role packages. From stage 8 (TZ v2.0, D-074) staff roles are configurable: `roles` / `role_permissions` tables, checks only via `PermissionService`, `users.role` is deprecated and removed by the stage 8 migration. Default Manager matrix — TZ 6.13 / 25.4. Customers live in a separate `customers` table with the `customer` guard (D-071), never in `users`.
+- Цвета, шрифты и скругления витрины задаются только токенами темы (`--shop-*`, раздел 34 ТЗ); палитра Tailwind и hex в шаблонах витрины запрещены (тест TH-06).
 - Settings: `app/Settings/*` (spatie/laravel-settings), defaults in settings migrations.
 - Tests: Pest, `RefreshDatabase`, factories for every model. Each requirement ID gets at least one test where testable.
 - Commits: Conventional Commits in English, mention requirement IDs where relevant (e.g. `feat(catalog): category tree (AD-30)`).

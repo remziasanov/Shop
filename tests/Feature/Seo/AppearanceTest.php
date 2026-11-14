@@ -10,13 +10,13 @@ beforeEach(function () {
 });
 
 it('applies primary and accent colors as CSS variables (SF-04)', function () {
-    appearanceSettings(['primary_color' => '#112233', 'accent_color' => '#abcdef']);
+    appearanceSettings(['theme_overrides' => ['default' => ['colors' => ['primary' => '#112233', 'accent' => '#abcdef']]]]);
 
     $this->get('/')->assertSee('--shop-primary: #112233;', false)->assertSee('--shop-accent: #abcdef;', false);
 });
 
 it('ignores invalid colors (SF-04)', function () {
-    appearanceSettings(['primary_color' => 'red;}</style>']);
+    appearanceSettings(['theme_overrides' => ['default' => ['colors' => ['primary' => 'red;}</style>']]]]);
 
     $this->get('/')->assertDontSee('</style><', false)->assertSee('--shop-primary: #2563eb;', false);
 });

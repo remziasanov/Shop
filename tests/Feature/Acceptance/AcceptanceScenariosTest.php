@@ -382,7 +382,7 @@ it('Внешний вид: name, logo, colors and a four-block home page show up
         ->assertHasNoFormErrors();
 
     Livewire::test(ManageAppearanceSettings::class)
-        ->fillForm(['primary_color' => '#112233', 'accent_color' => '#ddeeff'])
+        ->fillForm(['ov_colors' => ['primary' => '#112233', 'accent' => '#ddeeff']])
         ->call('save')
         ->assertHasNoFormErrors();
 
