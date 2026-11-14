@@ -6,11 +6,11 @@
                 <h2 class="text-xl font-bold md:text-2xl">{{ $title }}</h2>
             @endif
             @if ($allUrl ?? null)
-                <a href="{{ $allUrl }}" class="ml-auto text-sm font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('home.storefront.view_all') }}<span class="sr-only">{{ ($title ?? null) ? ': '.$title : '' }}</span></a>
+                <a href="{{ $allUrl }}" class="ml-auto inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('home.storefront.view_all') }}<span class="sr-only">{{ ($title ?? null) ? ': '.$title : '' }}</span></a>
             @endif
         </div>
     @endif
-    <ul class="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 {{ $columns === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4' }}">
+    <ul class="grid {{ ($mobileColumns ?? 2) === 1 ? 'grid-cols-1 min-[30rem]:grid-cols-2' : 'grid-cols-2' }} gap-3 md:grid-cols-3 md:gap-4 {{ $columns === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4' }}">
         @foreach ($cards as $card)
             <li>@include('storefront.partials.product-card', ['view' => $card, 'eager' => $first && $loop->index < 4])</li>
         @endforeach

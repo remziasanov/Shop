@@ -86,8 +86,13 @@ class StorefrontComposer
             'footerConsentLink' => $menus['consent'],
             'sellerDetails' => $menus['seller'],
             'socialLinks' => $this->socialLinks(),
+            // MB-10: messenger buttons; MB-07: product grid columns on a phone.
+            'telegramBotUrl' => $this->telegramBotUrl(),
+            'whatsappUrl' => $this->whatsappUrl(),
+            'mobileColumns' => $this->appearance->mobile_columns === 1 ? 1 : 2,
             'cartEnabled' => $this->cartAvailability->enabled(),
             // CG-04: the header search needs the search and catalog sections.
+            'catalogEnabled' => $access->allowsSection(StorefrontSection::Catalog),
             'searchEnabled' => $access->allowsSection(StorefrontSection::Search) && $access->allowsSection(StorefrontSection::Catalog),
             // CA-19: «Войти» / «Личный кабинет» in the header and the bottom bar; hidden when registration is off.
             'accountLinks' => $this->customers->registration_enabled || $customer !== null,
@@ -137,6 +142,33 @@ class StorefrontComposer
         }
 
         return $links;
+    }
+
+    /**
+     * MB-10: link to the shop's Telegram bot, only when a bot username is configured (shop.telegram_bot_username).
+     */
+    private function telegramBotUrl(): ?string
+    {
+        $username = ltrim(trim((string) config('shop.telegram_bot_username')), '@');
+
+        return preg_match('/^[A-Za-z][A-Za-z0-9_]{4,31}$/', $username) === 1 ? 'https://t.me/'.$username : null;
+    }
+
+    /**
+     * MB-10: the WhatsApp link, taken from the social links of the general settings (a wa.me / whatsapp.com address);
+     * there is no separate number field.
+     */
+    private function whatsappUrl(): ?string
+    {
+        foreach ($this->socialLinks() as $link) {
+            $host = strtolower((string) parse_url($link['url'], PHP_URL_HOST));
+
+            if ($host === 'wa.me' || $host === 'whatsapp.com' || str_ends_with($host, '.whatsapp.com')) {
+                return $link['url'];
+            }
+        }
+
+        return null;
     }
 
     /**

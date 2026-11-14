@@ -2,7 +2,7 @@
 
 @section('content')
     <div class="mx-auto w-full max-w-4xl py-6">
-        <p class="text-sm"><a href="{{ route('customer.orders') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('customer_export.list.back') }}</a></p>
+        <p class="text-sm"><a href="{{ route('customer.orders') }}" class="inline-flex min-h-11 items-center text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('customer_export.list.back') }}</a></p>
         <h1 class="mt-2 text-2xl font-bold md:text-3xl">{{ __('customer_export.list.title') }}</h1>
         <p class="mt-1 text-sm text-slate-600">{{ __('customer_export.list.lead', ['count' => 20, 'hours' => $hours]) }}</p>
         <div class="mt-4">
@@ -13,13 +13,13 @@
         @if ($exports->isEmpty())
             <p class="mt-6 rounded-lg border border-slate-200 p-4 text-slate-600" data-exports-empty>{{ __('customer_export.list.empty') }}</p>
         @else
-            <ul class="mt-6 divide-y divide-slate-200 rounded-lg border border-slate-200">
+            <ul class="mt-6 space-y-3 md:space-y-0 md:divide-y md:divide-slate-200 md:rounded-lg md:border md:border-slate-200">
                 @foreach ($exports as $export)
                     @php
                         $params = (array) $export->params;
                         $gone = $service->isGone($export);
                     @endphp
-                    <li class="flex flex-wrap items-center justify-between gap-3 p-4" data-export>
+                    <li class="flex flex-wrap items-center justify-between gap-3 p-4 max-md:rounded-lg max-md:border max-md:border-slate-200" data-export>
                         <div>
                             <p class="font-semibold">
                                 {{ __('customer_export.list.period_value', ['from' => \Carbon\CarbonImmutable::parse($params['from'] ?? $export->created_at)->format('d.m.Y'), 'until' => \Carbon\CarbonImmutable::parse($params['until'] ?? $export->created_at)->format('d.m.Y')]) }}
@@ -37,7 +37,7 @@
                             @endif
                         </div>
                         @if ($service->isDownloadable($export))
-                            <a href="{{ route('customer.exports.download', $export->uuid) }}" class="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" data-export-download>{{ __('customer_export.list.download') }}</a>
+                            <a href="{{ route('customer.exports.download', $export->uuid) }}" class="flex min-h-11 items-center justify-center rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary max-md:w-full" data-export-download>{{ __('customer_export.list.download') }}</a>
                         @endif
                     </li>
                 @endforeach

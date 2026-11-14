@@ -2,6 +2,9 @@
 
 @section('title', __('storefront_sales.cart.title'))
 
+{{-- MB-08: sticky total and checkout button on a phone. --}}
+@section('sticky_bar', '1')
+
 @push('head')
     <meta name="robots" content="noindex, follow">
 @endpush

@@ -2,7 +2,7 @@
 
 @section('content')
     <div class="mx-auto w-full max-w-2xl py-6">
-        <p class="text-sm"><a href="{{ route('account') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.index.title') }}</a></p>
+        <p class="text-sm"><a href="{{ route('account') }}" class="inline-flex min-h-11 items-center text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.index.title') }}</a></p>
         <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
             <h1 class="text-2xl font-bold md:text-3xl">{{ __('account.notifications.title') }}</h1>
             @if ($unreadTotal > 0)
@@ -20,9 +20,9 @@
         @if ($notifications->isEmpty())
             <p class="rounded-lg border border-slate-200 p-4 text-slate-600" data-notifications-empty>{{ __('account.notifications.empty') }}</p>
         @else
-            <ul class="divide-y divide-slate-200 rounded-lg border border-slate-200">
+            <ul class="space-y-3 md:space-y-0 md:divide-y md:divide-slate-200 md:rounded-lg md:border md:border-slate-200">
                 @foreach ($notifications as $notification)
-                    <li class="p-4 {{ $notification->read_at === null ? 'bg-slate-50' : '' }}" data-notification @if ($notification->read_at === null) data-unread @endif>
+                    <li class="p-4 max-md:rounded-lg max-md:border max-md:border-slate-200 {{ $notification->read_at === null ? 'bg-slate-50' : '' }}" data-notification @if ($notification->read_at === null) data-unread @endif>
                         <div class="flex flex-wrap items-start justify-between gap-2">
                             <div>
                                 <p class="{{ $notification->read_at === null ? 'font-semibold' : 'font-medium' }}">{{ $notification->title }}</p>

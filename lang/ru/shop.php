@@ -117,6 +117,7 @@ return [
                 'primary_color' => 'Основной цвет',
                 'accent_color' => 'Акцентный цвет',
                 'grid_columns' => 'Колонок в сетке товаров',
+                'mobile_columns' => 'Колонок на телефоне',
                 'per_page' => 'Товаров на странице',
                 'placeholder_image' => 'Изображение-заглушка товара',
             ],

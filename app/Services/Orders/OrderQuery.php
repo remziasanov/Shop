@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Orders;
 
+use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Models\Order;
@@ -18,7 +19,7 @@ use Throwable;
  * Parameters (all optional): `tab` and `type` (order|reservation|inquiry, both apply), `status`,
  * `created_from` / `created_until` (Y-m-d, inclusive), `delivery_method` (snapshot name), `search`, `reserved_via_cart` (true: only reservations made from the cart, MR-12).
  *
- * @phpstan-type Params array{tab?: string|null, type?: string|null, status?: string|null, created_from?: string|null, created_until?: string|null, delivery_method?: string|null, search?: string|null, reserved_via_cart?: bool|null}
+ * @phpstan-type Params array{tab?: string|null, type?: string|null, status?: string|null, created_from?: string|null, created_until?: string|null, delivery_method?: string|null, search?: string|null, reserved_via_cart?: bool|null, channel?: string|null}
  */
 final class OrderQuery
 {
@@ -54,6 +55,11 @@ final class OrderQuery
         // MR-12: reservations made from the cart.
         if (($params['reserved_via_cart'] ?? false) === true) {
             $query->where('orders.reserved_via_cart', true);
+        }
+
+        // TM-14: only a known channel filters; anything else is ignored like an empty value.
+        if (filled($params['channel'] ?? null) && OrderChannel::tryFrom((string) $params['channel']) !== null) {
+            $query->where('orders.channel', (string) $params['channel']);
         }
 
         if (filled($params['delivery_method'] ?? null)) {

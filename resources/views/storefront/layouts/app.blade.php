@@ -12,7 +12,7 @@
 <html lang="ru" @if ($ageOn) data-age-on @if ($ageGate->showBadge()) data-age-badge @endif @if ($ageStaff) data-age-ok="18" @elseif ($ageCookie > 0) data-age-ok="{{ $ageCookie }}" @endif @endif>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     @if ($ageOn)
         {{-- AG-07: the answer lives in the shop_age cookie; this sets html[data-age-ok] before the first paint. --}}
         <script>try{var m=document.cookie.match(/(?:^|; )shop_age=(16|18)/),d=document.documentElement;if(m&&!d.hasAttribute('data-age-ok')){d.setAttribute('data-age-ok',m[1])}}catch(e){}</script>
@@ -34,6 +34,7 @@
     @endphp
     @include('storefront.partials.seo-head', ['seo' => $seo])
     <link rel="icon" href="{{ $shopFaviconUrl ?: asset('favicon.ico') }}">
+    @include('storefront.partials.pwa-head')
     {!! $headStack !!}
     <style>
         :root {
@@ -44,7 +45,9 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="flex min-h-screen flex-col bg-white pb-16 text-slate-900 antialiased md:pb-0">
+{{-- MB-03: a page may drop the bottom bar (@section('no_bottom_nav')); MB-04, MB-08: a page with a sticky bar says so (@section('sticky_bar')). --}}
+@php($noBottomNav = $__env->hasSection('no_bottom_nav'))
+<body class="flex min-h-screen flex-col overflow-x-clip bg-white pb-[var(--shop-nav-total)] text-slate-900 antialiased md:pb-0" @if ($noBottomNav) data-nav="off" @endif @if ($__env->hasSection('sticky_bar')) data-sticky @endif>
     <a href="#content" class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-white focus:p-2">{{ __('storefront.skip_to_content') }}</a>
 
     @if ($previewGroup ?? null)
@@ -59,6 +62,7 @@
     @endif
 
     @include('storefront.partials.header')
+    @include('storefront.partials.standalone-back')
 
     <main id="content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
         {{-- PM-22: a promo link that leads nowhere. --}}
@@ -69,7 +73,9 @@
     </main>
 
     @include('storefront.partials.footer')
-    @include('storefront.partials.bottom-bar')
+    @unless ($noBottomNav)
+        @include('storefront.partials.bottom-bar')
+    @endunless
     @if ($cartEnabled)
         @include('storefront.partials.cart-toast')
     @endif
@@ -78,6 +84,8 @@
     @if ($ageOn && ! $ageStaff)
         @include('storefront.partials.age-gate', ['gate' => $ageGate])
     @endif
+
+    @include('storefront.partials.install-hint')
 
     @livewireScripts
     {!! app(\App\Services\Seo\SeoCounters::class)->bodyCode() !!}

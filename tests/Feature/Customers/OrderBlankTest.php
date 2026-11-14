@@ -65,7 +65,9 @@ it('gives an invoice once the bank requisites are filled (CX-10)', function (): 
     signInCustomer($this, $customer);
     $order = cxBlankOrder($customer);
 
-    expect(pdfText($this->get(route('customer.orders.blank', $order->uuid))->streamedContent()))->toContain('Счёт на оплату № Z-00555');
+    $response = $this->get(route('customer.orders.blank', $order->uuid))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+
+    expect(pdfText($response->streamedContent()))->toContain('Счёт на оплату № Z-00555');
 });
 
 it('hides the button and answers 403 on the direct URL for a group without the flag', function (): void {

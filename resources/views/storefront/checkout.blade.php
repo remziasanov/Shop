@@ -2,6 +2,10 @@
 
 @section('title', __('storefront_sales.checkout.title'))
 
+{{-- MB-03, MB-08: no bottom navigation here, the total and the submit button stand in a sticky bar. --}}
+@section('no_bottom_nav', '1')
+@section('sticky_bar', '1')
+
 @push('head')
     <meta name="robots" content="noindex, nofollow">
 @endpush

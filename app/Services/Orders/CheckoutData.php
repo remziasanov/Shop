@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Orders;
 
 use App\Enums\CheckoutChoice;
+use App\Enums\OrderChannel;
 use App\Services\Sales\CheckoutMethods;
 use Carbon\CarbonInterface;
 
@@ -40,5 +41,7 @@ final readonly class CheckoutData
          * @var array<int, string>|null
          */
         public ?array $shownTargets = null,
+        /** TM-14: where the request came from (decided by OrderChannelResolver). */
+        public OrderChannel $channel = OrderChannel::Web,
     ) {}
 }

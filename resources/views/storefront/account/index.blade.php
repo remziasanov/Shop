@@ -20,6 +20,9 @@
             <dd class="font-medium">{{ $groupName }}</dd>
         </dl>
 
+        {{-- MB-22: «Установить приложение» (Android / desktop), hidden unless the browser offers the install. --}}
+        <div class="mt-4">@include('storefront.partials.install-button', ['class' => 'inline-flex min-h-11 items-center gap-2 rounded border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary'])</div>
+
         {{-- Sections of the cabinet. Wholesale access (stage 9, part B) adds its link below the security section. --}}
         <nav class="mt-8" aria-label="{{ __('account.index.sections') }}">
             <ul class="grid gap-3 sm:grid-cols-2">

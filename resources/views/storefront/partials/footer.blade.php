@@ -9,7 +9,7 @@
                 <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1" aria-label="{{ __('storefront.footer.socials') }}">
                     @foreach ($socialLinks as $social)
                         <li>
-                            <a href="{{ $social['url'] }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 rounded hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                            <a href="{{ $social['url'] }}" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center gap-1 rounded hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 10a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/></svg>
                                 {{ $social['title'] }}
                             </a>
@@ -22,7 +22,7 @@
         @if ($footerMenu !== [])
             <nav aria-labelledby="footer-menu">
                 <h2 id="footer-menu" class="font-semibold">{{ __('storefront.footer.menu') }}</h2>
-                <ul class="mt-2 space-y-1">
+                <ul class="shop-touch-list mt-2 space-y-1">
                     @foreach ($footerMenu as $item)
                         <li><a href="{{ $item['url'] }}" class="hover:text-primary hover:underline">{{ $item['label'] }}</a></li>
                     @endforeach
@@ -32,7 +32,7 @@
 
         <section aria-labelledby="footer-contacts">
             <h2 id="footer-contacts" class="font-semibold">{{ __('storefront.footer.contacts') }}</h2>
-            <ul class="mt-2 space-y-1">
+            <ul class="shop-touch-list mt-2 space-y-1">
                 @foreach ($shopPhones as $phone)
                     <li><a href="tel:{{ preg_replace('/[^\d+]/', '', $phone) }}">{{ $phone }}</a></li>
                 @endforeach
@@ -43,6 +43,17 @@
                     <li>{{ $shopAddress }}</li>
                 @endif
             </ul>
+            {{-- MB-10: messenger buttons. --}}
+            @if ($telegramBotUrl || $whatsappUrl)
+                <ul class="mt-3 flex flex-wrap gap-2">
+                    @if ($telegramBotUrl)
+                        <li><a href="{{ $telegramBotUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center rounded border border-slate-300 bg-white px-4 font-medium hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-contact="telegram">{{ __('mobile.contacts.telegram') }}</a></li>
+                    @endif
+                    @if ($whatsappUrl)
+                        <li><a href="{{ $whatsappUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 items-center rounded border border-slate-300 bg-white px-4 font-medium hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-contact="whatsapp">{{ __('mobile.contacts.whatsapp') }}</a></li>
+                    @endif
+                </ul>
+            @endif
             @if ($shopWorkingHours)
                 <h2 id="footer-hours" class="mt-4 font-semibold">{{ __('storefront.footer.working_hours') }}</h2>
                 <p class="mt-2 whitespace-pre-line">{{ $shopWorkingHours }}</p>
@@ -56,7 +67,7 @@
                     <p class="mt-2 whitespace-pre-line">{{ $sellerDetails }}</p>
                 @endif
                 @if ($footerPrivacyLink || $footerConsentLink)
-                    <ul class="mt-3 space-y-1">
+                    <ul class="shop-touch-list mt-3 space-y-1">
                         @foreach (array_filter([$footerPrivacyLink, $footerConsentLink]) as $legalLink)
                             <li><a href="{{ $legalLink['url'] }}" class="hover:text-primary hover:underline">{{ $legalLink['label'] }}</a></li>
                         @endforeach

@@ -25,8 +25,10 @@
         </fieldset>
 
         @if ($hasOrder)
-        <fieldset class="space-y-3 rounded-lg border border-slate-200 p-4">
-            <legend class="px-1 text-lg font-semibold">{{ __('storefront_sales.checkout.delivery') }} <span class="text-red-700" aria-hidden="true">*</span></legend>
+        {{-- MB-08: «Доставка» folds on a phone (open at first, it holds a required choice). --}}
+        <div class="rounded-lg border border-slate-200 p-4" x-data="{ addressSheet: false }">
+        <x-storefront.collapse id="co-delivery" :title="__('storefront_sales.checkout.delivery')" :open="true" :required="true">
+        <div class="space-y-3">
             @foreach ($deliveries as $option)
                 @php($method = $option['method'])
                 <label class="flex cursor-pointer items-start gap-3 rounded border border-slate-200 p-3 has-[:checked]:border-primary has-[:checked]:bg-slate-50">
@@ -44,12 +46,20 @@
                 </label>
             @endforeach
             @error('delivery')
-                <p class="text-sm text-red-700">{{ $message }}</p>
+                <p class="text-sm text-red-700" data-field-error>{{ $message }}</p>
             @enderror
 
             @if (count($savedAddresses) > 0)
-                {{-- CA-09: saved addresses of the signed-in customer. --}}
-                <div>
+                {{-- CA-09: saved addresses of the signed-in customer; a drop-down from 768 px, a bottom sheet on a phone (MB-08). --}}
+                @php($pickedAddress = collect($savedAddresses)->firstWhere('id', $addressId))
+                <div class="md:hidden" data-address-sheet-trigger>
+                    <span class="mb-1 block text-sm font-medium">{{ __('account.addresses.checkout_pick') }}</span>
+                    <button type="button" @click="addressSheet = true" aria-haspopup="dialog" class="flex min-h-11 w-full items-center justify-between gap-2 rounded border border-slate-300 px-3 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                        <span class="truncate">{{ $pickedAddress ? $pickedAddress->label : __('account.addresses.checkout_other') }}</span>
+                        <svg class="h-4 w-4 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+                <div class="max-md:hidden">
                     <label for="co-address-book" class="mb-1 block text-sm font-medium">{{ __('account.addresses.checkout_pick') }}</label>
                     <select id="co-address-book" wire:model.live="addressId" class="w-full rounded border border-slate-300 px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-address-book>
                         <option value="">{{ __('account.addresses.checkout_other') }}</option>
@@ -61,7 +71,28 @@
             @endif
             <x-storefront.field prefix="co" name="address" type="textarea" :label="__('storefront_sales.fields.address')" :required="$selectedDelivery?->requiresAddress ?? false"
                                 :placeholder="__('storefront_sales.checkout.address_placeholder')" autocomplete="street-address" maxlength="500" />
-        </fieldset>
+        </div>
+        </x-storefront.collapse>
+
+        @if (count($savedAddresses) > 0)
+            <x-storefront.sheet id="co-address-sheet" :title="__('mobile.checkout.address_sheet_title')" model="addressSheet">
+                <ul class="divide-y divide-slate-100">
+                    @foreach ($savedAddresses as $saved)
+                        <li>
+                            <button type="button" wire:click="$set('addressId', {{ $saved->id }})" @click="addressSheet = false" aria-pressed="{{ $addressId === $saved->id ? 'true' : 'false' }}" data-address-option="{{ $saved->id }}"
+                                    class="flex w-full flex-col items-start gap-0.5 px-1 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary {{ $addressId === $saved->id ? 'font-semibold text-primary' : '' }}">
+                                <span>{{ $saved->label }}</span>
+                                <span class="text-sm font-normal text-slate-600">{{ \Illuminate\Support\Str::limit($saved->address, 80) }}</span>
+                            </button>
+                        </li>
+                    @endforeach
+                    <li>
+                        <button type="button" wire:click="$set('addressId', null)" @click="addressSheet = false" data-address-option="other" class="flex min-h-12 w-full items-center px-1 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('mobile.checkout.address_other') }}</button>
+                    </li>
+                </ul>
+            </x-storefront.sheet>
+        @endif
+        </div>
 
         <fieldset class="space-y-3 rounded-lg border border-slate-200 p-4">
             <legend class="px-1 text-lg font-semibold">{{ __('storefront_sales.checkout.payment') }} <span class="text-red-700" aria-hidden="true">*</span></legend>
@@ -77,7 +108,7 @@
                 </label>
             @endforeach
             @error('payment')
-                <p class="text-sm text-red-700">{{ $message }}</p>
+                <p class="text-sm text-red-700" data-field-error>{{ $message }}</p>
             @enderror
         </fieldset>
 
@@ -92,7 +123,11 @@
             </div>
         @endif
 
-        <x-storefront.field prefix="co" name="comment" type="textarea" :label="__('storefront_sales.fields.comment')" maxlength="2000" />
+        <div class="rounded-lg border border-slate-200 p-4">
+            <x-storefront.collapse id="co-comment" :title="__('mobile.checkout.comment_title')" :open="$comment !== '' || $errors->has('comment')">
+                <x-storefront.field prefix="co" name="comment" type="textarea" :label="__('storefront_sales.fields.comment')" maxlength="2000" />
+            </x-storefront.collapse>
+        </div>
     </div>
 
     {{-- SF-45: order summary; the delivery price and the total follow the chosen method. --}}
@@ -157,10 +192,24 @@
         <x-storefront.consent prefix="co" :link="$consentLink" />
         <x-storefront.guard />
 
-        <button type="submit" wire:loading.attr="disabled" wire:target="submit" class="w-full rounded bg-primary px-4 py-3 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">
+        <button type="submit" wire:loading.attr="disabled" wire:target="submit" class="w-full rounded bg-primary px-4 py-3 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 max-md:hidden">
             <span wire:loading.remove wire:target="submit">{{ __($hasOrder && $hasReservation ? 'storefront_sales.checkout.submit_both' : ($hasReservation ? 'storefront_sales.checkout.submit_reserve' : 'storefront_sales.checkout.submit')) }}</span>
             <span wire:loading wire:target="submit">{{ __('storefront_sales.checkout.sending') }}</span>
         </button>
-        <a href="{{ route('cart') }}" class="block text-center text-sm text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.checkout.back_to_cart') }}</a>
+        <a href="{{ route('cart') }}" class="flex min-h-11 items-center justify-center text-center text-sm text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront_sales.checkout.back_to_cart') }}</a>
     </aside>
+
+    {{-- MB-08: on a phone the total and the submit button stand in a sticky bar at the bottom edge (the bottom nav is off on this page). --}}
+    <div class="shop-sticky-bar md:hidden" data-sticky-checkout-bar>
+        <div class="mx-auto flex w-full max-w-7xl items-center gap-3">
+            <p class="min-w-0 flex-1">
+                <span class="block text-xs text-slate-500">{{ __('storefront_sales.checkout.total') }}</span>
+                <span class="block truncate text-lg font-bold leading-tight" aria-live="polite" data-sticky-total>{{ \App\Support\Money::format($total + ($hasReservation && $summary !== null ? $summary->reservationTotal : 0)) }}</span>
+            </p>
+            <button type="submit" wire:loading.attr="disabled" wire:target="submit" class="flex min-h-11 flex-none items-center justify-center rounded bg-primary px-5 py-2 font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60" data-sticky-submit>
+                <span wire:loading.remove wire:target="submit">{{ __($hasOrder && $hasReservation ? 'storefront_sales.checkout.submit_both' : ($hasReservation ? 'storefront_sales.checkout.submit_reserve' : 'storefront_sales.checkout.submit')) }}</span>
+                <span wire:loading wire:target="submit">{{ __('storefront_sales.checkout.sending') }}</span>
+            </button>
+        </div>
+    </div>
 </form>

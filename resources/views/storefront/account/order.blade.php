@@ -2,7 +2,7 @@
 
 @section('content')
     <div class="mx-auto w-full max-w-3xl py-6">
-        <p class="text-sm"><a href="{{ route('customer.orders') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.orders.title') }}</a></p>
+        <p class="text-sm"><a href="{{ route('customer.orders') }}" class="inline-flex min-h-11 items-center text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.orders.title') }}</a></p>
         <h1 class="mt-2 text-2xl font-bold md:text-3xl">{{ $order->type->label() }} {{ $order->number }}</h1>
         <p class="mt-1 text-sm text-slate-600">{{ __('account.orders.created', ['date' => $order->created_at?->format('d.m.Y H:i')]) }}</p>
         <div class="mt-4">

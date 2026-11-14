@@ -21,6 +21,9 @@ class MiniCart extends Component
     /** header | bar */
     public string $variant = 'header';
 
+    /** The cart page is open: the bottom bar item is highlighted (MB-03). Passed by the layout, a Livewire request cannot tell. */
+    public bool $active = false;
+
     #[On('cart-updated')]
     public function refresh(): void
     {

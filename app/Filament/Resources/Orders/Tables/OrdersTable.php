@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Orders\Tables;
 
+use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Filament\Resources\Orders\OrderResource;
@@ -49,6 +50,13 @@ final class OrdersTable
                     ->badge()
                     ->color('gray')
                     ->formatStateUsing(fn (OrderType|string $state): string => ($state instanceof OrderType ? $state : OrderType::from($state))->label()),
+                // TM-14: where the request came from; can be hidden with the column switch.
+                TextColumn::make('channel')
+                    ->label(__('pwa.admin.channel'))
+                    ->badge()
+                    ->color(fn (OrderChannel|string $state): string => ($state instanceof OrderChannel ? $state : OrderChannel::from($state))->color())
+                    ->formatStateUsing(fn (OrderChannel|string $state): string => ($state instanceof OrderChannel ? $state : OrderChannel::from($state))->label())
+                    ->toggleable(),
                 TextColumn::make('status')
                     ->label(__('admin_orders.table.status'))
                     ->badge()
@@ -91,6 +99,10 @@ final class OrdersTable
                     ->label(__('admin_orders.filters.status'))
                     ->options(OrderStatus::options())
                     ->query(fn (Builder $query, array $data): Builder => OrderQuery::apply($query, ['status' => $data['value'] ?? null])),
+                SelectFilter::make('channel')
+                    ->label(__('pwa.admin.channel'))
+                    ->options(OrderChannel::options())
+                    ->query(fn (Builder $query, array $data): Builder => OrderQuery::apply($query, ['channel' => $data['value'] ?? null])),
                 Filter::make('period')
                     ->label(__('admin_orders.filters.period'))
                     ->schema([

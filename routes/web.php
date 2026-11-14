@@ -29,6 +29,7 @@ use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CatalogController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
+use App\Http\Controllers\Storefront\ManifestController;
 use App\Http\Controllers\Storefront\OrderThanksController;
 use App\Http\Controllers\Storefront\PageController;
 use App\Http\Controllers\Storefront\PriceListController;
@@ -40,13 +41,30 @@ use App\Http\Controllers\Storefront\SearchSuggestController;
 use App\Http\Controllers\Storefront\SitemapController;
 use App\Http\Controllers\Storefront\ViewerPreviewController;
 use Filament\Http\Middleware\Authenticate as FilamentAuthenticate;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
+
+// robots.txt and the manifest are public, cacheable files: no session, cookies or CSRF token (nothing is set on a fetch).
+$statelessMiddleware = [
+    EncryptCookies::class,
+    AddQueuedCookiesToResponse::class,
+    StartSession::class,
+    ShareErrorsFromSession::class,
+    PreventRequestForgery::class,
+];
 
 Route::get('/', HomeController::class)->name('home');
 
 // SF-82: robots.txt from the SEO settings; sitemap.xml is a static file written by shop:sitemap (this route is the fallback).
-Route::get('/robots.txt', RobotsController::class)->name('robots');
+Route::get('/robots.txt', RobotsController::class)->name('robots')->withoutMiddleware($statelessMiddleware);
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
+
+// MB-20: the web app manifest of the installable shop (404 while the setting is off).
+Route::get('/manifest.webmanifest', ManifestController::class)->name('pwa.manifest')->withoutMiddleware($statelessMiddleware);
 
 Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
 Route::get('/catalog/{slug}', [CatalogController::class, 'category'])->name('catalog.category');

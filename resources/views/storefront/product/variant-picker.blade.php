@@ -27,7 +27,7 @@
                                 :class="[
                                     selection[axis.id] === value.id ? 'border-primary ring-2 ring-primary' : 'border-slate-300 hover:border-slate-500',
                                     shaded(axis.id, value.id) ? 'opacity-40' : '',
-                                    axis.display === 'color' ? 'h-10 w-10 rounded-full border bg-cover bg-center' : 'min-h-11 min-w-11 rounded border px-3 py-2 text-sm',
+                                    axis.display === 'color' ? 'h-11 w-11 rounded-full border bg-cover bg-center' : 'min-h-11 min-w-11 rounded border px-3 py-2 text-sm',
                                 ]"
                                 :style="axis.display === 'color' ? swatch(value) : ''"
                                 class="relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
