@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $id
  * @property string $token
  * @property int|null $customer_id the owner of a customer cart (CA-15; unique); null for a guest cart (cookie token)
+ * @property int|null $telegram_account_id TM-10: the Telegram account of a guest cart in Telegram mode
  * @property string|null $promo_code PM-13: the applied promo code (normalized text)
  * @property bool $promo_applied_manually PM-23: the customer typed the code (an auto-applied one removed by hand is not re-applied)
  * @property CarbonInterface|null $created_at
@@ -45,6 +46,14 @@ class Cart extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * @return BelongsTo<TelegramAccount, $this>
+     */
+    public function telegramAccount(): BelongsTo
+    {
+        return $this->belongsTo(TelegramAccount::class);
     }
 
     /**

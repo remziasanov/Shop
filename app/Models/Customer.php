@@ -39,6 +39,7 @@ use Illuminate\Support\Str;
  * @property CarbonInterface|null $last_login_at
  * @property CarbonInterface|null $deletion_requested_at
  * @property CarbonInterface|null $anonymized_at
+ * @property list<string>|null $telegram_notify_events TN-05: the switched-off Telegram events (null = all on)
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  */
@@ -68,6 +69,7 @@ class Customer extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'auth_version' => 'integer',
+            'telegram_notify_events' => 'array',
             'is_blocked' => 'boolean',
             'consent_at' => 'datetime',
             'last_login_at' => 'datetime',
@@ -98,6 +100,14 @@ class Customer extends Authenticatable
     public function group(): BelongsTo
     {
         return $this->belongsTo(CustomerGroup::class, 'customer_group_id');
+    }
+
+    /**
+     * @return HasOne<TelegramAccount, $this>
+     */
+    public function telegramAccount(): HasOne
+    {
+        return $this->hasOne(TelegramAccount::class);
     }
 
     /**
