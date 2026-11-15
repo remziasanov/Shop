@@ -231,6 +231,9 @@ describe('the workplace (TS-06)', function (): void {
     });
 
     it('lists new, in-work, expiring-today and all requests in the tabs', function (): void {
+        // The «expiring today» tab ends at the end of the day: pin the clock to midday so +30 minutes stays inside it.
+        $this->travelTo(now()->setTime(12, 0));
+
         $new = Order::factory()->order()->create(['customer_name' => 'Новый Клиент']);
         $work = Order::factory()->order()->status(OrderStatus::Confirmed)->create(['customer_name' => 'Рабочий Клиент']);
         $today = Order::factory()->reservation()->reservedUntil(now()->addMinutes(30))->create(['customer_name' => 'Резерв Сегодня']);

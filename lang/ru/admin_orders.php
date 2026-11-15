@@ -137,6 +137,7 @@ return [
             'order_total' => 'Итого по обращению',
             'comment' => 'Комментарий клиента',
             'channel' => 'Канал',
+            'customer_id' => 'Покупатель (ID)',
         ],
         'all' => 'Все обращения',
         'period' => 'Период: :from — :until',

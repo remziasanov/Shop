@@ -280,6 +280,7 @@ return [
         'price_on_request' => 'Цена по запросу',
         'created' => 'Создано :date',
         'group' => 'Группа покупателя',
+        'price_type' => 'Тип цены',
         'reserved_until' => 'Резерв действует до',
         'delivery' => 'Получение',
         'address' => 'Адрес',

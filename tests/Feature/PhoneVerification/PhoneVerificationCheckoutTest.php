@@ -24,6 +24,7 @@ use App\Services\Orders\OrderService;
 use App\Services\PhoneVerification\PhoneVerificationGate;
 use App\Services\PhoneVerification\PhoneVerificationService;
 use App\Settings\NotificationSettings;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -390,6 +391,28 @@ describe('provider failures (PV-05, PV-13 г)', function (): void {
             ->and($gate->wasSkipped('+79001234567', PhoneVerificationPurpose::GuestCheckout, $session))->toBeFalse();
 
         expect(fn () => $gate->assertForRequest('+79001234567', null, $session, true, false, false, 10_000_000))->toThrow(SalesException::class);
+    });
+
+    it('keeps the skip mark when the checkout transaction rolls back and uses it up after the commit (TD-31)', function (): void {
+        $gate = app(PhoneVerificationGate::class);
+        $session = PhoneVerificationGate::session();
+        $gate->markSkipped('+79001234567', PhoneVerificationPurpose::GuestCheckout, $session);
+
+        try {
+            DB::transaction(function () use ($gate, $session): void {
+                expect($gate->assertForRequest('+79001234567', null, $session, true, false, false, 10_000_000))->toBeFalse();
+
+                throw new RuntimeException('deadlock');
+            });
+        } catch (RuntimeException) {
+            // The retry after a rollback.
+        }
+
+        expect($gate->wasSkipped('+79001234567', PhoneVerificationPurpose::GuestCheckout, $session))->toBeTrue();
+
+        DB::transaction(fn () => $gate->assertForRequest('+79001234567', null, $session, true, false, false, 10_000_000));
+
+        expect($gate->wasSkipped('+79001234567', PhoneVerificationPurpose::GuestCheckout, $session))->toBeFalse();
     });
 
     it('does not let the skip mark of one number cover another one', function (): void {

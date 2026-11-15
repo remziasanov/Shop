@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\VerificationPurpose;
+use App\Exceptions\CustomerAuthException;
 use App\Mail\CustomerCodeMail;
 use App\Services\Customers\VerificationCodeService;
 use App\Settings\CustomerSettings;
@@ -75,7 +76,10 @@ it('renders the resend button with the Alpine countdown right after a code was s
     expect(countdownSeconds($response))->toBeGreaterThan(0)->toBeLessThanOrEqual($limit);
     $response
         ->assertSee('x-data="resendCountdown(', false)
-        ->assertSee('x-bind:disabled="left > 0"', false)
+        // TD-15: aria-disabled and a blocked submit keep the button in the Tab order; `disabled` would remove it.
+        ->assertSee('x-bind:aria-disabled="left > 0', false)
+        ->assertSee('x-on:submit="if (left > 0) $event.preventDefault()"', false)
+        ->assertDontSee('x-bind:disabled', false)
         ->assertSee('aria-live="polite"', false)
         ->assertSee('action="'.$resend.'"', false)
         // Without JavaScript the button stays usable: it is not disabled in the HTML.
@@ -113,7 +117,22 @@ it('re-renders the page with the countdown when the resend comes too early', fun
     $response = $this->get($page)->assertOk()->assertSee('Новый код можно запросить через');
 
     expect(countdownSeconds($response))->toBeGreaterThan(0)->toBeLessThanOrEqual(app(CustomerSettings::class)->code_resend_seconds - 10);
+    $response->assertDontSee('aria-invalid="true"', false);
 })->with('code pages');
+
+it('reports a too early request under the `resend` key, not the `code` field (TD-15)', function (): void {
+    $codes = app(VerificationCodeService::class);
+    $codes->request(VerificationPurpose::Login, 'svc.key@example.com', '192.0.2.40', deliver: false);
+
+    try {
+        $codes->request(VerificationPurpose::Login, 'svc.key@example.com', '192.0.2.40', deliver: false);
+        $field = null;
+    } catch (CustomerAuthException $e) {
+        $field = $e->field;
+    }
+
+    expect($field)->toBe('resend');
+});
 
 it('follows the code_resend_seconds setting', function (): void {
     $settings = app(CustomerSettings::class);
@@ -161,4 +180,58 @@ it('reports the remaining pause per address and purpose', function (): void {
 
     $this->travel($limit)->seconds();
     expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register))->toBe(0);
+});
+
+it('hands out the same countdown for an existing account and for an address without one (CA-05)', function (): void {
+    makeCustomer(['email' => 'cd.exists@example.com']);
+
+    $this->post(route('customer.login.send-code'), ['email' => 'cd.exists@example.com']);
+    $existing = countdownSeconds($this->get(route('customer.login.code')));
+
+    $this->flushSession();
+    $this->post(route('customer.login.send-code'), ['email' => 'cd.nobody@example.com']);
+    $unknown = countdownSeconds($this->get(route('customer.login.code')));
+
+    expect($existing)->toBeGreaterThan(0)->and(abs($existing - $unknown))->toBeLessThanOrEqual(1);
+});
+
+it('counts the hourly limit into the countdown and answers 429 through the resend route (CA-04, CA-12)', function (): void {
+    [$page, $resend] = codePage($this, 'login code');
+    $limit = app(CustomerSettings::class)->code_resend_seconds;
+
+    // Four more requests after the pause each use up the hourly limit of 5 per address.
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_EMAIL_PER_HOUR - 1) as $_) {
+        $this->travel($limit + 1)->seconds();
+        $this->from($page)->post($resend)->assertSessionHasNoErrors();
+    }
+
+    // The pause is over, but the hourly limit is not: the countdown shows the longer wait and the server agrees.
+    $this->travel($limit + 1)->seconds();
+    expect(countdownSeconds($this->get($page)))->toBeGreaterThan($limit);
+    $this->from($page)->post($resend)->assertStatus(429)->assertHeader('Retry-After');
+});
+
+it('does not spend the 5 per hour e-mail change limit of the customer on a request that is too early (TD-15)', function (): void {
+    signInCustomer($this, makeCustomer(['email' => 'cd.spend@example.com']));
+    $this->post(route('customer.email.request'), ['email' => 'cd.spend.new@example.com']);
+
+    // Ten early clicks on the resend button would exhaust 5 changes per hour if they were counted.
+    foreach (range(1, 10) as $_) {
+        $this->from(route('customer.email.confirm'))->post(route('customer.email.confirm.resend'))->assertSessionHasErrors('resend');
+    }
+
+    $this->travel(app(CustomerSettings::class)->code_resend_seconds + 1)->seconds();
+    $this->from(route('customer.email.confirm'))->post(route('customer.email.confirm.resend'))->assertSessionHasNoErrors();
+});
+
+it('reports the longest of the lock, the hourly limit and the pause as the resend wait (TD-15)', function (): void {
+    $codes = app(VerificationCodeService::class);
+    $limit = app(CustomerSettings::class)->code_resend_seconds;
+
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_EMAIL_PER_HOUR) as $_) {
+        $codes->request(VerificationPurpose::Login, 'svc.hourly@example.com', '192.0.2.31', deliver: false);
+        $this->travel($limit + 1)->seconds();
+    }
+
+    expect($codes->resendAvailableIn('svc.hourly@example.com', VerificationPurpose::Login))->toBeGreaterThan($limit);
 });

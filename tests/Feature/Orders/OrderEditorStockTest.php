@@ -368,3 +368,25 @@ it('releases the hold of a reservation line whose unit lost its stock figure (D-
     saveEdit($order, editData($order)->with(['items' => [$keep[1]]]));
     expect($a->fresh()->reserved_qty)->toBe(0)->and($b->fresh()->reserved_qty)->toBe(2);
 });
+
+it('releases the hold of a reservation line of a variant that lost its stock figure and rolls up the card (D-128, VR-06)', function (): void {
+    $color = optionWith('Цвет', ['Красный', 'Синий']);
+    $card = variantCard([], $color);
+    $red = variantOf($card, [$color->values[0]], ['stock_qty' => 10]);
+    $blue = variantOf($card, [$color->values[1]], ['stock_qty' => 10]);
+    $order = editableOrder([[$red, 3], [$blue, 2]], OrderType::Reservation);
+    expect($card->fresh()->reserved_qty)->toBe(5);
+
+    $red->forceFill(['stock_qty' => null])->save();
+
+    saveEdit($order, withQty($order, $red, 1));
+    expect($red->fresh()->reserved_qty)->toBe(1)
+        ->and($card->fresh()->reserved_qty)->toBe(3);
+
+    $blueItem = EditItem::fromItem($order->refresh()->items->firstWhere('variant_id', $blue->id));
+    saveEdit($order, editData($order)->with(['items' => [$blueItem]]));
+
+    expect($red->fresh()->reserved_qty)->toBe(0)
+        ->and($blue->fresh()->reserved_qty)->toBe(2)
+        ->and($card->fresh()->reserved_qty)->toBe(2);
+});

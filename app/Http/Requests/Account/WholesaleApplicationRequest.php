@@ -7,7 +7,7 @@ namespace App\Http\Requests\Account;
 use App\Rules\Inn;
 use App\Rules\Kpp;
 use App\Services\Customers\InnValidator;
-use App\Support\PhoneNormalizer;
+use App\Services\PhoneVerification\PhoneVerificationService;
 use Closure;
 use Illuminate\Contracts\Validation\Validator;
 
@@ -39,7 +39,7 @@ class WholesaleApplicationRequest extends AccountRequest
             'kpp' => ['nullable', 'string', new Kpp],
             'contact_name' => ['required', 'string', 'max:150'],
             'phone' => ['required', 'string', 'max:30', function (string $attribute, mixed $value, Closure $fail): void {
-                if (PhoneNormalizer::normalize(is_string($value) ? $value : null) === null) {
+                if (app(PhoneVerificationService::class)->contactPhone(is_string($value) ? $value : null) === null) {
                     $fail(__('sales.errors.phone_invalid'));
                 }
             }],
@@ -96,7 +96,7 @@ class WholesaleApplicationRequest extends AccountRequest
             'inn' => (string) $this->validated('inn'),
             'kpp' => filled($this->validated('kpp')) ? (string) $this->validated('kpp') : null,
             'contact_name' => trim((string) $this->validated('contact_name')),
-            'phone' => (string) PhoneNormalizer::normalize((string) $this->validated('phone')),
+            'phone' => (string) app(PhoneVerificationService::class)->contactPhone((string) $this->validated('phone')),
             'comment' => filled($this->validated('comment')) ? trim((string) $this->validated('comment')) : null,
         ];
     }

@@ -12,13 +12,14 @@ use Illuminate\Support\Facades\DB;
 /**
  * Recovery after the migration from JSON (FL-04, D-112): puts the original v1 `products.attributes` JSON back from the
  * backup the migration wrote and deletes the product's rows in the tables, so a new `shop:attributes-migrate` migrates
- * the product again. All products without `--product`.
+ * the product again. All products without `--product`, which
+ * needs `--force` or a confirmation: it deletes the characteristic rows of every product in the backup.
  */
 class AttributesRestoreJsonCommand extends Command
 {
     private const CHUNK = 500;
 
-    protected $signature = 'shop:attributes-restore-json {--product= : Restore only this product id}';
+    protected $signature = 'shop:attributes-restore-json {--product= : Restore only this product id} {--force : Restore all products without asking for confirmation}';
 
     protected $description = 'Restore the original JSON characteristics of products from the migration backup (FL-04)';
 
@@ -39,6 +40,14 @@ class AttributesRestoreJsonCommand extends Command
             $this->warn(__('attributes.migration.restore.nothing', ['path' => $backup->directory()]));
 
             return $productId === null ? self::SUCCESS : self::FAILURE;
+        }
+
+        // Without --product every product of the backup is restored and its rows are deleted: ask first, and never
+        // do it silently in a non-interactive run (cron, CI) unless --force says so.
+        if ($productId === null && ! $this->option('force') && (! $this->input->isInteractive() || ! $this->confirm(__('attributes.migration.restore.confirm', ['count' => count($originals)]), false))) {
+            $this->error(__('attributes.migration.restore.needs_force'));
+
+            return self::FAILURE;
         }
 
         $restored = 0;

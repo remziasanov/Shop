@@ -56,6 +56,11 @@ it('imports the demo file with its photo archive and a second import changes not
 
     $before = demoSnapshot();
 
+    // AG-13: the age column of the demo file reaches the products.
+    expect(Product::query()->where('sku', 'IMP-0019')->first()?->age_restriction?->value)->toBe('16')
+        ->and(Product::query()->where('sku', 'IMP-0036')->first()?->age_restriction?->value)->toBe('18')
+        ->and(Product::query()->whereNotNull('age_restriction')->count())->toBe(2);
+
     $second = runDemoImport();
 
     expect($second->status)->toBe(ImportStatus::Completed)

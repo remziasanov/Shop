@@ -15,6 +15,7 @@ use App\Jobs\GenerateCustomerOrdersExport;
 use App\Mail\CustomerExportReadyMail;
 use App\Models\Customer;
 use App\Models\Export;
+use App\Models\ExportTombstone;
 use App\Models\Order;
 use App\Services\Customers\CustomerNotificationService;
 use App\Services\Telegram\CustomerTelegramNotifier;
@@ -43,6 +44,9 @@ final class CustomerExportService
     private const PARTIAL_SUFFIX = '.part';
 
     private const HOUR = 3600;
+
+    /** How long the link of a purged export keeps answering 410 instead of 404. */
+    public const TOMBSTONE_DAYS = 30;
 
     /** Table rows (requests plus items) up to which a PDF is built in the web request: the request has 128 MB for everything. */
     public const SYNC_PDF_MAX_ROWS = 300;
@@ -95,15 +99,19 @@ final class CustomerExportService
     }
 
     /**
-     * CX-09: the request limit and the number of unfinished exports. Counted only for accepted requests ({@see hitRequest()}).
+     * CX-09: takes one slot of the hourly request limit and checks the number of unfinished exports. The slot is taken
+     * first with an atomic increment (`RateLimiter::hit()`), then compared with the limit, so parallel requests cannot
+     * all pass a stale check. A request refused for exceeding the limit stays counted; a request refused for another
+     * reason must give its slot back with {@see releaseRequestSlot()}.
      *
      * @throws ExportThrottledException
      */
     public function ensureCanRequest(Customer $customer): void
     {
         $key = $this->requestKey($customer);
+        $limit = max(1, $this->settings->export_requests_per_hour);
 
-        if (RateLimiter::tooManyAttempts($key, max(1, $this->settings->export_requests_per_hour))) {
+        if (RateLimiter::hit($key, self::HOUR) > $limit) {
             $wait = max(1, RateLimiter::availableIn($key));
 
             throw new ExportThrottledException(__('customer_export.errors.too_many_requests', ['time' => CustomerThrottledException::humanTime($wait)]), $wait);
@@ -115,17 +123,23 @@ final class CustomerExportService
             ->count();
 
         if ($pending >= max(1, $this->settings->export_max_pending)) {
+            $this->releaseRequestSlot($customer);
+
             throw new ExportThrottledException(__('customer_export.errors.too_many_pending', ['count' => $pending, 'time' => CustomerThrottledException::humanTime(60)]), 60);
         }
     }
 
-    public function hitRequest(Customer $customer): void
+    /**
+     * Gives back the slot taken by {@see ensureCanRequest()} for a request that was refused for a reason other than the
+     * rate limit (nothing to export, a limit of 18.6): such a request is free.
+     */
+    public function releaseRequestSlot(Customer $customer): void
     {
-        RateLimiter::hit($this->requestKey($customer), self::HOUR);
+        RateLimiter::decrement($this->requestKey($customer), self::HOUR);
     }
 
     /**
-     * CX-09: a download (an export file or an order blank) counts against the hourly limit.
+     * CX-09: a download (an export file or an order blank) counts against the hourly limit. Atomic like the request limit.
      *
      * @throws ExportThrottledException
      */
@@ -133,13 +147,11 @@ final class CustomerExportService
     {
         $key = 'customer-export-download:'.$customer->id;
 
-        if (RateLimiter::tooManyAttempts($key, max(1, $this->settings->export_downloads_per_hour))) {
+        if (RateLimiter::hit($key, self::HOUR) > max(1, $this->settings->export_downloads_per_hour)) {
             $wait = max(1, RateLimiter::availableIn($key));
 
             throw new ExportThrottledException(__('customer_export.errors.too_many_downloads', ['time' => CustomerThrottledException::humanTime($wait)]), $wait);
         }
-
-        RateLimiter::hit($key, self::HOUR);
     }
 
     /**
@@ -344,6 +356,16 @@ final class CustomerExportService
     }
 
     /**
+     * True when an export of this customer was removed by the cleanup within the last {@see TOMBSTONE_DAYS} days: its link
+     * answers 410 «Файл удалён», not 404 (TZ 18.7, CX-07). A foreign or unknown uuid is never tombstoned for this customer.
+     */
+    public function wasPurged(Customer $customer, string $uuid): bool
+    {
+        return Str::isUuid($uuid)
+            && ExportTombstone::query()->where('customer_id', $customer->id)->where('uuid', $uuid)->exists();
+    }
+
+    /**
      * The export of this customer, or null: a foreign or unknown identifier looks the same (CX-07, IDOR).
      */
     public function find(Customer $customer, string $uuid): ?Export
@@ -414,9 +436,20 @@ final class CustomerExportService
             ->takeUntil(fn (): bool => $deadline !== null && microtime(true) >= $deadline)
             ->each(function (Export $export) use (&$purged): void {
                 $this->deleteFiles($export);
+
+                // The row goes, a tombstone stays: the old link keeps answering 410 (TD-25).
+                if ($export->customer_id !== null && $export->uuid !== null) {
+                    ExportTombstone::query()->updateOrCreate(
+                        ['uuid' => $export->uuid],
+                        ['customer_id' => $export->customer_id, 'expires_at' => $export->expires_at],
+                    );
+                }
+
                 $export->delete();
                 $purged++;
             });
+
+        ExportTombstone::query()->where('created_at', '<', now()->subDays(self::TOMBSTONE_DAYS))->delete();
 
         return $purged;
     }
@@ -427,6 +460,7 @@ final class CustomerExportService
     public function purgeForCustomer(Customer $customer): int
     {
         Storage::disk(self::DISK)->deleteDirectory('exports/customers/'.$customer->uuid);
+        ExportTombstone::query()->where('customer_id', $customer->id)->delete();
 
         return Export::query()->where('customer_id', $customer->id)->delete();
     }

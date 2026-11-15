@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\Access;
 
+use App\Enums\AuditAction;
 use App\Enums\CategoryAccessMode;
 use App\Exceptions\CustomerGroupException;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Services\Catalog\CatalogVersion;
+use App\Services\Users\AuditLogger;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -17,6 +19,8 @@ use Illuminate\Support\Facades\DB;
  */
 final class CustomerGroupService
 {
+    public function __construct(private readonly AuditLogger $audit) {}
+
     /**
      * @param  array<string, mixed>  $attributes  fillable attributes of the group
      * @param  list<int>|null  $categoryIds  selected categories; null leaves the selection unchanged
@@ -24,12 +28,22 @@ final class CustomerGroupService
     public function save(CustomerGroup $group, array $attributes, ?array $categoryIds = null): CustomerGroup
     {
         DB::transaction(function () use ($group, $attributes, $categoryIds): void {
+            $created = ! $group->exists;
             $group->fill($attributes)->save();
+            $fields = array_keys($group->getChanges());
+            $categoriesChanged = false;
 
             if ($categoryIds !== null) {
                 // The «all» mode keeps no selection, whatever was left in the form.
                 $ids = $group->category_access_mode === CategoryAccessMode::All ? [] : array_values(array_unique($categoryIds));
-                $group->categories()->sync($ids);
+                $categoriesChanged = array_filter($group->categories()->sync($ids)) !== [];
+            }
+
+            // CG-19 / RB-12: the journal keeps ids and field names only.
+            if ($created) {
+                $this->audit->record(AuditAction::CustomerGroupCreated, null, $group, ['code' => $group->code]);
+            } elseif ($fields !== [] || $categoriesChanged) {
+                $this->audit->record(AuditAction::CustomerGroupUpdated, null, $group, ['fields' => array_values(array_diff($fields, ['updated_at'])), 'categories_changed' => $categoriesChanged]);
             }
         });
 
@@ -53,6 +67,7 @@ final class CustomerGroupService
         DB::transaction(function () use ($group): void {
             CustomerGroup::query()->where('is_default_for_new', true)->where('id', '!=', $group->id)->update(['is_default_for_new' => false]);
             CustomerGroup::query()->whereKey($group->id)->update(['is_default_for_new' => true]);
+            $this->audit->record(AuditAction::CustomerGroupDefaultChanged, null, $group);
         });
 
         $group->refresh();
@@ -82,8 +97,9 @@ final class CustomerGroupService
         }
 
         DB::transaction(function () use ($group, $target): void {
-            Customer::query()->where('customer_group_id', $group->id)->update(['customer_group_id' => $target->id]);
+            $moved = Customer::query()->where('customer_group_id', $group->id)->update(['customer_group_id' => $target->id]);
             $group->delete();
+            $this->audit->record(AuditAction::CustomerGroupDeleted, null, $group, ['code' => $group->code, 'moved_to' => $target->id, 'customers_moved' => $moved]);
         });
 
         CatalogVersion::bump();

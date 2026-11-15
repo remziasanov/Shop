@@ -106,7 +106,20 @@ it('shows the closed-shop page in the Telegram mode for a visitor (TM-11)', func
 
     tgVisitor();
 
-    $this->get('/')->assertStatus(503)->assertSee('Закрыто на учёт');
+    $this->get('/')->assertStatus(503)->assertSee('Закрыто на учёт')
+        ->assertSee('data-tg', false)->assertSee('data-shop-closed', false)->assertDontSee('data-tg-topbar', false);
+
+    // The site visitor keeps the generic page; `/tg` itself stays reachable (the entry page has no catalog data).
+    app('session')->flush();
+    $this->get('/tg')->assertOk();
+});
+
+it('renders the closed-shop page in the site layout outside the Telegram mode (TM-11, TD-28)', function (): void {
+    $general = app(GeneralSettings::class);
+    $general->shop_open = false;
+    $general->save();
+
+    $this->get('/')->assertStatus(503)->assertDontSee('data-tg', false)->assertDontSee('data-shop-closed', false);
 });
 
 it('stays within 30 SQL statements on the pages of the Mini App (TM-13, NF-02)', function (): void {

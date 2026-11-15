@@ -15,6 +15,7 @@ class ViewPromoCodeBatch extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            PromoBatchActions::resume(),
             PromoBatchActions::applyTemplate(),
             PromoBatchActions::export(),
         ];

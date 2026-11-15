@@ -96,6 +96,20 @@ describe('dry run', function (): void {
 });
 
 describe('migration', function (): void {
+    it('refreshes the table statistics once, on MySQL only, when the migration finishes (FL-12)', function (): void {
+        attrJsonProduct([['Материал', 'Хлопок']]);
+        $analyze = [];
+        DB::listen(function ($query) use (&$analyze): void {
+            if (str_starts_with(strtolower($query->sql), 'analyze table')) {
+                $analyze[] = $query->sql;
+            }
+        });
+
+        expect(attrMigrator()->run())->toBeTrue();
+
+        expect($analyze)->toBe(DB::getDriverName() === 'mysql' ? ['ANALYZE TABLE product_attribute_values'] : []);
+    });
+
     it('creates typed attributes with units and filters and writes normalized values', function (): void {
         $product = attrJsonProduct([
             ['Материал', 'Хлопок; Лён'],
@@ -175,7 +189,15 @@ describe('migration', function (): void {
             ->and(ProductAttributeValue::query()->where('product_id', $mixed->id)->count())->toBe(0)
             ->and(ProductAttributeValue::query()->count())->toBe(40);
 
-        $this->artisan('shop:attributes-restore-json')->assertSuccessful();
+        // Without --product and without --force nothing happens: declined, or a non-interactive run (FL-04, TD-17).
+        $this->artisan('shop:attributes-restore-json')
+            ->expectsConfirmation(__('attributes.migration.restore.confirm', ['count' => 42]), 'no')
+            ->expectsOutputToContain(__('attributes.migration.restore.needs_force'))
+            ->assertFailed();
+        $this->artisan('shop:attributes-restore-json', ['--no-interaction' => true])->assertFailed();
+        expect(ProductAttributeValue::query()->count())->toBe(40);
+
+        $this->artisan('shop:attributes-restore-json', ['--force' => true])->assertSuccessful();
 
         expect($odd->fresh()->attributes)->toBe($original)
             ->and(ProductAttributeValue::query()->count())->toBe(0);

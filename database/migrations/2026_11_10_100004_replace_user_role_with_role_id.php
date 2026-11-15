@@ -82,11 +82,9 @@ return new class extends Migration
             $table->dropColumn('role');
         });
 
-        if (DB::getDriverName() !== 'sqlite') {
-            Schema::table('users', function (Blueprint $table): void {
-                $table->foreign('role_id')->references('id')->on('roles')->restrictOnDelete();
-            });
-        }
+        Schema::table('users', function (Blueprint $table): void {
+            $table->foreign('role_id')->references('id')->on('roles')->restrictOnDelete();
+        });
     }
 
     public function down(): void
@@ -102,11 +100,9 @@ return new class extends Migration
             DB::table('users')->where('role_id', $adminId)->update(['role' => 'admin']);
         }
 
-        if (DB::getDriverName() !== 'sqlite') {
-            Schema::table('users', function (Blueprint $table): void {
-                $table->dropForeign(['role_id']);
-            });
-        }
+        Schema::table('users', function (Blueprint $table): void {
+            $table->dropForeign(['role_id']);
+        });
 
         Schema::table('users', function (Blueprint $table): void {
             $table->dropIndex(['role_id']);

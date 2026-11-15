@@ -281,7 +281,8 @@ html[data-crop-marks] :is([data-card], [data-crop])::after {
         cursor: pointer;
     }
 
-    :where(button, a.rounded-btn, [role='button']) {
+    /* The card photo link keeps the transition and the press shift it had as `rounded-btn` before the tile radius (D-188). */
+    :where(button, a.rounded-btn, a[data-tile], [role='button']) {
         transition: translate 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
     }
 
@@ -290,7 +291,7 @@ html[data-crop-marks] :is([data-card], [data-crop])::after {
     }
 
     /* Pressed. */
-    :where(button, a.rounded-btn, [role='button']):not(:disabled, [aria-disabled='true']):active {
+    :where(button, a.rounded-btn, a[data-tile], [role='button']):not(:disabled, [aria-disabled='true']):active {
         translate: 0 1px;
     }
 
@@ -370,6 +371,11 @@ html[data-contrast] .bg-surface-2 .text-muted {
 
 html[data-contrast] :where([aria-disabled='true'], button:disabled[data-action='unavailable']):not(.bg-primary, .bg-accent) {
     color: var(--shop-ink-high);
+}
+
+/* A disabled pagination step is a frame like the enabled ones, and in the themes whose line color is close to the ink it would read as enabled: dashed frame (plus cursor-not-allowed in the markup). */
+html[data-contrast] [data-page-disabled] {
+    border-style: dashed;
 }
 
 html[data-contrast] :where([aria-disabled='true'], button:disabled[data-action='unavailable']):is(.bg-line, .bg-surface-3) {

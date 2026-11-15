@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Exceptions\SalesException;
 use App\Filament\Resources\CustomerGroups\Pages\ListCustomerGroups;
+use App\Livewire\Storefront\CartPage;
 use App\Models\Cart;
 use App\Models\CustomerGroup;
 use App\Models\Order;
@@ -15,6 +16,7 @@ use App\Services\Orders\InquiryData;
 use App\Services\Orders\OrderService;
 use App\Services\Orders\ReservationData;
 use App\Services\Users\RoleService;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
@@ -129,4 +131,61 @@ describe('nothing is bought in a preview', function (): void {
             ->and(fn () => app(OrderService::class)->createReservation($this->product, new ReservationData(...$contact, qty: 1, desiredDate: null, comment: null)))->toThrow(SalesException::class, $message)
             ->and(Order::query()->count())->toBe(0);
     });
+
+    it('keeps the cart rows intact: quantity change and removal are blocked like adding (CG-18)', function (): void {
+        $cart = cartWith($this->product);
+        $item = $cart->items()->firstOrFail();
+        $message = __('customer_groups.storefront.preview_blocked');
+
+        $request = Request::create('/');
+        $request->setLaravelSession(app('session.store'));
+        $request->setUserResolver(fn () => auth()->user());
+        app()->instance('request', $request);
+
+        $carts = app(CartService::class);
+
+        expect(fn () => $carts->update($cart, $this->product->id, 5))->toThrow(SalesException::class, $message)
+            ->and(fn () => $carts->update($cart, $this->product->id, 0))->toThrow(SalesException::class, $message)
+            ->and(fn () => $carts->remove($cart, $this->product->id))->toThrow(SalesException::class, $message)
+            ->and(fn () => $carts->reduceToAvailable($cart, [$item->id]))->toThrow(SalesException::class, $message)
+            ->and($cart->items()->count())->toBe(1)
+            ->and($cart->items()->firstOrFail()->qty)->toBe($item->qty);
+    });
+
+    it('shows the message in CartPage instead of failing, and leaves the rows alone', function (): void {
+        $cart = cartWith($this->product);
+        $qty = $cart->items()->firstOrFail()->qty;
+
+        // Livewire tests run without a session, so the preview request is built by hand.
+        $request = Request::create('/');
+        $request->setLaravelSession(app('session.store'));
+        $request->setUserResolver(fn () => auth()->user());
+        $request->cookies->set('cart', $cart->token);
+        app()->instance('request', $request);
+
+        $page = new CartPage;
+        $page->updatedQtys('5', (string) $this->product->id);
+        expect($page->getErrorBag()->first('cart'))->toBe(__('customer_groups.storefront.preview_blocked'));
+
+        $page->resetErrorBag();
+        $page->remove($this->product->id);
+        expect($page->getErrorBag()->first('cart'))->toBe(__('customer_groups.storefront.preview_blocked'));
+
+        expect($cart->items()->count())->toBe(1)->and($cart->items()->firstOrFail()->qty)->toBe($qty);
+    });
+});
+
+it('protects the preview POST routes with the web group CSRF middleware and no exception (CG-18)', function (): void {
+    $router = app('router');
+    $except = new ReflectionMethod(PreventRequestForgery::class, 'inExceptArray');
+
+    foreach (['viewer.preview' => route('viewer.preview', 1), 'viewer.preview.exit' => route('viewer.preview.exit')] as $name => $url) {
+        $route = Route::getRoutes()->getByName($name);
+        $stack = $router->resolveMiddleware($route->gatherMiddleware(), $route->excludedMiddleware());
+        $request = Request::create($url, 'POST');
+
+        expect($stack)->toContain(PreventRequestForgery::class)
+            ->and($route->excludedMiddleware())->toBe([])
+            ->and($except->invoke(app(PreventRequestForgery::class), $request))->toBeFalse();
+    }
 });

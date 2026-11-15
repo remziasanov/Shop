@@ -249,6 +249,19 @@ describe('wholesale application (PV-07)', function (): void {
             ->and(PhoneVerification::query()->firstOrFail()->purpose)->toBe(PhoneVerificationPurpose::Wholesale);
     });
 
+    it('sends a stale verification of a wholesale application back to the wholesale page, not to the profile (TD-34)', function (): void {
+        pvaSignIn($this);
+
+        $this->post(route('customer.wholesale.store'), pvaWholesaleBody())->assertRedirect(route('customer.phone'));
+        $panel = Livewire::test(PhoneVerificationPanel::class)->call('startVerification')->assertSet('pvActive', true);
+
+        // The parked action disappears (another tab, a cleared session) before the code is confirmed.
+        session()->forget(PhoneChallenge::KEY);
+        $panel->set('pvCode', $this->gateway->lastCode)->call('confirmPhoneCode')->assertRedirect(route('customer.wholesale'));
+
+        expect(WholesaleApplication::query()->count())->toBe(0);
+    });
+
     it('does not call for an invalid form (PV-13 б)', function (): void {
         pvaSignIn($this);
 

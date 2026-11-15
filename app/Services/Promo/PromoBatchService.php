@@ -41,6 +41,9 @@ final class PromoBatchService
 
     public const MAX_PREFIX = 20;
 
+    /** A `running` batch that has not moved for this long lost its worker (a job lasts at most 40 s). */
+    public const STUCK_AFTER_MINUTES = 10;
+
     /**
      * @param  Template  $template
      *
@@ -76,6 +79,41 @@ final class PromoBatchService
         GeneratePromoCodeBatch::dispatch($batch->id);
 
         return $batch;
+    }
+
+    /**
+     * PM-15 / TD-19: a batch can be resumed when it failed, or is `running` but has not been updated for
+     * {@see self::STUCK_AFTER_MINUTES} minutes (the worker died). Complete batches are never resumed.
+     */
+    public function canResume(PromoCodeBatch $batch): bool
+    {
+        if ($batch->status === PromoBatchStatus::Failed) {
+            return $batch->generated < $batch->count;
+        }
+
+        return $batch->status === PromoBatchStatus::Running
+            && $batch->generated < $batch->count
+            && $batch->updated_at !== null
+            && $batch->updated_at->lte(now()->subMinutes(self::STUCK_AFTER_MINUTES));
+    }
+
+    /**
+     * Queues the generator again for a failed or stuck batch; the generator continues from the codes that exist, so
+     * the repeat is safe. Returns false (and does nothing) when the batch is not resumable.
+     */
+    public function resume(PromoCodeBatch $batch): bool
+    {
+        if (! $this->canResume($batch)) {
+            return false;
+        }
+
+        $batch->status = PromoBatchStatus::Queued;
+        $batch->updated_at = now();
+        $batch->save();
+
+        GeneratePromoCodeBatch::dispatch($batch->id);
+
+        return true;
     }
 
     /**

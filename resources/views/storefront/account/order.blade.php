@@ -39,7 +39,12 @@
             <ul class="divide-y divide-line rounded-card border border-line">
                 @foreach ($order->items as $item)
                     <li class="flex flex-wrap items-baseline justify-between gap-2 p-3 text-sm">
-                        <span>{{ $item->displayName() }} <span class="text-muted">× {{ $item->qty }} {{ $item->unit }}</span></span>
+                        <span>{{ $item->displayName() }} <span class="text-muted">× {{ $item->qty }} {{ $item->unit }}</span>
+                            @if ($item->price !== null && $item->price_source !== null)
+                                {{-- CA-11: the price type of the line (GP-12 snapshot). --}}
+                                <span class="block text-xs text-muted" data-price-type>{{ __('account.orders.price_type') }}: {{ $item->price_source->label() }}</span>
+                            @endif
+                        </span>
                         <span class="font-medium">
                             @if ($item->price !== null)
                                 {{ \App\Support\Money::format(\App\Support\Money::fromRubles($item->price)) }} → {{ \App\Support\Money::format(\App\Support\Money::fromRubles((string) $item->total)) }}

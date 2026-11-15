@@ -103,13 +103,26 @@ describe('text on the page (TH-08, gate 40)', function (): void {
         }
     })->with(fn () => stage22ThemeIds());
 
+    it('keeps the hue of the status colors on a dark page: a lighter color of the same tone, not a mix with the text (TD-35)', function (string $id): void {
+        $css = stage22ThemeCss($id);
+        $channels = static fn (string $name): array => array_map('hexdec', str_split(substr((string) (preg_match('/--shop-'.$name.'-text: (#[0-9a-f]{6});/', $css, $m) === 1 ? $m[1] : ''), 1), 2));
+
+        [$sr, $sg, $sb] = $channels('success');
+        [$wr, $wg, $wb] = $channels('warn-deep');
+        [$dr, $dg, $db] = $channels('danger');
+
+        expect($sg)->toBeGreaterThan($sr)->and($sg)->toBeGreaterThan($sb)       // green stays green
+            ->and($wr)->toBeGreaterThan($wb)->and($wr)->toBeGreaterThanOrEqual($wg)  // orange stays warm
+            ->and($dr)->toBeGreaterThan($dg)->and($dr)->toBeGreaterThan($db);     // red stays red
+    })->with(['skviz', 'retro', 'chertyozh', 'arkada', 'grafit', 'nuar', 'garazh', 'hygge', 'terminal', 'ambra']);
+
     it('changes only the text utilities: fills, washes and labels keep their colors', function (): void {
         $css = stage22ThemeCss('opalubka');
         $theme = app(ThemeRegistry::class)->find('opalubka');
 
         expect($css)->toContain('--shop-primary: '.strtolower($theme->colors['primary']).';')
             ->toContain('.text-primary:not([class^="bg-"]):not([class*=" bg-"])')
-            ->toContain('.text-danger:not([class^="bg-"]):not([class*=" bg-"]),.hover\\:text-danger:hover')
+            ->toContain('.text-danger:not([class^="bg-"]):not([class*=" bg-"]){color:var(--shop-danger-text)}@media (hover:hover){.hover\\:text-danger:hover{')
             ->toContain('.\\[\\&_a\\]\\:text-primary a')
             ->not->toContain('--shop-danger:')
             ->not->toContain('--shop-success:')
@@ -204,30 +217,5 @@ describe('layout fixes from the preview check (D-161)', function (): void {
             ->and($prays)->toContain('data-card-grid="C5"');
     });
 
-    it('lets the C4 and C6 price row wrap and long labels break (no horizontal scroll at 320 px)', function (): void {
-        foreach (['c4', 'c6'] as $card) {
-            expect((string) file_get_contents(resource_path("views/storefront/partials/cards/{$card}.blade.php")))->toContain('flex flex-wrap items-center justify-between gap-2');
-        }
-
-        $actions = (string) file_get_contents(resource_path('views/storefront/partials/cards/_actions.blade.php'));
-        preg_match("/'compact' => \[(.*?)\],/s", $actions, $m);
-
-        expect($m[1])->not->toContain('whitespace-nowrap')->toContain('max-w-full');
-    });
-
-    it('rounds the C3 photo 8 px less than its soft tile, as in the previews', function (): void {
-        expect((string) file_get_contents(resource_path('css/theme/cards-listing.css')))
-            ->toContain("[data-card='C3'] [data-tile] {\n    border-radius: max(0px, calc(var(--shop-radius) - 8px));");
-    });
-
-    it('shows the G3 categories title once and puts the G2 text first on a phone', function (): void {
-        $bento = (string) file_get_contents(resource_path('views/storefront/home/blocks/bento.blade.php'));
-        $g2 = (string) file_get_contents(resource_path('views/storefront/home/blocks/_slide-g2.blade.php'));
-        $css = (string) file_get_contents(resource_path('css/theme/header-hero.css'));
-
-        expect($bento)->toContain("['tiles' => \$rest, 'title' => null")
-            ->and($g2)->not->toContain('order-')
-            ->and($css)->toContain('background: var(--shop-tile);')
-            ->toContain('background: var(--shop-accent);');
-    });
+    // The C3 photo radius, the C4 / C6 wrap and the G2 / G3 fixes are checked on the rendered pages in ThemeRenderedChecksTest (D-188).
 });

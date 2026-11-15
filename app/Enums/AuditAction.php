@@ -29,6 +29,10 @@ enum AuditAction: string
     case CustomerUnblocked = 'customer.unblocked';
     case CustomerAnonymized = 'customer.anonymized';
     case CustomerCodeResent = 'customer.code_resent';
+    case CustomerGroupCreated = 'customer_group.created';
+    case CustomerGroupUpdated = 'customer_group.updated';
+    case CustomerGroupDeleted = 'customer_group.deleted';
+    case CustomerGroupDefaultChanged = 'customer_group.default_changed';
     case ThemeChanged = 'theme.changed';
     case ThemeColorsChanged = 'theme.colors_changed';
     case ThemeFontsChanged = 'theme.fonts_changed';

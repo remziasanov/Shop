@@ -7,6 +7,7 @@ namespace App\Services\Export;
 use App\Enums\OrderStatus;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Services\Orders\PayerSnapshot;
 use App\Settings\GeneralSettings;
 use App\Settings\LegalSettings;
 use App\Support\Money;
@@ -105,7 +106,7 @@ final class OrderPdfRenderer
             'order' => $order,
             'title' => $this->documentTitle($order),
             'invoice' => $this->legal->hasBankRequisites(),
-            'company' => $order->customer?->company,
+            'company' => PayerSnapshot::companyFor($order),
             'money' => $this->moneyFormatter(),
             'discountLines' => OrderDiscountLines::for($order),
             'totalInWords' => $total === null ? null : (new NumberToWordsRu)->rubles($total),

@@ -52,10 +52,10 @@ class ExportController extends Controller
         $plan = $exports->plan($customer, $type, $params);
 
         if (! $plan->isAllowed()) {
+            $exports->releaseRequestSlot($customer);
+
             return redirect()->to(route('customer.orders').'#export')->withInput()->withErrors(['export' => (string) $plan->error]);
         }
-
-        $exports->hitRequest($customer);
 
         if ($plan->sync) {
             $path = $exports->buildTemporary($customer, $type, $params);
@@ -75,7 +75,11 @@ class ExportController extends Controller
         $customer = $this->currentCustomer($request);
         $export = $exports->find($customer, $uuid);
 
-        abort_if($export === null, 404);
+        if ($export === null) {
+            // TD-25: the cleanup keeps a tombstone, so an expired link is «gone», not «unknown».
+            abort_if($exports->wasPurged($customer, $uuid), 410, __('customer_export.errors.gone'));
+            abort(404);
+        }
 
         try {
             $exports->hitDownload($customer);

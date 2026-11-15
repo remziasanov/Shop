@@ -51,8 +51,14 @@ class CartPage extends Component
         $this->resetErrorBag();
         $cart = app(CartService::class)->current(request());
 
-        if ($cart !== null) {
-            app(CartService::class)->remove($cart, $productId, $variantKey > 0 ? $variantKey : null);
+        try {
+            if ($cart !== null) {
+                app(CartService::class)->remove($cart, $productId, $variantKey > 0 ? $variantKey : null);
+            }
+        } catch (SalesException $e) {
+            $this->addError('cart', $e->getMessage());
+
+            return;
         }
 
         $this->dispatch('cart-updated');
@@ -79,8 +85,14 @@ class CartPage extends Component
         $cart = app(CartService::class)->current(request());
         $ids = array_values(array_filter(array_map('intval', (array) session('cart_shortages', []))));
 
-        if ($cart !== null && $ids !== []) {
-            app(CartService::class)->reduceToAvailable($cart, $ids);
+        try {
+            if ($cart !== null && $ids !== []) {
+                app(CartService::class)->reduceToAvailable($cart, $ids);
+            }
+        } catch (SalesException $e) {
+            $this->addError('cart', $e->getMessage());
+
+            return;
         }
 
         session()->forget('cart_shortages');

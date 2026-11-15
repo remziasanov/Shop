@@ -43,11 +43,12 @@ final class StaffOrderMessage
      * buttons are switched off in the settings (TG-01): the message is then the plain v2.0 one.
      *
      * @param  bool  $cancelArmed  the first tap of «Отменить» happened: the button asks «Точно отменить?» (TS-04)
+     * @param  bool  $forWorkChat  false for a personal copy (TS-08): it does not depend on the work chat switch (TD-29)
      * @return array{inline_keyboard: list<list<array<string, mixed>>>}|null
      */
-    public function markup(Order $order, bool $cancelArmed = false): ?array
+    public function markup(Order $order, bool $cancelArmed = false, bool $forWorkChat = true): ?array
     {
-        if (! $this->access->buttonsEnabled()) {
+        if (! $this->access->buttonsEnabled($forWorkChat)) {
             return null;
         }
 

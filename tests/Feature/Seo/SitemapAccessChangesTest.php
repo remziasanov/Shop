@@ -3,14 +3,20 @@
 declare(strict_types=1);
 
 use App\Enums\CategoryAccessMode;
+use App\Enums\ImportStatus;
+use App\Filament\Resources\Products\Tables\ProductsTable;
 use App\Jobs\GenerateSitemap;
 use App\Models\Category;
 use App\Models\CustomerGroup;
+use App\Models\Import;
 use App\Models\Page;
 use App\Models\Product;
+use App\Models\User;
 use App\Services\Access\CustomerGroupService;
 use App\Services\Seo\SitemapGenerator;
-use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+use App\Services\Seo\SitemapRebuild;
+use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 
@@ -115,6 +121,38 @@ it('does not queue a rebuild for changes that do not affect the URLs or for new 
     Queue::assertNotPushed(GenerateSitemap::class);
 });
 
-it('is unique until it starts, so a burst of changes queues one job', function (): void {
-    expect(new GenerateSitemap)->toBeInstanceOf(ShouldBeUniqueUntilProcessing::class);
+it('is unique until it starts, so a burst of changes queues one job row', function (): void {
+    config(['queue.default' => 'database']);
+    DB::table('jobs')->delete();
+
+    $this->openProduct->update(['is_active' => false]);
+    $this->openProduct->update(['is_active' => true]);
+    $this->secretProduct->update(['category_id' => $this->open->id]);
+    SitemapRebuild::request();
+
+    expect(DB::table('jobs')->where('payload', 'like', '%GenerateSitemap%')->count())->toBe(1);
+});
+
+it('does not queue a rebuild per chunk while an import runs', function (): void {
+    Queue::fake();
+    Import::factory()->create(['status' => ImportStatus::Processing]);
+
+    $this->openProduct->update(['is_active' => false]);
+    SitemapRebuild::request();
+
+    Queue::assertNotPushed(GenerateSitemap::class);
+});
+
+it('queues a rebuild from the bulk activate action that writes without model events', function (): void {
+    Queue::fake();
+
+    $table = new ReflectionMethod(ProductsTable::class, 'updateAction');
+    $action = $table->invoke(null, 'activate', 'x', Heroicon::OutlinedEye, fn (): array => ['is_active' => false]);
+    $this->actingAs(User::factory()->admin()->create());
+
+    $call = $action->getActionFunction();
+    $call(collect([$this->secretProduct]), []);
+
+    Queue::assertPushed(GenerateSitemap::class, 1);
+    expect($this->secretProduct->fresh()->is_active)->toBeFalse();
 });

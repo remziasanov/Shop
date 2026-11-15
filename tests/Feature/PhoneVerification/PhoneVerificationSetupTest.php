@@ -94,6 +94,23 @@ describe('SMS text (PV-04)', function (): void {
             ->and(SmsTemplate::render(SmsTemplate::DEFAULT, '1234', 'Alev Shop'))->toBe('Код подтверждения: 1234. Alev Shop');
     });
 
+    it('strips the same domain zones in the shop name that validate() rejects in the template (PV-04, TD-33)', function (): void {
+        $render = fn (string $shop): string => SmsTemplate::render('{code} {shop}', '1234', $shop);
+
+        expect($render('Alev.biz'))->toBe('1234 Alev')
+            ->and($render('alev.москва'))->toBe('1234 alev')
+            ->and($render('alev.ru/catalog'))->toBe('1234 alev/catalog')
+            ->and($render('Alev.info'))->toBe('1234 Alev')
+            ->and($render('Alev Shop'))->toBe('1234 Alev Shop');
+
+        foreach (['biz', 'москва', 'info', 'shop', 'online'] as $zone) {
+            expect(SmsTemplate::validate('Код {code}, '.'alev.'.$zone))->toBe('link');
+        }
+
+        expect(SmsTemplate::validate('Код {code}, alev.ru/catalog'))->toBe('link')
+            ->and(SmsTemplate::validate('Код {code}. {shop}'))->toBeNull();
+    });
+
     it('shortens the shop name so the text fits one SMS', function (): void {
         $text = SmsTemplate::render(SmsTemplate::DEFAULT, '1234', str_repeat('Очень длинное название магазина ', 5));
 

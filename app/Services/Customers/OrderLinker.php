@@ -6,6 +6,7 @@ namespace App\Services\Customers;
 
 use App\Models\Customer;
 use App\Models\Order;
+use App\Services\Orders\PayerSnapshot;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -67,7 +68,11 @@ final class OrderLinker
 
             if ($ids !== []) {
                 // The condition is repeated: a parallel run may have linked some of them to the same customer already.
-                $linked += Order::query()->whereKey($ids)->whereNull('customer_id')->update(['customer_id' => $customer->id]);
+                $linked += Order::query()->whereKey($ids)->whereNull('customer_id')->update([
+                    'customer_id' => $customer->id,
+                    // CX-10: the requisites at the moment of linking are the earliest record a guest order can get.
+                    'payer_snapshot' => json_encode(PayerSnapshot::for($customer), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+                ]);
             }
         } while ($rows->count() === self::BATCH);
 

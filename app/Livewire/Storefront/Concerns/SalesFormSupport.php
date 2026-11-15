@@ -13,9 +13,9 @@ use App\Services\Access\ViewerContext;
 use App\Services\Content\MenuService;
 use App\Services\Customers\EmailNormalizer;
 use App\Services\Orders\OrderChannelResolver;
+use App\Services\PhoneVerification\PhoneVerificationService;
 use App\Services\Sales\FormGuard;
 use App\Settings\LegalSettings;
-use App\Support\PhoneNormalizer;
 use App\Support\TelegramMode;
 use Closure;
 use Livewire\Attributes\Locked;
@@ -50,7 +50,15 @@ trait SalesFormSupport
         }
 
         $this->prefillFromTelegram();
+
+        $this->afterSalesFormPrefill();
     }
+
+    /**
+     * A form may refine the prefill once the profile and Telegram data are in place (checkout: default address of the
+     * address book); the using class overrides it.
+     */
+    protected function afterSalesFormPrefill(): void {}
 
     /**
      * TM-05: in the Mini App the name comes from Telegram (first and last name) and the phone is the one Telegram
@@ -163,7 +171,7 @@ trait SalesFormSupport
     protected function phoneRule(): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail): void {
-            if (PhoneNormalizer::normalize(is_string($value) ? $value : null) === null) {
+            if (app(PhoneVerificationService::class)->contactPhone(is_string($value) ? $value : null) === null) {
                 $fail(__('sales.errors.phone_invalid'));
             }
         };

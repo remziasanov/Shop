@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\WholesaleApplicationStatus;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Resources\Customers\CustomerResource;
 use App\Filament\Resources\Customers\RelationManagers\WholesaleApplicationsRelationManager;
 use App\Filament\Resources\WholesaleApplications\Actions\WholesaleDecisionActions;
 use App\Filament\Resources\WholesaleApplications\Pages\ListWholesaleApplications;
@@ -112,6 +113,13 @@ describe('card (CG-24)', function (): void {
             ->assertSee('ООО «Ромашка»')
             ->assertSee('7707083893')
             ->assertSee('buyer@example.com');
+    });
+
+    it('links the customer of the application to the Customers resource (TD-08)', function (): void {
+        $this->actingAs(staffWith(['wholesale_applications.view']));
+
+        Livewire::test(ViewWholesaleApplication::class, ['record' => $this->application->getRouteKey()])
+            ->assertSeeHtml('href="'.CustomerResource::getUrl('view', ['record' => $this->customer]).'"');
     });
 
     it('warns the manager about a duplicate INN', function (): void {

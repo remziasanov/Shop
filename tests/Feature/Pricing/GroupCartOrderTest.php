@@ -9,6 +9,7 @@ use App\Exceptions\CartChangedException;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\CartPage;
 use App\Models\Cart;
+use App\Models\CustomerCompany;
 use App\Models\CustomerGroup;
 use App\Models\Order;
 use App\Models\ProductPriceTier;
@@ -224,6 +225,23 @@ it('prices the order of a signed-in customer for their group and stores the snap
 
     expect($order->customer_id)->toBe($customer->id)->and($order->customer_group_id)->toBe($this->group->id)->and($order->customer_group_name)->toBe('Опт')
         ->and($order->items->first()->price)->toBe('800.00')->and($order->items->first()->price_source)->toBe(PriceSource::Tier);
+});
+
+it('stores the payer requisites of the customer at the moment of the order (CX-10, TD-27)', function (): void {
+    $customer = makeCustomer(['customer_group_id' => $this->group->id]);
+    CustomerCompany::factory()->create(['customer_id' => $customer->id, 'name' => 'ООО «Тогда»', 'inn' => '7707083893']);
+    signInCustomer($this, $customer);
+    nextRequest();
+    request()->setLaravelSession(app('session.store'));
+    app(ViewerContext::class)->actingAs(null);
+    app(ViewerContext::class)->beginRequest();
+
+    $cart = $this->carts->getOrCreate(request());
+    $this->carts->add($cart, $this->product, 1);
+    $order = app(OrderService::class)->createFromCart($cart, checkoutData());
+
+    expect($order->refresh()->payer_snapshot['company']['name'])->toBe('ООО «Тогда»')
+        ->and($order->payer_snapshot['company']['inn'])->toBe('7707083893');
 });
 
 it('re-resolves the price at checkout and sends the cart back when it changed (GP-13)', function (): void {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Demo;
 
+use App\Enums\AgeRestriction;
 use App\Enums\SalesMode;
 use App\Models\Category;
 use App\Models\Product;
@@ -113,6 +114,12 @@ final class DemoCatalogSeeder
 
     /** Indexes (0-based) of products shown as "price on request". */
     public const PRICE_ON_REQUEST = [20, 47];
+
+    /**
+     * Products with an own age restriction (AG-01), by product index: a gaming headset (16+) and a knife set (18+),
+     * so the age gate and the «16+/18+» badges have something to show in the demo.
+     */
+    public const AGE_RESTRICTED = [18 => AgeRestriction::Age16, 35 => AgeRestriction::Age18];
 
     public function __construct(
         private readonly ImageProcessor $images,
@@ -295,6 +302,7 @@ final class DemoCatalogSeeder
             'is_active' => true,
             'is_featured' => $index % 7 === 0,
             'is_new' => $index % 5 === 1,
+            'age_restriction' => (self::AGE_RESTRICTED[$index] ?? null)?->value,
             'sort_order' => $index,
         ]);
 

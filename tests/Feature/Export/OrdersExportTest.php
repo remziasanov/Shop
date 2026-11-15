@@ -8,6 +8,7 @@ use App\Enums\OrderStatus;
 use App\Filament\Resources\Exports\ExportResource;
 use App\Filament\Resources\Orders\Pages\ListOrders;
 use App\Jobs\ExportOrders;
+use App\Models\Customer;
 use App\Models\Export;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -68,6 +69,19 @@ it('exports one row per item with the order data (EX-02)', function (): void {
         ->and($rows[1][16])->toBe('Быстрее')
         ->and($rows[2][10])->toBe('B-1')
         ->and($rows[2][0])->toBe('Z-00010');
+});
+
+it('adds the customer id column, empty for a guest (EX-02)', function (): void {
+    $customer = Customer::factory()->create();
+    Order::factory()->withItems(1)->create(['number' => 'Z-00020', 'customer_id' => $customer->id]);
+    Order::factory()->withItems(1)->create(['number' => 'Z-00021', 'customer_id' => null]);
+
+    $export = app(ExportManager::class)->request(ExportType::Orders, [], User::factory()->admin()->create());
+    $rows = collect(array_values(ordersFile($export)));
+
+    expect($rows[0][18])->toBe('Покупатель (ID)')
+        ->and((int) $rows->firstWhere(0, 'Z-00020')[18])->toBe($customer->id)
+        ->and($rows->firstWhere(0, 'Z-00021')[18] ?? null)->toBeNull();
 });
 
 it('builds the set of orders from the parameters', function (): void {

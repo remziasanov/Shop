@@ -11,9 +11,9 @@ use App\Models\Category;
 use App\Models\CustomerGroup;
 use App\Models\Page;
 use App\Models\Product;
+use App\Services\Seo\SitemapRebuild;
 use App\View\Composers\CookieBannerComposer;
 use Closure;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -45,11 +45,7 @@ class SeoServiceProvider extends ServiceProvider
     private function rebuildSitemapOnVisibilityChanges(): void
     {
         $request = static function (): void {
-            if (config('shop.sitemap_rebuild_on_change') !== true) {
-                return;
-            }
-
-            DB::afterCommit(static fn () => GenerateSitemap::dispatch());
+            SitemapRebuild::request();
         };
 
         $changed = static function (array $attributes) use ($request): Closure {

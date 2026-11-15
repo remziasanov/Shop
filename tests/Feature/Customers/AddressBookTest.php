@@ -109,7 +109,13 @@ it('answers 404 for the address of another customer (CA-28)', function (): void 
 });
 
 it('fills the checkout with the default address and lets the customer pick another one (CA-09)', function (): void {
-    CustomerAddress::factory()->default()->create(['customer_id' => $this->customer->id, 'label' => 'Дом', 'address' => 'Адрес по умолчанию']);
+    CustomerAddress::factory()->default()->create([
+        'customer_id' => $this->customer->id,
+        'label' => 'Дом',
+        'recipient_name' => 'Получатель По Умолчанию',
+        'phone' => '+79005550000',
+        'address' => 'Адрес по умолчанию',
+    ]);
     $second = CustomerAddress::factory()->create(['customer_id' => $this->customer->id, 'label' => 'Офис', 'address' => 'Адрес офиса']);
     $foreign = CustomerAddress::factory()->create(['customer_id' => makeCustomer()->id, 'address' => 'Чужой адрес']);
     sales(['stock_tracking' => true]);
@@ -122,7 +128,11 @@ it('fills the checkout with the default address and lets the customer pick anoth
         ->map(fn (string $raw): array => json_decode(html_entity_decode($raw), true) ?: [])
         ->first(fn (array $snapshot): bool => ($snapshot['memo']['name'] ?? '') === 'storefront.checkout-form');
 
-    expect($state['data']['address'])->toBe('Адрес по умолчанию');
+    // TD-13: the recipient and the phone of the default entry win over the profile on the first load.
+    expect($state['data']['address'])->toBe('Адрес по умолчанию')
+        ->and($state['data']['name'])->toBe('Получатель По Умолчанию')
+        ->and($state['data']['phone'])->toBe('+79005550000')
+        ->and($state['data']['email'])->toBe($this->customer->email);
 
     // Picking an entry (the method Livewire calls when the select changes) fills the address; foreign ids are ignored.
     nextRequest();
@@ -163,4 +173,20 @@ it('fills the recipient and the phone from the picked entry of the address book 
     expect($form->name)->toBe('Получатель Другой')
         ->and($form->phone)->toBe('+79001112233')
         ->and($form->address)->toBe('Адрес получателя');
+});
+
+it('keeps the rejected input of the new address form out of the edit forms of other entries (TD-08)', function (): void {
+    $entry = CustomerAddress::factory()->create(['customer_id' => $this->customer->id, 'label' => 'Офис', 'address' => 'Адрес офиса']);
+
+    $this->from(route('customer.addresses'))
+        ->post(route('customer.addresses.store'), addressBody(['_form' => 'new', 'label' => 'Новый черновик', 'address' => '']))
+        ->assertRedirect(route('customer.addresses'));
+
+    $html = (string) $this->get(route('customer.addresses'))->assertOk()->getContent();
+
+    // The new form shows what was typed; the edit form of the existing entry keeps its stored values.
+    expect($html)->toContain('value="Новый черновик"')
+        ->and(substr_count($html, 'value="Новый черновик"'))->toBe(1)
+        ->and($html)->toContain('value="Офис"')
+        ->and($html)->toContain('value="Адрес офиса"');
 });

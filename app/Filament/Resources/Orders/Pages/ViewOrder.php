@@ -220,7 +220,16 @@ class ViewOrder extends ViewRecord
                 // OE-07/OE-08: one transaction moves the comment, the version and the change log.
                 $actor = $this->actor();
                 abort_if($actor === null, 403);
-                app(OrderEditor::class)->saveManagerComment($this->record->id, $comment === '' ? null : $comment, $actor);
+
+                try {
+                    app(OrderEditor::class)->saveManagerComment($this->record->id, $comment === '' ? null : $comment, $actor);
+                } catch (SalesException $e) {
+                    // The order was deleted while the form was open: a notification instead of a 500.
+                    Notification::make()->danger()->title($e->getMessage())->send();
+
+                    return;
+                }
+
                 $this->record->refresh();
 
                 Notification::make()->success()->title(__('admin_orders.actions.manager_comment_saved'))->send();

@@ -33,9 +33,10 @@
     @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/telegram.js'])
     @livewireStyles
 </head>
-@php($noBottomNav = $__env->hasSection('no_bottom_nav'))
+@php($noBottomNav = $__env->hasSection('no_bottom_nav') || $__env->hasSection('bare'))
 {{-- TS-05: the «Рабочее место» is a staff screen: no shop search, cart, cookie banner or age gate around it. --}}
-@php($staffScreen = $__env->hasSection('staff'))
+{{-- TM-11: the closed-shop page (section `bare`) has no search, cart or bottom bar either. --}}
+@php($staffScreen = $__env->hasSection('staff') || $__env->hasSection('bare'))
 <body class="flex min-h-screen flex-col overflow-x-clip bg-bg pb-[var(--shop-nav-total)] text-ink antialiased" x-data="tgBridge(@js($tgConfig))" @if ($noBottomNav) data-nav="off" @endif @if ($__env->hasSection('sticky_bar')) data-sticky @endif>
     @unless ($staffScreen)
         @include('storefront.partials.tg-topbar')

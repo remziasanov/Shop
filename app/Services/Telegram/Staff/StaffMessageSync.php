@@ -33,9 +33,9 @@ final class StaffMessageSync
     /**
      * Redraws the message the staff member just tapped, right after the transaction was committed (TS-04).
      */
-    public function redrawNow(string|int $chatId, int $messageId, Order $order, bool $cancelArmed = false): void
+    public function redrawNow(string|int $chatId, int $messageId, Order $order, bool $cancelArmed = false, bool $forWorkChat = true): void
     {
-        $content = $this->notifier->content($order, $cancelArmed);
+        $content = $this->notifier->content($order, $cancelArmed, $forWorkChat);
         $params = [
             'chat_id' => $chatId,
             'message_id' => $messageId,
@@ -77,7 +77,8 @@ final class StaffMessageSync
             return;
         }
 
-        $content = $this->notifier->content($order);
+        $workContent = $this->notifier->content($order);
+        $personalContent = $this->notifier->content($order, forWorkChat: false);
 
         foreach ($copies as $copy) {
             if ($exceptMessageId !== null && $copy->message_id === $exceptMessageId && (string) $copy->chat_id === (string) $exceptChatId) {
@@ -87,6 +88,8 @@ final class StaffMessageSync
             if ($copy->telegram_account_id !== null && ! $this->personalCopyAllowed($copy)) {
                 continue;
             }
+
+            $content = $copy->telegram_account_id !== null ? $personalContent : $workContent;
 
             EditTelegramMessage::dispatch((string) $copy->chat_id, (int) $copy->message_id, $content['text'], $content['markup'], 'HTML');
         }

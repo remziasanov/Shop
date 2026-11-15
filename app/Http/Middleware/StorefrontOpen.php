@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Settings\GeneralSettings;
+use App\Support\TelegramMode;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -34,14 +35,14 @@ class StorefrontOpen
     }
 
     /**
-     * The 503 "shop closed" response; also thrown by storefront Livewire components ({@see RequiresOpenShop}).
+     * The 503 "shop closed" response (TM-11: in the Telegram mode it renders in the Telegram layout); also thrown by storefront Livewire components ({@see RequiresOpenShop}).
      */
     public static function closedResponse(?string $message = null): Response
     {
         $message ??= trim((string) app(GeneralSettings::class)->closed_message);
 
         return response()
-            ->view('errors.shop-closed', ['message' => $message], 503)
+            ->view(TelegramMode::active() ? 'storefront.telegram.shop-closed' : 'errors.shop-closed', ['message' => $message], 503)
             ->header('Retry-After', '3600')
             ->header('Cache-Control', 'no-store, private');
     }
@@ -69,6 +70,8 @@ class StorefrontOpen
     {
         $admin = trim((string) config('shop.admin_path'), '/');
 
+        // TM-11: `/tg` (the light entry page, no catalog data) stays reachable while the shop is closed: the visitor lands
+        // on the closed page in the Telegram layout after `/tg/session`, and the staff of the Mini App must get in (TS-05).
         // TS-05: the staff of the Mini App «Рабочее место» work with the requests of a closed shop too.
         return $request->is('up', 'robots.txt', 'livewire*', 'livewire-*/*', 'tg', 'tg/session', 'tg/leave', 'tg/staff', 'tg/staff/*')
             || ($admin !== '' && $request->is($admin, $admin.'/*'));

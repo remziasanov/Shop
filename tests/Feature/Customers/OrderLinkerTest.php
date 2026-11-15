@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\VerificationPurpose;
 use App\Events\CustomerEmailVerified;
 use App\Models\Customer;
+use App\Models\CustomerCompany;
 use App\Models\Order;
 use App\Services\Access\ViewerContext;
 use App\Services\Customers\OrderLinker;
@@ -31,6 +32,16 @@ it('links guest requests by a confirmed e-mail regardless of letter case, in bat
     expect(Order::query()->where('customer_id', $customer->id)->count())->toBe(3)
         ->and($taken->fresh()->customer_id)->not->toBe($customer->id)
         ->and(Order::query()->whereNull('customer_id')->count())->toBe(1);
+});
+
+it('records the payer requisites of the customer on the linked requests (CX-10, TD-27)', function (): void {
+    $customer = makeCustomer(['email' => 'payer@example.com']);
+    CustomerCompany::factory()->create(['customer_id' => $customer->id, 'name' => 'ООО «Плательщик»', 'inn' => '7707083893']);
+    $order = Order::factory()->create(['customer_email' => 'payer@example.com']);
+
+    app(OrderLinker::class)->link($customer);
+
+    expect($order->refresh()->payer_snapshot['company']['name'])->toBe('ООО «Плательщик»');
 });
 
 it('processes more than one batch', function (): void {

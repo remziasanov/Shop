@@ -69,10 +69,17 @@ final class StaffAccess
         return $this->settings->staff_workplace_enabled && $this->settings->miniapp_enabled && $this->botReady();
     }
 
-    public function buttonsEnabled(): bool
+    /**
+     * TD-29: the buttons of the work chat messages need the work chat switch (`enabled`); the personal copies (TS-08) do
+     * not depend on it, they need the buttons setting and the connected bot only.
+     */
+    public function buttonsEnabled(bool $forWorkChat = true): bool
     {
-        // Chat buttons live on work chat messages, so the work chat switch applies to them (not to the workplace / personal copies).
-        return $this->settings->enabled && $this->settings->work_chat_buttons_enabled && $this->botReady();
+        if ($forWorkChat && ! $this->settings->enabled) {
+            return false;
+        }
+
+        return $this->settings->work_chat_buttons_enabled && $this->botReady();
     }
 
     /** TS-05: all entry conditions of the Mini App except the signature: feature on, active user, `orders.view`. */

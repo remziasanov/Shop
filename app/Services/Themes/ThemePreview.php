@@ -70,16 +70,13 @@ final class ThemePreview
     }
 
     /**
-     * Id of the previous / next theme in the registry order (`default` first), wrapping around.
+     * Id of the previous / next theme in the registry order (`default` first), wrapping around. The id is always a
+     * registered one (`state()` drops a session theme that is not in the registry), so the position always exists.
      */
     public function neighbour(string $themeId, int $step): string
     {
         $ids = array_keys($this->themes->all());
-        $index = array_search($themeId, $ids, true);
-
-        if ($index === false) {
-            return $step < 0 ? $ids[count($ids) - 1] : $ids[0];
-        }
+        $index = (int) array_search($themeId, $ids, true);
 
         return $ids[($index + $step + count($ids)) % count($ids)];
     }

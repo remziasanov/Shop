@@ -11,6 +11,7 @@ use App\Services\Catalog\CatalogQuery;
 use App\Services\Catalog\CatalogVersion;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Catalog\FacetService;
+use App\Services\Catalog\FacetWarmer;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,6 +24,8 @@ use Illuminate\Support\Facades\DB;
  *
  * `FACET_PERF_MAX_MS` (default 100, FL-12) is the allowed time of one facet query. Measured on MySQL 8.0 at 20 000 x 8: numeric
  * ~15 ms, list facets 33-51 ms (before the selection became a derived table: ~210 and 52-65 ms).
+ * The no-filter page (the slowest to build: the whole category is counted) is timed the same way; at 20 000 x 8 on MySQL
+ * it measured 129-154 ms (numeric) and 52-118 ms (lists) with a cold cache, which is why `FacetWarmer` builds it in the queue.
  * `FACET_PERF_EXPLAIN=1` prints the MySQL plan of every facet query to stderr.
  */
 beforeEach(function (): void {
@@ -174,6 +177,32 @@ it('answers every facet query in time and keeps listing and counters consistent 
     $total = app(CatalogQuery::class)->selection($withColor, app(CategoryTree::class)->descendantIds($this->root->id))->count();
 
     expect($total)->toBe($color->count);
+})->group('perf');
+
+it('answers every facet query of the page WITHOUT filters in time, and the warmer takes them off the page (FL-12, D-164)', function (): void {
+    $max = (float) (getenv('FACET_PERF_MAX_MS') ?: 100);
+    $url = route('catalog.category', 'big');
+
+    // The first run warms the database buffers; a new catalog version makes the facets be built again.
+    profileRequest($url);
+    CatalogVersion::bump();
+    $cold = profileRequest($url);
+
+    if (getenv('FACET_PERF_EXPLAIN')) {
+        fwrite(STDERR, "\ncold unfiltered facet times, ms: ".implode(', ', array_map(fn (array $query): string => sprintf('%.1f', $query['ms']), $cold['facet']))."\n");
+    }
+
+    expect($cold['facet'])->not->toBeEmpty();
+
+    foreach ($cold['facet'] as $query) {
+        expect($query['ms'])->toBeLessThan($max, $query['sql']);
+    }
+
+    // After the catalog version changed, the warming job builds the same key in the background.
+    CatalogVersion::bump();
+    app(FacetWarmer::class)->warm(0, 600.0);
+
+    expect(profileRequest($url)['facet'])->toBe([]);
 })->group('perf');
 
 it('stays within 30 queries on a worst-case page: nine list filters, none cached (NF-02, FL-10)', function (): void {

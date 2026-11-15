@@ -44,13 +44,14 @@
                             <summary class="cursor-pointer text-sm text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.addresses.edit') }}</summary>
                             <form method="POST" action="{{ route('customer.addresses.update', $item->id) }}" class="mt-3 space-y-4" novalidate>
                                 @csrf
-                                <x-account.field :prefix="'ae'.$item->id" name="label" :label="__('account.addresses.fields.label')" :value="$item->label" maxlength="100" />
-                                <x-account.field :prefix="'ae'.$item->id" name="recipient_name" :label="__('account.addresses.fields.recipient_name')" :value="$item->recipient_name" autocomplete="name" maxlength="150" />
-                                <x-account.field :prefix="'ae'.$item->id" name="phone" type="tel" :label="__('account.addresses.fields.phone')" :value="$item->phone" autocomplete="tel" inputmode="tel"
+                                <input type="hidden" name="_form" value="edit-{{ $item->id }}">
+                                <x-account.field :prefix="'ae'.$item->id" :form="'edit-'.$item->id" name="label" :label="__('account.addresses.fields.label')" :value="$item->label" maxlength="100" />
+                                <x-account.field :prefix="'ae'.$item->id" :form="'edit-'.$item->id" name="recipient_name" :label="__('account.addresses.fields.recipient_name')" :value="$item->recipient_name" autocomplete="name" maxlength="150" />
+                                <x-account.field :prefix="'ae'.$item->id" :form="'edit-'.$item->id" name="phone" type="tel" :label="__('account.addresses.fields.phone')" :value="$item->phone" autocomplete="tel" inputmode="tel"
                                                  x-data="phoneMask" x-on:input="format($event)" />
-                                <x-account.field :prefix="'ae'.$item->id" name="address" :label="__('account.addresses.fields.address')" :value="$item->address" autocomplete="street-address" maxlength="500" />
+                                <x-account.field :prefix="'ae'.$item->id" :form="'edit-'.$item->id" name="address" :label="__('account.addresses.fields.address')" :value="$item->address" autocomplete="street-address" maxlength="500" />
                                 <label class="flex items-center gap-2 text-sm">
-                                    <input type="checkbox" name="is_default" value="1" @checked($item->is_default) class="h-4 w-4 rounded-btn border-line-heavy focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                                    <input type="checkbox" name="is_default" value="1" @checked(old('_form') === 'edit-'.$item->id ? old('is_default') : $item->is_default) class="h-4 w-4 rounded-btn border-line-heavy focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                                     {{ __('account.addresses.fields.is_default') }}
                                 </label>
                                 <x-account.button>{{ __('account.addresses.save') }}</x-account.button>
@@ -66,13 +67,14 @@
                 <h2 id="address-add-title" class="text-lg font-semibold">{{ __('account.addresses.add') }}</h2>
                 <form method="POST" action="{{ route('customer.addresses.store') }}" class="mt-3 space-y-4" novalidate>
                     @csrf
-                    <x-account.field prefix="an" name="label" :label="__('account.addresses.fields.label')" maxlength="100" :hint="__('account.addresses.label_hint')" />
-                    <x-account.field prefix="an" name="recipient_name" :label="__('account.addresses.fields.recipient_name')" autocomplete="name" maxlength="150" />
-                    <x-account.field prefix="an" name="phone" type="tel" :label="__('account.addresses.fields.phone')" autocomplete="tel" inputmode="tel"
+                    <input type="hidden" name="_form" value="new">
+                    <x-account.field prefix="an" form="new" name="label" :label="__('account.addresses.fields.label')" maxlength="100" :hint="__('account.addresses.label_hint')" />
+                    <x-account.field prefix="an" form="new" name="recipient_name" :label="__('account.addresses.fields.recipient_name')" autocomplete="name" maxlength="150" />
+                    <x-account.field prefix="an" form="new" name="phone" type="tel" :label="__('account.addresses.fields.phone')" autocomplete="tel" inputmode="tel"
                                      x-data="phoneMask" x-on:input="format($event)" />
-                    <x-account.field prefix="an" name="address" :label="__('account.addresses.fields.address')" autocomplete="street-address" maxlength="500" />
+                    <x-account.field prefix="an" form="new" name="address" :label="__('account.addresses.fields.address')" autocomplete="street-address" maxlength="500" />
                     <label class="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="is_default" value="1" @checked(old('is_default')) class="h-4 w-4 rounded-btn border-line-heavy focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                        <input type="checkbox" name="is_default" value="1" @checked(old('_form') === 'new' && old('is_default')) class="h-4 w-4 rounded-btn border-line-heavy focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                         {{ __('account.addresses.fields.is_default') }}
                     </label>
                     <x-account.button>{{ __('account.addresses.add_submit') }}</x-account.button>

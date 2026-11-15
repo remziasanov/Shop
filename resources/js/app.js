@@ -612,6 +612,7 @@ document.addEventListener('alpine:init', () => {
         deadline: Date.now() + Math.max(0, seconds) * 1000,
         timer: null,
         announcement: '',
+        bucket: Math.ceil(Math.max(0, seconds) / 15),
 
         init() {
             if (this.left > 0) {
@@ -626,7 +627,9 @@ document.addEventListener('alpine:init', () => {
             if (this.left === 0) {
                 clearInterval(this.timer);
                 this.announcement = ready;
-            } else if (this.left % 15 === 0) {
+            } else if (Math.ceil(this.left / 15) !== this.bucket) {
+                // Background tabs throttle timers: announce whenever a new 15-second step is reached, not only on exact multiples.
+                this.bucket = Math.ceil(this.left / 15);
                 this.announcement = this.text();
             }
         },

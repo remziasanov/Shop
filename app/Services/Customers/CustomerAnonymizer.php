@@ -79,6 +79,7 @@ final class CustomerAnonymizer
                 'customer_comment' => null,
                 'user_agent' => null,
                 'consent_ip' => self::NO_IP,
+                'payer_snapshot' => null,
             ]);
 
             CustomerAddress::query()->where('customer_id', $locked->id)->delete();
