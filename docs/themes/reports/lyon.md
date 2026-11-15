@@ -10,14 +10,14 @@
 - Форма: поверхность `none`, скругление 0 px, кнопки 0 px, рамка 1 px.
 - Шрифты: заголовки Bona Nova 400, текст Mulish, моноширинного нет.
 - Особенности `extras`: нет.
-- Значения из `docs/themes/themes.json` перенесены без изменений: рантайм-копия `resources/themes/themes.json` побайтно равна источнику (тест `ThemeSpecTest`).
+- Значения из `docs/themes/themes.json` перенесены без изменений: рантайм-копия `resources/themes/themes.json` побайтно равна источнику (тест «keeps resources/themes identical to docs/themes» в `tests/Unit/Themes/ThemeResolverTest.php`).
 
 ## Материал Hallmark
 
 Прочитано: `.claude/skills/hallmark/references/themes/loom.md`; экраны каталога, товара и корзины — по `references/flow.md`, раздел App screens.
 
 - Палитра: Материал задаёт песочно-экрюовую бумагу, тёплые чернила и один индиго только как заливку, линию или фокус; bg #EFE8DA, ink #2A2620 и primary/accent #2A3A78 эту схему передают.
-- Типографика: Заголовки Libre Caslon Display 400 от 32px без курсива и синтетической жирности, заголовки h3 и текст Hanken Grotesk 400/500, столбцы цен DM Mono; отступление: заголовки из themes.json Bona Nova 400 вместо Libre Caslon Display, текст Mulish вместо Hanken Grotesk — Libre Caslon Display и Hanken Grotesk нет в утверждённом списке шрифтов с кириллицей.
+- Типографика: Заголовки, а также цены и цифры от 40 px — Libre Caslon Display 400 (не мельче 32 px, без курсива и синтетической жирности), подписи и метки — Hanken Grotesk 500, DM Mono — только для цифр, которые сравнивают в строке; отступление: заголовки из themes.json Bona Nova 400 вместо Libre Caslon Display, текст Mulish вместо Hanken Grotesk — Libre Caslon Display и Hanken Grotesk нет в утверждённом списке шрифтов с кириллицей.
 - Поверхности: Квадратные углы 0 и отсутствие теней совпадают с материалом (radius 0, surface=none); тонкие линии 1px между строками тоже совпадают.
 - Запреты материала, важные для витрины: не делать тени, скругления и мягкие карточки; не ставить тёплый акцент (ржавый, терракота) рядом с экрю.
 
