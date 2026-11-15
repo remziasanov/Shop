@@ -113,6 +113,31 @@ it('does not warm categories the group cannot see, nor when the facet cache is o
         ->and(facetQueriesOf(route('catalog.category', 'warm')))->toBeGreaterThan(0);
 });
 
+it('keeps a quiet catalog warm: the next pass starts one minute after the entries of the last one expired', function (): void {
+    $minutes = app(CatalogSettings::class)->facets_cache_minutes;
+    versionAged(600);
+    Queue::fake();
+
+    $pass = function (): void {
+        $this->artisan('shop:warm-facets')->assertSuccessful();
+        app()->call([new WarmCategoryFacets(0, CatalogVersion::current()), 'handle']);
+    };
+
+    $pass();
+    Queue::assertPushed(WarmCategoryFacets::class, 1);
+
+    // The entries are still valid: a pass now would only read them back, so nothing is queued.
+    $this->travel($minutes - 1)->minutes();
+    $this->artisan('shop:warm-facets')->assertSuccessful();
+    Queue::assertPushed(WarmCategoryFacets::class, 1);
+
+    // They expired a minute ago: the next pass rebuilds them, and the page reads them from the cache again.
+    $this->travel(2)->minutes();
+    $pass();
+    Queue::assertPushed(WarmCategoryFacets::class, 2);
+    expect(facetQueriesOf(route('catalog.category', 'warm')))->toBe(0);
+});
+
 it('queues one warming job from the command and the job warms the cache', function (): void {
     versionAged(600);
     Queue::fake();
@@ -141,13 +166,22 @@ describe('start conditions of shop:warm-facets (D-165)', function (): void {
         Queue::assertPushed(WarmCategoryFacets::class, 1);
     });
 
-    it('queues a chain when the last pass of the same version is about to expire', function (): void {
+    it('queues a chain once the entries of the last pass of the same version have expired', function (): void {
+        $minutes = app(CatalogSettings::class)->facets_cache_minutes;
+        lastPass($this->version, ($minutes + 1) * 60 + 5);
+
+        $this->artisan('shop:warm-facets')->assertSuccessful();
+
+        Queue::assertPushed(WarmCategoryFacets::class, 1);
+    });
+
+    it('does nothing while the entries of the last pass of the same version are still valid', function (): void {
         $minutes = app(CatalogSettings::class)->facets_cache_minutes;
         lastPass($this->version, ($minutes - 1) * 60 + 5);
 
         $this->artisan('shop:warm-facets')->assertSuccessful();
 
-        Queue::assertPushed(WarmCategoryFacets::class, 1);
+        Queue::assertNothingPushed();
     });
 
     it('does nothing when the last pass of the same version is fresh', function (): void {

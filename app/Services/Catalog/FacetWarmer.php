@@ -74,12 +74,14 @@ final class FacetWarmer
             return false;
         }
 
+        // A pass of the same version is repeated only once its entries have expired: they live `facets_cache_minutes` from
+        // their build, which ends before the pass is recorded, and a pass started earlier would only read them back.
         $last = Cache::get(self::LAST_PASS_KEY);
-        $expiring = ! is_array($last)
+        $due = ! is_array($last)
             || ($last['version'] ?? null) !== $version
-            || (int) ($last['at'] ?? 0) <= now()->getTimestamp() - max(1, $minutes - 1) * 60;
+            || (int) ($last['at'] ?? 0) <= now()->getTimestamp() - ($minutes + 1) * 60;
 
-        return $expiring && ! Import::anyRunning();
+        return $due && ! Import::anyRunning();
     }
 
     /**
