@@ -29,6 +29,14 @@ final class PiiMask
     }
 
     /**
+     * Masks phone-like digit runs (6+ digits, optional separators) inside free text such as a provider message.
+     */
+    public static function digitRuns(string $text): string
+    {
+        return preg_replace_callback('/\+?\d[\d\s().-]{4,}\d/u', fn (array $m): string => strlen(preg_replace('/\D+/', '', $m[0]) ?? '') >= 7 ? self::phone($m[0]) : $m[0], $text) ?? $text;
+    }
+
+    /**
      * Masks every email address inside free text (exception messages of the mailer, SMTP replies).
      */
     public static function scrubEmails(string $text): string

@@ -27,6 +27,7 @@
                         class="min-h-11 rounded-btn border border-line-strong px-4 text-sm font-medium hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('telegram_miniapp.checkout.use_my_phone') }}</button>
             @endif
             <x-storefront.field prefix="co" name="email" type="email" :label="__('storefront_sales.fields.email')" autocomplete="email" maxlength="190" />
+            <x-storefront.phone-verify prefix="co-pv" :active="$pvActive" :method="$pvMethod" :can-sms="$pvCanSms" :resend-at="$pvResendAt" :phone="$pvPhone" :locked="$accountLocked" />
         </fieldset>
 
         @if ($hasOrder)

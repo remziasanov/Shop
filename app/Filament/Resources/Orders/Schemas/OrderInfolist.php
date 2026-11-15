@@ -94,6 +94,11 @@ final class OrderInfolist
                             ->icon(Heroicon::OutlinedPhone)
                             ->extraAttributes(['class' => 'min-h-11 items-center'])
                             ->url(fn (Order $record): string => 'tel:'.$record->customer_phone),
+                        TextEntry::make('phone_verified')
+                            ->label(__('phone_verification.badge'))
+                            ->state(fn (Order $record): string => $record->phone_verified ? __('phone_verification.screen.verified') : __('phone_verification.not_verified'))
+                            ->badge()
+                            ->color(fn (Order $record): string => $record->phone_verified ? 'success' : 'gray'),
                         TextEntry::make('whatsapp')
                             ->label(__('admin_orders.view.whatsapp'))
                             ->state(fn (Order $record): string => '+'.self::digits($record))

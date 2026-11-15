@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Account;
 
+use App\Enums\PhoneVerificationPurpose;
 use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Http\Controllers\Controller;
@@ -13,9 +14,14 @@ use App\Http\Requests\Account\CodeRequest;
 use App\Http\Requests\Account\EmailRequest;
 use App\Http\Requests\Account\ProfileRequest;
 use App\Models\Customer;
+use App\Models\TelegramAccount;
 use App\Services\Customers\CustomerAuthService;
+use App\Services\PhoneVerification\PhoneChallenge;
+use App\Services\PhoneVerification\PhoneVerificationGate;
 use App\Settings\CustomerSettings;
+use App\Support\PhoneNormalizer;
 use App\Support\PiiMask;
+use App\Support\TelegramMode;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,19 +36,73 @@ class ProfileController extends Controller
 
     private const NEW_EMAIL_KEY = 'customer_email_change';
 
-    public function show(Request $request, CustomerSettings $settings): View
+    public function show(Request $request, CustomerSettings $settings, PhoneVerificationGate $gate): View
     {
+        $customer = $this->customer($request);
+
         return $this->page('profile', __('account.profile.title'), [
-            'customer' => $this->customer($request),
+            'customer' => $customer,
             'passwordMin' => $settings->password_min_length,
+            'phonePrompt' => $gate->accountPrompt($customer),
+            'telegramPhone' => $this->telegramPhone($request, $customer),
         ]);
     }
 
-    public function update(ProfileRequest $request, CustomerAuthService $auth): RedirectResponse
+    public function update(ProfileRequest $request, CustomerAuthService $auth, PhoneVerificationGate $gate, PhoneChallenge $challenges): RedirectResponse
     {
-        $auth->updateProfile($this->customer($request), (string) $request->validated('name'), $request->normalizedPhone());
+        $customer = $this->customer($request);
+        $name = (string) $request->validated('name');
+        $phone = $request->normalizedPhone();
+
+        // PV-07, PV-13 б: only a number that differs from the current one is verified; the form waits for the code.
+        if ($customer->phone !== $phone && $gate->profileChangeEnabled()) {
+            if (! $gate->isPhoneVerified($phone, PhoneVerificationPurpose::ProfileChange, $customer, $request->session())) {
+                $challenges->parkProfileChange($request->session(), $customer, $name, $phone);
+
+                return redirect()->route('customer.phone');
+            }
+
+            $auth->updateProfile($customer, $name, $phone, true);
+
+            return redirect()->route('customer.profile')->with('status', __('phone_verification.screen.profile_saved_verified'));
+        }
+
+        // PV-13 е: a changed number resets the verification (also when the scenario is off).
+        $auth->updateProfile($customer, $name, $phone);
 
         return redirect()->route('customer.profile')->with('status', __('account.profile.saved'));
+    }
+
+    /**
+     * TG-09, PV-13 е: «Сохранить в профиль» — the phone Telegram verified goes to the profile and counts as verified.
+     */
+    public function saveTelegramPhone(Request $request, CustomerAuthService $auth): RedirectResponse
+    {
+        $customer = $this->customer($request);
+        $phone = $this->telegramPhone($request, $customer);
+
+        abort_if($phone === null, 404);
+
+        $auth->updateProfile($customer, $customer->name, $phone, true);
+
+        return redirect()->route('customer.profile')->with('status', __('phone_verification.screen.telegram_saved'));
+    }
+
+    /**
+     * The verified phone of the Telegram account of this Mini App session, when it is a number the profile can hold and
+     * differs from the profile phone or is not verified there yet; null otherwise.
+     */
+    private function telegramPhone(Request $request, Customer $customer): ?string
+    {
+        $accountId = TelegramMode::accountId($request->session());
+        $account = $accountId === null ? null : TelegramAccount::query()->whereKey($accountId)->whereNotNull('phone_verified_at')->first(['id', 'phone']);
+        $phone = $account !== null ? PhoneNormalizer::normalize($account->phone) : null;
+
+        if ($phone === null || ($phone === $customer->phone && $customer->phone_verified_at !== null)) {
+            return null;
+        }
+
+        return $phone;
     }
 
     public function updatePassword(ChangePasswordRequest $request, CustomerAuthService $auth): RedirectResponse

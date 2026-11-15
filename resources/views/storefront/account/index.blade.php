@@ -7,6 +7,15 @@
             <x-account.errors />
         </div>
 
+        @if ($phonePrompt)
+            {{-- PV-07, PV-13 а: «обязательно» — requests wait for the verified phone; «можно позже» — only an offer. --}}
+            <div class="mt-4 rounded-card border border-primary p-4" data-phone-prompt>
+                <p class="font-semibold">{{ __('phone_verification.screen.prompt_title') }}</p>
+                <p class="mt-1 text-sm text-ink-mid">{{ __($phoneLocked ? 'phone_verification.screen.prompt_required' : 'phone_verification.screen.prompt_later') }}</p>
+                <a href="{{ route('customer.phone') }}" class="mt-3 inline-flex min-h-11 items-center rounded-btn bg-primary px-5 py-2 font-medium text-on-primary hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{{ __('phone_verification.screen.prompt_action') }}</a>
+            </div>
+        @endif
+
         <dl class="mt-2 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
             <dt class="text-muted">{{ __('account.fields.name') }}</dt>
             <dd class="font-medium">{{ $customer->name }}</dd>
@@ -14,7 +23,7 @@
             <dd class="font-medium">{{ $customer->email }}</dd>
             @if ($customer->phone)
                 <dt class="text-muted">{{ __('account.fields.phone') }}</dt>
-                <dd class="font-medium">{{ $customer->phone }}</dd>
+                <dd class="font-medium">{{ $customer->phone }}@if ($customer->phone_verified_at) <span class="ml-2 text-sm font-normal text-success-ink" data-phone-verified>{{ __('phone_verification.screen.verified') }}</span>@endif</dd>
             @endif
             <dt class="text-muted">{{ __('account.index.group') }}</dt>
             <dd class="font-medium">{{ $groupName }}</dd>

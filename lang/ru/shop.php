@@ -237,6 +237,10 @@ return [
             'title' => 'Покупатели и регистрация',
         ],
 
+        'phone_verification' => [
+            'title' => 'Подтверждение телефона',
+        ],
+
         'catalog' => [
             'title' => 'Каталог и фильтры',
             'sections' => [

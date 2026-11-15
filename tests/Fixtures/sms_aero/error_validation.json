@@ -1,0 +1,8 @@
+{
+  "success": false,
+  "data": {
+    "phone": ["Invalid phone number"]
+  },
+  "message": "Validation error",
+  "code": 400
+}

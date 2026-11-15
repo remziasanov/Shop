@@ -21,6 +21,7 @@
                 <x-storefront.field prefix="iq" name="phone" type="tel" :label="__('storefront_sales.fields.phone')" required autocomplete="tel" inputmode="tel"
                                     :placeholder="__('storefront_sales.checkout.phone_placeholder')" x-data="phoneMask" x-on:input="format($event)" />
                 <x-storefront.field prefix="iq" name="email" type="email" :label="__('storefront_sales.fields.email')" autocomplete="email" maxlength="190" />
+                <x-storefront.phone-verify prefix="iq-pv" :active="$pvActive" :method="$pvMethod" :can-sms="$pvCanSms" :resend-at="$pvResendAt" :phone="$pvPhone" :locked="$accountLocked" />
                 <x-storefront.field prefix="iq" name="qty" type="number" :label="__('storefront_sales.fields.qty')" min="1" />
                 <x-storefront.field prefix="iq" name="comment" type="textarea" :label="__('storefront_sales.fields.comment')" maxlength="2000" />
                 <x-storefront.consent prefix="iq" :link="$consentLink" />

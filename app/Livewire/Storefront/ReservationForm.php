@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace App\Livewire\Storefront;
 
 use App\Enums\AgeRestriction;
+use App\Enums\PhoneVerificationPurpose;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
 use App\Livewire\Storefront\Concerns\SelectsVariant;
+use App\Livewire\Storefront\Concerns\VerifiesPhone;
+use App\Models\Customer;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Orders\OrderService;
 use App\Services\Orders\ReservationData;
+use App\Services\PhoneVerification\PhoneVerificationGate;
 use App\Services\Sales\AvailabilityService;
 use App\Settings\SalesSettings;
 use App\Support\QtyLimit;
@@ -30,6 +35,7 @@ class ReservationForm extends Component
     use RequiresOpenShop;
     use SalesFormSupport;
     use SelectsVariant;
+    use VerifiesPhone;
 
     #[Locked]
     public int $productId;
@@ -88,8 +94,38 @@ class ReservationForm extends Component
         return $this->contactAttributes() + ['desiredDate' => __('storefront_sales.fields.desired_date')];
     }
 
-    public function submit(OrderService $orders): void
+    public function updatedPhone(string $value): void
     {
+        $this->resetPhoneVerificationOnChange($value);
+    }
+
+    protected function pvPurpose(): PhoneVerificationPurpose
+    {
+        return PhoneVerificationPurpose::GuestCheckout;
+    }
+
+    protected function pvCustomer(): ?Customer
+    {
+        return app(ViewerContext::class)->customer();
+    }
+
+    protected function afterPhoneVerified(): void
+    {
+        $this->resetErrorBag('form');
+        $this->normalizeEmailInput();
+        $this->validate();
+        $this->placeReservation();
+    }
+
+    public function submit(): void
+    {
+        // The code step is open: Enter and the main button mean «Подтвердить».
+        if ($this->pvActive) {
+            $this->confirmPhoneCode();
+
+            return;
+        }
+
         $product = $this->product();
         $this->resetErrorBag('form');
 
@@ -109,6 +145,37 @@ class ReservationForm extends Component
         $this->validate();
 
         if (! $this->passesGuard()) {
+            return;
+        }
+
+        // PV-13 б: the call starts only after the rest of the form is valid.
+        $gate = app(PhoneVerificationGate::class);
+        $customer = $this->pvCustomer();
+
+        if ($gate->accountBlocked($customer)) {
+            $this->addError('form', __('phone_verification.errors.account_locked'));
+
+            return;
+        }
+
+        if ($gate->guestNeedsVerification($customer, false, true, false, 0)
+            && ! $gate->isPhoneVerified($this->phone, $this->pvPurpose(), $customer, PhoneVerificationGate::session())
+            && ! $gate->wasSkipped($this->phone, $this->pvPurpose(), PhoneVerificationGate::session())
+            && ! $this->beginPhoneVerification($this->phone)) {
+            return;
+        }
+
+        $this->placeReservation();
+    }
+
+    private function placeReservation(): void
+    {
+        $product = $this->product();
+        $orders = app(OrderService::class);
+
+        if ($product === null) {
+            $this->addError('form', __('sales.errors.reservation_unavailable'));
+
             return;
         }
 
@@ -156,6 +223,7 @@ class ReservationForm extends Component
             'consentLink' => $this->consentLink(),
             'ageLevel' => $this->ageLevel(),
             'mustSignIn' => $this->mustSignIn(),
+            'accountLocked' => app(PhoneVerificationGate::class)->accountBlocked($this->pvCustomer()),
         ]);
     }
 

@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "data": {
+    "id": 98877661,
+    "from": "AlevShop",
+    "number": "79991234567",
+    "text": "Код подтверждения: 4821. Alev",
+    "status": 0,
+    "extendStatus": "queue",
+    "channel": "DIRECT",
+    "cost": "5.9500",
+    "dateCreate": 1763100000,
+    "dateSend": 1763100000,
+    "countSms": 1
+  },
+  "message": null
+}

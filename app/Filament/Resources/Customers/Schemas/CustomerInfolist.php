@@ -46,6 +46,11 @@ final class CustomerInfolist
                             ->dateTime('d.m.Y H:i')
                             ->placeholder(__('customers.view.not_verified'))
                             ->color(fn (Customer $record): ?string => $record->email_verified_at === null ? 'warning' : null),
+                        TextEntry::make('phone_verified_at')
+                            ->label(__('customers.view.phone_verified'))
+                            ->state(fn (Customer $record): string => $record->phone_verified_at === null ? __('customers.view.phone_not_verified') : __('phone_verification.screen.verified'))
+                            ->badge()
+                            ->color(fn (Customer $record): string => $record->phone_verified_at === null ? 'gray' : 'success'),
                         TextEntry::make('is_blocked')
                             ->label(__('customers.view.blocked'))
                             ->state(fn (Customer $record): string => $record->is_blocked ? __('customers.view.blocked_yes') : __('customers.view.blocked_no'))

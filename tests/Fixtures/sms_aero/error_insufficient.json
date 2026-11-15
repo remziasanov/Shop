@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "data": null,
+  "message": "Insufficient funds on the balance",
+  "code": 402
+}
