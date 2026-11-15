@@ -36,7 +36,7 @@ class ManageAppearanceSettings extends SettingsPage
         afterSave as protected deleteReplacedSettingFiles;
     }
 
-    private const HEX_COLOR_PATTERN = '/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/';
+    private const HEX_COLOR_PATTERN = '/\A#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\z/';
 
     /** Overrides of the form for the pending save (set in mutateFormDataBeforeSave, used in afterSave). @var array<string, mixed> */
     private array $pendingOverrides = [];

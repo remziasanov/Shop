@@ -123,6 +123,8 @@ it('catches color functions and named colors in style attributes, not JS strings
         ->and($hits('<p style="color:white">'))->toBe(1)
         ->and($hits('<p style="border: 1px solid black; padding: 0">'))->toBe(1)
         ->and($hits('<p :style="{ background: \'red\' }">'))->toBe(1)
+        ->and($hits('<p x-bind:style="{ color: \'white\' }">'))->toBe(1)
+        ->and($hits("<p style='color: rgb(1,2,3)'>"))->toBe(1)
         ->and($hits('<p style="color: var(--shop-ink); background: var(--shop-red)">'))->toBe(0)
         ->and($hits('<p style="color: var(--shop-ink); border: 1px solid currentColor">'))->toBe(0)
         ->and($hits('<p style="width: 10px">'))->toBe(0)
