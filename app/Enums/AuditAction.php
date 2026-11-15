@@ -37,6 +37,7 @@ enum AuditAction: string
     case OrderStatusChanged = 'order.status_changed';
     case OrderReservationExtended = 'order.reservation_extended';
     case OrderManagerCommentChanged = 'order.manager_comment_changed';
+    case PhoneVerificationTest = 'phone_verification.test';
 
     public function label(): string
     {

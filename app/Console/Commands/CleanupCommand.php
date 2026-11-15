@@ -22,7 +22,7 @@ class CleanupCommand extends Command
 
         $keys = $this->option('exports')
             ? ['exports', 'customer_exports']
-            : ['carts', 'imports', 'temp_files', 'exports', 'customer_exports', 'livewire', 'audit_log', 'customer_notifications'];
+            : ['carts', 'imports', 'temp_files', 'exports', 'customer_exports', 'livewire', 'audit_log', 'customer_notifications', 'phone_verifications'];
 
         foreach ($keys as $key) {
             $this->line(__('cleanup.'.$key, ['count' => $summary[$key]]));

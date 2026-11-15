@@ -9,6 +9,7 @@ use App\Settings\GeneralSettings;
 use App\Settings\HomePageSettings;
 use App\Settings\LegalSettings;
 use App\Settings\NotificationSettings;
+use App\Settings\PhoneVerificationSettings;
 use App\Settings\PricingSettings;
 use App\Settings\PromoSettings;
 use App\Settings\SalesSettings;
@@ -39,6 +40,7 @@ return [
         CustomerSettings::class,
         PromoSettings::class,
         TelegramSettings::class,
+        PhoneVerificationSettings::class,
     ],
 
     /*

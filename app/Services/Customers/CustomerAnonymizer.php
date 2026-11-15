@@ -17,6 +17,7 @@ use App\Models\TelegramAccount;
 use App\Models\TelegramLinkToken;
 use App\Models\User;
 use App\Services\Export\CustomerExportService;
+use App\Services\PhoneVerification\PhoneVerificationService;
 use App\Services\Users\AuditLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -26,7 +27,7 @@ use Illuminate\Support\Str;
  *
  *  - The customer: name «Удалённый покупатель», e-mail `deleted-{id}@anonymous.invalid`, no phone, a random password,
  *    blocked, `anonymized_at` set, every session ended. The row stays, so requests keep pointing at it.
- *  - Deleted: the Telegram account (kept without customer data when a staff user is linked, TG-06), addresses, company, cabinet notifications, history exports (CX-06), e-mail codes, carts. Features with personal data of their
+ *  - Deleted: the Telegram account (kept without customer data when a staff user is linked, TG-06), addresses, company, cabinet notifications, history exports (CX-06), e-mail codes, phone verification records (PV-08), carts. Features with personal data of their
  *    own (wholesale applications) erase it in a listener of {@see CustomerAnonymizing}, which fires first, inside
  *    the transaction.
  *  - Requests of the customer (guest requests with the verified address are linked first) lose name, phone, e-mail, delivery address, comment, user agent and consent IP; items,
@@ -86,6 +87,8 @@ final class CustomerAnonymizer
             // CX-06: the history exports (files and rows) hold the same personal data.
             app(CustomerExportService::class)->purgeForCustomer($locked);
             CustomerVerificationCode::query()->where('customer_id', $locked->id)->orWhere('email', $oldEmail)->delete();
+            // PV-08: the verification records of the customer and of the customer's own number.
+            app(PhoneVerificationService::class)->deleteForCustomer($locked);
             $this->eraseTelegram($locked);
 
             foreach (Cart::query()->where('customer_id', $locked->id)->pluck('id') as $cartId) {
@@ -96,6 +99,7 @@ final class CustomerAnonymizer
                 'name' => self::DELETED_NAME,
                 'email' => 'deleted-'.$locked->id.'@'.self::EMAIL_DOMAIN,
                 'phone' => null,
+                'phone_verified_at' => null,
                 'password' => Str::random(64),
                 'remember_token' => Str::random(60),
                 'is_blocked' => true,
