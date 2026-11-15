@@ -111,7 +111,7 @@
     }
 }
 
-/* G3 tiles: surface, tinted, inverted (the reference bento); a theme's tileColors / patterns may restyle them. */
+/* G3 tiles: surface, tinted (tile color), accent (the reference bento); a theme's tileColors / patterns may restyle them. */
 .hero-bento-tile > a {
     border-color: var(--shop-line);
     background: var(--shop-surface);
@@ -119,13 +119,14 @@
 }
 
 .hero-bento-tile:nth-child(2) > a {
-    background: var(--shop-surface-3);
+    background: var(--shop-tile);
 }
 
+/* As in the G3 previews: the third tile is the accent block (its text pair passes TH-08). */
 .hero-bento-tile:nth-child(3) > a {
-    border-color: var(--shop-ink);
-    background: var(--shop-ink);
-    color: var(--shop-bg);
+    border-color: var(--shop-accent);
+    background: var(--shop-accent);
+    color: var(--shop-on-accent);
 }
 
 /* TH-17: no animation or smooth scrolling in the header and the hero for visitors who asked for less motion. */

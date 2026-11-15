@@ -110,10 +110,10 @@ describe('header variants (TH-10)', function (): void {
         expect($this->get(route('home'))->getContent())->not->toContain('border-bottom:4px');
     });
 
-    it('uses the display font for the logo text', function (): void {
+    it('uses the display font and the text color for the logo text (stage 22: as in the previews)', function (): void {
         activateTheme('klassika');
 
-        expect($this->get(route('home'))->getContent())->toMatch('~font-display[^"]*text-primary~');
+        expect($this->get(route('home'))->getContent())->toMatch('~font-display[^"]*text-ink~');
     });
 });
 

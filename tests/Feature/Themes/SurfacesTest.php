@@ -92,7 +92,7 @@ it('drops malicious extras and shape colors from a theme file (TH-09)', function
 
     expect($resolved->shape)->not->toHaveKeys(['shadowColor', 'shadowTint', 'pressColor'])
         ->and($resolved->extras)->toBe(['tileColors' => ['#ffffff']])
-        ->and($resolved->htmlAttributes())->toBe('data-surface="hard"');
+        ->and($resolved->htmlAttributes())->toBe('data-surface="hard" data-contrast');
 });
 
 it('has the surface, state and reduced-motion rules in the shared CSS (TH-14, TH-16, TH-17)', function (): void {

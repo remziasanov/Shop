@@ -1,4 +1,4 @@
-{{-- Action buttons of a card (shared by C1…C6): cart = plain POST form enhanced by Alpine `cardAdd` (NF-02), «Выбрать» for a card with variants (VR-08), reservation / inquiry open the product page with the modal. $view; $cardActions (already without the MR-03 duplicate); $style: c1 (full-width buttons) | link (C2, underlined text) | round (C3, «+» circle) | compact (inline button). --}}
+{{-- Action buttons of a card (shared by C1…C6): cart = plain POST form enhanced by Alpine `cardAdd` (NF-02), «Выбрать» for a card with variants (VR-08), reservation / inquiry open the product page with the modal. $view; $cardActions (already without the MR-03 duplicate); $style: c1 (full-width buttons) | link (C2, underlined text) | round (C3, «+» circle) | compact (inline button; the row wraps and long labels break on a narrow phone cell, no horizontal scroll). --}}
 @php
     $focus = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary';
     $s = [
@@ -12,12 +12,12 @@
             'form' => '',
         ],
         'compact' => [
-            'cart' => 'min-h-11 whitespace-nowrap rounded-btn bg-primary px-4 py-2 text-center text-sm font-medium text-on-primary hover:opacity-90 active:opacity-80 disabled:opacity-60',
-            'select' => 'flex min-h-11 items-center justify-center whitespace-nowrap rounded-btn bg-primary px-4 py-2 text-center text-sm font-medium text-on-primary hover:opacity-90 active:opacity-80',
-            'link' => 'flex min-h-11 items-center justify-center whitespace-nowrap rounded-btn px-4 py-2 text-center text-sm font-medium',
+            'cart' => 'min-h-11 rounded-btn bg-primary px-4 py-2 text-center text-sm font-medium text-on-primary hover:opacity-90 active:opacity-80 disabled:opacity-60',
+            'select' => 'flex min-h-11 items-center justify-center rounded-btn bg-primary px-4 py-2 text-center text-sm font-medium text-on-primary hover:opacity-90 active:opacity-80',
+            'link' => 'flex min-h-11 max-w-full items-center justify-center text-balance rounded-btn px-4 py-2 text-center text-sm font-medium',
             'primary' => 'bg-primary text-on-primary hover:opacity-90 active:opacity-80',
             'secondary' => 'border border-primary text-primary hover:bg-surface-2 active:bg-surface-3',
-            'disabled' => 'flex min-h-11 cursor-not-allowed items-center justify-center whitespace-nowrap rounded-btn bg-surface-3 px-4 py-2 text-center text-sm font-medium text-muted',
+            'disabled' => 'flex min-h-11 cursor-not-allowed items-center justify-center rounded-btn bg-surface-3 px-4 py-2 text-center text-sm font-medium text-muted',
             'form' => '',
         ],
         'link' => [

@@ -487,10 +487,22 @@ document.addEventListener('alpine:init', () => {
             if (this.playing) {
                 this.start();
             }
+
+            this.mark();
+            this.$watch('index', () => this.mark());
         },
 
         destroy() {
             this.stop();
+        },
+
+        // Slides out of view are hidden from assistive technology and the tab order (they stay in the scroll track, so
+        // a swipe still reaches them; without JavaScript every slide is plain content).
+        mark() {
+            [...this.$refs.track.children].forEach((slide, i) => {
+                slide.toggleAttribute('inert', i !== this.index);
+                i === this.index ? slide.removeAttribute('aria-hidden') : slide.setAttribute('aria-hidden', 'true');
+            });
         },
 
         start() {

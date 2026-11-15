@@ -2,7 +2,7 @@
 @php($product = $view->product)
 @php($roundAction = count($cardActions) === 1 && ! $cardActions[0]['disabled'] && $cardActions[0]['key'] === 'cart')
 <article class="group flex h-full flex-col rounded-card bg-surface-2 p-3 transition hover:shadow-md focus-within:shadow-md" data-card="C3" @if ($view->age) data-age="{{ $view->age->value }}" @endif>
-    @include('storefront.partials.cards._media', ['mediaClass' => 'aspect-square rounded-btn'])
+    @include('storefront.partials.cards._media', ['mediaClass' => 'aspect-square rounded-tile'])
     @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mt-2'])
 
     <h3 class="mt-2 flex-1 px-1 font-body text-sm font-medium leading-snug">

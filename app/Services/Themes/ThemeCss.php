@@ -14,9 +14,21 @@ use Illuminate\Support\Facades\Cache;
 final class ThemeCss
 {
     /** Bump when the generated CSS format changes, so a deploy never serves a stale cached block. */
-    private const FORMAT = 3;
+    private const FORMAT = 4;
 
     private const TTL = 86400;
+
+    /** WCAG 2.2 non-text contrast of the keyboard focus ring against what is behind it (Hallmark gate 26a). */
+    private const FOCUS_MIN_RATIO = 3.0;
+
+    /** Text contrast on the page (WCAG AA, TH-08, Hallmark gate 40). */
+    private const TEXT_MIN_RATIO = 4.5;
+
+    /**
+     * Status colors written as text right on the page (`text-success`, `text-warn-deep`, `text-danger`): the sRGB values
+     * of the fixed oklch tokens of app.css. Their pairs on the status washes are other tokens and stay fixed.
+     */
+    private const STATUS_TEXT = ['success' => '#007A55', 'warn-deep' => '#BB4D00', 'danger' => '#C10007'];
 
     /** Tile indexes that get a rotation rule (the rest of a long listing keeps the plain tile color). */
     private const TILE_INDEXES = 96;
@@ -71,7 +83,7 @@ final class ThemeCss
     {
         [$faces, $files, $preload] = $this->fontFaces($theme);
 
-        $css = implode('', $faces).$this->root($theme).$this->tileRules($theme);
+        $css = implode('', $faces).$this->root($theme).$this->focusRules($theme).$this->textRules($theme).$this->tileRules($theme);
 
         // Defense in depth: nothing that could close the <style> element.
         return ['css' => str_replace(['<', '>'], '', $css), 'preload' => $preload, 'files' => $files];
@@ -200,6 +212,108 @@ final class ThemeCss
         }
 
         return $out.'}';
+    }
+
+    /**
+     * Keyboard focus ring (TH-16, Hallmark gate 26a): the ring is the primary color, unless the primary does not reach
+     * 3:1 against the page (bg, surface, surface-2) — then the text color — or against the hero band (G2 / G4 on heroBg) — then
+     * the hero text color. The controls carry the `focus-visible:outline-primary` utility, so the rule re-points that
+     * utility at the token. Printed only for themes that need it: the other themes (default included) keep the CSS as is.
+     */
+    private function focusRules(ResolvedTheme $theme): string
+    {
+        $c = $theme->colors;
+        // The page: bg, surface and surface-2 (the footer and soft panels: 23 % line over surface, as in app.css).
+        $page = true;
+
+        foreach ([$c['bg'], $c['surface'], Color::mix($c['line'], $c['surface'], 0.23)] as $back) {
+            $page = $page && Color::contrast($c['primary'], $back) >= self::FOCUS_MIN_RATIO;
+        }
+        $band = Color::contrast($c['primary'], $c['heroBg']) >= self::FOCUS_MIN_RATIO;
+
+        if ($page && $band) {
+            return '';
+        }
+
+        $out = '';
+
+        if (! $page) {
+            $out .= ':root{--shop-focus: '.strtolower($c['ink']).';}';
+        }
+
+        // The band always gets its own value, so it never inherits the page ring (the text color on a dark band).
+        $out .= '.hero-band{--shop-focus: '.strtolower($band ? $c['primary'] : $c['heroInk']).';}';
+
+        return $out.'.focus-visible\\:outline-primary:focus-visible{outline-color:var(--shop-focus)}'
+            .'.focus-visible\\:ring-primary:focus-visible{--tw-ring-color:var(--shop-focus)}';
+    }
+
+    /**
+     * Text colors that must read on the page of a theme (Hallmark gate 40, 4.5:1 on bg and surface): the status colors
+     * written as text and the primary color written as text (links, the outline buttons, the active tab). Only the text
+     * utilities change (fills, borders and the status washes keep the theme / fixed colors).
+     * A color that does not reach the ratio is mixed toward the text color of the theme in 5 % steps until it does (the
+     * text color itself always does, TH-08). Printed only for the themes that need it; the default theme keeps its
+     * approved look, so nothing is printed for it.
+     */
+    private function textRules(ResolvedTheme $theme): string
+    {
+        if ($theme->id === ThemeRegistry::DEFAULT_ID) {
+            return '';
+        }
+
+        $c = $theme->colors;
+        // bg, surface and surface-2 (the C3 card and soft panels: 23 % line over surface, as in app.css).
+        $backs = [$c['bg'], $c['surface'], Color::mix($c['line'], $c['surface'], 0.23)];
+        $out = '';
+
+        // Text utilities only, and only on elements without a fill of their own: a status color on its own wash (the
+        // discount badge) or as a fill (the «Новинка» label) keeps the fixed token.
+        $texts = [];
+
+        $noFill = ':not([class^="bg-"]):not([class*=" bg-"])';
+
+        foreach (self::STATUS_TEXT as $name => $color) {
+            $texts[$name] = [$color, '.text-'.$name.$noFill];
+        }
+
+        $texts['primary'] = [strtoupper($c['primary']), '.text-primary'.$noFill.',.hover\\:text-primary:hover,.active\\:text-primary:active'];
+
+        foreach ($texts as $name => [$color, $selector]) {
+            $readable = self::readable($color, $c['ink'], $backs);
+
+            if ($readable !== $color) {
+                $out .= ':root{--shop-'.$name.'-text: '.strtolower($readable).';}'.$selector.'{color:var(--shop-'.$name.'-text)}';
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The color itself when it reaches 4.5:1 on every background, otherwise the color mixed toward the ink (5 % steps).
+     *
+     * @param  list<string>  $backs
+     */
+    private static function readable(string $color, string $ink, array $backs): string
+    {
+        for ($share = 1.0; $share > 0.0; $share -= 0.05) {
+            $candidate = $share === 1.0 ? $color : Color::mix($color, $ink, $share);
+            $ok = true;
+
+            foreach ($backs as $back) {
+                if (Color::contrast($candidate, $back) < self::TEXT_MIN_RATIO) {
+                    $ok = false;
+                    break;
+                }
+            }
+
+            if ($ok) {
+                return $candidate;
+            }
+        }
+
+        return strtoupper($ink);
     }
 
     /**
