@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Enums\ImportStatus;
 use App\Events\ImportFinished;
-use App\Jobs\GenerateSitemap;
 use App\Models\Category;
 use App\Models\CustomerGroup;
 use App\Models\Page;
@@ -27,12 +25,9 @@ class SeoServiceProvider extends ServiceProvider
     {
         View::composer('storefront.partials.cookie-banner', CookieBannerComposer::class);
 
-        // SF-82: the catalog changed, rebuild the sitemap in the queue (a failed or cancelled import changed nothing).
-        Event::listen(ImportFinished::class, function (ImportFinished $event): void {
-            if (in_array($event->import->status, [ImportStatus::Completed, ImportStatus::CompletedWithErrors], true)) {
-                GenerateSitemap::dispatch();
-            }
-        });
+        // SF-82: the catalog changed, rebuild the sitemap in the queue; a failed or cancelled import rebuilds only
+        // when a change was held back during it (D-166).
+        Event::listen(ImportFinished::class, fn (ImportFinished $event) => SitemapRebuild::afterImport($event->import));
 
         $this->rebuildSitemapOnVisibilityChanges();
     }

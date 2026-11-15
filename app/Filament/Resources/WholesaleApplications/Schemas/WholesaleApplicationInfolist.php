@@ -46,7 +46,7 @@ final class WholesaleApplicationInfolist
                         TextEntry::make('customer_id')
                             ->label(__('wholesale.table.customer'))
                             ->formatStateUsing(fn (int $state): string => __('wholesale.view.customer_link', ['id' => $state]))
-                            ->url(fn (WholesaleApplication $record): ?string => $record->customer !== null
+                            ->url(fn (WholesaleApplication $record): ?string => $record->customer !== null && CustomerResource::canView($record->customer)
                                 ? CustomerResource::getUrl('view', ['record' => $record->customer])
                                 : null),
                         TextEntry::make('company_name')->label(__('wholesale.fields.company_name'))->placeholder('—')->weight('bold'),

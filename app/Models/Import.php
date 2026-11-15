@@ -65,6 +65,9 @@ class Import extends Model
     /** @use HasFactory<ImportFactory> */
     use HasFactory;
 
+    /** A running import without activity for this long is treated as stuck. */
+    public const STUCK_AFTER_MINUTES = 60;
+
     protected $fillable = [
         'user_id',
         'status',
@@ -127,6 +130,27 @@ class Import extends Model
             'last_activity_at' => 'datetime',
             'files_purged_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether an import is working right now: a running status with activity in the last {@see STUCK_AFTER_MINUTES}
+     * minutes (`last_activity_at`, which the runner writes with every step, else `updated_at`). An import without
+     * progress for longer is stuck (an abandoned browser-driven run, a dead worker) and does not hold anything back.
+     */
+    public static function anyRunning(): bool
+    {
+        $running = array_values(array_map(
+            static fn (ImportStatus $status): string => $status->value,
+            array_filter(ImportStatus::cases(), static fn (ImportStatus $status): bool => $status->isRunning()),
+        ));
+        $since = now()->subMinutes(self::STUCK_AFTER_MINUTES);
+
+        return self::query()
+            ->whereIn('status', $running)
+            ->where(static fn ($query) => $query
+                ->where('last_activity_at', '>=', $since)
+                ->orWhere(static fn ($inner) => $inner->whereNull('last_activity_at')->where('updated_at', '>=', $since)))
+            ->exists();
     }
 
     /**

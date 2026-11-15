@@ -8,6 +8,7 @@ use App\Enums\ImportStatus;
 use App\Jobs\GenerateSitemap;
 use App\Models\Import;
 use App\Providers\SeoServiceProvider;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -18,26 +19,39 @@ use Illuminate\Support\Facades\DB;
  */
 class SitemapRebuild
 {
+    public const PENDING_KEY = 'sitemap:rebuild-pending';
+
     /**
-     * Queue a rebuild after the current transaction commits. While an import runs nothing is queued: the
-     * ImportFinished listener rebuilds once at the end, instead of after every chunk.
+     * Queue a rebuild after the current transaction commits. While an import runs nothing is queued, only a
+     * «pending» flag is set: {@see afterImport()} rebuilds once when the import reaches a final state, instead of
+     * after every chunk.
      */
     public static function request(): void
     {
-        if (config('shop.sitemap_rebuild_on_change') !== true || self::importRunning()) {
+        if (config('shop.sitemap_rebuild_on_change') !== true) {
+            return;
+        }
+
+        if (Import::anyRunning()) {
+            Cache::put(self::PENDING_KEY, true, now()->addDay());
+
             return;
         }
 
         DB::afterCommit(static fn () => GenerateSitemap::dispatch());
     }
 
-    private static function importRunning(): bool
+    /**
+     * An import reached a final state. A completed one changed the catalog, so it rebuilds; a failed or cancelled one
+     * rebuilds only when a request was suppressed meanwhile. One dispatch at most, the flag is cleared.
+     */
+    public static function afterImport(Import $import): void
     {
-        $running = array_values(array_map(
-            static fn (ImportStatus $status): string => $status->value,
-            array_filter(ImportStatus::cases(), static fn (ImportStatus $status): bool => $status->isRunning()),
-        ));
+        $pending = Cache::pull(self::PENDING_KEY) === true;
+        $completed = in_array($import->status, [ImportStatus::Completed, ImportStatus::CompletedWithErrors], true);
 
-        return Import::query()->whereIn('status', $running)->exists();
+        if ($completed || $pending) {
+            GenerateSitemap::dispatch();
+        }
     }
 }

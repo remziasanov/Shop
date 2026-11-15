@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 /**
- * TD-30 (D-157, D-170): the SF-44 rule does not know +77… numbers, so where verification is on the four contact forms
+ * TD-30 (D-157, D-173): the SF-44 rule does not know +77… numbers, so where verification is on the four contact forms
  * (checkout, registration, profile, wholesale application) accept them through PhoneVerificationService only when an
  * allowed prefix covers them.
  */

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Cache;
 require_once __DIR__.'/../../Support/home.php';
 
 /*
- * Tech debt group D (D-188, TD-37): the D-161 layout fixes (C3, C4 / C6, G2 / G3) and the review fixes of stages 22-23
+ * Tech debt group D (D-190, TD-37): the D-161 layout fixes (C3, C4 / C6, G2 / G3) and the review fixes of stages 22-23
  * are checked on the rendered pages and on the generated theme CSS. The few rules that live only in the static
  * stylesheets are read with a whitespace-tolerant lookup of the declaration, never as an exact source string.
  */

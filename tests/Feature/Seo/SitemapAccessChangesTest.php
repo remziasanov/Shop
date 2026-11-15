@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\CategoryAccessMode;
 use App\Enums\ImportStatus;
+use App\Events\ImportFinished;
 use App\Filament\Resources\Products\Tables\ProductsTable;
 use App\Jobs\GenerateSitemap;
 use App\Models\Category;
@@ -141,6 +142,48 @@ it('does not queue a rebuild per chunk while an import runs', function (): void 
     SitemapRebuild::request();
 
     Queue::assertNotPushed(GenerateSitemap::class);
+});
+
+it('keeps a suppressed rebuild and queues it once when the import fails or is cancelled (TD-02, D-166)', function (): void {
+    foreach ([ImportStatus::Failed, ImportStatus::Cancelled] as $status) {
+        Queue::fake();
+        Import::query()->delete();
+        $import = Import::factory()->create(['status' => ImportStatus::Processing]);
+
+        $this->openProduct->update(['is_active' => false]);
+        SitemapRebuild::request();
+        Queue::assertNotPushed(GenerateSitemap::class);
+
+        $import->update(['status' => $status]);
+        ImportFinished::dispatch($import->refresh());
+        Queue::assertPushed(GenerateSitemap::class, 1);
+
+        // The flag is cleared: a second final event rebuilds nothing.
+        ImportFinished::dispatch($import);
+        Queue::assertPushed(GenerateSitemap::class, 1);
+    }
+});
+
+it('queues one rebuild, not two, when a completed import had a suppressed request (D-166)', function (): void {
+    Queue::fake();
+    $import = Import::factory()->create(['status' => ImportStatus::Processing]);
+    SitemapRebuild::request();
+
+    $import->update(['status' => ImportStatus::Completed]);
+    ImportFinished::dispatch($import->refresh());
+
+    Queue::assertPushed(GenerateSitemap::class, 1);
+});
+
+it('does not hold the rebuild back for an import without activity for over an hour (stuck, D-166)', function (): void {
+    Queue::fake();
+    $import = Import::factory()->create(['status' => ImportStatus::Processing]);
+    Import::query()->whereKey($import->id)->update(['updated_at' => now()->subHours(2)]);
+
+    $this->openProduct->update(['is_active' => false]);
+    SitemapRebuild::request();
+
+    Queue::assertPushed(GenerateSitemap::class);
 });
 
 it('queues a rebuild from the bulk activate action that writes without model events', function (): void {

@@ -41,8 +41,8 @@ function stage22ThemeIds(): array
 }
 
 describe('focus ring (TH-16, gate 26a)', function (): void {
-    it('prints no focus rule for the default theme', function (): void {
-        expect(stage22ThemeCss('default'))->not->toContain('--shop-focus');
+    it('prints no web focus rule for the default theme (only the html[data-tg] ones, D-188)', function (): void {
+        expect(stage22ThemeCss('default'))->not->toContain(':root{--shop-focus');
     });
 
     it('uses the text color where the primary does not reach 3:1 on the page (G1: no hero band rule)', function (): void {
@@ -83,9 +83,9 @@ describe('focus ring (TH-16, gate 26a)', function (): void {
 });
 
 describe('text on the page (TH-08, gate 40)', function (): void {
-    it('prints no text color rule for the default theme', function (): void {
-        expect(stage22ThemeCss('default'))->not->toContain('--shop-primary-text')
-            ->not->toContain('--shop-success-text');
+    it('prints no web text color rule for the default theme (only the html[data-tg] ones, D-188)', function (): void {
+        expect(stage22ThemeCss('default'))->not->toContain(':root{--shop-primary-text')
+            ->not->toContain(':root{--shop-success-text');
     });
 
     it('keeps the status and primary text colors at 4.5:1 on bg and surface in every theme', function (string $id): void {
@@ -217,5 +217,5 @@ describe('layout fixes from the preview check (D-161)', function (): void {
             ->and($prays)->toContain('data-card-grid="C5"');
     });
 
-    // The C3 photo radius, the C4 / C6 wrap and the G2 / G3 fixes are checked on the rendered pages in ThemeRenderedChecksTest (D-188).
+    // The C3 photo radius, the C4 / C6 wrap and the G2 / G3 fixes are checked on the rendered pages in ThemeRenderedChecksTest (D-190).
 });

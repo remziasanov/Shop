@@ -179,7 +179,7 @@ it('answers every facet query in time and keeps listing and counters consistent 
     expect($total)->toBe($color->count);
 })->group('perf');
 
-it('answers every facet query of the page WITHOUT filters in time, and the warmer takes them off the page (FL-12, D-164)', function (): void {
+it('answers every facet query of the page WITHOUT filters in time, and the warmer takes them off the page (FL-12, D-165)', function (): void {
     $max = (float) (getenv('FACET_PERF_MAX_MS') ?: 100);
     $url = route('catalog.category', 'big');
 
@@ -200,7 +200,7 @@ it('answers every facet query of the page WITHOUT filters in time, and the warme
 
     // After the catalog version changed, the warming job builds the same key in the background.
     CatalogVersion::bump();
-    app(FacetWarmer::class)->warm(0, 600.0);
+    app()->makeWith(FacetWarmer::class, ['minProducts' => 1])->warm(0, 600.0);
 
     expect(profileRequest($url)['facet'])->toBe([]);
 })->group('perf');

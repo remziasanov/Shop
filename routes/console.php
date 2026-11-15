@@ -19,7 +19,7 @@ Schedule::command('shop:recalc-prices --all')->dailyAt('03:10')->withoutOverlapp
 // SF-53: expire overdue reservations and return their stock (TZ section 8).
 Schedule::command('shop:expire-reservations')->everyFiveMinutes()->withoutOverlapping(10);
 
-// FL-11, FL-12: facets of the category pages without filters are built in the queue, not by the first visitor (D-164).
+// FL-11, FL-12: facets of the category pages without filters are built in the queue, not by the first visitor (D-165).
 Schedule::command('shop:warm-facets')->everyMinute()->withoutOverlapping(10);
 
 // SF-82: the sitemap is rebuilt daily (and after an import by a queued job).

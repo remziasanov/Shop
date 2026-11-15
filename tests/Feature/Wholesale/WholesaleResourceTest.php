@@ -116,10 +116,17 @@ describe('card (CG-24)', function (): void {
     });
 
     it('links the customer of the application to the Customers resource (TD-08)', function (): void {
-        $this->actingAs(staffWith(['wholesale_applications.view']));
+        $this->actingAs(staffWith(['wholesale_applications.view', 'customers.view']));
 
         Livewire::test(ViewWholesaleApplication::class, ['record' => $this->application->getRouteKey()])
             ->assertSeeHtml('href="'.CustomerResource::getUrl('view', ['record' => $this->customer]).'"');
+    });
+
+    it('shows no customer link to staff without the customers.view right (TD-08)', function (): void {
+        $this->actingAs(staffWith(['wholesale_applications.view']));
+
+        Livewire::test(ViewWholesaleApplication::class, ['record' => $this->application->getRouteKey()])
+            ->assertDontSeeHtml('href="'.CustomerResource::getUrl('view', ['record' => $this->customer]).'"');
     });
 
     it('warns the manager about a duplicate INN', function (): void {

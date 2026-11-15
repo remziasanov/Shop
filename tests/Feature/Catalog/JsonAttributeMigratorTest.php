@@ -12,6 +12,7 @@ use App\Models\ProductAttributeValue;
 use App\Services\Catalog\AttributeJsonBackup;
 use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Catalog\AttributeService;
+use App\Services\Catalog\AttributeSyncService;
 use App\Services\Catalog\JsonAttributeMigrator;
 use App\Settings\CatalogSettings;
 use Illuminate\Support\Facades\Cache;
@@ -96,7 +97,9 @@ describe('dry run', function (): void {
 });
 
 describe('migration', function (): void {
-    it('refreshes the table statistics once, on MySQL only, when the migration finishes (FL-12)', function (): void {
+    it('never issues ANALYZE TABLE inside an open transaction, on any driver (FL-12, TD-18)', function (): void {
+        // The test runs inside the RefreshDatabase transaction: the statement would commit it on MySQL, so it is skipped.
+        // The path outside a transaction is covered by the next test.
         attrJsonProduct([['Материал', 'Хлопок']]);
         $analyze = [];
         DB::listen(function ($query) use (&$analyze): void {
@@ -107,7 +110,45 @@ describe('migration', function (): void {
 
         expect(attrMigrator()->run())->toBeTrue();
 
-        expect($analyze)->toBe(DB::getDriverName() === 'mysql' ? ['ANALYZE TABLE product_attribute_values'] : []);
+        expect(DB::transactionLevel())->toBeGreaterThan(0)
+            ->and($analyze)->toBe([]);
+    });
+
+    it('issues ANALYZE TABLE only outside a transaction, because MySQL commits implicitly (TD-18)', function (): void {
+        $migrator = new class(app(AttributeService::class), app(AttributeMigrationState::class), app(AttributeSyncService::class), app(AttributeJsonBackup::class)) extends JsonAttributeMigrator
+        {
+            public int $analyzed = 0;
+
+            public function refresh(): void
+            {
+                $this->refreshStatistics();
+            }
+
+            protected function isMysql(): bool
+            {
+                return true;
+            }
+
+            protected function analyzeTable(): void
+            {
+                $this->analyzed++;
+            }
+        };
+
+        // The test itself runs inside the RefreshDatabase transaction.
+        expect(DB::transactionLevel())->toBeGreaterThan(0);
+        $migrator->refresh();
+        expect($migrator->analyzed)->toBe(0);
+
+        DB::rollBack();
+
+        try {
+            $migrator->refresh();
+        } finally {
+            DB::beginTransaction();
+        }
+
+        expect($migrator->analyzed)->toBe(1);
     });
 
     it('creates typed attributes with units and filters and writes normalized values', function (): void {

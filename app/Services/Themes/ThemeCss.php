@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Cache;
 final class ThemeCss
 {
     /** Bump when the generated CSS format changes, so a deploy never serves a stale cached block. */
-    private const FORMAT = 6;
+    private const FORMAT = 7;
 
     private const TTL = 86400;
 
@@ -332,14 +332,10 @@ final class ThemeCss
      * Telegram Mini App (D-188): the focus ring and the text colors above follow the live tokens that telegram.js
      * sets (ink, primary), instead of the fixed hex values worked out against the theme palette — those stay dark
      * while Telegram's dark scheme turns the page dark. Printed for the colors that need it (a web rule exists, or the
-     * color does not read on Telegram's light / dark page); the default theme prints nothing, as in the web.
+     * color does not read on Telegram's light / dark page). The default theme gets these rules too (owner decision of 15.11.2026): every selector starts with `html[data-tg]`, which only the Telegram layout sets, so its website CSS is unchanged.
      */
     private function telegramRules(ResolvedTheme $theme): string
     {
-        if ($theme->id === ThemeRegistry::DEFAULT_ID) {
-            return '';
-        }
-
         $c = $theme->colors;
         $webBacks = [$c['bg'], $c['surface'], Color::mix($c['line'], $c['surface'], 0.23)];
         /** @var array<string, array<string, string>> $vars scheme => [variable => value] */

@@ -119,7 +119,10 @@ it('renders the closed-shop page in the site layout outside the Telegram mode (T
     $general->shop_open = false;
     $general->save();
 
-    $this->get('/')->assertStatus(503)->assertDontSee('data-tg', false)->assertDontSee('data-shop-closed', false);
+    $html = $this->get('/')->assertStatus(503)->assertDontSee('data-shop-closed', false)->getContent();
+
+    // The attribute is absent on the page; the theme CSS may mention `html[data-tg]` selectors (they never match here).
+    expect($html)->not->toMatch('/<html\b[^>]*\bdata-tg\b/');
 });
 
 it('stays within 30 SQL statements on the pages of the Mini App (TM-13, NF-02)', function (): void {

@@ -87,11 +87,14 @@ function tgEffective(string $css, string $scheme, string $name, string $fallback
 
 function tgThemeIds(): array
 {
-    return array_column(json_decode((string) file_get_contents(dirname(__DIR__, 3).'/resources/themes/themes.json'), true)['themes'], 'id');
+    $ids = array_column(json_decode((string) file_get_contents(dirname(__DIR__, 3).'/resources/themes/themes.json'), true)['themes'], 'id');
+
+    // The default theme is part of the check too (51 themes, owner decision of 15.11.2026).
+    return in_array('default', $ids, true) ? $ids : ['default', ...$ids];
 }
 
-it('prints no Telegram rules for the default theme and the Telegram rules for the themes with a contrast override', function (): void {
-    expect(tgThemeCss('default'))->not->toContain('data-tg');
+it('prints the Telegram rules for the default theme and for the themes with a contrast override', function (): void {
+    expect(tgThemeCss('default'))->toContain('html[data-tg]{')->toContain('html[data-tg][data-tg-scheme="dark"]{');
 
     $css = tgThemeCss('opalubka');
 
@@ -146,4 +149,30 @@ it('keeps the website values of the contrast rules unchanged by the Telegram rul
 
     expect($css)->toContain(':root{--shop-primary-text: #623216;}')->toContain(':root{--shop-success-text: #094c37;}')
         ->and($css)->toContain(':root{--shop-focus: #151413;}');
+});
+
+it('adds only html[data-tg] rules to the default theme, so its website CSS is unchanged (D-188, D-160)', function (): void {
+    $registry = app(ThemeRegistry::class);
+    $generator = app(ThemeCss::class);
+    $theme = app(ThemeResolver::class)->resolve($registry->default());
+    $css = $generator->assets($theme)['css'];
+
+    $block = (new ReflectionMethod($generator, 'telegramRules'))->invoke($generator, $theme);
+    expect($block)->not->toBe('')->and(substr_count($css, $block))->toBe(1);
+
+    // Every selector of the Telegram block starts with html[data-tg]; the Telegram layout is the only page that sets it.
+    $selectors = [];
+    preg_match_all('/(?:^|\})((?:[^{}@]+))\{/', preg_replace('/@media \(hover:hover\)\{/', '}', $block), $selectors);
+    expect($selectors[1])->not->toBeEmpty();
+
+    foreach ($selectors[1] as $list) {
+        foreach (explode(',', $list) as $selector) {
+            expect(trim($selector))->toStartWith('html[data-tg]');
+        }
+    }
+
+    // Everything else is what the default theme printed before: no Telegram attribute, no contrast values.
+    $rest = str_replace($block, '', $css);
+    expect($rest)->not->toContain('data-tg')->not->toContain('data-contrast')
+        ->and($rest)->not->toContain('--shop-focus')->not->toContain('-text:');
 });

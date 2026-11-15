@@ -18,7 +18,7 @@
         }
     </style>
     <div class="theme-preview-bar" role="region" aria-label="{{ __('themes.preview.bar_label') }}" data-theme-preview-bar>
-        <span data-theme-preview-title>{{ __('themes.preview.title') }}: <strong data-theme-preview-name>{{ $themePreviewBar['name'] }}</strong>({{ $themePreviewBar['index'] + 1 }}/{{ $themePreviewBar['total'] }})</span>
+        <span data-theme-preview-title>{{ __('themes.preview.title') }}: <strong data-theme-preview-name>{{ $themePreviewBar['name'] }}</strong> ({{ $themePreviewBar['index'] + 1 }}/{{ $themePreviewBar['total'] }})</span>
         <form method="POST" action="{{ route('theme.preview.step') }}">
             @csrf
             <input type="hidden" name="direction" value="prev">
