@@ -191,12 +191,35 @@ class JsonAttributeMigrator
             if ($batch->done) {
                 $this->state->finish();
                 CatalogVersion::bump();
+                $this->refreshStatistics();
 
                 return true;
             }
         } while ($budgetSeconds === null || microtime(true) - $started < $budgetSeconds);
 
         return false;
+    }
+
+    /**
+     * The table grew from empty to the whole catalog: on MySQL refresh its statistics at once, so the optimizer plans the
+     * first facet query on real numbers (FL-12). Nothing to do on other drivers. ANALYZE TABLE commits the open
+     * transaction implicitly on MySQL, so it is skipped inside one (statistics are refreshed by the next run).
+     */
+    protected function refreshStatistics(): void
+    {
+        if ($this->isMysql() && DB::transactionLevel() === 0) {
+            $this->analyzeTable();
+        }
+    }
+
+    protected function isMysql(): bool
+    {
+        return DB::getDriverName() === 'mysql';
+    }
+
+    protected function analyzeTable(): void
+    {
+        DB::statement('ANALYZE TABLE product_attribute_values');
     }
 
     /**

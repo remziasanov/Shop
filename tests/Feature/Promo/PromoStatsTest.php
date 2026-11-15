@@ -103,7 +103,7 @@ it('limits the recent orders of a code to 20 (PM-17)', function (): void {
     expect(app(PromoCodeStats::class)->recentOrders($code))->toHaveCount(20);
 });
 
-it('lists all codes by uses and gives the top of the last 30 days (PM-17, 22.4)', function (): void {
+it('gives the top of the last 30 days (PM-17, 22.4)', function (): void {
     $few = PromoCode::factory()->create(['code' => 'FEWUSES']);
     $many = PromoCode::factory()->create(['code' => 'MANYUSES']);
     $none = PromoCode::factory()->create(['code' => 'NOUSES']);
@@ -116,11 +116,7 @@ it('lists all codes by uses and gives the top of the last 30 days (PM-17, 22.4)'
 
     PromoRedemption::factory()->create(['promo_code_id' => $none->id, 'created_at' => now()->subDays(60)]);
 
-    $overview = app(PromoCodeStats::class)->overview();
     $top = app(PromoCodeStats::class)->top();
 
-    expect($overview->pluck('code.code')->all())->toBe(['MANYUSES', 'FEWUSES', 'NOUSES'])
-        ->and($overview->first())->toMatchArray(['uses' => 3, 'discount' => 15_000])
-        ->and(app(PromoCodeStats::class)->overview('code')->pluck('code.code')->first())->toBe('FEWUSES')
-        ->and(collect($top)->pluck('code.code')->all())->toBe(['MANYUSES', 'FEWUSES']);
+    expect(collect($top)->pluck('code.code')->all())->toBe(['MANYUSES', 'FEWUSES']);
 });

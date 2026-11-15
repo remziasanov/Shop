@@ -79,7 +79,7 @@ final class StaffOrderNotifier
         }
 
         $this->deliver($log, function () use ($order, $account): array {
-            $markup = $this->message->markup($order);
+            $markup = $this->message->markup($order, forWorkChat: false);
 
             return $this->client->sendMessage((string) $account->telegram_user_id, $this->message->text($order), $markup === null ? [] : ['reply_markup' => $markup]);
         });
@@ -154,11 +154,11 @@ final class StaffOrderNotifier
      *
      * @return array{text: string, markup: array<string, mixed>}
      */
-    public function content(Order $order, bool $cancelArmed = false): array
+    public function content(Order $order, bool $cancelArmed = false, bool $forWorkChat = true): array
     {
         return [
             'text' => $this->message->text($order),
-            'markup' => $this->message->markup($order, $cancelArmed) ?? ['inline_keyboard' => []],
+            'markup' => $this->message->markup($order, $cancelArmed, $forWorkChat) ?? ['inline_keyboard' => []],
         ];
     }
 }

@@ -3,7 +3,7 @@
         <ul class="flex flex-wrap items-center justify-center gap-2 text-sm">
             <li>
                 @if ($paginator->onFirstPage())
-                    <span class="flex min-h-11 items-center rounded-btn border border-line px-3 py-2 text-faint" aria-disabled="true">{{ __('storefront.pagination.prev') }}</span>
+                    <span class="flex min-h-11 items-center rounded-btn border border-line px-3 py-2 text-faint cursor-not-allowed" aria-disabled="true" data-page-disabled>{{ __('storefront.pagination.prev') }}</span>
                 @else
                     <a href="{{ $paginator->previousPageUrl() }}" rel="prev" class="flex min-h-11 items-center rounded-btn border border-line-strong px-3 py-2 hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront.pagination.prev') }}</a>
                 @endif
@@ -31,7 +31,7 @@
                 @if ($paginator->hasMorePages())
                     <a href="{{ $paginator->nextPageUrl() }}" rel="next" class="flex min-h-11 items-center rounded-btn border border-line-strong px-3 py-2 hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('storefront.pagination.next') }}</a>
                 @else
-                    <span class="flex min-h-11 items-center rounded-btn border border-line px-3 py-2 text-faint" aria-disabled="true">{{ __('storefront.pagination.next') }}</span>
+                    <span class="flex min-h-11 items-center rounded-btn border border-line px-3 py-2 text-faint cursor-not-allowed" aria-disabled="true" data-page-disabled>{{ __('storefront.pagination.next') }}</span>
                 @endif
             </li>
         </ul>

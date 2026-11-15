@@ -21,6 +21,7 @@ use App\Services\Home\HomePageRenderer;
 use App\Services\Media\ImageProcessor;
 use App\Services\Pricing\PriceRuleRecalculator;
 use App\Services\Sales\SalesModeResolver;
+use App\Services\Seo\SitemapRebuild;
 use App\Support\Money;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -433,6 +434,11 @@ final class ProductsTable
                 Product::withTrashed()->whereKey($ids)->update($values);
                 HomePageRenderer::forget();
                 AgeGate::forgetCache();
+
+                // No model events here: the guest sitemap depends on activity and category (CG-15).
+                if (array_key_exists('is_active', $values) || array_key_exists('category_id', $values)) {
+                    SitemapRebuild::request();
+                }
 
                 if ($affectsPrice) {
                     app(PriceRuleRecalculator::class)->dispatch($ids);

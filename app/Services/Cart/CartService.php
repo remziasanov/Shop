@@ -241,6 +241,8 @@ final class CartService
      */
     public function update(Cart $cart, int $productId, int $qty, ?int $variantId = null): ?CartItem
     {
+        $this->viewer->assertNotPreview();
+
         if ($qty < 1) {
             $this->remove($cart, $productId, $variantId);
 
@@ -317,8 +319,13 @@ final class CartService
         }
     }
 
+    /**
+     * @throws SalesException in the staff preview «как группа» (CG-18)
+     */
     public function remove(Cart $cart, int $productId, ?int $variantId = null): void
     {
+        $this->viewer->assertNotPreview();
+
         CartItem::query()->where('cart_id', $cart->id)->where('product_id', $productId)->where('variant_key', $variantId ?? 0)->delete();
         $cart->touch();
     }
@@ -560,6 +567,8 @@ final class CartService
      */
     public function reduceToAvailable(Cart $cart, array $itemIds): int
     {
+        $this->viewer->assertNotPreview();
+
         return DB::transaction(function () use ($cart, $itemIds): int {
             $this->lockCart($cart);
             $changed = 0;

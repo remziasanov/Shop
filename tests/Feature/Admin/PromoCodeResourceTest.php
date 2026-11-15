@@ -435,3 +435,36 @@ it('hides the batch export without the generate right (PM-16)', function (): voi
     get('/admin/promo-code-batches/'.$batch->id)->assertForbidden();
     Livewire::test(ListPromoCodes::class)->assertActionHidden('generate');
 });
+
+it('resumes a failed or stuck batch from the admin and not a healthy one (TD-19, PM-15)', function (): void {
+    Queue::fake();
+    actingAs(promoAdmin());
+    $failed = PromoCodeBatch::factory()->create(['count' => 10, 'generated' => 4, 'status' => PromoBatchStatus::Failed]);
+    $stuck = PromoCodeBatch::factory()->create(['count' => 10, 'generated' => 4, 'status' => PromoBatchStatus::Running]);
+    $fresh = PromoCodeBatch::factory()->create(['count' => 10, 'generated' => 4, 'status' => PromoBatchStatus::Running]);
+    $done = PromoCodeBatch::factory()->create(['count' => 10, 'generated' => 10, 'status' => PromoBatchStatus::Done]);
+    PromoCodeBatch::query()->whereKey($stuck->id)->update(['updated_at' => now()->subMinutes(PromoBatchService::STUCK_AFTER_MINUTES + 1)]);
+
+    Livewire::test(ListPromoCodeBatches::class)
+        ->assertActionVisible(TestAction::make('resume')->table($failed))
+        ->assertActionVisible(TestAction::make('resume')->table($stuck))
+        ->assertActionHidden(TestAction::make('resume')->table($fresh))
+        ->assertActionHidden(TestAction::make('resume')->table($done))
+        ->callAction(TestAction::make('resume')->table($failed))
+        ->assertNotified(__('promo_admin.batches.actions.resumed'))
+        ->callAction(TestAction::make('resume')->table($stuck));
+
+    Queue::assertPushed(GeneratePromoCodeBatch::class, 2);
+    Queue::assertPushed(GeneratePromoCodeBatch::class, fn (GeneratePromoCodeBatch $job): bool => $job->batchId === $failed->id);
+    expect($failed->fresh()->status)->toBe(PromoBatchStatus::Queued)
+        ->and(app(PromoBatchService::class)->resume($done))->toBeFalse();
+});
+
+it('needs the generate right to resume a batch (TD-19)', function (): void {
+    Queue::fake();
+    $batch = PromoCodeBatch::factory()->create(['count' => 10, 'generated' => 4, 'status' => PromoBatchStatus::Failed]);
+    actingAs(staffWith(['promo_codes.view']));
+
+    get('/admin/promo-code-batches/'.$batch->id)->assertForbidden();
+    Queue::assertNothingPushed();
+});

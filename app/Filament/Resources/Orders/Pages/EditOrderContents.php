@@ -163,6 +163,7 @@ class EditOrderContents extends Page
                 'price' => $price ?? '0.00',
                 'stored_price' => $this->isInquiry() ? null : $price,
                 'list_price' => $this->isInquiry() && $price !== null ? Money::toRubles(Money::fromRubles((string) $price)) : null,
+                'price_touched' => false,
                 'recalc' => false,
                 'recalc_price' => null,
             ];
@@ -229,6 +230,7 @@ class EditOrderContents extends Page
                                 Hidden::make('unit'),
                                 Hidden::make('stored_price'),
                                 Hidden::make('list_price'),
+                                Hidden::make('price_touched'),
                                 Hidden::make('recalc'),
                                 Hidden::make('recalc_price'),
                                 Text::make(fn (Get $get): string => trim((string) $get('name')).' · '.$get('sku')),
@@ -249,6 +251,8 @@ class EditOrderContents extends Page
                                     ->required()
                                     ->readOnly(! $canPrices)
                                     ->live(onBlur: true)
+                                    // TD-21: a price typed in by the manager is never re-priced by tier afterwards, even when it equals the list price.
+                                    ->afterStateUpdated(fn (Set $set) => $set('price_touched', true))
                                     ->hint(fn (Get $get): ?string => $get('recalc') && $get('stored_price') !== null
                                         ? __('order_edit.page.was_price', ['price' => Money::format(Money::fromRubles((string) $get('stored_price')))])
                                         : null)
@@ -359,11 +363,7 @@ class EditOrderContents extends Page
             return;
         }
 
-        try {
-            if (Money::fromRubles((string) $get('price')) !== Money::fromRubles((string) $listPrice)) {
-                return;
-            }
-        } catch (InvalidArgumentException) {
+        if (filter_var($get('price_touched'), FILTER_VALIDATE_BOOLEAN)) {
             return;
         }
 
@@ -380,6 +380,39 @@ class EditOrderContents extends Page
 
         $set('price', Money::toRubles($listed));
         $set('list_price', Money::toRubles($listed));
+    }
+
+    /**
+     * TD-22: «+1» on an existing new row refreshes the displayed tier price (display only, the server prices on save).
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function repriceNewRowData(string|int $rowKey, array $row, int $qty): void
+    {
+        $listPrice = $row['list_price'] ?? null;
+
+        if (($row['item_id'] ?? null) !== null && $row['item_id'] !== '') {
+            return;
+        }
+
+        if ($listPrice === null || $listPrice === '' || ($row['product_id'] ?? null) === null
+            || filter_var($row['price_touched'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        $listed = app(OrderEditor::class)->listPrice(
+            $this->order(),
+            (int) $row['product_id'],
+            ($row['variant_id'] ?? '') === '' || ($row['variant_id'] ?? null) === null ? null : (int) $row['variant_id'],
+            max(1, $qty),
+        );
+
+        if ($listed === null) {
+            return;
+        }
+
+        $this->data['items'][$rowKey]['price'] = Money::toRubles($listed);
+        $this->data['items'][$rowKey]['list_price'] = Money::toRubles($listed);
     }
 
     private function rowSum(mixed $qty, mixed $price): int
@@ -415,7 +448,9 @@ class EditOrderContents extends Page
 
         foreach ($this->data['items'] ?? [] as $rowKey => $row) {
             if ((int) ($row['product_id'] ?? 0) === $productId && ((int) ($row['variant_id'] ?? 0) ?: null) === $variantId) {
-                $this->data['items'][$rowKey]['qty'] = min(QtyLimit::MAX, (int) $row['qty'] + 1);
+                $qty = min(QtyLimit::MAX, (int) $row['qty'] + 1);
+                $this->data['items'][$rowKey]['qty'] = $qty;
+                $this->repriceNewRowData($rowKey, $row, $qty);
 
                 return;
             }
@@ -441,6 +476,7 @@ class EditOrderContents extends Page
             'price' => Money::toRubles($price ?? 0),
             'stored_price' => null,
             'list_price' => $price === null ? null : Money::toRubles($price),
+            'price_touched' => false,
             'recalc' => false,
             'recalc_price' => null,
         ];
@@ -599,7 +635,7 @@ class EditOrderContents extends Page
 
                 // A new row that still carries the auto-filled list price sends no price: the service resolves it for the final quantity.
                 if ($itemId === null && $price !== null && ($row['list_price'] ?? null) !== null && $row['list_price'] !== ''
-                    && $price === Money::fromRubles((string) $row['list_price'])) {
+                    && ! filter_var($row['price_touched'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
                     $price = null;
                 }
 

@@ -28,6 +28,7 @@ use App\Services\Age\AgeGate;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Customers\EmailNormalizer;
 use App\Services\PhoneVerification\PhoneVerificationGate;
+use App\Services\PhoneVerification\PhoneVerificationService;
 use App\Services\Pricing\Priceable;
 use App\Services\Pricing\PriceResolver;
 use App\Services\Pricing\ResolvedPrice;
@@ -43,7 +44,6 @@ use App\Services\Users\PermissionService;
 use App\Services\Variants\OrderItemSnapshot;
 use App\Settings\SalesSettings;
 use App\Support\Money;
-use App\Support\PhoneNormalizer;
 use App\Support\QtyLimit;
 use App\Support\TelegramMode;
 use Carbon\CarbonInterface;
@@ -799,7 +799,7 @@ final class OrderService
             throw new SalesException(__('sales.errors.name_required'));
         }
 
-        return PhoneNormalizer::normalize($phone) ?? throw new SalesException(__('sales.errors.phone_invalid'));
+        return app(PhoneVerificationService::class)->contactPhone($phone) ?? throw new SalesException(__('sales.errors.phone_invalid'));
     }
 
     /**
@@ -875,6 +875,8 @@ final class OrderService
             $order->customer_id = $customer->id;
             $order->customer_group_id = $group->exists ? $group->id : null;
             $order->customer_group_name = $group->name;
+            // CX-10: the payer requisites of the invoice are those of the moment the order is placed.
+            $order->payer_snapshot = PayerSnapshot::for($customer);
         }
 
         $order->user_agent = $userAgent === null ? null : Str::limit($userAgent, 500, '');

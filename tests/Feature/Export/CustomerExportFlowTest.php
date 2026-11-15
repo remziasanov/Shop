@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\CustomerNotificationType;
 use App\Enums\ExportStatus;
 use App\Enums\ExportType;
+use App\Exceptions\ExportThrottledException;
 use App\Jobs\GenerateCustomerOrdersExport;
 use App\Mail\CustomerExportReadyMail;
 use App\Models\Customer;
@@ -267,6 +268,46 @@ it('does not count refused requests against the limit', function (): void {
     $this->post(route('customer.exports.store'), cxExportBody())->assertSessionHasErrors('export');
 });
 
+it('takes the request slot atomically before the check and keeps the refused request counted (CX-09, TD-26)', function (): void {
+    setSettings(CustomerSettings::class, ['export_requests_per_hour' => 2]);
+    $service = app(CustomerExportService::class);
+    $key = 'customer-export-request:'.$this->customer->id;
+    RateLimiter::clear($key);
+
+    $service->ensureCanRequest($this->customer);
+    $service->ensureCanRequest($this->customer);
+    expect(fn () => $service->ensureCanRequest($this->customer))->toThrow(ExportThrottledException::class)
+        ->and(RateLimiter::attempts($key))->toBe(3);
+
+    // A request refused for another reason gives its slot back.
+    RateLimiter::clear($key);
+    $service->ensureCanRequest($this->customer);
+    $service->releaseRequestSlot($this->customer);
+    expect(RateLimiter::attempts($key))->toBe(0);
+});
+
+it('does not let a request pass on a stale check when another one took the last slot meanwhile (TD-26)', function (): void {
+    setSettings(CustomerSettings::class, ['export_requests_per_hour' => 1]);
+    $service = app(CustomerExportService::class);
+    $key = 'customer-export-request:'.$this->customer->id;
+    RateLimiter::clear($key);
+
+    // Both "requests" are past any pre-check; only the atomic increment decides who gets the slot.
+    $first = $second = true;
+    try {
+        $service->ensureCanRequest($this->customer);
+    } catch (ExportThrottledException) {
+        $first = false;
+    }
+    try {
+        $service->ensureCanRequest($this->customer);
+    } catch (ExportThrottledException) {
+        $second = false;
+    }
+
+    expect([$first, $second])->toBe([true, false]);
+});
+
 it('allows at most 3 unfinished exports at once', function (): void {
     Queue::fake();
     Export::factory()->count(3)->forCustomer($this->customer)->create();
@@ -311,6 +352,29 @@ it('answers 410 with the advice after the 24 hours', function (): void {
     $this->travel(1)->minutes();
 
     $this->get(route('customer.exports.download', $export->uuid))->assertStatus(410)->assertSee('Файл удалён, сформируйте новый');
+});
+
+it('keeps answering 410 after the nightly cleanup removed the row, and 404 once the tombstone is gone (18.7, CX-07, TD-25)', function (): void {
+    $export = Export::factory()->forCustomer($this->customer)->status(ExportStatus::Completed)->create(['expires_at' => now()->subMinute(), 'file_path' => null]);
+    $other = makeCustomer();
+
+    app(CustomerExportService::class)->purgeExpired();
+
+    expect(Export::query()->find($export->id))->toBeNull();
+    $this->get(route('customer.exports.download', $export->uuid))->assertStatus(410)->assertSee('Файл удалён, сформируйте новый');
+
+    // A tombstone of another customer is not visible to this one (IDOR).
+    session()->flush();
+    nextRequest();
+    signInCustomer($this, $other);
+    $this->get(route('customer.exports.download', $export->uuid))->assertNotFound();
+
+    session()->flush();
+    nextRequest();
+    signInCustomer($this, $this->customer);
+    $this->travel(CustomerExportService::TOMBSTONE_DAYS + 1)->days();
+    app(CustomerExportService::class)->purgeExpired();
+    $this->get(route('customer.exports.download', $export->uuid))->assertNotFound();
 });
 
 it('answers 410 when the file is gone from the disk', function (): void {

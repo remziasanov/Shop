@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__.'/../../Support/order_edit.php';
 
+use App\Enums\CustomerNotificationType;
 use App\Enums\OrderChangeKind;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
@@ -454,6 +455,18 @@ it('queues the customer e-mail only when the checkbox is on and the order has an
     'off' => [false, 'ivan@example.com', false],
     'no e-mail' => [true, null, false],
 ]);
+
+it('creates a cabinet OrderChanged notification for a customer-owned order (OE-09, TD-07)', function (): void {
+    Queue::fake();
+    $customer = Customer::factory()->create();
+    $product = sellable(['stock_qty' => 10]);
+    $order = editableOrder([[$product, 1]], OrderType::Order, ['customer_id' => $customer->id]);
+
+    saveEdit($order, withQty($order, $product, 2)->with(['notifyCustomer' => true]));
+
+    $note = CustomerNotification::query()->where('customer_id', $customer->id)->sole();
+    expect($note->type)->toBe(CustomerNotificationType::OrderChanged->value);
+});
 
 it('does not notify when nothing changed', function (): void {
     Queue::fake();

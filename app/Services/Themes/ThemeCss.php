@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Cache;
 final class ThemeCss
 {
     /** Bump when the generated CSS format changes, so a deploy never serves a stale cached block. */
-    private const FORMAT = 5;
+    private const FORMAT = 7;
 
     private const TTL = 86400;
 
@@ -29,6 +29,17 @@ final class ThemeCss
      * of the fixed oklch tokens of app.css. Their pairs on the status washes are other tokens and stay fixed.
      */
     private const STATUS_TEXT = ['success' => '#007A55', 'warn-deep' => '#BB4D00', 'danger' => '#C10007'];
+
+    /**
+     * Reference pages of the Telegram Mini App (D-188): the client replaces bg / surface / ink with its own colors at
+     * run time (telegram.js), so the readable text and focus colors cannot be fixed hex values there. They are written
+     * as a mix of the theme color toward the live `--shop-ink`, with the share worked out against these typical Telegram
+     * backgrounds (page, section, soft panel) and text colors; the dark values apply under `data-tg-scheme="dark"`.
+     */
+    private const TELEGRAM_SCHEMES = [
+        'light' => ['ink' => '#000000', 'backs' => ['#FFFFFF', '#EFEFF3', '#E6E6EA'], 'selector' => 'html[data-tg]'],
+        'dark' => ['ink' => '#FFFFFF', 'backs' => ['#212121', '#2C2C2C', '#383838'], 'selector' => 'html[data-tg][data-tg-scheme="dark"]'],
+    ];
 
     /** Tile indexes that get a rotation rule (the rest of a long listing keeps the plain tile color). */
     private const TILE_INDEXES = 96;
@@ -83,7 +94,7 @@ final class ThemeCss
     {
         [$faces, $files, $preload] = $this->fontFaces($theme);
 
-        $css = implode('', $faces).$this->root($theme).$this->focusRules($theme).$this->textRules($theme).$this->tileRules($theme);
+        $css = implode('', $faces).$this->root($theme).$this->focusRules($theme).$this->textRules($theme).$this->telegramRules($theme).$this->tileRules($theme);
 
         // Defense in depth: nothing that could close the <style> element.
         return ['css' => str_replace(['<', '>'], '', $css), 'preload' => $preload, 'files' => $files];
@@ -271,24 +282,12 @@ final class ThemeCss
         $backs = [$c['bg'], $c['surface'], Color::mix($c['line'], $c['surface'], 0.23)];
         $out = '';
 
-        // Text utilities only, and only on elements without a fill of their own: a status color on its own wash (the
-        // discount badge) or as a fill (the «Новинка» label) keeps the fixed token.
-        $texts = [];
-
-        $noFill = ':not([class^="bg-"]):not([class*=" bg-"])';
-
-        foreach (self::STATUS_TEXT as $name => $color) {
-            $texts[$name] = [$color, '.text-'.$name.$noFill.',.hover\\:text-'.$name.':hover'];
-        }
-
-        // Links in formatted text (category / page / product descriptions, the «Текст» block) carry `[&_a]:text-primary`.
-        $texts['primary'] = [strtoupper($c['primary']), '.text-primary'.$noFill.',.hover\\:text-primary:hover,.active\\:text-primary:active,.\\[\\&_a\\]\\:text-primary a'];
-
-        foreach ($texts as $name => [$color, $selector]) {
-            $readable = self::readable($color, $c['ink'], $backs);
+        foreach ($this->textTargets($theme) as $name => [$color, $base, $hover]) {
+            // TD-35: only the status colors are lightened in OKLCH on dark pages; the primary text keeps the approved mix.
+            $readable = self::readable($color, $c['ink'], $backs, lightenOnDark: isset(self::STATUS_TEXT[$name]));
 
             if ($readable !== $color) {
-                $out .= ':root{--shop-'.$name.'-text: '.strtolower($readable).';}'.$selector.'{color:var(--shop-'.$name.'-text)}';
+                $out .= ':root{--shop-'.$name.'-text: '.strtolower($readable).';}'.self::textRule($base, $hover, $name);
             }
         }
 
@@ -296,14 +295,176 @@ final class ThemeCss
     }
 
     /**
+     * The text utilities that are re-pointed at a readable color: [color, selectors of the plain state, selectors of
+     * the hover state]. Text utilities only, and only on elements without a fill of their own: a status color on its own
+     * wash (the discount badge) or as a fill (the «Новинка» label) keeps the fixed token.
+     *
+     * @return array<string, array{0: string, 1: string, 2: string}>
+     */
+    private function textTargets(ResolvedTheme $theme): array
+    {
+        $noFill = ':not([class^="bg-"]):not([class*=" bg-"])';
+        $targets = [];
+
+        foreach (self::STATUS_TEXT as $name => $color) {
+            $targets[$name] = [$color, '.text-'.$name.$noFill, '.hover\\:text-'.$name.':hover'];
+        }
+
+        // Links in formatted text (category / page / product descriptions, the «Текст» block) carry `[&_a]:text-primary`.
+        $targets['primary'] = [strtoupper($theme->colors['primary']), '.text-primary'.$noFill.',.active\\:text-primary:active,.\\[\\&_a\\]\\:text-primary a', '.hover\\:text-primary:hover'];
+
+        return $targets;
+    }
+
+    /**
+     * The rule of one text color. The hover part sits in `@media (hover: hover)` like the `hover:` utilities of
+     * Tailwind 4, so a tapped link on a phone does not keep the hover color.
+     */
+    private static function textRule(string $base, string $hover, string $name, string $scope = ''): string
+    {
+        $prefix = static fn (string $list): string => $scope === '' ? $list : $scope.' '.str_replace(',', ','.$scope.' ', $list);
+        $declaration = '{color:var(--shop-'.$name.'-text)}';
+
+        return $prefix($base).$declaration.'@media (hover:hover){'.$prefix($hover).$declaration.'}';
+    }
+
+    /**
+     * Telegram Mini App (D-188): the focus ring and the text colors above follow the live tokens that telegram.js
+     * sets (ink, primary), instead of the fixed hex values worked out against the theme palette — those stay dark
+     * while Telegram's dark scheme turns the page dark. Printed for the colors that need it (a web rule exists, or the
+     * color does not read on Telegram's light / dark page). The default theme gets these rules too (owner decision of 15.11.2026): every selector starts with `html[data-tg]`, which only the Telegram layout sets, so its website CSS is unchanged.
+     */
+    private function telegramRules(ResolvedTheme $theme): string
+    {
+        $c = $theme->colors;
+        $webBacks = [$c['bg'], $c['surface'], Color::mix($c['line'], $c['surface'], 0.23)];
+        /** @var array<string, array<string, string>> $vars scheme => [variable => value] */
+        $vars = ['light' => [], 'dark' => []];
+        $rules = '';
+
+        foreach ($this->textTargets($theme) as $name => [$color, $base, $hover]) {
+            $live = $name === 'primary' ? 'var(--shop-primary)' : strtolower($color);
+            $shares = [];
+
+            foreach (self::TELEGRAM_SCHEMES as $scheme => $ref) {
+                $shares[$scheme] = self::readableShare($color, $ref['ink'], $ref['backs']);
+            }
+
+            if (self::readableShare($color, $c['ink'], $webBacks) === 1.0 && min($shares) === 1.0) {
+                continue;
+            }
+
+            foreach ($shares as $scheme => $share) {
+                $vars[$scheme]['--shop-'.$name.'-text'] = self::mixToward($live, $share);
+            }
+
+            $rules .= self::textRule($base, $hover, $name, 'html[data-tg]');
+        }
+
+        $focus = $this->telegramFocus($theme);
+
+        foreach ($focus['vars'] as $scheme => $value) {
+            $vars[$scheme]['--shop-focus'] = $value;
+        }
+
+        $out = '';
+
+        foreach (self::TELEGRAM_SCHEMES as $scheme => $ref) {
+            if ($vars[$scheme] === [] || ($scheme === 'dark' && $vars['dark'] === $vars['light'])) {
+                continue;
+            }
+
+            $out .= $ref['selector'].'{'.implode(';', array_map(static fn (string $k, string $v): string => $k.': '.$v, array_keys($vars[$scheme]), $vars[$scheme])).';}';
+        }
+
+        return $out.$rules.$focus['rules'];
+    }
+
+    /**
+     * @return array{vars: array<string, string>, rules: string} the page focus value per scheme and the rules that read it
+     */
+    private function telegramFocus(ResolvedTheme $theme): array
+    {
+        $c = $theme->colors;
+        $vars = [];
+
+        foreach (self::TELEGRAM_SCHEMES as $scheme => $ref) {
+            $fits = true;
+
+            foreach ($ref['backs'] as $back) {
+                $fits = $fits && Color::contrast($c['primary'], $back) >= self::FOCUS_MIN_RATIO;
+            }
+
+            $vars[$scheme] = $fits ? 'var(--shop-primary)' : 'var(--shop-ink)';
+        }
+
+        $webRule = str_contains($this->focusRules($theme), ':root{--shop-focus:');
+
+        if (! $webRule && ! in_array('var(--shop-ink)', $vars, true)) {
+            return ['vars' => [], 'rules' => ''];
+        }
+
+        $rules = 'html[data-tg] .focus-visible\\:outline-primary:focus-visible{outline-color:var(--shop-focus)}'
+            .'html[data-tg] .focus-visible\\:ring-primary:focus-visible{--tw-ring-color:var(--shop-focus)}';
+
+        // The hero band keeps its own ring (it sits on heroBg, not on the page).
+        if (in_array(BlockExtras::hero($theme), ['G2', 'G4'], true)) {
+            $band = Color::contrast($c['primary'], $c['heroBg']) >= self::FOCUS_MIN_RATIO ? $c['primary'] : $c['heroInk'];
+            $rules .= 'html[data-tg] .hero-band{--shop-focus: '.strtolower($band).';}';
+        }
+
+        return ['vars' => $vars, 'rules' => $rules];
+    }
+
+    /** The color at `$share` (0..1) mixed toward the live text color: the color itself at 1, the text color at 0. */
+    private static function mixToward(string $color, float $share): string
+    {
+        if ($share >= 1.0) {
+            return $color;
+        }
+
+        if ($share <= 0.0) {
+            return 'var(--shop-ink)';
+        }
+
+        return 'color-mix(in srgb, '.$color.' '.(int) round($share * 100).'%, var(--shop-ink))';
+    }
+
+    /**
      * The color itself when it reaches 4.5:1 on every background, otherwise the color mixed toward the ink (5 % steps).
      *
      * @param  list<string>  $backs
      */
-    private static function readable(string $color, string $ink, array $backs): string
+    private static function readable(string $color, string $ink, array $backs, bool $lightenOnDark = false): string
     {
-        for ($share = 1.0; $share > 0.0; $share -= 0.05) {
-            $candidate = $share === 1.0 ? $color : Color::mix($color, $ink, $share);
+        $share = self::readableShare($color, $ink, $backs);
+
+        // A light text on a dark page: mixing toward it washes the hue out (TD-35), so a status color is lightened in OKLCH instead.
+        if ($lightenOnDark && $share < 1.0 && Color::luminance($ink) > Color::luminance($backs[0])) {
+            $light = Color::lighten($color, $backs, self::TEXT_MIN_RATIO);
+
+            if ($light !== null) {
+                return $light;
+            }
+        }
+
+        return match (true) {
+            $share >= 1.0 => $color,
+            $share <= 0.0 => strtoupper($ink),
+            default => Color::mix($color, $ink, $share),
+        };
+    }
+
+    /**
+     * Share (1 = the color itself, 0 = the ink) of the color that reaches 4.5:1 on every background, 5 % steps.
+     *
+     * @param  list<string>  $backs
+     */
+    private static function readableShare(string $color, string $ink, array $backs): float
+    {
+        for ($step = 20; $step > 0; $step--) {
+            $share = $step / 20;
+            $candidate = $step === 20 ? $color : Color::mix($color, $ink, $share);
             $ok = true;
 
             foreach ($backs as $back) {
@@ -314,11 +475,11 @@ final class ThemeCss
             }
 
             if ($ok) {
-                return $candidate;
+                return $share;
             }
         }
 
-        return strtoupper($ink);
+        return 0.0;
     }
 
     /**

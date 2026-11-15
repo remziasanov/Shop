@@ -10,6 +10,7 @@ use App\Models\OrderItem;
 use App\Models\User;
 use App\Services\Export\CustomerOrdersExporter;
 use App\Services\Export\OrderPdfRenderer;
+use App\Services\Orders\PayerSnapshot;
 use App\Settings\GeneralSettings;
 use App\Settings\LegalSettings;
 use FontLib\Font;
@@ -124,6 +125,30 @@ it('names the payer by the company requisites of the customer (CA-10), otherwise
 
     expect($company)->toContain('ООО «Покупатель»')->toContain('7707083893')->toContain('Юридическая')
         ->and($plain)->toContain('Гость Гостев')->toContain('+79005550000');
+});
+
+it('reprints the payer as it was when the order was placed, and falls back to the current requisites without a snapshot (CX-10, TD-27)', function (): void {
+    $customer = makeCustomer();
+    $company = CustomerCompany::factory()->create(['customer_id' => $customer->id, 'name' => 'ООО «Старое имя»', 'inn' => '7707083893', 'legal_address' => 'Москва, ул. Прежняя, 1']);
+    $snapshotted = cxPdfOrder(['customer_id' => $customer->id, 'payer_snapshot' => PayerSnapshot::for($customer)]);
+    $legacy = cxPdfOrder(['number' => 'Z-00125', 'customer_id' => $customer->id]);
+
+    $company->update(['name' => 'ООО «Новое имя»', 'legal_address' => 'Казань, ул. Новая, 9']);
+
+    $renderer = app(OrderPdfRenderer::class);
+    $old = pdfText($renderer->document($snapshotted->refresh()));
+    $fallback = pdfText($renderer->document($legacy->refresh()));
+
+    expect($old)->toContain('Старое имя')->toContain('Прежняя')->not->toContain('Новое имя')
+        ->and($fallback)->toContain('Новое имя');
+});
+
+it('keeps «no company» in the snapshot: requisites added later do not appear on the old invoice (CX-10, TD-27)', function (): void {
+    $customer = makeCustomer();
+    $order = cxPdfOrder(['customer_id' => $customer->id, 'customer_name' => 'Менеджер Закупок', 'payer_snapshot' => PayerSnapshot::for($customer)]);
+    CustomerCompany::factory()->create(['customer_id' => $customer->id, 'name' => 'ООО «Поздняя»', 'inn' => '7707083893']);
+
+    expect(pdfText(app(OrderPdfRenderer::class)->document($order->refresh())))->not->toContain('Поздняя')->toContain('Менеджер Закупок');
 });
 
 it('prints the discount lines, the VAT note and the footer', function (): void {

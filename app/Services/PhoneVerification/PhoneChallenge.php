@@ -89,7 +89,10 @@ final class PhoneChallenge
         $parked = $this->parked($session, $customer);
         $this->clear($session);
 
-        $stale = ['route' => 'customer.profile', 'status' => null, 'error' => __('phone_verification.screen.stale')];
+        // TD-34: a stale result goes back to where the flow started: the wholesale page for a wholesale application,
+        // the profile otherwise.
+        $origin = PhoneVerificationPurpose::tryFrom((string) ($parked['purpose'] ?? '')) ?? $purpose;
+        $stale = ['route' => $origin === PhoneVerificationPurpose::Wholesale ? 'customer.wholesale' : 'customer.profile', 'status' => null, 'error' => __('phone_verification.screen.stale')];
 
         if ($canonical === null) {
             return $stale;

@@ -482,6 +482,9 @@ it('27. manager in the work chat: confirm redraws the message and tells the buye
 // ---------------------------------------------------------------------------------------------
 
 it('28. workplace: link Telegram, /orders button, signed staff start, tab of expiring reservations, phone search, extend by 24 h, call link, /admin refused, audit with source Telegram', function (): void {
+    // The «expiring today» tab ends at the end of the day: a fixed midday keeps the +90 minutes reservation inside it.
+    $this->travelTo(now()->setTime(12, 0));
+
     // The staff member links Telegram in «Мой Telegram»: the s_ link, the question and the confirmation in the bot.
     $user = User::factory()->withPermissions(['orders.view', 'orders.update'])->create(['name' => 'Иванов', 'email' => 'ivanov@example.com']);
     $this->actingAs($user);

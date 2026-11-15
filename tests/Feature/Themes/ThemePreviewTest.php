@@ -47,6 +47,12 @@ it('shows the previewed theme with the bar to staff with the right (TH-27)', fun
         ->and($html)->toContain('Компьютер')->toContain('Телефон');
 });
 
+it('puts a space between the theme name and the counter in the bar', function (): void {
+    $html = $this->actingAs(previewStaff())->withSession(previewSession('monohrom'))->get(route('home'))->assertOk()->getContent();
+
+    expect($html)->toMatch('~</strong> \(\d+/\d+\)~');
+});
+
 it('serves previews as private, no-store and not indexable (TH-30)', function (): void {
     $response = $this->actingAs(previewStaff())->withSession(previewSession())->get(route('home'))->assertOk();
 

@@ -55,7 +55,10 @@ class StaffCallbackHandler
             return $this->answer($id, __('telegram_staff.toast.wrong_chat'), alert: true);
         }
 
-        if (! $this->access->buttonsEnabled()) {
+        // TD-29: a personal copy (private chat) does not depend on the work chat switch.
+        $forWorkChat = ($chat['type'] ?? '') !== 'private';
+
+        if (! $this->access->buttonsEnabled($forWorkChat)) {
             return $this->answer($id, __('telegram_staff.toast.disabled'), alert: true);
         }
 
@@ -66,7 +69,7 @@ class StaffCallbackHandler
         $result = $this->actions->perform($user, (int) $m[2], $action, (int) $m[3], 'chat');
 
         if ($result->order !== null && in_array($result->outcome, [StaffActionResult::DONE, StaffActionResult::STALE, StaffActionResult::ARMED], true)) {
-            $this->sync->redrawNow($chatId, $messageId, $result->order, cancelArmed: $result->outcome === StaffActionResult::ARMED);
+            $this->sync->redrawNow($chatId, $messageId, $result->order, cancelArmed: $result->outcome === StaffActionResult::ARMED, forWorkChat: $forWorkChat);
 
             if ($result->isDone() || $result->outcome === StaffActionResult::STALE) {
                 $this->sync->redrawCopies($result->order, $chatId, $messageId);

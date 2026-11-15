@@ -118,6 +118,18 @@ describe('who may press (TS-03)', function (): void {
         expect($order->refresh()->status)->toBe(OrderStatus::Confirmed);
     });
 
+    it('accepts a tap in the private chat while the work chat switch is off, but not in the work chat (TD-29)', function (): void {
+        linkedStaff();
+        staffBot(['enabled' => false]);
+        $order = Order::factory()->order()->create();
+
+        tapButton($order, 'cf')->assertJsonPath('text', 'Кнопки действий отключены в настройках');
+        expect($order->refresh()->status)->toBe(OrderStatus::New);
+
+        tapButton($order, 'cf', ['chatId' => 555, 'chatType' => 'private'])->assertJsonPath('text', 'Подтверждено');
+        expect($order->refresh()->status)->toBe(OrderStatus::Confirmed);
+    });
+
     it('does nothing while the buttons are switched off', function (): void {
         linkedStaff();
         staffBot(['work_chat_buttons_enabled' => false]);

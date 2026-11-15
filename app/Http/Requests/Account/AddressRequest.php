@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Account;
 
-use App\Support\PhoneNormalizer;
+use App\Services\PhoneVerification\PhoneVerificationService;
 use Closure;
 
 /**
@@ -21,7 +21,7 @@ class AddressRequest extends AccountRequest
             'label' => ['required', 'string', 'max:100'],
             'recipient_name' => ['required', 'string', 'max:150'],
             'phone' => ['required', 'string', 'max:30', function (string $attribute, mixed $value, Closure $fail): void {
-                if (PhoneNormalizer::normalize(is_string($value) ? $value : null) === null) {
+                if (app(PhoneVerificationService::class)->contactPhone(is_string($value) ? $value : null) === null) {
                     $fail(__('sales.errors.phone_invalid'));
                 }
             }],
@@ -49,7 +49,7 @@ class AddressRequest extends AccountRequest
         return [
             'label' => (string) $this->validated('label'),
             'recipient_name' => (string) $this->validated('recipient_name'),
-            'phone' => (string) PhoneNormalizer::normalize((string) $this->validated('phone')),
+            'phone' => (string) app(PhoneVerificationService::class)->contactPhone((string) $this->validated('phone')),
             'address' => (string) $this->validated('address'),
             'is_default' => $this->boolean('is_default'),
         ];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\WholesaleApplications\Schemas;
 
 use App\Enums\WholesaleApplicationStatus;
+use App\Filament\Resources\Customers\CustomerResource;
 use App\Models\WholesaleApplication;
 use App\Services\Customers\WholesaleApplicationService;
 use Filament\Infolists\Components\TextEntry;
@@ -44,7 +45,10 @@ final class WholesaleApplicationInfolist
                         TextEntry::make('created_at')->label(__('wholesale.table.created_at'))->dateTime('d.m.Y H:i'),
                         TextEntry::make('customer_id')
                             ->label(__('wholesale.table.customer'))
-                            ->formatStateUsing(fn (int $state): string => __('wholesale.view.customer_link', ['id' => $state])),
+                            ->formatStateUsing(fn (int $state): string => __('wholesale.view.customer_link', ['id' => $state]))
+                            ->url(fn (WholesaleApplication $record): ?string => $record->customer !== null && CustomerResource::canView($record->customer)
+                                ? CustomerResource::getUrl('view', ['record' => $record->customer])
+                                : null),
                         TextEntry::make('company_name')->label(__('wholesale.fields.company_name'))->placeholder('—')->weight('bold'),
                         TextEntry::make('inn')->label(__('wholesale.fields.inn'))->placeholder('—')->copyable(),
                         TextEntry::make('kpp')->label(__('wholesale.fields.kpp'))->placeholder('—'),

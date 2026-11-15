@@ -15,6 +15,7 @@ dataset('schedule table', [
     'shop:notify-expiring-reservations' => ['shop:notify-expiring-reservations', '0 * * * *'],
     'shop:recalc-prices --boundaries' => ['shop:recalc-prices --boundaries', '*/15 * * * *'],
     'shop:recalc-prices --all' => ['shop:recalc-prices --all', '10 3 * * *'],
+    'shop:warm-facets' => ['shop:warm-facets', '* * * * *'],
     'shop:sitemap' => ['shop:sitemap', '20 4 * * *'],
     'shop:cleanup' => ['shop:cleanup', '40 4 * * *'],
     'queue:prune-failed' => ['queue:prune-failed --hours=168', '50 4 * * *'],
@@ -42,7 +43,7 @@ it('registers every scheduled command exactly once with a 10 minute overlap mute
 })->with('schedule table');
 
 it('has no scheduled entries beyond the table', function (): void {
-    expect(app(Schedule::class)->events())->toHaveCount(15);
+    expect(app(Schedule::class)->events())->toHaveCount(16);
 });
 
 it('keeps scheduled commands within the one-minute budget', function (): void {

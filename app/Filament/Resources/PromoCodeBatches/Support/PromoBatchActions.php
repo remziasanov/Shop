@@ -132,6 +132,29 @@ final class PromoBatchActions
     }
 
     /**
+     * «Продолжить генерацию» (TD-19): resumes a failed or stuck batch; the generator is safe to repeat.
+     */
+    public static function resume(): Action
+    {
+        return Action::make('resume')
+            ->label(__('promo_admin.batches.actions.resume'))
+            ->icon('heroicon-o-play')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->visible(fn (PromoCodeBatch $record): bool => self::allowed() && app(PromoBatchService::class)->canResume($record))
+            ->action(function (PromoCodeBatch $record): void {
+                abort_unless(self::allowed(), 403);
+
+                $resumed = app(PromoBatchService::class)->resume($record);
+
+                Notification::make()
+                    ->{$resumed ? 'success' : 'warning'}()
+                    ->title(__($resumed ? 'promo_admin.batches.actions.resumed' : 'promo_admin.batches.actions.resume_unavailable'))
+                    ->send();
+            });
+    }
+
+    /**
      * «Экспорт»: asks for the CSV/Excel of the codes; the file appears in the export journal (PM-16).
      */
     public static function export(): Action

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -13,8 +12,8 @@ use Illuminate\Support\Facades\Schema;
  * (id and name), so a later group change or deletion does not touch old requests; it has no foreign key.
  * Existing requests stay guest requests (NULL).
  *
- * As in the roles migration, SQLite (tests only) cannot add a foreign key to an existing table: it is created on
- * MySQL only.
+ * The foreign keys of `carts.customer_id` and `orders.customer_id` exist on SQLite too (Laravel rebuilds the table),
+ * so the test schema matches production (TD-09).
  */
 return new class extends Migration
 {
@@ -33,28 +32,24 @@ return new class extends Migration
             $table->index('customer_email');
         });
 
-        if (DB::getDriverName() !== 'sqlite') {
-            Schema::table('carts', function (Blueprint $table): void {
-                $table->foreign('customer_id')->references('id')->on('customers')->nullOnDelete();
-            });
+        Schema::table('carts', function (Blueprint $table): void {
+            $table->foreign('customer_id')->references('id')->on('customers')->nullOnDelete();
+        });
 
-            Schema::table('orders', function (Blueprint $table): void {
-                $table->foreign('customer_id')->references('id')->on('customers')->nullOnDelete();
-            });
-        }
+        Schema::table('orders', function (Blueprint $table): void {
+            $table->foreign('customer_id')->references('id')->on('customers')->nullOnDelete();
+        });
     }
 
     public function down(): void
     {
-        if (DB::getDriverName() !== 'sqlite') {
-            Schema::table('orders', function (Blueprint $table): void {
-                $table->dropForeign(['customer_id']);
-            });
+        Schema::table('orders', function (Blueprint $table): void {
+            $table->dropForeign(['customer_id']);
+        });
 
-            Schema::table('carts', function (Blueprint $table): void {
-                $table->dropForeign(['customer_id']);
-            });
-        }
+        Schema::table('carts', function (Blueprint $table): void {
+            $table->dropForeign(['customer_id']);
+        });
 
         Schema::table('orders', function (Blueprint $table): void {
             $table->dropIndex(['customer_id', 'created_at']);

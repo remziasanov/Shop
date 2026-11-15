@@ -44,7 +44,7 @@
 | Текст на основной кнопке | 8.48:1 | 4,5:1 — выдержан |
 | Текст на акценте | 5.31:1 | 4,5:1 — выдержан |
 
-Значения темы, без переопределений. Цвета, которые витрина рассчитала для этой темы по правилам контраста этапа 22 (`ThemeCss`): `--shop-success-text` #b9cfb4, `--shop-warn-deep-text` #e7c49f, `--shop-danger-text` #ebbcab, `--shop-primary-text` #ecc36a.
+Значения темы, без переопределений. Цвета, которые витрина рассчитала для этой темы по правилам контраста этапа 22 (`ThemeCss`): `--shop-success-text` #7cdcb1, `--shop-warn-deep-text` #ffb695, `--shop-danger-text` #ffb5aa, `--shop-primary-text` #ecc36a.
 
 ## Проверка sloplint
 

@@ -35,7 +35,7 @@ final class SmsAeroGateway implements PhoneVerificationGateway
     /** Word-bounded: «включите», «отключена», «подключения» must not match (PV-05). */
     private const AUTH_PATTERN = '/authenticat|unauthori[sz]ed|api[ _-]?key|авторизац|(?<![\p{L}])ключ(?:а|ом|у)?(?![\p{L}])/iu';
 
-    private const BALANCE_PATTERN = '/insufficient|not enough|no money|недостаточно|баланс|средств/iu';
+    private const BALANCE_PATTERN = '/insufficient|not enough|no money|недостаточно\s+средств|баланс|(?<![\p{L}])средств(?![\p{L}])/iu';
 
     public function __construct(
         private readonly string $login,

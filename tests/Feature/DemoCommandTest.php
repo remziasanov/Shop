@@ -33,6 +33,14 @@ it('creates a 3-level category tree and about 50 products without images', funct
         ->and(Product::query()->where('price_on_request', true)->exists())->toBeTrue();
 });
 
+it('gives a few demo products an own age restriction (AG-01)', function (): void {
+    $this->artisan('shop:demo', ['--no-images' => true])->assertSuccessful();
+
+    expect(Product::query()->where('sku', 'DEMO-0019')->first()?->age_restriction?->value)->toBe('16')
+        ->and(Product::query()->where('sku', 'DEMO-0036')->first()?->age_restriction?->value)->toBe('18')
+        ->and(Product::query()->whereNotNull('age_restriction')->count())->toBe(2);
+});
+
 it('is idempotent', function (): void {
     $this->artisan('shop:demo', ['--no-images' => true])->assertSuccessful();
     $products = Product::query()->count();

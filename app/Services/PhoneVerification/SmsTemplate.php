@@ -14,6 +14,15 @@ final class SmsTemplate
 
     public const DEFAULT = 'Код подтверждения: {code}. {shop}';
 
+    /** Domain zones that make «name.zone» look like a link to an SMS filter; one list for render() and validate() (TD-33). */
+    private const ZONES = 'ru|com|net|org|su|рф|io|me|ly|by|kz|ua|uz|kg|am|az|ge|md|de|eu|co|tv|cc|ws|pw|app|dev|xyz|top|club|pro|biz|info|shop|store|online|site|москва|moscow|рус|онлайн|сайт|магазин';
+
+    /** «name.zone» with the zone ending at a word boundary: group 1 is the name. */
+    private static function domainPattern(): string
+    {
+        return '~(?<![\p{L}\d-])([\p{L}\d-]+)\.(?:'.self::ZONES.')(?![\p{L}\d])~iu';
+    }
+
     public static function render(string $template, string $code, string $shop): string
     {
         $withoutShop = str_replace('{code}', $code, $template);
@@ -24,7 +33,7 @@ final class SmsTemplate
         }
 
         // PV-04: no links, a domain-like shop name («Alev.ru») loses its zone.
-        $shop = trim(preg_replace(['~https?://\S*|www\.\S*~iu', '~\b([\p{L}\d-]+)\.(?:ru|com|net|org|su|рф|io|me|ly|by|kz|shop|store|online|site)\b~iu'], ['', '$1'], $shop) ?? $shop);
+        $shop = trim(preg_replace(['~https?://\S*|www\.\S*~iu', self::domainPattern()], ['', '$1'], $shop) ?? $shop);
 
         $fixed = mb_strlen(str_replace('{shop}', '', $withoutShop));
         $room = max(0, intdiv(self::MAX_LENGTH - $fixed, $count));
@@ -43,7 +52,7 @@ final class SmsTemplate
             return 'no_code';
         }
 
-        if (preg_match('~https?://|www\.|\b[\p{L}\d-]+\.(ru|com|net|org|su|рф|io|me|ly|by|kz)\b~iu', $template) === 1) {
+        if (preg_match('~https?://|www\.~iu', $template) === 1 || preg_match(self::domainPattern(), $template) === 1) {
             return 'link';
         }
 

@@ -15,6 +15,7 @@ use App\Services\Orders\OrderService;
 use App\Settings\PhoneVerificationSettings;
 use App\Support\TelegramMode;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Where phone verification meets the existing processes (PV-07, PV-13). The service ({@see PhoneVerificationService})
@@ -251,9 +252,10 @@ final class PhoneVerificationGate
             throw new SalesException(__('phone_verification.errors.account_locked'));
         }
 
-        // The lock was lifted by a skip mark of the profile phone: the mark is used up by this request.
+        // The lock was lifted by a skip mark of the profile phone: the mark is used up by this request, but only once
+        // the checkout transaction has committed (TD-31): a rollback (deadlock retry, a later failure) keeps it usable.
         if ($customer !== null && $customer->phone_verified_at === null && $this->registrationMode() === PhoneVerificationRegistrationMode::Required) {
-            $this->forgetSkipped(PhoneVerificationPurpose::Registration, $session);
+            DB::afterCommit(fn () => $this->forgetSkipped(PhoneVerificationPurpose::Registration, $session));
         }
 
         $purpose = PhoneVerificationPurpose::GuestCheckout;
@@ -264,7 +266,7 @@ final class PhoneVerificationGate
         }
 
         if ($this->wasSkipped($phone, $purpose, $session)) {
-            $this->forgetSkipped($purpose, $session);
+            DB::afterCommit(fn () => $this->forgetSkipped($purpose, $session));
 
             return false;
         }

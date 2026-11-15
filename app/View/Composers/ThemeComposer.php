@@ -56,12 +56,10 @@ final class ThemeComposer
         $view->with($this->data);
     }
 
-    /** Position of the theme in the gallery. */
-    private function indexOf(string $id): ?int
+    /** Position of the theme in the gallery: the active theme is always a registered one (or the default, which is the first). */
+    private function indexOf(string $id): int
     {
-        $index = array_search($id, array_keys($this->themes->all()), true);
-
-        return $index === false ? null : $index;
+        return (int) array_search($id, array_keys($this->themes->all()), true);
     }
 
     private function isPreview(): bool

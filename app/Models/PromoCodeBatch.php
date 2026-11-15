@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\PromoBatchStatus;
 use App\Services\Promo\PromoBatchService;
+use Carbon\Carbon;
 use Database\Factories\PromoCodeBatchFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $generated
  * @property PromoBatchStatus $status
  * @property int|null $created_by
+ * @property Carbon|null $updated_at
  */
 class PromoCodeBatch extends Model
 {

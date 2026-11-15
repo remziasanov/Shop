@@ -195,7 +195,7 @@ it('treats a refused number as a refusal, never as a provider failure (PV-05)', 
     $e = smsAeroError(fn () => smsAero()->sendSms('+79991234567', 'text'));
 
     expect($e)->toBeInstanceOf(PhoneProviderRefusal::class)->and($e->insufficientBalance)->toBeFalse();
-})->with(['Номер отключен', 'Ошибка подключения к оператору', 'Исключение для номера']);
+})->with(['Номер отключен', 'Ошибка подключения к оператору', 'Исключение для номера', 'Недопустимое средство связи', 'Выбранное средство отправки недоступно']);
 
 it('still classifies a real authorization message as an auth failure', function (string $message): void {
     smsAeroFake(Http::response(['success' => false, 'message' => $message], 200));

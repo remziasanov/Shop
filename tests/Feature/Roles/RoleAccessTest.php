@@ -21,7 +21,10 @@ use App\Models\User;
 use App\Services\Users\RoleService;
 use App\Settings\GeneralSettings;
 use Filament\Actions\Testing\TestAction;
+use Illuminate\Auth\Access\AuthorizationException;
 use Livewire\Livewire;
+use PHPUnit\Framework\ExpectationFailedException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * Acceptance of stage 8.1: a custom «Контент-менеджер» role opens only its own sections (RB-05, RB-13).
@@ -112,16 +115,25 @@ describe('protected Livewire actions called directly (RB-13)', function (): void
         $product = Product::factory()->create(['is_active' => true, 'base_price' => '100.00']);
         $this->actingAs($viewer);
 
+        $table = Livewire::test(ListProducts::class);
+
         foreach ([
             ['deactivate', []],
             ['delete', []],
             ['change_price', ['operation' => 'increase_percent', 'value' => '10']],
         ] as [$action, $data]) {
+            // Hidden for the role, and a direct call is refused (403 or "action not found"), never executed silently.
+            $table->assertTableBulkActionHidden($action);
+
+            $refused = false;
+
             try {
-                Livewire::test(ListProducts::class)->callTableBulkAction($action, [$product], $data);
-            } catch (Throwable) {
-                // Refused with an exception (403) or an assertion about a hidden action: both mean "not executed".
+                $table->callTableBulkAction($action, [$product], $data);
+            } catch (AuthorizationException|HttpException|ExpectationFailedException) {
+                $refused = true;
             }
+
+            expect($refused)->toBeTrue("Bulk action {$action} was not refused");
         }
 
         $fresh = Product::withTrashed()->findOrFail($product->id);
@@ -136,11 +148,16 @@ describe('protected Livewire actions called directly (RB-13)', function (): void
         $product = Product::factory()->create();
         $this->actingAs($viewer);
 
+        $page = Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()])->assertActionHidden('delete');
+        $refused = false;
+
         try {
-            Livewire::test(EditProduct::class, ['record' => $product->getRouteKey()])->callAction('delete');
-        } catch (Throwable) {
-            // Hidden or refused: not executed.
+            $page->callAction('delete');
+        } catch (AuthorizationException|HttpException|ExpectationFailedException) {
+            $refused = true;
         }
+
+        expect($refused)->toBeTrue();
 
         expect(Product::withTrashed()->findOrFail($product->id)->trashed())->toBeFalse();
     });
@@ -150,7 +167,9 @@ describe('protected Livewire actions called directly (RB-13)', function (): void
         $product = Product::factory()->create(['is_active' => true]);
         $this->actingAs($manager);
 
-        Livewire::test(ListProducts::class)->callTableBulkAction('deactivate', [$product]);
+        Livewire::test(ListProducts::class)
+            ->assertTableBulkActionVisible('deactivate')
+            ->callTableBulkAction('deactivate', [$product]);
 
         expect($product->fresh()->is_active)->toBeFalse();
     });

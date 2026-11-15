@@ -294,3 +294,26 @@ it('keeps the workplace and personal notifications while the work chat switch is
         ->and(app(StaffOrderNotifier::class)->sendPersonal($order, $user))->toBeTrue()
         ->and(app(StaffOrderMessage::class)->markup($order))->toBeNull();
 });
+
+it('keeps the buttons of the personal copies while the work chat switch is off (TS-08, TD-29)', function (): void {
+    $order = Order::factory()->order()->create();
+    staffBot(['enabled' => false]);
+
+    expect(app(StaffOrderMessage::class)->markup($order, forWorkChat: false))->not->toBeNull()
+        ->and(buttonsOf(app(StaffOrderMessage::class)->markup($order, forWorkChat: false)))->toContain('Подтвердить', 'Отменить')
+        ->and(app(StaffOrderMessage::class)->markup($order))->toBeNull();
+
+    staffBot(['enabled' => false, 'work_chat_buttons_enabled' => false]);
+    expect(app(StaffOrderMessage::class)->markup($order, forWorkChat: false))->toBeNull();
+});
+
+it('sends the personal copy with buttons while the work chat switch is off (TS-08, TD-29)', function (): void {
+    fakeTelegramSend(31, 601);
+    [$user] = linkedStaff(['orders.view', 'orders.update'], 601);
+    $user->forceFill(['telegram_personal_notify' => true])->save();
+    $order = Order::factory()->order()->create();
+    staffBot(['enabled' => false]);
+
+    expect(app(StaffOrderNotifier::class)->sendPersonal($order, $user))->toBeTrue();
+    expect(buttonsOf(telegramCalls()['sendMessage'][0]['reply_markup']))->toContain('Подтвердить', 'Отменить');
+});

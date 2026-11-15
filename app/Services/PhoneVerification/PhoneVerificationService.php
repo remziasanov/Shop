@@ -118,6 +118,28 @@ final class PhoneVerificationService
     }
 
     /**
+     * The phone of a contact form (checkout, registration, profile, wholesale application): the SF-44 rule first, so
+     * nothing changes for numbers it knows. Where verification is on, a number the SF-44 rule does not know (Kazakhstan
+     * +77…) is accepted in its canonical form too, but only when an allowed prefix covers it (PV-06, D-157, D-173).
+     *
+     * @return string|null the canonical +7XXXXXXXXXX form, null when the number is not acceptable
+     */
+    public function contactPhone(?string $input): ?string
+    {
+        $normalized = PhoneNormalizer::normalize($input);
+
+        if ($normalized !== null || $input === null || ! $this->isEnabled()) {
+            return $normalized;
+        }
+
+        try {
+            return $this->normalize($input);
+        } catch (PhoneVerificationException) {
+            return null;
+        }
+    }
+
+    /**
      * The canonical +7XXXXXXXXXX form of a number that passes the allowed prefixes (PV-06).
      *
      * @throws PhoneVerificationException `invalid_phone` or `prefix_not_allowed`

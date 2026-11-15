@@ -78,19 +78,24 @@ class CheckoutForm extends Component
     #[Locked]
     public array $shownTargets = [];
 
-    public function mount(CheckoutMethods $methods, ViewerContext $viewer, CustomerAddressService $addresses): void
+    public function mount(CheckoutMethods $methods): void
     {
         $this->delivery = $methods->deliveries()[0]->key ?? '';
         $this->payment = $methods->payments()[0]->key ?? '';
+    }
 
-        // CA-09: a signed-in customer starts with the default address of the address book (name, phone and e-mail are
-        // filled in by SalesFormSupport).
-        $customer = $viewer->customer();
-        $default = $customer !== null ? $addresses->listFor($customer)->first() : null;
+    /**
+     * CA-09: a signed-in customer starts with the default address of the address book, including its recipient and
+     * phone. Runs after the profile prefill of SalesFormSupport (which would otherwise overwrite them).
+     */
+    protected function afterSalesFormPrefill(): void
+    {
+        $customer = app(ViewerContext::class)->customer();
+        $default = $customer !== null ? app(CustomerAddressService::class)->listFor($customer)->first() : null;
 
         if ($default !== null) {
             $this->addressId = $default->id;
-            $this->address = $default->address;
+            $this->updatedAddressId($default->id);
         }
     }
 

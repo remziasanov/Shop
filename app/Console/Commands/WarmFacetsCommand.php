@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands;
+
+use App\Jobs\WarmCategoryFacets;
+use App\Services\Catalog\CatalogVersion;
+use App\Services\Catalog\FacetWarmer;
+use Illuminate\Console\Command;
+
+class WarmFacetsCommand extends Command
+{
+    protected $signature = 'shop:warm-facets {--now : Warm in this process instead of queueing a job (ignores the start conditions)}';
+
+    protected $description = 'Warm the facet cache of the category pages without filters (FL-11, FL-12)';
+
+    public function handle(FacetWarmer $warmer): int
+    {
+        if ($this->option('now')) {
+            $offset = 0;
+
+            while ($offset !== null) {
+                $offset = $warmer->warm($offset);
+            }
+
+            $this->info(__('catalog.warm_facets.done'));
+
+            return self::SUCCESS;
+        }
+
+        if (! $warmer->shouldStart()) {
+            return self::SUCCESS;
+        }
+
+        $warmer->markChainActive();
+        WarmCategoryFacets::dispatch(0, CatalogVersion::current());
+        $this->info(__('catalog.warm_facets.queued'));
+
+        return self::SUCCESS;
+    }
+}

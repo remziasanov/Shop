@@ -87,36 +87,6 @@ final class PromoCodeStats
     }
 
     /**
-     * The table of all codes with their uses (not given back) and discount total, most used first by default.
-     *
-     * @param  'uses'|'discount'|'code'  $sort
-     * @return Collection<int, array{code: PromoCode, uses: int, discount: int}>
-     */
-    public function overview(string $sort = 'uses', int $limit = 100): Collection
-    {
-        $stats = DB::table('promo_redemptions')
-            ->whereNull('released_at')
-            ->groupBy('promo_code_id')
-            ->selectRaw('promo_code_id, COUNT(*) as uses, COALESCE(SUM(discount_amount), 0) as discount')
-            ->get()
-            ->keyBy('promo_code_id');
-
-        $rows = PromoCode::query()->get()->map(function (PromoCode $code) use ($stats): array {
-            $row = $stats->get($code->id);
-
-            return ['code' => $code, 'uses' => (int) ($row->uses ?? 0), 'discount' => Money::fromRubles((string) ($row->discount ?? 0))];
-        });
-
-        $rows = match ($sort) {
-            'discount' => $rows->sortByDesc('discount'),
-            'code' => $rows->sortBy(fn (array $row): string => $row['code']->code),
-            default => $rows->sortByDesc('uses'),
-        };
-
-        return $rows->take($limit)->values();
-    }
-
-    /**
      * The dashboard widget (22.4): codes with the most uses in the last N days.
      *
      * @return list<array{code: PromoCode, uses: int, discount: int}>

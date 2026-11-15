@@ -129,6 +129,7 @@ class PromoCodeBatchResource extends Resource
                     ->color('gray')
                     ->visible(fn (): bool => PromoCodeResource::canViewAny())
                     ->url(fn (PromoCodeBatch $record): string => PromoCodeResource::getUrl('index', ['filters' => ['batch_id' => ['value' => $record->id]]])),
+                PromoBatchActions::resume(),
                 PromoBatchActions::applyTemplate(),
                 PromoBatchActions::export(),
             ])

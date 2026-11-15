@@ -20,6 +20,9 @@ use App\Services\Orders\OrderService;
 use App\Services\Orders\OrderTimeline;
 use App\Settings\NotificationSettings;
 use App\Support\Money;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
@@ -345,7 +348,7 @@ it('resolves the price of an untouched row on the server even when the displayed
     // Qty set without the live hook (as a direct state change): the stale 900 must not become a manual price.
     $page->set("data.items.{$key}.list_price", '900.00')->set("data.items.{$key}.price", '900.00');
     $page->set("data.items.{$key}.qty", 12);
-    $page->set("data.items.{$key}.price", '900.00')->set("data.items.{$key}.list_price", '900.00');
+    $page->set("data.items.{$key}.price", '900.00')->set("data.items.{$key}.list_price", '900.00')->set("data.items.{$key}.price_touched", false);
     $page->call('openPreview')->callMountedAction();
 
     $line = $order->refresh()->items->firstWhere('product_id', $product->id);
@@ -365,6 +368,40 @@ it('keeps a price the administrator really typed on a new row as manual (OE-03)'
 
     $line = $order->refresh()->items->firstWhere('product_id', $product->id);
     expect($line->price)->toBe('650.00')->and($line->price_source->value)->toBe('manual');
+});
+
+it('does not re-price by tier a price the administrator typed even when it equals the list price (OE-03, TD-21)', function (): void {
+    $group = tierGroup();
+    $product = sellable(['stock_qty' => 100, 'base_price' => '1000.00']);
+    gpTier($product, $group, 10, '700.00');
+    $order = editableOrder([[sellable(['stock_qty' => 10]), 1]], OrderType::Order, ['customer_group_id' => $group->id, 'customer_group_name' => 'Опт']);
+    $page = editPage($order, editAdmin());
+
+    $page->call('addProduct', $product->id.':0');
+    $key = (string) array_key_last($page->get('data.items'));
+    $page->set("data.items.{$key}.price", '900')->set("data.items.{$key}.qty", 12);
+    expect((float) $page->get("data.items.{$key}.price"))->toBe(900.0);
+    $page->call('openPreview')->callMountedAction();
+
+    $line = $order->refresh()->items->firstWhere('product_id', $product->id);
+    expect($line->price)->toBe('900.00')->and($line->price_source->value)->toBe('manual');
+});
+
+it('refreshes the displayed tier price on «+1» of an existing row from the search (TD-22)', function (): void {
+    $group = tierGroup();
+    $product = sellable(['stock_qty' => 100, 'base_price' => '1000.00']);
+    gpTier($product, $group, 2, '700.00');
+    $order = editableOrder([[sellable(['stock_qty' => 10]), 1]], OrderType::Order, ['customer_group_id' => $group->id, 'customer_group_name' => 'Опт']);
+    $page = editPage($order, editAdmin());
+
+    $page->call('addProduct', $product->id.':0');
+    $key = (string) array_key_last($page->get('data.items'));
+    expect((float) $page->get("data.items.{$key}.price"))->toBe(900.0);
+
+    $page->call('addProduct', $product->id.':0');
+
+    expect((int) $page->get("data.items.{$key}.qty"))->toBe(2)
+        ->and((float) $page->get("data.items.{$key}.price"))->toBe(700.0);
 });
 
 it('prices a row of an inquiry for the final quantity when «Создать заказ» is used (OE-03, OE-12)', function (): void {
@@ -400,4 +437,32 @@ it('logs the manager comment action as a change row and moves the version (OE-07
         ->and($change->new_value)->toBe('новый')
         ->and($change->user_id)->toBe($manager->id)
         ->and($change->batch_uuid)->not->toBeEmpty();
+});
+
+it('refuses the manager comment in the service without orders.update (TD-23)', function (): void {
+    $order = editableOrder([[sellable(['stock_qty' => 10]), 1]], OrderType::Order, ['manager_comment' => 'старый']);
+
+    expect(fn () => app(OrderEditor::class)->saveManagerComment($order->id, 'новый', staffWith(['orders.view'])))
+        ->toThrow(AuthorizationException::class)
+        ->and($order->refresh()->manager_comment)->toBe('старый');
+});
+
+it('notifies instead of failing with a 500 when the order is gone while the comment is saved (TD-23)', function (): void {
+    $order = editableOrder([[sellable(['stock_qty' => 10]), 1]]);
+    actingAs(editManager());
+    $page = Livewire::test(ViewOrder::class, ['record' => $order->getRouteKey()])
+        ->mountAction('manager_comment', [])->setActionData(['manager_comment' => 'новый']);
+
+    // The order disappears between the form and the save: removed from inside the action, right after its policy check.
+    $done = false;
+    Gate::after(function () use ($order, &$done): void {
+        $inAction = collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 60))->contains(fn (array $frame): bool => ($frame['function'] ?? '') === 'callMountedAction');
+
+        if (! $done && $inAction) {
+            $done = true;
+            DB::table('orders')->where('id', $order->id)->delete();
+        }
+    });
+
+    $page->callMountedAction()->assertNotified(__('order_edit.errors.not_found'));
 });

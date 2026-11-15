@@ -104,6 +104,14 @@ it('shows the detail with the price snapshot, the group and the status history w
         ->assertDontSee('5 000');
 });
 
+it('shows the price type of each line (CA-11)', function (): void {
+    $order = ownOrder();
+    OrderItem::factory()->create(['order_id' => $order->id, 'price' => '900.00', 'qty' => 3, 'total' => '2700.00', 'price_source' => 'tier']);
+
+    nextRequest();
+    $this->get(route('customer.orders.show', $order->uuid))->assertOk()->assertSeeHtml('data-price-type')->assertSee('Тип цены: Ступень количества');
+});
+
 it('shows the reservation term on a reservation', function (): void {
     $order = ownOrder(['reserved_until' => now()->addHours(30)->startOfMinute()])->forceFill(['type' => 'reservation']);
     $order->save();

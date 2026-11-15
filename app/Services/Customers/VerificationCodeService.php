@@ -81,10 +81,7 @@ final class VerificationCodeService
         }
 
         $pauseKey = $this->pauseKey($purpose, $email);
-
-        if (RateLimiter::tooManyAttempts($pauseKey, 1)) {
-            throw new CustomerAuthException(__('account.errors.resend_wait', ['time' => CustomerThrottledException::humanTime(RateLimiter::availableIn($pauseKey))]), 'code');
-        }
+        $this->assertPauseOver($purpose, $email);
 
         RateLimiter::hit($emailKey, self::HOUR);
         RateLimiter::hit($ipKey, self::HOUR);
@@ -125,6 +122,21 @@ final class VerificationCodeService
 
         // The mailable is queued (and encrypted in the payload); a mail failure never reaches the request (CA-25).
         Mail::to($email)->queue(new CustomerCodeMail($purpose, $code, max(1, $this->settings->code_ttl_minutes), $customer?->name));
+    }
+
+    /**
+     * The resend pause of this address and purpose; used by {@see request()} and by callers that must refuse a request
+     * that is too early before they spend any limit of their own (the e-mail change of a customer).
+     *
+     * @throws CustomerAuthException the pause is not over (error key `resend`, not the `code` field)
+     */
+    public function assertPauseOver(VerificationPurpose $purpose, string $email): void
+    {
+        $pauseKey = $this->pauseKey($purpose, $email);
+
+        if (RateLimiter::tooManyAttempts($pauseKey, 1)) {
+            throw new CustomerAuthException(__('account.errors.resend_wait', ['time' => CustomerThrottledException::humanTime(RateLimiter::availableIn($pauseKey))]), 'resend');
+        }
     }
 
     /**
@@ -218,13 +230,26 @@ final class VerificationCodeService
 
     /**
      * Seconds until the next code of this purpose may be requested for the address; 0 when it may be requested now.
-     * It is the same pause the request enforces, so the countdown on the code pages never disagrees with the server.
+     * It is the longest of the 24-hour lock, the hourly request limit of the address and the resend pause, so the
+     * countdown on the code pages never disagrees with what the request enforces.
      */
     public function resendAvailableIn(string $email, VerificationPurpose $purpose): int
     {
-        $key = $this->pauseKey($purpose, $email);
+        $waits = [$this->lockedFor($email)];
 
-        return RateLimiter::tooManyAttempts($key, 1) ? max(0, RateLimiter::availableIn($key)) : 0;
+        $emailKey = 'customer-code:email:'.$this->hash($email);
+
+        if (RateLimiter::tooManyAttempts($emailKey, self::REQUESTS_PER_EMAIL_PER_HOUR)) {
+            $waits[] = RateLimiter::availableIn($emailKey);
+        }
+
+        $pauseKey = $this->pauseKey($purpose, $email);
+
+        if (RateLimiter::tooManyAttempts($pauseKey, 1)) {
+            $waits[] = RateLimiter::availableIn($pauseKey);
+        }
+
+        return max(0, ...$waits);
     }
 
     /**

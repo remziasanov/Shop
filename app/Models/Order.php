@@ -52,6 +52,7 @@ use Illuminate\Support\Str;
  * @property int|null $customer_id the signed-in customer who placed the request; null for a guest (CA-14, CA-26)
  * @property int|null $customer_group_id snapshot of the customer's group at that moment (CA-26)
  * @property string|null $customer_group_name name of that group (survives a later change or deletion of the group)
+ * @property array<string, mixed>|null $payer_snapshot payer requisites at the moment of the order (CX-10); null = none, use the current ones
  * @property CarbonInterface|null $expiring_notified_at
  * @property int|null $promo_code_id PM-18: the promo code of the order (null once the code is deleted)
  * @property string|null $promo_code PM-18: snapshot of the code text
@@ -140,6 +141,7 @@ class Order extends Model
             'phone_verified' => 'boolean',
             'customer_id' => 'integer',
             'customer_group_id' => 'integer',
+            'payer_snapshot' => 'array',
             'expiring_notified_at' => 'datetime',
             'promo_code_id' => 'integer',
             'promo_discount' => 'decimal:2',

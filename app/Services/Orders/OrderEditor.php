@@ -256,9 +256,14 @@ final class OrderEditor
      * the version and writes one `order_changes` row. An unchanged comment writes nothing.
      *
      * @throws SalesException the order is gone
+     * @throws AuthorizationException the actor lacks `orders.update`
      */
     public function saveManagerComment(int $orderId, ?string $comment, User $actor): bool
     {
+        if (! $this->permissions->allows($actor, 'orders.update')) {
+            throw new AuthorizationException;
+        }
+
         return DB::transaction(function () use ($orderId, $comment, $actor): bool {
             /** @var Order|null $order */
             $order = Order::query()->whereKey($orderId)->lockForUpdate()->first();
@@ -344,6 +349,9 @@ final class OrderEditor
             $order->customer_id = $locked->customer_id;
             $order->customer_group_id = $locked->customer_group_id;
             $order->customer_group_name = $locked->customer_group_name;
+            // CX-10: an inquiry has no invoice; the new order takes the payer as the inquiry recorded it, or as it is now.
+            $order->payer_snapshot = $locked->payer_snapshot
+                ?? ($locked->customer_id === null ? null : ($locked->customer === null ? null : PayerSnapshot::for($locked->customer)));
             $order->promo_link_id = $locked->promo_link_id;
             $order->source_order_id = $locked->id;
             $order->updated_by_user_id = $actor->id;
