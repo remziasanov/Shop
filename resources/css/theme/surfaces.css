@@ -351,14 +351,15 @@ html[data-surface]:not([data-surface='line']) :where(input:not([type='checkbox']
  * Contrast rules of the 50 themes (html[data-contrast], Hallmark gate 40). The default theme has no such attribute and
  * keeps its approved look (light `border-line-strong` fields, muted disabled labels; docs/themes/reports/default.md).
  *  - fields: the edge reaches 3:1 against what surrounds it (field-line token), hover takes the text color;
- *  - disabled controls (cards, pagination, the product page): the label reaches 4.5:1 (ink-high) and a solid disabled
+ *  - unavailable controls (aria-disabled in cards and pagination, «Нет в наличии» on the product page; never a button
+ *    that is only busy, such as «В корзину» during its request): the label reaches 4.5:1 (ink-high) and a solid disabled
  *    button sits on surface-2 instead of the line / surface-3 color, which is dark in some themes (stage 21 debt, «Ярмарка»).
  */
 html[data-contrast] :where(input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file']), select, textarea):not(:focus, [aria-invalid='true']) {
     border-color: var(--shop-field-line);
 }
 
-html[data-contrast][data-surface] :where(input:not([type='checkbox'], [type='radio']), select, textarea):not(:disabled, :focus, [aria-invalid='true']):hover {
+html[data-contrast][data-surface] :where(input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file']), select, textarea):not(:disabled, :focus, [aria-invalid='true']):hover {
     border-color: var(--shop-ink);
 }
 
@@ -367,11 +368,11 @@ html[data-contrast] .bg-surface-2 .text-muted {
     color: var(--shop-ink-mid);
 }
 
-html[data-contrast] :where([aria-disabled='true'], button:disabled[data-action]) {
+html[data-contrast] :where([aria-disabled='true'], button:disabled[data-action='unavailable']):not(.bg-primary, .bg-accent) {
     color: var(--shop-ink-high);
 }
 
-html[data-contrast] :where([aria-disabled='true'], button:disabled[data-action]):is(.bg-line, .bg-surface-3) {
+html[data-contrast] :where([aria-disabled='true'], button:disabled[data-action='unavailable']):is(.bg-line, .bg-surface-3) {
     background-color: var(--shop-surface-2);
 }
 

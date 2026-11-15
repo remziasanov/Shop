@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Cache;
 final class ThemeCss
 {
     /** Bump when the generated CSS format changes, so a deploy never serves a stale cached block. */
-    private const FORMAT = 4;
+    private const FORMAT = 5;
 
     private const TTL = 86400;
 
@@ -229,7 +229,9 @@ final class ThemeCss
         foreach ([$c['bg'], $c['surface'], Color::mix($c['line'], $c['surface'], 0.23)] as $back) {
             $page = $page && Color::contrast($c['primary'], $back) >= self::FOCUS_MIN_RATIO;
         }
-        $band = Color::contrast($c['primary'], $c['heroBg']) >= self::FOCUS_MIN_RATIO;
+        // The hero band exists only in G2 / G4 (heroBg); in G1 / G3 there is nothing to adjust.
+        $hasBand = in_array(BlockExtras::hero($theme), ['G2', 'G4'], true);
+        $band = ! $hasBand || Color::contrast($c['primary'], $c['heroBg']) >= self::FOCUS_MIN_RATIO;
 
         if ($page && $band) {
             return '';
@@ -242,7 +244,9 @@ final class ThemeCss
         }
 
         // The band always gets its own value, so it never inherits the page ring (the text color on a dark band).
-        $out .= '.hero-band{--shop-focus: '.strtolower($band ? $c['primary'] : $c['heroInk']).';}';
+        if ($hasBand) {
+            $out .= '.hero-band{--shop-focus: '.strtolower($band ? $c['primary'] : $c['heroInk']).';}';
+        }
 
         return $out.'.focus-visible\\:outline-primary:focus-visible{outline-color:var(--shop-focus)}'
             .'.focus-visible\\:ring-primary:focus-visible{--tw-ring-color:var(--shop-focus)}';
@@ -274,10 +278,11 @@ final class ThemeCss
         $noFill = ':not([class^="bg-"]):not([class*=" bg-"])';
 
         foreach (self::STATUS_TEXT as $name => $color) {
-            $texts[$name] = [$color, '.text-'.$name.$noFill];
+            $texts[$name] = [$color, '.text-'.$name.$noFill.',.hover\\:text-'.$name.':hover'];
         }
 
-        $texts['primary'] = [strtoupper($c['primary']), '.text-primary'.$noFill.',.hover\\:text-primary:hover,.active\\:text-primary:active'];
+        // Links in formatted text (category / page / product descriptions, the «Текст» block) carry `[&_a]:text-primary`.
+        $texts['primary'] = [strtoupper($c['primary']), '.text-primary'.$noFill.',.hover\\:text-primary:hover,.active\\:text-primary:active,.\\[\\&_a\\]\\:text-primary a'];
 
         foreach ($texts as $name => [$color, $selector]) {
             $readable = self::readable($color, $c['ink'], $backs);

@@ -499,10 +499,20 @@ document.addEventListener('alpine:init', () => {
         // Slides out of view are hidden from assistive technology and the tab order (they stay in the scroll track, so
         // a swipe still reaches them; without JavaScript every slide is plain content).
         mark() {
-            [...this.$refs.track.children].forEach((slide, i) => {
+            const slides = [...this.$refs.track.children];
+            const focused = slides.find((slide) => slide.contains(document.activeElement));
+
+            slides.forEach((slide, i) => {
                 slide.toggleAttribute('inert', i !== this.index);
                 i === this.index ? slide.removeAttribute('aria-hidden') : slide.setAttribute('aria-hidden', 'true');
             });
+
+            // The keyboard focus was in a slide that just became inert (arrow keys on its link): move it to the new
+            // slide, or to the carousel, so it is never lost.
+            if (focused && focused !== slides[this.index]) {
+                const target = slides[this.index]?.querySelector('a[href], button:not([disabled])');
+                target ? target.focus({ preventScroll: true }) : this.$el.focus?.({ preventScroll: true });
+            }
         },
 
         start() {
