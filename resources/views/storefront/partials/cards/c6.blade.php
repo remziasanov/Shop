@@ -7,7 +7,7 @@
 @endphp
 <article class="group flex h-full flex-col border border-line-strong bg-surface p-3" data-card="C6" @if ($view->age) data-age="{{ $view->age->value }}" @endif>
     <div class="flex min-h-6 items-center justify-between gap-2 text-xs text-muted">
-        <span @class(['font-mono' => $monoNumber]) data-card-number aria-hidden="true">{{ sprintf('%02d', $number ?? ($tileIndex + 1)) }}</span>
+        <span @if ($monoNumber) class="font-mono" @endif data-card-number aria-hidden="true">{{ sprintf('%02d', $number ?? ($tileIndex + 1)) }}</span>
         @include('storefront.partials.labels', ['labels' => $view->labels])
     </div>
     <div class="mt-2">

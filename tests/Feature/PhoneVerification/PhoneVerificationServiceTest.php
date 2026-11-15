@@ -48,6 +48,8 @@ function expectPvError(Closure $call, PhoneVerificationError $reason): PhoneVeri
 
 describe('flash call (PV-02, PV-03)', function (): void {
     it('passes a 4-digit client code to a driver that takes it and stores only the HMAC', function (): void {
+        Carbon::setTestNow('2026-11-20 12:00:00');
+
         $start = $this->pv->start('8 (999) 123-45-67', $this->purpose, $this->session, PV_IP);
 
         expect($start->skipped)->toBeFalse()

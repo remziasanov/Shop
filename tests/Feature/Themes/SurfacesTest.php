@@ -141,66 +141,12 @@ it('keeps the field hover and error borders outside the layers so the border uti
         ->and(substr($css, 0, $layerEnd))->not->toContain("[aria-invalid='true'] {\n        border-color");
 });
 
-describe('temporary service theme debug-blocks (remove in stage 23)', function (): void {
-    it('does not exist without the flag, even in a staff preview', function (): void {
-        config()->set('shop.theme_debug', false);
-        $registry = app(ThemeRegistry::class);
+it('has no service theme: ?theme=debug-blocks&blocks=H3 changes nothing for staff', function (): void {
+    $before = app(AppearanceSettings::class)->theme_id;
 
-        expect($registry->findForPreview(ThemeRegistry::DEBUG_ID))->toBeNull()
-            ->and(array_keys($registry->all()))->not->toContain(ThemeRegistry::DEBUG_ID);
+    $html = $this->actingAs(surfaceStaff())->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3']))->assertOk()->getContent();
 
-        $html = $this->actingAs(surfaceStaff())->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3']))->assertOk()->getContent();
-
-        expect($html)->not->toContain('data-theme-preview-bar');
-    });
-
-    it('is never in the gallery and never the saved theme, even with the flag', function (): void {
-        config()->set('shop.theme_debug', true);
-
-        expect(array_keys(app(ThemeRegistry::class)->all()))->not->toContain(ThemeRegistry::DEBUG_ID)
-            ->and(app(ThemeRegistry::class)->has(ThemeRegistry::DEBUG_ID))->toBeFalse();
-
-        $settings = app(AppearanceSettings::class);
-        $settings->theme_id = ThemeRegistry::DEBUG_ID;
-        $settings->save();
-
-        $this->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3']))->assertOk()->assertDontSee('data-theme-preview-bar');
-        expect(app(ThemePreview::class)->parseBlocks('H3'))->toBe(['header' => 'H3']);
-    });
-
-    it('opens for staff only and takes validated blocks from the query', function (): void {
-        config()->set('shop.theme_debug', true);
-
-        // A guest changes nothing.
-        $this->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3']))->assertOk()->assertDontSee('data-theme-preview-bar');
-
-        $this->actingAs(surfaceStaff())->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3,C5,G2,L3,X9,H9']))
-            ->assertOk()->assertSee('data-theme-preview-bar', false)->assertSee('Отладка: блоки', false);
-
-        expect(session(ThemePreview::BLOCKS_KEY))->toBe(['header' => 'H3', 'card' => 'C5', 'hero' => 'G2', 'listing' => 'L3']);
-
-        $response = $this->get(route('home'))->assertOk();
-        expect($response->headers->get('Cache-Control'))->toContain('no-store');
-    });
-
-    it('hides Apply for the service theme, refuses it and keeps prev / next inside real themes', function (): void {
-        config()->set('shop.theme_debug', true);
-        $staff = surfaceStaff();
-
-        $html = $this->actingAs($staff)->get(route('home', ['theme' => 'debug-blocks', 'blocks' => 'H3']))->assertOk()->getContent();
-        expect($html)->toContain('data-theme-preview-bar')->and($html)->not->toContain('<button type="submit" data-apply>')->and($html)->not->toMatch('~\(\d+/\d+\)~');
-
-        $this->post(route('theme.preview.apply'))->assertForbidden();
-
-        $this->post(route('theme.preview.step'), ['direction' => 'next']);
-        expect(session(ThemePreview::SESSION_KEY)['theme_id'])->not->toBe(ThemeRegistry::DEBUG_ID);
-    });
-
-    it('validates the variants against the allowed sets', function (): void {
-        $previews = app(ThemePreview::class);
-
-        expect($previews->parseBlocks('h2, c6 ,G4,l1'))->toBe(['header' => 'H2', 'card' => 'C6', 'hero' => 'G4', 'listing' => 'L1'])
-            ->and($previews->parseBlocks('H7,C0,G5,L4,<script>'))->toBe([])
-            ->and($previews->parseBlocks(str_repeat('H1,', 100)))->toBe(['header' => 'H1']);
-    });
+    expect($html)->not->toContain('data-theme-preview-bar')
+        ->and(session()->has(ThemePreview::SESSION_KEY))->toBeFalse()
+        ->and(app(AppearanceSettings::class)->theme_id)->toBe($before);
 });

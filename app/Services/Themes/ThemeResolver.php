@@ -220,7 +220,7 @@ final class ThemeResolver
 
         $rule = $extras['headerRule'] ?? null;
 
-        if (is_string($rule) && preg_match('/^[1-9]\d?px (solid|double|dashed|dotted) #[0-9a-fA-F]{6}$/', $rule) === 1) {
+        if (is_string($rule) && preg_match('/\A[1-9]\d?px (solid|double|dashed|dotted) #[0-9a-fA-F]{6}\z/', $rule) === 1) {
             $out['headerRule'] = $rule;
         }
 

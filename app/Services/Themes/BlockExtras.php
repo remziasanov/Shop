@@ -59,7 +59,7 @@ final class BlockExtras
     {
         $rule = $theme->extras['headerRule'] ?? null;
 
-        return is_string($rule) && preg_match('/^[1-9]\d?px (solid|double|dashed|dotted) #[0-9a-fA-F]{6}$/', $rule) === 1 ? $rule : null;
+        return is_string($rule) && preg_match('/\A[1-9]\d?px (solid|double|dashed|dotted) #[0-9a-fA-F]{6}\z/', $rule) === 1 ? $rule : null;
     }
 
     /** `homeGridColumns`: desktop columns of the home product grid (3…6), null for the setting of the shop. */
@@ -72,6 +72,6 @@ final class BlockExtras
 
     private static function isHex(mixed $value): bool
     {
-        return is_string($value) && preg_match('/^#[0-9a-fA-F]{6}$/', $value) === 1;
+        return is_string($value) && preg_match('/\A#[0-9a-fA-F]{6}\z/', $value) === 1;
     }
 }

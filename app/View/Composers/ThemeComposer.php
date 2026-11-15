@@ -56,7 +56,7 @@ final class ThemeComposer
         $view->with($this->data);
     }
 
-    /** Position of the theme in the gallery; null for a service theme (debug-blocks) that is not in the list. */
+    /** Position of the theme in the gallery. */
     private function indexOf(string $id): ?int
     {
         $index = array_search($id, array_keys($this->themes->all()), true);
