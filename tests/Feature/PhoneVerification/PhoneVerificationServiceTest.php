@@ -143,6 +143,7 @@ describe('flash call (PV-02, PV-03)', function (): void {
     });
 
     it('honours a different time to live from the settings', function (): void {
+        Carbon::setTestNow('2026-11-20 12:00:00');
         enablePhoneVerification(['code_ttl_minutes' => 2]);
         $this->pv->start(PV_PHONE, $this->purpose, $this->session, PV_IP);
 

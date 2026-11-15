@@ -7,7 +7,6 @@ namespace App\Services\Themes;
 use App\Models\User;
 use App\Services\Users\PermissionService;
 use Illuminate\Contracts\Session\Session;
-use Illuminate\Http\Request;
 
 /**
  * Staff preview of a theme (TH-27…TH-30, D-138). The choice lives in the session of the staff member: theme id and

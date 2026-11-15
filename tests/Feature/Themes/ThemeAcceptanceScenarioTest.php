@@ -46,13 +46,15 @@ it('runs the administrator scenario end to end', function (): void {
     $preview = $this->get(route('home'))->assertOk()->assertSee('data-theme-preview-bar', false);
     expect($preview->headers->get('Cache-Control'))->toContain('no-store')->toContain('private');
 
-    // 4. Return the theme's values.
+    // 4. Leave the preview with «Выйти» and return the theme's values: the storefront shows the theme as it comes.
+    $this->post(route('theme.preview.exit'))->assertRedirect();
+    expect(session(ThemePreview::SESSION_KEY))->toBeNull();
     Livewire::test(ManageAppearanceSettings::class)->call('resetColors')->call('resetFonts');
     expect($settings()->theme_overrides)->toBe([]);
+    $this->get(route('home'))->assertOk()->assertSee('--shop-primary: '.strtolower($opalubka->colors['primary']).';', false);
 
     // 5. Back to default: the storefront looks as before themes.
     Livewire::test(ManageAppearanceSettings::class)->call('selectTheme', 'default')->assertHasNoErrors();
-    session()->forget(ThemePreview::SESSION_KEY);
 
     expect($settings()->theme_id)->toBe('default');
     $this->get(route('home'))->assertOk()
