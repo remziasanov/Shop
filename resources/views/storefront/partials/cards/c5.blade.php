@@ -7,7 +7,7 @@
     <div class="@container">
         <div class="group grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-2 py-3 @2xl:flex @2xl:items-center @2xl:gap-4 @2xl:py-2">
             <div class="@2xl:order-1 @2xl:w-16 @2xl:flex-none">
-                @include('storefront.partials.cards._media', ['mediaClass' => 'aspect-square rounded-btn', 'sizes' => '96px'])
+                @include('storefront.partials.cards._media', ['mediaClass' => 'aspect-square rounded-tile', 'sizes' => '96px'])
             </div>
 
             <div class="min-w-0 @2xl:contents">

@@ -1,7 +1,7 @@
 {{-- C2 (TH-11): large photo without a frame, price and a «В корзину» text link. Vars: see product-card.blade.php. --}}
 @php($product = $view->product)
 <article class="group flex h-full flex-col" data-card="C2" @if ($view->age) data-age="{{ $view->age->value }}" @endif>
-    @include('storefront.partials.cards._media', ['mediaClass' => 'aspect-[9/8] rounded-btn'])
+    @include('storefront.partials.cards._media', ['mediaClass' => 'aspect-[9/8] rounded-tile'])
     @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mt-2'])
 
     <h3 class="mt-3 flex-1 font-body text-sm font-medium leading-snug">

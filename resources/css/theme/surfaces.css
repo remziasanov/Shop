@@ -20,6 +20,8 @@
         --shop-shadow-tint: color-mix(in srgb, var(--shop-ink) 12%, transparent);
         --shop-press-color: color-mix(in srgb, var(--shop-primary) 70%, var(--shop-scrim));
         --shop-focus: var(--shop-primary);
+        /* Field border of the themes (html[data-contrast]): the muted text color reaches 4.5:1 on bg and surface. */
+        --shop-field-line: var(--shop-muted);
     }
 }
 
@@ -183,7 +185,8 @@ html:is([data-surface='soft'], [data-surface='hard'], [data-surface='press'], [d
 }
 
 html:is([data-surface='hard'], [data-surface='press'], [data-surface='double'], [data-surface='glass'], [data-surface='clay']) :is(input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file'], [type='color']), select, textarea).rounded-btn {
-    border-color: var(--shop-s-input-border, var(--shop-line-strong));
+    /* Fallback: the field-line token (gate 40); the default theme (surface `line`) never matches this rule. */
+    border-color: var(--shop-s-input-border, var(--shop-field-line));
     background-color: var(--shop-s-input-bg, transparent);
     box-shadow: var(--shop-s-input-shadow, none);
 }
@@ -342,6 +345,35 @@ html[data-surface]:not([data-surface='line']) :where(input:not([type='checkbox']
 
 :where(input:not([type='checkbox'], [type='radio']), select, textarea)[aria-invalid='true'] {
     border-color: var(--shop-danger-solid);
+}
+
+/*
+ * Contrast rules of the 50 themes (html[data-contrast], Hallmark gate 40). The default theme has no such attribute and
+ * keeps its approved look (light `border-line-strong` fields, muted disabled labels; docs/themes/reports/default.md).
+ *  - fields: the edge reaches 3:1 against what surrounds it (field-line token), hover takes the text color;
+ *  - unavailable controls (aria-disabled in cards and pagination, «Нет в наличии» on the product page; never a button
+ *    that is only busy, such as «В корзину» during its request): the label reaches 4.5:1 (ink-high) and a solid disabled
+ *    button sits on surface-2 instead of the line / surface-3 color, which is dark in some themes (stage 21 debt, «Ярмарка»).
+ */
+html[data-contrast] :where(input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file']), select, textarea):not(:focus, [aria-invalid='true']) {
+    border-color: var(--shop-field-line);
+}
+
+html[data-contrast][data-surface] :where(input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file']), select, textarea):not(:disabled, :focus, [aria-invalid='true']):hover {
+    border-color: var(--shop-ink);
+}
+
+/* Muted text on a soft panel (C3 cards, summary boxes on surface-2): one step toward the ink, so it keeps 4.5:1. */
+html[data-contrast] .bg-surface-2 .text-muted {
+    color: var(--shop-ink-mid);
+}
+
+html[data-contrast] :where([aria-disabled='true'], button:disabled[data-action='unavailable']):not(.bg-primary, .bg-accent) {
+    color: var(--shop-ink-high);
+}
+
+html[data-contrast] :where([aria-disabled='true'], button:disabled[data-action='unavailable']):is(.bg-line, .bg-surface-3) {
+    background-color: var(--shop-surface-2);
 }
 
 @keyframes shop-spin {

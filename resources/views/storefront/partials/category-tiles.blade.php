@@ -5,7 +5,7 @@
             @foreach ($tiles as $tile)
                 <li>
                     <a href="{{ $tile['url'] }}" class="flex h-full items-center gap-3 rounded-card border max-sm:flex-col max-sm:items-start border-line p-3 hover:border-primary hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                        <span class="h-14 w-14 flex-none overflow-hidden rounded-btn bg-surface-2">
+                        <span class="h-14 w-14 flex-none overflow-hidden rounded-tile bg-surface-2">
                             @if ($tile['image'])
                                 <img src="{{ $tile['image'] }}" alt="" width="56" height="56" loading="lazy" class="h-full w-full object-cover">
                             @else

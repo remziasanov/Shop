@@ -24,7 +24,7 @@
         <template x-for="(item, index) in items" :key="item.url">
             <li role="option" :id="'suggest-' + index" :aria-selected="(index === active).toString()">
                 <a :href="item.url" class="flex items-center gap-3 px-3 py-2 text-sm hover:bg-surface-2" :class="index === active ? 'bg-surface-3' : ''" :data-age="item.age || null" @mouseenter="active = index">
-                    <span class="age-media h-10 w-10 flex-none overflow-hidden rounded-btn">
+                    <span class="age-media h-10 w-10 flex-none overflow-hidden rounded-tile">
                         <img x-show="item.image" :src="item.image" alt="" width="40" height="40" loading="lazy" class="age-media-img h-10 w-10 object-cover">
                     </span>
                     <span class="min-w-0 flex-1">

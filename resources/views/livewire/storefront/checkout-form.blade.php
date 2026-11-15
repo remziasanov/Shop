@@ -8,7 +8,7 @@
                 <legend class="px-1 text-lg font-semibold">{{ __('storefront_sales.checkout.choice_legend') }}</legend>
                 <p class="text-sm text-ink-mid">{{ __('storefront_sales.checkout.choice_hint') }}</p>
                 @foreach (['order' => 'choice_order', 'reservation' => 'choice_reservation'] as $value => $key)
-                    <label class="flex cursor-pointer items-center gap-3 rounded-btn border border-line p-3 has-[:checked]:border-primary has-[:checked]:bg-surface-2">
+                    <label class="flex cursor-pointer items-center gap-3 rounded-tile border border-line p-3 has-[:checked]:border-primary has-[:checked]:bg-surface-2">
                         <input type="radio" name="choice" value="{{ $value }}" wire:model.live="choice" class="h-4 w-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                         <span class="font-medium">{{ __('storefront_sales.checkout.'.$key) }}</span>
                     </label>
@@ -37,7 +37,7 @@
         <div class="space-y-3">
             @foreach ($deliveries as $option)
                 @php($method = $option['method'])
-                <label class="flex cursor-pointer items-start gap-3 rounded-btn border border-line p-3 has-[:checked]:border-primary has-[:checked]:bg-surface-2">
+                <label class="flex cursor-pointer items-start gap-3 rounded-tile border border-line p-3 has-[:checked]:border-primary has-[:checked]:bg-surface-2">
                     <input type="radio" name="delivery" value="{{ $method->key }}" wire:model.live="delivery" class="mt-1 h-4 w-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                     <span class="flex-1">
                         <span class="block font-medium">{{ $method->name }}</span>
@@ -103,7 +103,7 @@
         <fieldset class="space-y-3 rounded-card border border-line p-4">
             <legend class="px-1 text-lg font-semibold">{{ __('storefront_sales.checkout.payment') }} <span class="text-danger" aria-hidden="true">*</span></legend>
             @foreach ($payments as $option)
-                <label class="flex cursor-pointer items-start gap-3 rounded-btn border border-line p-3 has-[:checked]:border-primary has-[:checked]:bg-surface-2">
+                <label class="flex cursor-pointer items-start gap-3 rounded-tile border border-line p-3 has-[:checked]:border-primary has-[:checked]:bg-surface-2">
                     <input type="radio" name="payment" value="{{ $option->key }}" wire:model="payment" class="mt-1 h-4 w-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                     <span>
                         <span class="block font-medium">{{ $option->name }}</span>

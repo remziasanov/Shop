@@ -487,10 +487,39 @@ document.addEventListener('alpine:init', () => {
             if (this.playing) {
                 this.start();
             }
+
+            this.mark();
+            this.$watch('index', () => this.mark());
         },
 
         destroy() {
             this.stop();
+        },
+
+        // Slides out of view are hidden from assistive technology and the tab order (they stay in the scroll track, so
+        // a swipe still reaches them; without JavaScript every slide is plain content).
+        mark() {
+            const slides = [...this.$refs.track.children];
+            const focused = slides.find((slide) => slide.contains(document.activeElement));
+
+            slides.forEach((slide, i) => {
+                slide.toggleAttribute('inert', i !== this.index);
+                i === this.index ? slide.removeAttribute('aria-hidden') : slide.setAttribute('aria-hidden', 'true');
+            });
+
+            // The keyboard focus was in a slide that just became inert (arrow keys on its link): move it to the new
+            // slide, or to the carousel, so it is never lost.
+            if (focused && focused !== slides[this.index]) {
+                let target = slides[this.index]?.querySelector('a[href], button:not([disabled])');
+
+                if (!target) {
+                    // A slide without a link: the carousel itself takes the focus (programmatic only, not a tab stop).
+                    this.$el.setAttribute('tabindex', '-1');
+                    target = this.$el;
+                }
+
+                target.focus({ preventScroll: true });
+            }
         },
 
         start() {

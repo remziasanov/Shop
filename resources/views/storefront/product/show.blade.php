@@ -51,7 +51,7 @@
                         @foreach ($gallery as $i => $image)
                             <li class="flex-none" x-show="allowed({{ $i }})">
                                 <button type="button" @click="go({{ $i }})" :aria-current="(index === {{ $i }}).toString()"
-                                        class="block h-16 w-16 overflow-hidden rounded-btn border bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                                        class="block h-16 w-16 overflow-hidden rounded-tile border bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                                         :class="index === {{ $i }} ? 'border-primary ring-1 ring-primary' : 'border-line'"
                                         aria-label="{{ __('storefront.gallery.thumb', ['n' => $i + 1]) }}">
                                     <img src="{{ $image['thumb'] }}" alt="" width="64" height="64" loading="lazy" class="h-full w-full object-cover">
@@ -268,11 +268,11 @@
     @if ($similar !== [])
         <section class="mt-10" aria-labelledby="similar-heading">
             <h2 id="similar-heading" class="mb-4 text-xl font-semibold">{{ __('storefront.product.similar') }}</h2>
-            <ul class="grid {{ ($mobileColumns ?? 2) === 1 ? 'grid-cols-1 min-[30rem]:grid-cols-2' : 'grid-cols-2' }} gap-3 md:gap-4 lg:grid-cols-4">
+            <x-storefront.card-grid :theme="$theme ?? null" kind="similar" :mobile-columns="$mobileColumns ?? 2">
                 @foreach ($similar as $card)
                     <li>@include('storefront.partials.product-card', ['view' => $card, 'eager' => false])</li>
                 @endforeach
-            </ul>
+            </x-storefront.card-grid>
         </section>
     @endif
 

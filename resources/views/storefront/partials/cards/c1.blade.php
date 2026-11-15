@@ -1,7 +1,7 @@
 {{-- C1 (TH-11): frame, full-width button. This is the card of the `default` theme (pixel-identical to the card before themes). Vars from product-card.blade.php: $view, $eager, $cardActions, $tileIndex. --}}
 @php($product = $view->product)
 <article class="group flex h-full flex-col rounded-card border border-line bg-surface p-3 transition hover:shadow-md focus-within:shadow-md" data-card="C1" @if ($view->age) data-age="{{ $view->age->value }}" @endif>
-    @include('storefront.partials.cards._media', ['mediaClass' => 'aspect-square rounded-btn'])
+    @include('storefront.partials.cards._media', ['mediaClass' => 'aspect-square rounded-tile'])
     @include('storefront.partials.labels', ['labels' => $view->labels, 'class' => 'mt-2'])
 
     <h3 class="mt-2 flex-1 font-body text-sm font-medium leading-snug">

@@ -290,6 +290,8 @@ html[data-tg][data-kb] .shop-bottom-nav {
     --font-mono: var(--shop-font-mono);
     --radius-card: var(--shop-radius);
     --radius-btn: var(--shop-radius-btn);
+    /* Photo tiles and option boxes: the button radius, but never rounder than a card (pill-button themes keep square-ish photos). */
+    --radius-tile: min(var(--shop-radius-btn), var(--shop-radius));
     --color-bg: var(--shop-bg);
     --color-surface: var(--shop-surface);
     --color-surface-2: var(--shop-surface-2);

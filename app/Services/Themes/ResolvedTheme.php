@@ -49,6 +49,12 @@ final readonly class ResolvedTheme
     {
         $attrs = ['data-surface="'.$this->shape['surface'].'"'];
 
+        // Contrast rules of the 50 themes (Hallmark gate 40): field borders 3:1, disabled controls 4.5:1 (surfaces.css).
+        // The default theme keeps its approved look (owner decision, docs/themes/reports/default.md): no attribute.
+        if ($this->id !== ThemeRegistry::DEFAULT_ID) {
+            $attrs[] = 'data-contrast';
+        }
+
         if ($this->shape['borderWidth'] !== 1) {
             $attrs[] = 'data-bw="'.$this->shape['borderWidth'].'"';
         }
