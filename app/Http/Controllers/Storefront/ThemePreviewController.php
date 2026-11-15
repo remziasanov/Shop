@@ -8,7 +8,6 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Themes\ThemeManager;
 use App\Services\Themes\ThemePreview;
-use App\Services\Themes\ThemeRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -37,8 +36,6 @@ class ThemePreviewController extends Controller
         $state = $this->state($request);
         $user = $request->user();
         abort_unless($user instanceof User, 403);
-        // The temporary service theme cannot become the saved theme.
-        abort_if($state['theme_id'] === ThemeRegistry::DEBUG_ID, 403);
 
         $manager->apply($user, $state['theme_id'], $state['overrides']);
         $this->previews->exit($request->session());

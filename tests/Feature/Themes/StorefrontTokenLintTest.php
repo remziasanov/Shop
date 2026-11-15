@@ -24,6 +24,38 @@ function storefrontTokenRules(): array
 }
 
 /**
+ * Color functions and named CSS colors used as values inside style attributes (`style`, `:style`, `x-bind:style`).
+ * JS strings outside style attributes (e.g. `'#add'`) are never looked at.
+ *
+ * @return list<string> offending fragments of the line
+ */
+function styleAttributeColorViolations(string $line): array
+{
+    $names = 'white|black|silver|gray|grey|maroon|red|purple|fuchsia|green|lime|olive|yellow|navy|blue|teal|aqua|orange|pink|brown|gold|crimson|coral|salmon|tomato|violet|indigo|magenta|cyan|beige|ivory|khaki|lavender|plum|tan|turquoise|azure|snow|wheat|orchid|chocolate|skyblue|steelblue|darkgray|darkgrey|lightgray|lightgrey|dimgray|slategray|whitesmoke|gainsboro|darkred|darkblue|darkgreen|lightblue|lightgreen|royalblue|firebrick|hotpink|deeppink|limegreen|forestgreen|seagreen|midnightblue|rebeccapurple';
+    $found = [];
+
+    if (preg_match_all('/(?<![\w-])(?:x-bind:|:)?style\s*=\s*(?:"([^"]*)"|\'([^\']*)\')/i', $line, $attrs) < 1) {
+        return $found;
+    }
+
+    foreach (array_merge($attrs[1], $attrs[2]) as $value) {
+        if ($value === '') {
+            continue;
+        }
+
+        if (preg_match_all('/(?<![\w-])(?:rgba?|hsla?)\(/i', $value, $m) > 0) {
+            array_push($found, ...$m[0]);
+        }
+
+        if (preg_match_all("/(?:color|background|border[\\w-]*|outline[\\w-]*|fill|stroke|box-shadow|text-shadow)\\s*:\\s*['\"]?[^;'\"}]*?(?<![\\w-])(?:{$names})(?![\\w(-])/i", $value, $m) > 0) {
+            array_push($found, ...$m[0]);
+        }
+    }
+
+    return $found;
+}
+
+/**
  * TH-06: storefront templates take colors, fonts and radii only from the --shop-* tokens (through the Tailwind
  * utilities mapped in resources/css/app.css), never from the Tailwind palette, hex literals or font-family.
  *
@@ -45,6 +77,10 @@ function storefrontTokenViolations(): array
                 if (preg_match_all($pattern, $line, $m) > 0) {
                     $violations[] = sprintf('%s:%d  %s: %s', substr($file->getPathname(), strlen(base_path()) + 1), $index + 1, $label, implode(' ', $m[0]));
                 }
+            }
+
+            if (($styleHits = styleAttributeColorViolations($line)) !== []) {
+                $violations[] = sprintf('%s:%d  style attribute color: %s', substr($file->getPathname(), strlen(base_path()) + 1), $index + 1, implode(' | ', $styleHits));
             }
         }
     }
@@ -76,6 +112,23 @@ it('detects offenders (the linter itself works)', function () {
         ->and($hits('color function in arbitrary value', '<p class="shadow-[0_1px_0_rgba(0,0,0,.1)]">'))->toBe(1)
         ->and($hits('color function in arbitrary value', '<p class="shadow-[0_-1px_0_0_var(--shop-line)]">'))->toBe(0)
         ->and($hits('arbitrary color', '<p class="border-t-[#fff]">'))->toBe(1);
+});
+
+it('catches color functions and named colors in style attributes, not JS strings (the linter itself works)', function () {
+    $hits = fn (string $line): int => count(styleAttributeColorViolations($line));
+
+    expect($hits('<p style="color: rgb(1,2,3)">'))->toBe(1)
+        ->and($hits('<p style="box-shadow: 0 0 1px rgba(0,0,0,.2)">'))->toBeGreaterThanOrEqual(1)
+        ->and($hits('<p style="background:hsl(10 20% 30%)">'))->toBe(1)
+        ->and($hits('<p style="color:white">'))->toBe(1)
+        ->and($hits('<p style="border: 1px solid black; padding: 0">'))->toBe(1)
+        ->and($hits('<p :style="{ background: \'red\' }">'))->toBe(1)
+        ->and($hits('<p x-bind:style="{ color: \'white\' }">'))->toBe(1)
+        ->and($hits("<p style='color: rgb(1,2,3)'>"))->toBe(1)
+        ->and($hits('<p style="color: var(--shop-ink); background: var(--shop-red)">'))->toBe(0)
+        ->and($hits('<p style="color: var(--shop-ink); border: 1px solid currentColor">'))->toBe(0)
+        ->and($hits('<p style="width: 10px">'))->toBe(0)
+        ->and($hits('<a x-on:click="go(\'#add\')" data-x="red">'))->toBe(0);
 });
 
 it('defines every contract token in the CSS block (TH-05)', function () {

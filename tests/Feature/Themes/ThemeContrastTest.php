@@ -175,7 +175,7 @@ describe('fixes from the preview check', function (): void {
         stage22UseTheme('gazeta');
         expect(app(ThemeRegistry::class)->find('gazeta')->fonts['mono']['family'] ?? null)->toBeNull()
             ->and($this->get(route('catalog.index'))->assertOk()->getContent())
-            ->toContain('<span class="" data-card-number')->not->toMatch('/class="font-mono" data-card-number/');
+            ->toMatch('/<span\b[^>]*\bdata-card-number/')->not->toMatch('/<span class=""\s+data-card-number/')->not->toMatch('/<span\b[^>]*\bclass="[^"]*\bfont-mono\b[^"]*"[^>]*\bdata-card-number|<span\b[^>]*\bdata-card-number[^>]*\bclass="[^"]*\bfont-mono\b/');
     });
 
     it('sets the C4 characteristic lines in the monospace face only when the theme has one', function (): void {

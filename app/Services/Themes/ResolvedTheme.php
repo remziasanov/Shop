@@ -32,16 +32,6 @@ final readonly class ResolvedTheme
     ) {}
 
     /**
-     * The same theme with other block variants (the temporary service theme of stage 21 only).
-     *
-     * @param  array<string, string>  $blocks
-     */
-    public function withBlocks(array $blocks): self
-    {
-        return new self($this->id, $this->name, $this->colors, $this->shape, $this->fonts, $blocks, $this->extras, $this->overrides, $this->warnings);
-    }
-
-    /**
      * Attributes for the `<html>` tag (TH-14): the surface style and the switches that the surface CSS keys on. Only
      * validated values; the border-width switch is printed only when it differs from the 1 px of the default theme.
      */

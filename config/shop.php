@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 return [
 
-    // TEMPORARY (stage 21, remove in stage 23): THEME_DEBUG=true enables the staff-preview service theme `debug-blocks`
-    // (blocks chosen by ?blocks=H3,C5,G2,L3). Never on in production.
-    'theme_debug' => (bool) env('THEME_DEBUG', false),
-
     // TG-10: outgoing Telegram message limits (25/s total, 1/s per chat, 20/min work chat). Only the test suite turns them
     // off (phpunit.xml), because the sync queue cannot release a job for later.
     'telegram_rate_limits' => (bool) env('TELEGRAM_RATE_LIMITS', true),

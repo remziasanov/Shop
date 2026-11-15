@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Services\Home\HomePageRenderer;
 use App\Services\Themes\BlockExtras;
 use App\Services\Themes\ResolvedTheme;
+use App\Services\Themes\Theme;
 use App\Services\Themes\ThemeRegistry;
 use App\Services\Themes\ThemeResolver;
 use App\Settings\AppearanceSettings;
@@ -243,6 +244,24 @@ describe('BlockExtras', function (): void {
         expect(BlockExtras::header($bad))->toBe('H1')->and(BlockExtras::hero($bad))->toBe('G1')
             ->and(BlockExtras::heroStyle($bad))->toBe('')->and(BlockExtras::headerRule($bad))->toBeNull()
             ->and(BlockExtras::homeGridColumns($bad))->toBeNull();
+    });
+
+    it('rejects values with a trailing newline (anchored with \\A...\\z)', function (): void {
+        $registry = app(ThemeRegistry::class);
+        $resolver = app(ThemeResolver::class);
+        $theme = $resolver->resolve($registry->default());
+        $make = fn (array $extras): ResolvedTheme => new ResolvedTheme(
+            id: 'x', name: 'x', colors: $theme->colors, shape: $theme->shape, fonts: $theme->fonts,
+            blocks: [], extras: $extras, overrides: [], warnings: [],
+        );
+
+        expect(BlockExtras::headerRule($make(['headerRule' => '4px double #1F1B16'])))->toBe('4px double #1F1B16')
+            ->and(BlockExtras::headerRule($make(['headerRule' => "4px double #1F1B16\n"])))->toBeNull()
+            ->and(BlockExtras::heroStyle($make(['heroButton' => ['bg' => "#112233\n", 'ink' => '#000000']])))->toBe('');
+
+        $base = $registry->default();
+        $resolved = $resolver->resolve(new Theme('x', 99, 'X', null, null, null, null, $base->colors, $base->shape, $base->fonts, [], ['headerRule' => "4px double #1F1B16\n"]));
+        expect($resolved->extras)->not->toHaveKey('headerRule');
     });
 });
 

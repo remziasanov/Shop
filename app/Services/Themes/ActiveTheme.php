@@ -73,10 +73,7 @@ final class ActiveTheme
     {
         $theme = $this->current();
 
-        // The service theme (stage 21, temporary) changes its blocks per request: they are part of the key.
-        $blocks = $theme->id === ThemeRegistry::DEBUG_ID ? '-'.substr(md5((string) json_encode($theme->blocks)), 0, 8) : '';
-
-        return $theme->id.'-'.ThemeCss::overridesHash($theme->overrides).$blocks;
+        return $theme->id.'-'.ThemeCss::overridesHash($theme->overrides);
     }
 
     private function resolve(Request $request): ResolvedTheme
@@ -85,7 +82,6 @@ final class ActiveTheme
 
         try {
             $user = $request->hasSession() ? Auth::guard('web')->user() : null;
-            $this->previews->handleDebugRequest($request, $user instanceof User ? $user : null);
             $state = $this->previews->state($request->hasSession() ? $request->session() : null, $user instanceof User ? $user : null);
         } catch (QueryException) {
             $state = null;
@@ -94,18 +90,7 @@ final class ActiveTheme
         if ($state !== null) {
             $this->preview = true;
 
-            $resolved = $this->resolver->resolve($this->themes->findForPreview($state['theme_id']) ?? $this->themes->findOrDefault($state['theme_id']), $state['overrides']);
-
-            // TEMPORARY (stage 21, remove in stage 23): the block variants of the service theme come from the staff session.
-            if ($resolved->id === ThemeRegistry::DEBUG_ID && $request->hasSession()) {
-                $blocks = $this->previews->debugBlocks($request->session());
-
-                if ($blocks !== []) {
-                    return $resolved->withBlocks(array_merge($resolved->blocks, $blocks));
-                }
-            }
-
-            return $resolved;
+            return $this->resolver->resolve($this->themes->findOrDefault($state['theme_id']), $state['overrides']);
         }
 
         return $this->saved();
