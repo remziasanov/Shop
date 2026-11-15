@@ -206,6 +206,11 @@ describe('layout fixes from the preview check (D-161)', function (): void {
         expect($m[1])->not->toContain('whitespace-nowrap')->toContain('max-w-full');
     });
 
+    it('rounds the C3 photo 8 px less than its soft tile, as in the previews', function (): void {
+        expect((string) file_get_contents(resource_path('css/theme/cards-listing.css')))
+            ->toContain("[data-card='C3'] [data-tile] {\n    border-radius: max(0px, calc(var(--shop-radius) - 8px));");
+    });
+
     it('shows the G3 categories title once and puts the G2 text first on a phone', function (): void {
         $bento = (string) file_get_contents(resource_path('views/storefront/home/blocks/bento.blade.php'));
         $g2 = (string) file_get_contents(resource_path('views/storefront/home/blocks/_slide-g2.blade.php'));

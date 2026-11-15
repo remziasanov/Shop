@@ -10,7 +10,7 @@
 - Форма: поверхность `none`, скругление 16 px, кнопки 999 px, рамка 1 px.
 - Шрифты: заголовки Tenor Sans 400, текст Nunito Sans, моноширинного нет.
 - Особенности `extras`: `tileShape`.
-- Значения из `docs/themes/themes.json` перенесены без изменений: рантайм-копия `resources/themes/themes.json` побайтно равна источнику (тест `ThemeSpecTest`).
+- Значения из `docs/themes/themes.json` перенесены без изменений: рантайм-копия `resources/themes/themes.json` побайтно равна источнику (тест «keeps resources/themes identical to docs/themes» в `tests/Unit/Themes/ThemeResolverTest.php`).
 
 ## Материал Hallmark
 

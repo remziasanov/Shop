@@ -10,7 +10,7 @@
 - Форма: поверхность `line`, скругление 0 px, кнопки 0 px, рамка 1 px.
 - Шрифты: заголовки Martian Mono 600, текст JetBrains Mono, моноширинный JetBrains Mono.
 - Особенности `extras`: нет.
-- Значения из `docs/themes/themes.json` перенесены без изменений: рантайм-копия `resources/themes/themes.json` побайтно равна источнику (тест `ThemeSpecTest`).
+- Значения из `docs/themes/themes.json` перенесены без изменений: рантайм-копия `resources/themes/themes.json` побайтно равна источнику (тест «keeps resources/themes identical to docs/themes» в `tests/Unit/Themes/ThemeResolverTest.php`).
 
 ## Материал Hallmark
 

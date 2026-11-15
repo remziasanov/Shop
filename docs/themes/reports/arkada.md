@@ -10,7 +10,7 @@
 - Форма: поверхность `hard`, скругление 0 px, кнопки 0 px, рамка 2 px.
 - Шрифты: заголовки Press Start 2P 400, текст Golos Text, моноширинного нет.
 - Особенности `extras`: нет.
-- Значения из `docs/themes/themes.json` перенесены без изменений: рантайм-копия `resources/themes/themes.json` побайтно равна источнику (тест `ThemeSpecTest`).
+- Значения из `docs/themes/themes.json` перенесены без изменений: рантайм-копия `resources/themes/themes.json` побайтно равна источнику (тест «keeps resources/themes identical to docs/themes» в `tests/Unit/Themes/ThemeResolverTest.php`).
 
 ## Материал Hallmark
 
