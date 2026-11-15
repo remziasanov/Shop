@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Enums\OrderStatus;
+use App\Enums\StatusChangeSource;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -26,6 +27,7 @@ class OrderStatusHistoryFactory extends Factory
             'from_status' => null,
             'to_status' => OrderStatus::New,
             'user_id' => null,
+            'source' => StatusChangeSource::System,
             'comment' => null,
             'created_at' => now(),
         ];

@@ -70,6 +70,7 @@ use Illuminate\Support\Str;
  * @property-read Collection<int, OrderChange> $editLog
  * @property-read Collection<int, OrderItem> $items
  * @property-read Collection<int, OrderStatusHistory> $statusHistory
+ * @property-read Collection<int, TelegramMessage> $telegramMessages
  */
 class Order extends Model
 {
@@ -209,6 +210,14 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class)->orderBy('id');
+    }
+
+    /**
+     * @return HasMany<TelegramMessage, $this>
+     */
+    public function telegramMessages(): HasMany
+    {
+        return $this->hasMany(TelegramMessage::class);
     }
 
     /**

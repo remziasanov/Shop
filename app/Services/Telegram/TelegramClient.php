@@ -115,10 +115,11 @@ class TelegramClient
      * no limits apply and the work chat state is left alone.
      *
      * @param  array<string, mixed>  $extra
+     * @return array<mixed> the sent message (`message_id`, `chat`), for editing it later (TS-03)
      *
      * @throws TelegramApiException
      */
-    public function sendToWorkChat(string $html, array $extra = [], ?string $token = null, ?string $chatId = null): void
+    public function sendToWorkChat(string $html, array $extra = [], ?string $token = null, ?string $chatId = null): array
     {
         $override = filled($token) || filled($chatId);
         $chatId = (string) ($chatId ?: $this->settings->work_chat_id);
@@ -137,7 +138,7 @@ class TelegramClient
 
         try {
             try {
-                $this->call('sendMessage', $this->messageParams($chatId, $html, $extra), $token);
+                $sent = $this->call('sendMessage', $this->messageParams($chatId, $html, $extra), $token);
             } catch (TelegramApiException $e) {
                 // TG-10: the group became a supergroup: switch to the new id and send again (once).
                 if ($e->migrateToChatId === null || $override) {
@@ -146,7 +147,7 @@ class TelegramClient
 
                 $chatId = (string) $e->migrateToChatId;
                 $this->settings->saveOnly(['work_chat_id' => $chatId]);
-                $this->call('sendMessage', $this->messageParams($chatId, $html, $extra));
+                $sent = $this->call('sendMessage', $this->messageParams($chatId, $html, $extra));
             }
         } catch (TelegramApiException $e) {
             if (! $override && $e->isPermanent()) {
@@ -159,6 +160,8 @@ class TelegramClient
         if (! $override && $this->settings->work_chat_error !== null) {
             $this->recordWorkChatError(null);
         }
+
+        return $sent;
     }
 
     public function recordWorkChatError(?string $error): void

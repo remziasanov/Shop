@@ -40,11 +40,13 @@ use App\Http\Controllers\Storefront\RobotsController;
 use App\Http\Controllers\Storefront\SearchController;
 use App\Http\Controllers\Storefront\SearchSuggestController;
 use App\Http\Controllers\Storefront\SitemapController;
+use App\Http\Controllers\Storefront\Telegram\StaffWorkplaceController;
 use App\Http\Controllers\Storefront\Telegram\TelegramCabinetController;
 use App\Http\Controllers\Storefront\Telegram\TelegramEntryController;
 use App\Http\Controllers\Storefront\ThemePreviewController;
 use App\Http\Controllers\Storefront\ViewerPreviewController;
 use App\Http\Controllers\Telegram\TelegramWebhookController;
+use App\Http\Middleware\EnsureTelegramStaff;
 use Filament\Http\Middleware\Authenticate as FilamentAuthenticate;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -100,6 +102,13 @@ Route::prefix('tg')->group(function (): void {
     Route::get('/phone', [TelegramEntryController::class, 'phone'])->middleware('throttle:tg-phone')->name('tg.phone');
     Route::get('/me', [TelegramCabinetController::class, 'me'])->name('tg.me');
     Route::get('/about', [TelegramCabinetController::class, 'about'])->name('tg.about');
+});
+
+// «Рабочее место» for staff (stage 18, TS-05): only the guard `telegram_staff` opens it, never the admin guard; the middleware
+// checks the link, the user and `orders.view` on every request. Not indexed (`/tg*` is excluded in robots.txt).
+Route::prefix('tg/staff')->middleware([EnsureTelegramStaff::class, 'throttle:240,1'])->group(function (): void {
+    Route::get('/', [StaffWorkplaceController::class, 'home'])->name('tg.staff.home');
+    Route::get('/orders/{order}', [StaffWorkplaceController::class, 'order'])->whereNumber('order')->name('tg.staff.order');
 });
 
 // Customer account (stage 9, TZ 17): registration with an e-mail code, sign-in by password or code, password reset,
@@ -173,6 +182,7 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
         // TG-07: connect / disconnect the customer's Telegram (the bot asks for confirmation).
         Route::post('/notifications/telegram', [TelegramLinkController::class, 'connect'])->middleware('throttle:10,1')->name('customer.telegram.connect');
         Route::post('/notifications/telegram/disconnect', [TelegramLinkController::class, 'disconnect'])->name('customer.telegram.disconnect');
+        Route::post('/notifications/telegram/events', [TelegramLinkController::class, 'events'])->name('customer.telegram.events');
 
         // CA-16: security section, deleting the account with a code.
         Route::get('/security', [SecurityController::class, 'show'])->name('customer.security');

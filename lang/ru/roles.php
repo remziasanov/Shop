@@ -147,6 +147,7 @@ return [
             'action' => 'Действие',
             'subject' => 'Объект',
             'data' => 'Данные',
+            'source' => 'Источник',
             'ip' => 'IP',
         ],
         'actions' => [
@@ -175,6 +176,9 @@ return [
             'theme.fonts_changed' => 'Шрифты темы изменены',
             'user.telegram_linked' => 'Сотруднику подключён Telegram',
             'user.telegram_unlinked' => 'У сотрудника отключён Telegram',
+            'order.status_changed' => 'Статус обращения изменён',
+            'order.reservation_extended' => 'Резерв продлён',
+            'order.manager_comment_changed' => 'Комментарий менеджера изменён',
         ],
     ],
 

@@ -49,7 +49,7 @@ abstract class OrderMessage
      * Heading, customer, items, totals and the admin link. The visible text never exceeds {@see self::VISIBLE_LIMIT}:
      * the items list is shortened ("…и ещё N поз."), the rest stays, and ready HTML is never cut.
      */
-    protected function compose(Order $order, string $titleKey): string
+    protected function compose(Order $order, string $titleKey, bool $withStatus = false, ?string $doneLine = null): string
     {
         $order->loadMissing('items');
 
@@ -61,6 +61,11 @@ abstract class OrderMessage
             // TM-14: the channel of the request (site, installed app, Telegram).
             $this->e(__('notifications.telegram.channel')).': '.$this->e($order->channel->label()),
         ];
+
+        // TS-01: the current status, so a redrawn message tells what happened.
+        if ($withStatus) {
+            $head[] = $this->e(__('telegram_staff.status_line')).': <b>'.$this->e($order->status->label($order->type)).'</b>';
+        }
 
         $tail = [];
 
@@ -81,6 +86,12 @@ abstract class OrderMessage
 
         $tail[] = '';
         $tail[] = '<a href="'.$this->e(self::adminUrl($order)).'">'.$this->e(__('notifications.telegram.open')).'</a>';
+
+        // TS-03: «Подтвердил Иванов 14:32».
+        if ($doneLine !== null) {
+            $tail[] = '';
+            $tail[] = $this->e($doneLine);
+        }
 
         $itemLines = [];
 

@@ -32,6 +32,9 @@ it('keeps the token, work chat and switch through down() and up() without decryp
     $encrypted = rawSetting('telegram', 'bot_token');
     expect($encrypted)->not->toContain('TEST-token_abc');
 
+    // Later migrations of the group (TN-02 events) are undone first and redone after the round trip.
+    $events = require database_path('settings/2026_11_24_000510_add_telegram_customer_events.php');
+    $events->down();
     telegramSettingsMigration()->down();
 
     // Back in the notifications group, byte for byte.
@@ -41,6 +44,7 @@ it('keeps the token, work chat and switch through down() and up() without decryp
         ->and(DB::table('settings')->where('group', 'telegram')->count())->toBe(0);
 
     telegramSettingsMigration()->up();
+    $events->up();
     app()->forgetInstance(TelegramSettings::class);
 
     $restored = app(TelegramSettings::class);

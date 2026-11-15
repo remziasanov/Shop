@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Models\CustomerNotification;
 use App\Services\Customers\CustomerNotificationService;
+use App\Services\Telegram\CustomerTelegramPreferences;
 use App\Services\Telegram\TelegramBotSetup;
 use App\Settings\TelegramSettings;
 use Illuminate\Contracts\View\View;
@@ -37,6 +38,13 @@ class NotificationController extends Controller
                 'linked' => $account !== null,
                 'username' => $account?->username,
                 'needsStart' => $account !== null && $account->chat_started_at === null,
+                // TN-05, TN-06: the stopped state and the event switches (only the events the shop reports).
+                'stopped' => $account !== null && ! $account->notify_enabled,
+                'events' => array_map(fn ($event): array => [
+                    'value' => $event->value,
+                    'label' => $event->customerLabel(),
+                    'enabled' => app(CustomerTelegramPreferences::class)->isEnabled($customer, $event),
+                ], app(CustomerTelegramPreferences::class)->switchable()),
             ],
             'unreadTotal' => $service->unreadCount($customer),
             'notifications' => CustomerNotification::query()

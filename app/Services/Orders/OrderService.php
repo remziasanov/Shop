@@ -9,6 +9,7 @@ use App\Enums\CheckoutChoice;
 use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
+use App\Enums\StatusChangeSource;
 use App\Events\OrderCreated;
 use App\Events\OrderStatusChanged;
 use App\Exceptions\CartChangedException;
@@ -571,9 +572,9 @@ final class OrderService
      * @throws InvalidOrderTransitionException
      * @throws SalesException
      */
-    public function changeStatus(Order $order, OrderStatus $to, ?User $user = null, ?string $comment = null, ?CarbonInterface $newReservedUntil = null): Order
+    public function changeStatus(Order $order, OrderStatus $to, ?User $user = null, ?string $comment = null, ?CarbonInterface $newReservedUntil = null, ?StatusChangeSource $source = null): Order
     {
-        $this->transition($order, $to, $user, $comment, $newReservedUntil, bySystem: false, onlyIfOverdue: false);
+        $this->transition($order, $to, $user, $comment, $newReservedUntil, bySystem: false, onlyIfOverdue: false, source: $source);
 
         return $order;
     }
@@ -595,13 +596,13 @@ final class OrderService
      *
      * @throws SalesException
      */
-    public function extendReservation(Order $order, int $hours, ?User $user = null): Order
+    public function extendReservation(Order $order, int $hours, ?User $user = null, ?StatusChangeSource $source = null): Order
     {
         if ($hours < 1) {
             throw new SalesException(__('sales.errors.extend_hours'));
         }
 
-        DB::transaction(function () use ($order, $hours, $user): void {
+        DB::transaction(function () use ($order, $hours, $user, $source): void {
             /** @var Order $fresh */
             $fresh = Order::query()->whereKey($order->getKey())->lockForUpdate()->firstOrFail();
 
@@ -617,7 +618,7 @@ final class OrderService
             $fresh->updated_by_user_id = $user?->id;
             $fresh->save();
 
-            $this->history($fresh, $fresh->status, $fresh->status, $user, __('sales.history.extended', ['hours' => $hours]));
+            $this->history($fresh, $fresh->status, $fresh->status, $user, __('sales.history.extended', ['hours' => $hours]), $source);
         });
 
         return $order->refresh();
@@ -628,14 +629,14 @@ final class OrderService
      * order: return), a history row is written, then the request is soft deleted - all in one transaction.
      * Requests in a final status keep their stock effect. Deleting an already deleted request does nothing.
      */
-    public function delete(Order $order, ?User $user = null): void
+    public function delete(Order $order, ?User $user = null, ?StatusChangeSource $source = null): void
     {
         // RB-11: a staff member needs `orders.delete`; no user means a system action (console, cleanup).
         if ($user !== null && ! app(PermissionService::class)->allows($user, 'orders.delete')) {
             throw new AuthorizationException;
         }
 
-        DB::transaction(function () use ($order, $user): void {
+        DB::transaction(function () use ($order, $user, $source): void {
             /** @var Order|null $fresh */
             $fresh = Order::query()->whereKey($order->getKey())->lockForUpdate()->first();
 
@@ -650,7 +651,7 @@ final class OrderService
                 $this->promos->release($fresh);
             }
 
-            $this->history($fresh, $fresh->status, $fresh->status, $user, __('sales.history.deleted'));
+            $this->history($fresh, $fresh->status, $fresh->status, $user, __('sales.history.deleted'), $source);
             $fresh->delete();
         });
 
@@ -697,9 +698,9 @@ final class OrderService
     /**
      * @return bool whether the status was changed
      */
-    private function transition(Order $order, OrderStatus $to, ?User $user, ?string $comment, ?CarbonInterface $newReservedUntil, bool $bySystem, bool $onlyIfOverdue): bool
+    private function transition(Order $order, OrderStatus $to, ?User $user, ?string $comment, ?CarbonInterface $newReservedUntil, bool $bySystem, bool $onlyIfOverdue, ?StatusChangeSource $source = null): bool
     {
-        $changed = DB::transaction(function () use ($order, $to, $user, $comment, $newReservedUntil, $bySystem, $onlyIfOverdue): bool {
+        $changed = DB::transaction(function () use ($order, $to, $user, $comment, $newReservedUntil, $bySystem, $onlyIfOverdue, $source): bool {
             /** @var Order $fresh */
             $fresh = Order::query()->whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             $from = $fresh->status;
@@ -747,7 +748,7 @@ final class OrderService
             $fresh->updated_by_user_id = $user?->id;
             $fresh->save();
 
-            $this->history($fresh, $from, $to, $user, $note);
+            $this->history($fresh, $from, $to, $user, $note, $source);
 
             DB::afterCommit(fn () => OrderStatusChanged::dispatch($fresh, $from, $to, $user, $bySystem));
 
@@ -883,20 +884,25 @@ final class OrderService
 
     private function finishCreate(Order $order): Order
     {
-        $this->history($order, null, OrderStatus::New, null, null);
+        // A new request is created by the customer (checkout, inquiry, reservation).
+        $this->history($order, null, OrderStatus::New, null, null, StatusChangeSource::Customer);
 
         DB::afterCommit(fn () => OrderCreated::dispatch($order));
 
         return $order->refresh()->load('items');
     }
 
-    private function history(Order $order, ?OrderStatus $from, OrderStatus $to, ?User $user, ?string $comment): void
+    /**
+     * Without an explicit source a change by a staff member is `admin`, one without a user is `system` (TS-03).
+     */
+    private function history(Order $order, ?OrderStatus $from, OrderStatus $to, ?User $user, ?string $comment, ?StatusChangeSource $source = null): void
     {
         OrderStatusHistory::query()->create([
             'order_id' => $order->id,
             'from_status' => $from,
             'to_status' => $to,
             'user_id' => $user?->id,
+            'source' => $source ?? ($user !== null ? StatusChangeSource::Admin : StatusChangeSource::System),
             'comment' => $comment,
             'created_at' => now(),
         ]);

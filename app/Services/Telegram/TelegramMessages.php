@@ -68,6 +68,17 @@ class TelegramMessages
         return ['text' => $text, 'url' => $this->setup->baseUrl().'/'];
     }
 
+    /**
+     * «Рабочее место» (TS-01, TS-05): a `web_app` button to `/tg?mode=staff`. The `mode` is only a hint of which mode to
+     * try; the link, the role and the rights decide.
+     *
+     * @return array<string, mixed>
+     */
+    public function workplaceButton(): array
+    {
+        return ['text' => __('telegram.bot.workplace'), 'web_app' => ['url' => $this->setup->miniAppUrl().'?mode=staff']];
+    }
+
     public function welcomeText(): string
     {
         $custom = $this->settings->welcome_text;

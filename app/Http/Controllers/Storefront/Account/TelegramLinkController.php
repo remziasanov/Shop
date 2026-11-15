@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Storefront\Account;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
+use App\Http\Requests\Account\TelegramEventsRequest;
+use App\Services\Telegram\CustomerTelegramPreferences;
 use App\Services\Telegram\TelegramLinkService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,5 +36,17 @@ class TelegramLinkController extends Controller
         $links->unlinkCustomer($this->currentCustomer($request));
 
         return redirect()->route('customer.notifications')->with('status', __('telegram.cabinet.disconnected'));
+    }
+
+    /**
+     * TN-05: the event switches; the checked events stay on, the rest go to `customers.telegram_notify_events`.
+     */
+    public function events(TelegramEventsRequest $request, CustomerTelegramPreferences $preferences): RedirectResponse
+    {
+        /** @var list<string> $enabled */
+        $enabled = array_values((array) ($request->validated('events') ?? []));
+        $preferences->update($this->currentCustomer($request), $enabled);
+
+        return redirect()->route('customer.notifications')->with('status', __('telegram_notify.cabinet.saved'));
     }
 }

@@ -6,11 +6,11 @@ namespace App\Jobs;
 
 use App\Jobs\Concerns\DeliversTelegramMessages;
 use App\Models\Order;
-use App\Services\Notifications\Messages\NewRequestMessage;
 use App\Services\Notifications\Messages\OrderMessage;
 use App\Services\Notifications\Messages\ReservationExpiredMessage;
 use App\Services\Notifications\Messages\ReservationExpiringMessage;
 use App\Services\Notifications\TelegramNotifier;
+use App\Services\Telegram\Staff\StaffOrderNotifier;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -54,7 +54,7 @@ class SendTelegramNotification implements ShouldBeUnique, ShouldQueue
         return implode(':', ['telegram', $this->orderId, $this->kind]);
     }
 
-    public function handle(TelegramNotifier $telegram): void
+    public function handle(TelegramNotifier $telegram, ?StaffOrderNotifier $staff = null): void
     {
         $order = Order::query()->find($this->orderId);
 
@@ -62,8 +62,17 @@ class SendTelegramNotification implements ShouldBeUnique, ShouldQueue
             return;
         }
 
+        // TS-01: the new request goes with its action buttons and is logged for the redraw after a tap.
+        if ($this->kind === self::NEW_REQUEST) {
+            $staff ??= app(StaffOrderNotifier::class);
+            $this->deliverTelegram(function () use ($staff, $order): void {
+                $staff->sendToWorkChat($order);
+            });
+
+            return;
+        }
+
         $message = match ($this->kind) {
-            self::NEW_REQUEST => new NewRequestMessage,
             self::EXPIRING => new ReservationExpiringMessage,
             self::EXPIRED => new ReservationExpiredMessage,
             default => null,

@@ -113,4 +113,12 @@ class TelegramAccount extends Model
     {
         return $this->hasMany(Order::class);
     }
+
+    /**
+     * @return HasMany<TelegramMessage, $this>
+     */
+    public function messages(): HasMany
+    {
+        return $this->hasMany(TelegramMessage::class);
+    }
 }

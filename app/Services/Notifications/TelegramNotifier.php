@@ -42,6 +42,28 @@ class TelegramNotifier
      */
     public function send(string $html, ?string $token = null, ?string $chatId = null): void
     {
+        $this->post($html, $token, $chatId);
+    }
+
+    /**
+     * The work chat message with Bot API fields (the keyboard of TS-01); returns the sent message for the log of TS-03.
+     *
+     * @param  array<string, mixed>  $extra  Bot API fields, for instance `reply_markup`
+     * @return array<mixed> the sent message (`message_id`, `chat`)
+     *
+     * @throws TelegramException
+     */
+    public function sendWithExtra(string $html, array $extra): array
+    {
+        return $this->post($html, null, null, $extra);
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     * @return array<mixed>
+     */
+    private function post(string $html, ?string $token, ?string $chatId, array $extra = []): array
+    {
         if ((string) ($token ?: $this->settings->bot_token) === '' || (string) ($chatId ?: $this->settings->work_chat_id) === '') {
             throw new TelegramException(__('notifications.telegram_not_configured'));
         }
@@ -53,6 +75,6 @@ class TelegramNotifier
         }
 
         // Overrides (the settings test button) skip the limits and leave the work chat state alone.
-        $this->client->sendToWorkChat($html, [], filled($token) ? $token : null, filled($chatId) ? $chatId : null);
+        return $this->client->sendToWorkChat($html, $extra, filled($token) ? $token : null, filled($chatId) ? $chatId : null);
     }
 }

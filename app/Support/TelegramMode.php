@@ -35,6 +35,12 @@ final class TelegramMode
     /** A guest cart of the Telegram account waits to be merged into the signed-in customer's cart (TM-13). */
     public const CART_MERGE_KEY = 'telegram_cart_merge';
 
+    /** TS-05: the session is a staff («Рабочее место») session; the sign-in itself lives in the `telegram_staff` guard. */
+    public const STAFF_KEY = 'telegram_staff_mode';
+
+    /** Unix time of the staff entry: the staff session is capped at the session lifetime (8 h, NF-12). */
+    public const STAFF_AT_KEY = 'telegram_staff_at';
+
     public static function active(?Session $session = null): bool
     {
         $session ??= app()->bound('session.store') ? app('session.store') : null;
@@ -64,5 +70,15 @@ final class TelegramMode
         $id = $session?->get(self::USER_KEY);
 
         return is_int($id) && $id > 0 ? $id : null;
+    }
+
+    /**
+     * The session was opened as a staff session (TS-05). The authority is the `telegram_staff` guard, not this flag.
+     */
+    public static function staff(?Session $session = null): bool
+    {
+        $session ??= app()->bound('session.store') ? app('session.store') : null;
+
+        return $session !== null && $session->get(self::STAFF_KEY) === true;
     }
 }

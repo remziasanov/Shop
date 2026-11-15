@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\OrderStatus;
+use App\Enums\StatusChangeSource;
 use Carbon\CarbonInterface;
 use Database\Factories\OrderStatusHistoryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property OrderStatus|null $from_status
  * @property OrderStatus $to_status
  * @property int|null $user_id
+ * @property StatusChangeSource $source
  * @property string|null $comment
  * @property CarbonInterface $created_at
  * @property-read Order $order
@@ -33,7 +35,7 @@ class OrderStatusHistory extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['order_id', 'from_status', 'to_status', 'user_id', 'comment', 'created_at'];
+    protected $fillable = ['order_id', 'from_status', 'to_status', 'user_id', 'source', 'comment', 'created_at'];
 
     /**
      * @return array<string, string>
@@ -43,6 +45,7 @@ class OrderStatusHistory extends Model
         return [
             'from_status' => OrderStatus::class,
             'to_status' => OrderStatus::class,
+            'source' => StatusChangeSource::class,
             'created_at' => 'datetime',
         ];
     }
