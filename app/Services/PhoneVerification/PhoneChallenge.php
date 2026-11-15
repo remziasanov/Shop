@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Services\Customers\CustomerAuthService;
 use App\Services\Customers\WholesaleApplicationService;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A cabinet action that waits for a verified phone (PV-07): the new phone of the profile, a wholesale application, or the
@@ -71,43 +72,84 @@ final class PhoneChallenge
     }
 
     /**
-     * Runs the parked action (or marks the profile phone verified).
+     * Runs the parked action (or marks the profile phone verified) for the number that was actually verified.
      *
-     * @param  bool  $verified  the number is verified; false = the provider failed and the owner chose to skip
+     * The verification of one number never applies anything of another: the purpose and the canonical phone of the
+     * verification must equal those of the parked action (or, without one, of the fresh profile phone). Whether the
+     * number is verified (or skipped) is re-checked here against the phone being applied. On a mismatch nothing is
+     * applied, the stale parked action is dropped and a neutral message is returned (no enumeration).
+     *
+     * @param  PhoneVerificationPurpose  $purpose  what the customer verified
+     * @param  string  $phone  the number that was verified (canonical or typed)
      * @return array{route: string, status: string|null, error: string|null} where to go and what to tell the customer
      */
-    public function complete(Session $session, Customer $customer, bool $verified, string $ip, ?string $userAgent): array
+    public function complete(Session $session, Customer $customer, PhoneVerificationPurpose $purpose, string $phone, string $ip, ?string $userAgent): array
     {
+        $canonical = PhoneVerificationService::canonical($phone);
         $parked = $this->parked($session, $customer);
-        $purpose = $parked !== null ? PhoneVerificationPurpose::tryFrom((string) ($parked['purpose'] ?? '')) : null;
         $this->clear($session);
 
-        if ($purpose === PhoneVerificationPurpose::ProfileChange && is_string($parked['name'] ?? null) && is_string($parked['phone'] ?? null)) {
-            $this->auth->updateProfile($customer, $parked['name'], $parked['phone'], $verified);
+        $stale = ['route' => 'customer.profile', 'status' => null, 'error' => __('phone_verification.screen.stale')];
 
-            return ['route' => 'customer.profile', 'status' => __($verified ? 'phone_verification.screen.profile_saved_verified' : 'phone_verification.screen.profile_saved'), 'error' => null];
+        if ($canonical === null) {
+            return $stale;
         }
 
-        if ($purpose === PhoneVerificationPurpose::Wholesale && is_array($parked['data'] ?? null)) {
-            try {
-                /** @var array{company_name: string, inn: string, kpp: string|null, contact_name: string, phone: string, comment: string|null} $data */
-                $data = $parked['data'];
-                $this->wholesale->submit($customer, $data, $ip, $userAgent);
-            } catch (WholesaleApplicationException $e) {
-                return ['route' => 'customer.wholesale', 'status' => null, 'error' => $e->getMessage()];
+        $verified = $this->gate->isPhoneVerified($canonical, $purpose, $customer, $session);
+
+        if (! $verified && ! $this->gate->wasSkipped($canonical, $purpose, $session)) {
+            return $stale;
+        }
+
+        if ($parked !== null) {
+            $parkedPurpose = PhoneVerificationPurpose::tryFrom((string) ($parked['purpose'] ?? ''));
+            $parkedPhone = is_string($parked['phone'] ?? null) ? PhoneVerificationService::canonical($parked['phone']) : null;
+
+            if ($parkedPurpose !== $purpose || $parkedPhone !== $canonical) {
+                return $stale;
             }
 
-            return ['route' => 'customer.wholesale', 'status' => __('wholesale.form.sent'), 'error' => null];
+            if ($purpose === PhoneVerificationPurpose::ProfileChange && is_string($parked['name'] ?? null)) {
+                $this->auth->updateProfile($customer, $parked['name'], $canonical, $verified);
+
+                return ['route' => 'customer.profile', 'status' => __($verified ? 'phone_verification.screen.profile_saved_verified' : 'phone_verification.screen.profile_saved'), 'error' => null];
+            }
+
+            if ($purpose === PhoneVerificationPurpose::Wholesale && is_array($parked['data'] ?? null)) {
+                try {
+                    /** @var array{company_name: string, inn: string, kpp: string|null, contact_name: string, phone: string, comment: string|null} $data */
+                    $data = $parked['data'];
+                    $this->wholesale->submit($customer, $data, $ip, $userAgent);
+                } catch (WholesaleApplicationException $e) {
+                    return ['route' => 'customer.wholesale', 'status' => null, 'error' => $e->getMessage()];
+                }
+
+                return ['route' => 'customer.wholesale', 'status' => __('wholesale.form.sent'), 'error' => null];
+            }
+
+            return $stale;
         }
 
-        // The registration scenario: the profile phone itself.
-        if ($verified) {
-            $this->auth->markPhoneVerified($customer);
-
-            return ['route' => 'account', 'status' => __('phone_verification.screen.verified_done'), 'error' => null];
+        // The registration scenario: the profile phone itself, read afresh and equal to the verified number.
+        if ($purpose !== PhoneVerificationPurpose::Registration) {
+            return $stale;
         }
 
-        return ['route' => 'account', 'status' => __('phone_verification.screen.skipped'), 'error' => null];
+        return DB::transaction(function () use ($customer, $canonical, $verified, $stale): array {
+            $fresh = Customer::query()->whereKey($customer->id)->lockForUpdate()->first();
+
+            if ($fresh === null || ! is_string($fresh->phone) || PhoneVerificationService::canonical($fresh->phone) !== $canonical) {
+                return $stale;
+            }
+
+            if ($verified) {
+                $this->auth->markPhoneVerified($fresh);
+
+                return ['route' => 'account', 'status' => __('phone_verification.screen.verified_done'), 'error' => null];
+            }
+
+            return ['route' => 'account', 'status' => __('phone_verification.screen.skipped'), 'error' => null];
+        });
     }
 
     /**

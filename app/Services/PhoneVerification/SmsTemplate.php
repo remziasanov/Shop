@@ -23,6 +23,9 @@ final class SmsTemplate
             return $withoutShop;
         }
 
+        // PV-04: no links, a domain-like shop name («Alev.ru») loses its zone.
+        $shop = trim(preg_replace(['~https?://\S*|www\.\S*~iu', '~\b([\p{L}\d-]+)\.(?:ru|com|net|org|su|рф|io|me|ly|by|kz|shop|store|online|site)\b~iu'], ['', '$1'], $shop) ?? $shop);
+
         $fixed = mb_strlen(str_replace('{shop}', '', $withoutShop));
         $room = max(0, intdiv(self::MAX_LENGTH - $fixed, $count));
         $shop = $room >= mb_strlen($shop) ? $shop : rtrim(mb_substr($shop, 0, $room), " \t.,;:-–—");

@@ -175,3 +175,46 @@ describe('failures (PV-05)', function (): void {
         expect(smsAeroError(fn () => smsAero()->startFlashCall('+79991234567', '1234')))->toBeInstanceOf(PhoneProviderRefusal::class);
     });
 });
+
+it('treats a zero balance as a refusal even when the text says «отключена» (PV-05)', function (int $status, string $message): void {
+    smsAeroFake(Http::response(['success' => false, 'message' => $message], $status));
+
+    $e = smsAeroError(fn () => smsAero()->sendSms('+79991234567', 'text'));
+
+    expect($e)->toBeInstanceOf(PhoneProviderRefusal::class)->and($e->insufficientBalance)->toBeTrue();
+})->with([
+    [402, 'Недостаточно средств, услуга отключена'],
+    [200, 'Недостаточно средств, услуга отключена'],
+    [402, 'Ошибка подключения к оператору'],
+    [200, 'Пополните баланс или включите автоплатёж'],
+]);
+
+it('treats a refused number as a refusal, never as a provider failure (PV-05)', function (string $message): void {
+    smsAeroFake(Http::response(['success' => false, 'message' => $message], 200));
+
+    $e = smsAeroError(fn () => smsAero()->sendSms('+79991234567', 'text'));
+
+    expect($e)->toBeInstanceOf(PhoneProviderRefusal::class)->and($e->insufficientBalance)->toBeFalse();
+})->with(['Номер отключен', 'Ошибка подключения к оператору', 'Исключение для номера']);
+
+it('still classifies a real authorization message as an auth failure', function (string $message): void {
+    smsAeroFake(Http::response(['success' => false, 'message' => $message], 200));
+
+    $e = smsAeroError(fn () => smsAero()->sendSms('+79991234567', 'text'));
+
+    expect($e)->toBeInstanceOf(PhoneProviderFailure::class)->and($e->kind)->toBe(PhoneProviderFailureKind::Auth);
+})->with(['Неверный API ключ', 'Invalid api key', 'Ошибка авторизации', 'Неверный ключ']);
+
+it('lets an unexpected error bubble up instead of calling it a network failure', function (): void {
+    smsAeroFake(fn () => throw new TypeError('bug'));
+
+    expect(fn () => smsAero()->sendSms('+79991234567', 'text'))->toThrow(TypeError::class);
+});
+
+it('masks phone-like digit runs in provider messages (PV-10, NF-15)', function (): void {
+    smsAeroFake(Http::response(['success' => false, 'message' => 'Номер 79001234567 не поддерживается'], 200));
+
+    $e = smsAeroError(fn () => smsAero()->sendSms('+79001234567', 'text'));
+
+    expect($e->getMessage())->not->toContain('79001234567')->and($e->getMessage())->toContain('4567');
+});

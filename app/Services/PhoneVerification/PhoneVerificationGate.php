@@ -210,6 +210,20 @@ final class PhoneVerificationGate
         $session->put(self::SKIPPED_KEY, $marks);
     }
 
+    /**
+     * A skip mark is single use (PV-05): only the request created on the skip path goes unverified.
+     */
+    public function forgetSkipped(PhoneVerificationPurpose $purpose, ?Session $session): void
+    {
+        if ($session === null) {
+            return;
+        }
+
+        $marks = (array) $session->get(self::SKIPPED_KEY, []);
+        unset($marks[$purpose->value]);
+        $session->put(self::SKIPPED_KEY, $marks);
+    }
+
     public function wasSkipped(string $phone, PhoneVerificationPurpose $purpose, ?Session $session): bool
     {
         $canonical = PhoneVerificationService::canonical($phone);
@@ -237,6 +251,11 @@ final class PhoneVerificationGate
             throw new SalesException(__('phone_verification.errors.account_locked'));
         }
 
+        // The lock was lifted by a skip mark of the profile phone: the mark is used up by this request.
+        if ($customer !== null && $customer->phone_verified_at === null && $this->registrationMode() === PhoneVerificationRegistrationMode::Required) {
+            $this->forgetSkipped(PhoneVerificationPurpose::Registration, $session);
+        }
+
         $purpose = PhoneVerificationPurpose::GuestCheckout;
         $verified = $this->isPhoneVerified($phone, $purpose, $customer, $session);
 
@@ -245,6 +264,8 @@ final class PhoneVerificationGate
         }
 
         if ($this->wasSkipped($phone, $purpose, $session)) {
+            $this->forgetSkipped($purpose, $session);
+
             return false;
         }
 

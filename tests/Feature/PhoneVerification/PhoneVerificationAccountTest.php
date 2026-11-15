@@ -308,3 +308,56 @@ describe('reset of phone_verified_at (PV-13 е)', function (): void {
         expect($customer->refresh()->phone_verified_at)->toBeNull()->and($customer->phone)->toBeNull()->and(PhoneVerification::query()->count())->toBe(0);
     });
 });
+
+describe('a verified number never marks another one (PV-07, PV-13 е)', function (): void {
+    it('applies nothing when a profile change to another number was parked after the verification started', function (): void {
+        $this->settings->registration = 'required';
+        $this->settings->profile_change = true;
+        $this->settings->save();
+        $customer = pvaSignIn($this);
+
+        $panel = Livewire::test(PhoneVerificationPanel::class)->call('startVerification')->assertSet('pvActive', true);
+        expect($this->gateway->calls)->toHaveCount(1)->and($this->gateway->calls[0]['phone'])->toBe(PVA_PHONE);
+
+        // Second tab: the profile form parks a change to somebody else's number.
+        app(PhoneChallenge::class)->parkProfileChange(PhoneVerificationGate::session(), $customer, 'Чужой', '+79009998877');
+
+        $panel->set('pvCode', $this->gateway->lastCode)->call('confirmPhoneCode')->assertRedirect(route('customer.profile'));
+
+        $customer->refresh();
+        expect($customer->phone)->toBe(PVA_PHONE)->and($customer->name)->not->toBe('Чужой')->and($customer->phone_verified_at)->toBeNull()
+            ->and(session(PhoneChallenge::KEY))->toBeNull();
+    });
+
+    it('does not mark a profile phone verified when it was changed after the verification started', function (): void {
+        $this->settings->registration = 'later';
+        $this->settings->save();
+        $customer = pvaSignIn($this);
+
+        $panel = Livewire::test(PhoneVerificationPanel::class)->call('startVerification')->assertSet('pvActive', true);
+
+        // The profile is saved with another number meanwhile (this resets phone_verified_at).
+        $customer->forceFill(['phone' => '+79009998877', 'phone_verified_at' => null])->save();
+
+        $panel->set('pvCode', $this->gateway->lastCode)->call('confirmPhoneCode')->assertRedirect(route('customer.profile'));
+
+        $customer->refresh();
+        expect($customer->phone)->toBe('+79009998877')->and($customer->phone_verified_at)->toBeNull()
+            ->and($this->gateway->calls)->toHaveCount(1);
+    });
+
+    it('does not run a parked wholesale application of another number', function (): void {
+        $this->settings->registration = 'later';
+        $this->settings->save();
+        $customer = pvaSignIn($this);
+
+        $panel = Livewire::test(PhoneVerificationPanel::class)->call('startVerification');
+        app(PhoneChallenge::class)->parkWholesale(PhoneVerificationGate::session(), $customer, [
+            'company_name' => 'ООО', 'inn' => '7707083893', 'kpp' => null, 'contact_name' => 'X', 'phone' => '+79009998877', 'comment' => null,
+        ]);
+
+        $panel->set('pvCode', $this->gateway->lastCode)->call('confirmPhoneCode');
+
+        expect(WholesaleApplication::query()->count())->toBe(0)->and($customer->refresh()->phone_verified_at)->toBeNull();
+    });
+});

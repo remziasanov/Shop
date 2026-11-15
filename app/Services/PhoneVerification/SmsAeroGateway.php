@@ -7,10 +7,11 @@ namespace App\Services\PhoneVerification;
 use App\Enums\PhoneProviderFailureKind;
 use App\Exceptions\PhoneProviderFailure;
 use App\Exceptions\PhoneProviderRefusal;
+use App\Support\PiiMask;
+use GuzzleHttp\Exception\TransferException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
-use Throwable;
 
 /**
  * SMS Aero API v2 (PV-02, D-110): flash call with the client's code, SMS and balance over the Laravel HTTP client.
@@ -31,7 +32,8 @@ final class SmsAeroGateway implements PhoneVerificationGateway
 
     public const TIMEOUT = 5;
 
-    private const AUTH_PATTERN = '/authenticat|unauthori[sz]ed|api[ _-]?key|авториз|ключ/iu';
+    /** Word-bounded: «включите», «отключена», «подключения» must not match (PV-05). */
+    private const AUTH_PATTERN = '/authenticat|unauthori[sz]ed|api[ _-]?key|авторизац|(?<![\p{L}])ключ(?:а|ом|у)?(?![\p{L}])/iu';
 
     private const BALANCE_PATTERN = '/insufficient|not enough|no money|недостаточно|баланс|средств/iu';
 
@@ -112,7 +114,7 @@ final class SmsAeroGateway implements PhoneVerificationGateway
             $timeout = preg_match('/timed? ?out|timeout|cURL error 28/i', $message) === 1;
 
             throw new PhoneProviderFailure($timeout ? PhoneProviderFailureKind::Timeout : PhoneProviderFailureKind::Network, $message);
-        } catch (Throwable $e) {
+        } catch (TransferException $e) {
             throw new PhoneProviderFailure(PhoneProviderFailureKind::Network, $this->scrub($e::class.': '.$e->getMessage()));
         }
 
@@ -145,13 +147,14 @@ final class SmsAeroGateway implements PhoneVerificationGateway
             return is_array($data) ? $data : [];
         }
 
-        // An authorization error may also come with HTTP 200 and `success: false`.
-        if ($message !== '' && preg_match(self::AUTH_PATTERN, $message) === 1) {
-            throw new PhoneProviderFailure(PhoneProviderFailureKind::Auth, $message);
-        }
-
+        // A zero balance always blocks (PV-05): checked before anything else.
         if ($status === 402 || ($message !== '' && preg_match(self::BALANCE_PATTERN, $message) === 1)) {
             throw new PhoneProviderRefusal(true, $message !== '' ? $message : 'HTTP 402');
+        }
+
+        // An authorization error may also come with HTTP 200 and `success: false`; everything else is a refusal.
+        if ($message !== '' && preg_match(self::AUTH_PATTERN, $message) === 1) {
+            throw new PhoneProviderFailure(PhoneProviderFailureKind::Auth, $message);
         }
 
         throw new PhoneProviderRefusal(false, $message !== '' ? $message : 'HTTP '.$status);
@@ -193,6 +196,6 @@ final class SmsAeroGateway implements PhoneVerificationGateway
     {
         $secrets = array_filter([$this->apiKey, $this->login, base64_encode($this->login.':'.$this->apiKey)], fn (string $secret): bool => $secret !== '');
 
-        return mb_substr(str_replace($secrets, '***', $text), 0, 300);
+        return mb_substr(PiiMask::digitRuns(str_replace($secrets, '***', $text)), 0, 300);
     }
 }

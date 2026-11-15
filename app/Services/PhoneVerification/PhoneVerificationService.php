@@ -437,6 +437,8 @@ final class PhoneVerificationService
      */
     private function send(string $phone, PhoneVerificationPurpose $purpose, PhoneVerificationMethod $method, Session $session, string $ip, ?Customer $customer): PhoneVerificationStart
     {
+        $this->assertSingleProviderCall();
+
         $binding = $this->binding($session);
 
         $this->assertNotLocked($phone);
@@ -470,7 +472,7 @@ final class PhoneVerificationService
             return $this->providerFailed($e, $phone, $purpose, $method, $binding, $ip, $customer);
         } catch (PhoneProviderRefusal $e) {
             $this->unsent($phone, $purpose, $method, $binding, $ip, $customer, PhoneVerificationOutcome::Blocked, $e->insufficientBalance ? 'balance' : 'refused');
-            Log::warning('Phone verification refused by the provider', ['phone' => PiiMask::phone($phone), 'balance' => $e->insufficientBalance, 'message' => $e->getMessage()]);
+            Log::warning('Phone verification refused by the provider', ['phone' => PiiMask::phone($phone), 'balance' => $e->insufficientBalance, 'message' => PiiMask::digitRuns($e->getMessage())]);
 
             if ($e->insufficientBalance) {
                 $this->alerts->emptyBalance();
@@ -493,9 +495,31 @@ final class PhoneVerificationService
         );
     }
 
+    /**
+     * PV-05: at most one provider call per HTTP request (a Livewire request may carry several component updates).
+     */
+    private function assertSingleProviderCall(): void
+    {
+        // Console runs (artisan, queue, tests) have no HTTP request: several calls there are separate operations.
+        if (app()->runningInConsole()) {
+            return;
+        }
+
+        /** @var \WeakMap<object, true>|null $seen */
+        static $seen = null;
+        $seen ??= new \WeakMap;
+        $request = app('request');
+
+        if (isset($seen[$request])) {
+            throw PhoneVerificationException::throttled(60);
+        }
+
+        $seen[$request] = true;
+    }
+
     private function providerFailed(PhoneProviderFailure $e, string $phone, PhoneVerificationPurpose $purpose, PhoneVerificationMethod $method, string $binding, string $ip, ?Customer $customer): PhoneVerificationStart
     {
-        Log::warning('Phone verification provider failure', ['kind' => $e->kind->value, 'phone' => PiiMask::phone($phone), 'message' => $e->getMessage()]);
+        Log::warning('Phone verification provider failure', ['kind' => $e->kind->value, 'phone' => PiiMask::phone($phone), 'message' => PiiMask::digitRuns($e->getMessage())]);
         $this->alerts->providerFailure($e->kind->value);
 
         // The test button always reports the failure.

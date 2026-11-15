@@ -89,7 +89,9 @@ describe('settings (PV-01)', function (): void {
 
 describe('SMS text (PV-04)', function (): void {
     it('renders the default text', function (): void {
-        expect(SmsTemplate::render(SmsTemplate::DEFAULT, '1234', 'Alev Shop'))->toBe('Код подтверждения: 1234. Alev Shop');
+        expect(SmsTemplate::render(SmsTemplate::DEFAULT, '1234', 'Alev.ru'))->toBe('Код подтверждения: 1234. Alev')
+            ->and(SmsTemplate::render(SmsTemplate::DEFAULT, '1234', 'https://alev.ru Магазин'))->not->toContain('alev.ru')
+            ->and(SmsTemplate::render(SmsTemplate::DEFAULT, '1234', 'Alev Shop'))->toBe('Код подтверждения: 1234. Alev Shop');
     });
 
     it('shortens the shop name so the text fits one SMS', function (): void {

@@ -381,6 +381,17 @@ describe('provider failures (PV-05, PV-13 г)', function (): void {
         Queue::assertPushed(SendPhoneVerificationAlert::class, 1);
     });
 
+    it('uses the skip mark up with the first request (single use, PV-05)', function (): void {
+        $gate = app(PhoneVerificationGate::class);
+        $session = PhoneVerificationGate::session();
+        $gate->markSkipped('+79001234567', PhoneVerificationPurpose::GuestCheckout, $session);
+
+        expect($gate->assertForRequest('+79001234567', null, $session, true, false, false, 10_000_000))->toBeFalse()
+            ->and($gate->wasSkipped('+79001234567', PhoneVerificationPurpose::GuestCheckout, $session))->toBeFalse();
+
+        expect(fn () => $gate->assertForRequest('+79001234567', null, $session, true, false, false, 10_000_000))->toThrow(SalesException::class);
+    });
+
     it('does not let the skip mark of one number cover another one', function (): void {
         $this->gateway->failWith(PhoneProviderFailureKind::Server);
         $cart = cartWith($this->buy);

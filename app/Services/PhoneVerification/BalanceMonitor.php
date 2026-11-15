@@ -7,6 +7,7 @@ namespace App\Services\PhoneVerification;
 use App\Exceptions\PhoneProviderFailure;
 use App\Exceptions\PhoneProviderRefusal;
 use App\Settings\PhoneVerificationSettings;
+use App\Support\PiiMask;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -33,7 +34,7 @@ final class BalanceMonitor
     public function refresh(): ?string
     {
         try {
-            $balance = app(PhoneVerificationGateway::class)->balance();
+            $balance = $this->gateway()->balance();
         } catch (PhoneProviderFailure $e) {
             $this->settings->saveOnly(['last_balance_error' => $e->kind->value, 'last_balance_at' => now()->toIso8601String()]);
 
@@ -43,6 +44,11 @@ final class BalanceMonitor
         $this->settings->saveOnly(['last_balance' => $balance, 'last_balance_at' => now()->toIso8601String(), 'last_balance_error' => null]);
 
         return $balance;
+    }
+
+    private function gateway(): PhoneVerificationGateway
+    {
+        return app(PhoneVerificationGateway::class);
     }
 
     /**
@@ -57,7 +63,7 @@ final class BalanceMonitor
         try {
             $balance = $this->refresh();
         } catch (PhoneProviderFailure|PhoneProviderRefusal $e) {
-            Log::warning('Phone verification balance check failed', ['message' => $e->getMessage()]);
+            Log::warning('Phone verification balance check failed', ['message' => PiiMask::digitRuns($e->getMessage())]);
 
             if ($e instanceof PhoneProviderFailure) {
                 $this->alerts->providerFailure($e->kind->value);

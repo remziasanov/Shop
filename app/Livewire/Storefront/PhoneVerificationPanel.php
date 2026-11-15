@@ -86,13 +86,13 @@ class PhoneVerificationPanel extends Component
         // TG-09: the number of the customer's Telegram needs no call.
         if ($gate->isTelegramVerified($this->targetPhone, PhoneVerificationGate::session())) {
             $this->pvActive = false;
-            $this->finish(true);
+            $this->finish();
 
             return;
         }
 
         if ($this->beginPhoneVerification($this->targetPhone)) {
-            $this->finish(false);
+            $this->finish();
         }
     }
 
@@ -107,13 +107,10 @@ class PhoneVerificationPanel extends Component
 
     protected function afterPhoneVerified(): void
     {
-        $gate = app(PhoneVerificationGate::class);
-        $verified = $gate->isPhoneVerified($this->targetPhone, $this->pvPurpose(), null, PhoneVerificationGate::session());
-
-        $this->finish($verified);
+        $this->finish();
     }
 
-    private function finish(bool $verified): void
+    private function finish(): void
     {
         $customer = $this->pvCustomer();
 
@@ -121,7 +118,7 @@ class PhoneVerificationPanel extends Component
             return;
         }
 
-        $done = app(PhoneChallenge::class)->complete(PhoneVerificationGate::session(), $customer, $verified, (string) request()->ip(), request()->userAgent());
+        $done = app(PhoneChallenge::class)->complete(PhoneVerificationGate::session(), $customer, $this->pvPurpose(), $this->targetPhone, (string) request()->ip(), request()->userAgent());
 
         if ($done['status'] !== null) {
             session()->flash('status', $done['status']);

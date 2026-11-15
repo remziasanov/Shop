@@ -13,6 +13,7 @@ use App\Models\Customer;
 use App\Models\PhoneVerification;
 use App\Services\PhoneVerification\PhoneVerificationService;
 use App\Settings\NotificationSettings;
+use App\Support\PiiMask;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -528,4 +529,26 @@ describe('housekeeping (PV-08)', function (): void {
             ->and(PhoneVerification::query()->whereKey($fresh->id)->exists())->toBeTrue()
             ->and($stale->refresh()->outcome)->toBe(PhoneVerificationOutcome::Expired);
     });
+});
+
+describe('one provider call per HTTP request (PV-05)', function (): void {
+    it('refuses a second provider call inside the same request', function (): void {
+        // Outside the console a request is one unit of work: pretend to be in a web request.
+        $property = new ReflectionProperty(app(), 'isRunningInConsole');
+        $property->setValue(app(), false);
+
+        try {
+            $this->pv->start(PV_PHONE, $this->purpose, $this->session, PV_IP);
+
+            expectPvError(fn () => $this->pv->start('+79991230000', $this->purpose, $this->session, PV_IP), PhoneVerificationError::Throttled);
+            expect(count($this->gateway->calls))->toBe(1);
+        } finally {
+            $property->setValue(app(), true);
+        }
+    });
+});
+
+it('masks phone-like digit runs in free text but keeps short numbers (PV-10)', function (): void {
+    expect(PiiMask::digitRuns('Номер 79001234567 и +7 (900) 123-45-67, код 1234, cost 1.3000'))
+        ->not->toContain('79001234567')->not->toContain('123-45-67')->toContain('1234')->toContain('1.3000');
 });
