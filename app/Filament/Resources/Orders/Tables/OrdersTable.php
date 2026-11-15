@@ -18,9 +18,11 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -68,6 +70,10 @@ final class OrdersTable
                     ->label(__('admin_orders.table.phone'))
                     ->url(fn (Order $record): string => 'tel:'.$record->customer_phone)
                     ->color('gray'),
+                IconColumn::make('phone_verified')
+                    ->label(__('phone_verification.badge'))
+                    ->tooltip(__('phone_verification.badge'))
+                    ->boolean(),
                 TextColumn::make('total')
                     ->label(__('admin_orders.table.total'))
                     ->sortable()
@@ -99,6 +105,16 @@ final class OrdersTable
                     ->label(__('admin_orders.filters.status'))
                     ->options(OrderStatus::options())
                     ->query(fn (Builder $query, array $data): Builder => OrderQuery::apply($query, ['status' => $data['value'] ?? null])),
+                TernaryFilter::make('phone_verified')
+                    ->label(__('phone_verification.badge'))
+                    ->placeholder(__('customers.filters.all'))
+                    ->trueLabel(__('customers.filters.yes'))
+                    ->falseLabel(__('customers.filters.no'))
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->where('phone_verified', true),
+                        false: fn (Builder $query): Builder => $query->where('phone_verified', false),
+                        blank: fn (Builder $query): Builder => $query,
+                    ),
                 SelectFilter::make('channel')
                     ->label(__('pwa.admin.channel'))
                     ->options(OrderChannel::options())

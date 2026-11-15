@@ -179,6 +179,8 @@ final class CustomerAuthService
                 $fill += [
                     'name' => $payload['name'],
                     'phone' => $payload['phone'],
+                    // PV-13 е: the data of a re-registration (CA-05) replace the old ones, the phone is verified anew.
+                    'phone_verified_at' => null,
                     'password' => $payload['password'],
                     'consent_at' => now(),
                     'consent_ip' => is_string($payload['consent_ip'] ?? null) ? $payload['consent_ip'] : $customer->consent_ip,
@@ -434,11 +436,33 @@ final class CustomerAuthService
     // ------------------------------------------------------------------ profile (CA-08)
 
     /**
+     * PV-13 е: a changed phone number resets `phone_verified_at`; `$verified` (the number was verified by a code in this
+     * session, or it is the verified number of the customer's Telegram) sets it again.
+     *
      * @param  string  $phone  already normalized to +7XXXXXXXXXX
      */
-    public function updateProfile(Customer $customer, string $name, string $phone): Customer
+    public function updateProfile(Customer $customer, string $name, string $phone, bool $verified = false): Customer
     {
-        $customer->forceFill(['name' => trim($name), 'phone' => $phone])->save();
+        $changed = $customer->phone !== $phone;
+        $fill = ['name' => trim($name), 'phone' => $phone];
+
+        if ($verified) {
+            $fill['phone_verified_at'] = now();
+        } elseif ($changed) {
+            $fill['phone_verified_at'] = null;
+        }
+
+        $customer->forceFill($fill)->save();
+
+        return $customer;
+    }
+
+    /**
+     * PV-07, PV-13: the profile phone was verified (a code, or the verified number of the customer's Telegram).
+     */
+    public function markPhoneVerified(Customer $customer): Customer
+    {
+        $customer->forceFill(['phone_verified_at' => now()])->save();
 
         return $customer;
     }

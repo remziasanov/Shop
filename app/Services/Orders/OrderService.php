@@ -27,6 +27,7 @@ use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Catalog\CategoryTree;
 use App\Services\Customers\EmailNormalizer;
+use App\Services\PhoneVerification\PhoneVerificationGate;
 use App\Services\Pricing\Priceable;
 use App\Services\Pricing\PriceResolver;
 use App\Services\Pricing\ResolvedPrice;
@@ -76,6 +77,7 @@ final class OrderService
         private readonly OrderItemSnapshot $snapshots,
         private readonly PriceResolver $resolver,
         private readonly PromoRedemptionService $promos,
+        private readonly PhoneVerificationGate $phones,
     ) {}
 
     /**
@@ -270,11 +272,13 @@ final class OrderService
                     throw new SalesException(__('age_gate.errors.confirm_required', ['age' => $ageLevel->minAge()]));
                 }
 
+                // PV-13 г, д: ONE check for the whole checkout, before anything is created; the «order» part sets the amount.
+                $phoneVerified = $this->phoneVerified($phone, $orderLines !== [], $reservationLines !== [], false, array_sum(array_map(fn (array $line): int => $line['price'] * $line['qty'], $orderLines)));
                 $email = $this->canonicalEmail($data->email);
                 $order = null;
 
                 if ($orderLines !== []) {
-                    $order = $this->storeCartOrder($lockedCart, $orderLines, $data, $phone, $email, $ageLevel);
+                    $order = $this->storeCartOrder($lockedCart, $orderLines, $data, $phone, $email, $ageLevel, $phoneVerified);
 
                     if (! $order instanceof Order) {
                         return $order;
@@ -294,6 +298,7 @@ final class OrderService
                     $data->promoLinkId,
                     viaCart: true,
                     channel: $data->channel,
+                    phoneVerified: $phoneVerified,
                 );
 
                 // MR-05: the two requests of one checkout point at each other.
@@ -337,7 +342,7 @@ final class OrderService
      *
      * @throws SalesException
      */
-    private function storeCartOrder(Cart $lockedCart, array $lines, CheckoutData $data, string $phone, ?string $email, ?AgeRestriction $ageLevel): Order|CartChangedException
+    private function storeCartOrder(Cart $lockedCart, array $lines, CheckoutData $data, string $phone, ?string $email, ?AgeRestriction $ageLevel, bool $phoneVerified): Order|CartChangedException
     {
         $delivery = $this->methods->delivery($data->deliveryKey)
             ?? throw new SalesException(__('sales.errors.delivery_invalid'));
@@ -400,6 +405,7 @@ final class OrderService
             'customer_comment' => $this->blankToNull($data->comment),
             'age_confirmed_level' => $ageLevel,
             'channel' => $data->channel,
+            'phone_verified' => $phoneVerified,
         ], $data->ip, $data->userAgent, $lines, [
             'promo_code_id' => $promo?->code?->id,
             'promo_code' => $promo?->code?->code,
@@ -426,7 +432,7 @@ final class OrderService
      *
      * @throws SalesException
      */
-    private function storeReservation(array $lines, string $name, string $phone, ?string $email, ?CarbonInterface $desiredDate, ?string $comment, string $ip, ?string $userAgent, ?AgeRestriction $ageLevel, ?int $promoLinkId, bool $viaCart, OrderChannel $channel = OrderChannel::Web): Order
+    private function storeReservation(array $lines, string $name, string $phone, ?string $email, ?CarbonInterface $desiredDate, ?string $comment, string $ip, ?string $userAgent, ?AgeRestriction $ageLevel, ?int $promoLinkId, bool $viaCart, OrderChannel $channel = OrderChannel::Web, bool $phoneVerified = false): Order
     {
         $reservedUntil = now()->addHours($this->settings->reservation_hours);
 
@@ -452,6 +458,7 @@ final class OrderService
             'desired_date' => $desiredDate?->copy()->startOfDay(),
             'age_confirmed_level' => $ageLevel,
             'channel' => $channel,
+            'phone_verified' => $phoneVerified,
         ], $ip, $userAgent, $lines, [
             // PM-07, PM-24: no promo code, but the order is attributed to the promo link.
             'promo_link_id' => $this->promos->validLinkId($promoLinkId),
@@ -501,6 +508,8 @@ final class OrderService
 
             // GP-12: a reservation is priced for the viewer's group and the reserved quantity, too.
             $resolved = $this->resolver->resolve($unit, $this->viewer->group(), $data->qty);
+            // PV-13 г: the phone is checked in the transaction, before the reservation is created.
+            $phoneVerified = $this->phoneVerified($phone, false, true, false, 0);
 
             return $this->storeReservation(
                 [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $resolved->unitPrice, 'resolved' => $resolved]],
@@ -515,6 +524,7 @@ final class OrderService
                 $data->promoLinkId,
                 viaCart: false,
                 channel: $data->channel,
+                phoneVerified: $phoneVerified,
             );
         }, self::DEADLOCK_ATTEMPTS);
     }
@@ -548,6 +558,8 @@ final class OrderService
             $price = $resolved?->unitPrice;
             $total = $price === null ? null : Money::toRubles($price * $data->qty);
 
+            $phoneVerified = $this->phoneVerified($phone, false, false, true, 0);
+
             $order = $this->createRecord(OrderType::Inquiry, [
                 'customer_name' => trim($data->name),
                 'customer_phone' => $phone,
@@ -557,6 +569,7 @@ final class OrderService
                 'total' => $total,
                 'customer_comment' => $this->blankToNull($data->comment),
                 'channel' => $data->channel,
+                'phone_verified' => $phoneVerified,
             ], $data->ip, $data->userAgent, [['product' => $locked, 'variant' => $variant, 'qty' => $data->qty, 'price' => $price, 'resolved' => $resolved]], [
                 'promo_link_id' => $this->promos->validLinkId($data->promoLinkId),
             ]);
@@ -758,6 +771,17 @@ final class OrderService
         $order->refresh();
 
         return $changed;
+    }
+
+    /**
+     * PV-13 г: the value of `orders.phone_verified` of a request created now; throws when the phone has to be verified
+     * (guest scenarios, PV-07) or the account is locked (registration «обязательно», PV-13 а) and it is not.
+     *
+     * @throws SalesException
+     */
+    private function phoneVerified(string $phone, bool $hasOrder, bool $hasReservation, bool $hasInquiry, int $orderPartTotal): bool
+    {
+        return $this->phones->assertForRequest($phone, $this->viewer->customer(), PhoneVerificationGate::session(), $hasOrder, $hasReservation, $hasInquiry, $orderPartTotal);
     }
 
     /**

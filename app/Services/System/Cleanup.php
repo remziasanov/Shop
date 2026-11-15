@@ -11,6 +11,7 @@ use App\Services\Customers\CustomerNotificationService;
 use App\Services\Export\CustomerExportService;
 use App\Services\Export\ExportManager;
 use App\Services\Import\ImportWizard;
+use App\Services\PhoneVerification\PhoneVerificationService;
 use App\Services\Users\AuditLogger;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
@@ -38,11 +39,11 @@ final class Cleanup
 
     /**
      * @param  bool  $exportsOnly  `shop:cleanup --exports`: only the export files and the customer exports
-     * @return array{carts: int, imports: int, temp_files: int, exports: int, customer_exports: int, livewire: int, audit_log: int, customer_notifications: int, skipped: bool}
+     * @return array{carts: int, imports: int, temp_files: int, exports: int, customer_exports: int, livewire: int, audit_log: int, customer_notifications: int, phone_verifications: int, skipped: bool}
      */
     public function run(float $deadline, bool $exportsOnly = false): array
     {
-        $summary = ['carts' => 0, 'imports' => 0, 'temp_files' => 0, 'exports' => 0, 'customer_exports' => 0, 'livewire' => 0, 'audit_log' => 0, 'customer_notifications' => 0, 'skipped' => false];
+        $summary = ['carts' => 0, 'imports' => 0, 'temp_files' => 0, 'exports' => 0, 'customer_exports' => 0, 'livewire' => 0, 'audit_log' => 0, 'customer_notifications' => 0, 'phone_verifications' => 0, 'skipped' => false];
 
         $steps = [
             'carts' => fn (): int => $this->carts->clearOld(self::CART_DAYS, $deadline),
@@ -56,6 +57,8 @@ final class Cleanup
             'audit_log' => fn (): int => app(AuditLogger::class)->purgeOlderThan(),
             // CA-18: cabinet notifications are kept 90 days.
             'customer_notifications' => fn (): int => app(CustomerNotificationService::class)->purgeOlderThan(deadline: $deadline),
+            // PV-08: phone verification records are kept 90 days.
+            'phone_verifications' => fn (): int => app(PhoneVerificationService::class)->purgeOlderThan(deadline: $deadline),
         ];
 
         if ($exportsOnly) {

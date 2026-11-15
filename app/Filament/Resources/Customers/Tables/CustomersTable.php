@@ -57,6 +57,11 @@ final class CustomersTable
                 TextColumn::make('phone')
                     ->label(__('customers.table.phone'))
                     ->placeholder('—'),
+                IconColumn::make('phone_verified_at')
+                    ->label(__('customers.table.phone_verified'))
+                    ->tooltip(__('customers.table.phone_verified'))
+                    ->boolean()
+                    ->state(fn (Customer $record): bool => $record->phone_verified_at !== null),
                 TextColumn::make('group.name')
                     ->label(__('customers.table.group'))
                     ->badge()
@@ -102,6 +107,16 @@ final class CustomersTable
                     ->queries(
                         true: fn (Builder $query): Builder => $query->whereNotNull('email_verified_at'),
                         false: fn (Builder $query): Builder => $query->whereNull('email_verified_at'),
+                        blank: fn (Builder $query): Builder => $query,
+                    ),
+                TernaryFilter::make('phone_verified')
+                    ->label(__('customers.filters.phone_verified'))
+                    ->placeholder(__('customers.filters.all'))
+                    ->trueLabel(__('customers.filters.yes'))
+                    ->falseLabel(__('customers.filters.no'))
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->whereNotNull('phone_verified_at'),
+                        false: fn (Builder $query): Builder => $query->whereNull('phone_verified_at'),
                         blank: fn (Builder $query): Builder => $query,
                     ),
                 TernaryFilter::make('is_blocked')

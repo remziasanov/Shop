@@ -15,6 +15,8 @@ use App\Services\Content\MenuService;
 use App\Services\Import\DnsHostResolver;
 use App\Services\Import\HostResolver;
 use App\Services\Media\ImageProcessor;
+use App\Services\PhoneVerification\GatewayFactory;
+use App\Services\PhoneVerification\PhoneVerificationGateway;
 use App\Services\Pricing\PriceChangeContext;
 use App\Services\Pricing\PriceRuleRepository;
 use App\Services\Sales\CartAvailability;
@@ -24,6 +26,7 @@ use App\Services\Themes\FontRegistry;
 use App\Services\Themes\ThemeRegistry;
 use App\Services\Users\PermissionService;
 use App\Services\Variants\VariantAggregator;
+use App\Settings\PhoneVerificationSettings;
 use App\Settings\TelegramSettings;
 use App\View\Composers\StorefrontComposer;
 use App\View\Composers\ThemeComposer;
@@ -75,6 +78,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ActiveTheme::class);
         $this->app->singleton(ThemeComposer::class);
         $this->app->bind(HostResolver::class, DnsHostResolver::class);
+        // PV-02: the provider chosen in «Настройки → Подтверждение телефона» (tests bind a stub with app()->instance()).
+        $this->app->bind(PhoneVerificationGateway::class, fn ($app): PhoneVerificationGateway => GatewayFactory::forSettings($app->make(PhoneVerificationSettings::class)));
         // CA-32: the admin sign-out must not end a customer session of the same browser.
         $this->app->bind(FilamentLogoutController::class, StaffLogoutController::class);
     }

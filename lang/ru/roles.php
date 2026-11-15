@@ -104,6 +104,7 @@ return [
         'settings__age_gate' => 'Настройки: возрастное ограничение',
         'settings__catalog' => 'Настройки: каталог',
         'settings__telegram' => 'Настройки: Telegram',
+        'settings__phone_verification' => 'Настройки: подтверждение телефона',
         'users' => 'Пользователи',
         'roles' => 'Роли сотрудников',
         'system' => 'Система',
@@ -179,6 +180,7 @@ return [
             'order.status_changed' => 'Статус обращения изменён',
             'order.reservation_extended' => 'Резерв продлён',
             'order.manager_comment_changed' => 'Комментарий менеджера изменён',
+            'phone_verification.test' => 'Тест подтверждения телефона',
         ],
     ],
 

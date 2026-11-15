@@ -78,6 +78,7 @@ return [
         'telegram_errors' => 'Telegram: ошибки вебхука за 24 часа',
         'telegram_startapp' => 'Telegram: ссылки Main Mini App (startapp)',
         'telegram_work_chat' => 'Telegram: рабочий чат',
+        'phone_verification' => 'Подтверждение телефона',
     ],
     'hints' => [
         'dompdf_extensions' => 'Для PDF нужны расширения mbstring, dom и gd. Включите недостающие (:names) в настройках PHP на хостинге.',

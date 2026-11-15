@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "data": null,
+  "message": "Authentication error: invalid api key",
+  "code": 401
+}

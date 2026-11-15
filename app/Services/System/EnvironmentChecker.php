@@ -7,6 +7,7 @@ namespace App\Services\System;
 use App\Enums\CheckStatus;
 use App\Services\Catalog\AttributeMigrationState;
 use App\Services\Content\LegalPageStatus;
+use App\Services\PhoneVerification\PhoneVerificationDoctor;
 use App\Services\Telegram\TelegramDoctor;
 use App\Services\Variants\SkuGuard;
 use App\Services\Variants\VariantAggregator;
@@ -103,6 +104,9 @@ class EnvironmentChecker
         foreach (TelegramDoctor::KEYS as $key) {
             $checks[$key] = fn () => app(TelegramDoctor::class)->check($key);
         }
+
+        // PV-02, PV-09: the phone verification driver (the log driver in production is an error) and the last balance.
+        $checks[PhoneVerificationDoctor::KEY] = fn () => app(PhoneVerificationDoctor::class)->check();
 
         $results = [];
 

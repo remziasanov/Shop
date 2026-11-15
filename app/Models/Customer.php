@@ -39,6 +39,7 @@ use Illuminate\Support\Str;
  * @property CarbonInterface|null $last_login_at
  * @property CarbonInterface|null $deletion_requested_at
  * @property CarbonInterface|null $anonymized_at
+ * @property CarbonInterface|null $phone_verified_at PV-08: the phone number was verified (call or SMS code, Telegram)
  * @property list<string>|null $telegram_notify_events TN-05: the switched-off Telegram events (null = all on)
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
@@ -75,6 +76,7 @@ class Customer extends Authenticatable
             'last_login_at' => 'datetime',
             'deletion_requested_at' => 'datetime',
             'anonymized_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
         ];
     }
 

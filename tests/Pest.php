@@ -20,6 +20,7 @@ require_once __DIR__.'/Support/promo.php';
 require_once __DIR__.'/Support/reservation_cart.php';
 require_once __DIR__.'/Support/pdf.php';
 require_once __DIR__.'/Support/telegram.php';
+require_once __DIR__.'/Support/phone_verification.php';
 
 // CI runs the suites without a Vite build: storefront pages must not need public/build in tests.
 pest()->extend(TestCase::class)

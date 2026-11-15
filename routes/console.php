@@ -43,6 +43,9 @@ Schedule::command('shop:variants-rollup')->dailyAt('03:40')->withoutOverlapping(
 // TG-12: old webhook updates, spent link tokens, messages and abandoned Telegram accounts.
 Schedule::command('shop:telegram-prune')->dailyAt('04:15')->withoutOverlapping(10);
 
+// PV-09: daily check of the phone verification provider balance (one HTTP call; the warning is queued).
+Schedule::command('shop:phone-verification-balance')->dailyAt('05:10')->withoutOverlapping(10);
+
 // Failed queue jobs are kept for a week (TZ section 8).
 // schedule:run executes due tasks one after another within a minute, so the heavy daily tasks are staggered
 // (03:10, 03:40, 04:15, 04:20, 04:30, 04:40, 04:50), each within ~50 s (D-059).

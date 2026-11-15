@@ -62,6 +62,7 @@ use Illuminate\Support\Str;
  * @property bool $reserved_via_cart MR-12: a reservation made from the cart
  * @property int $version OE-08: optimistic lock of the order editor, moved by every edit and status change
  * @property OrderChannel $channel TM-14: web, pwa or telegram
+ * @property bool $phone_verified PV-08: snapshot at checkout, the phone was verified in the session for this purpose
  * @property int|null $telegram_account_id TM-05
  * @property int|null $source_order_id OE-12: the inquiry this order was created from
  * @property int|null $updated_by_user_id the staff member of the last edit or status change (OE-08)
@@ -101,6 +102,7 @@ class Order extends Model
         'age_confirmed_level',
         'channel',
         'telegram_account_id',
+        'phone_verified',
     ];
 
     protected static function booted(): void
@@ -135,6 +137,7 @@ class Order extends Model
             'stock_applied' => 'boolean',
             'age_confirmed_level' => AgeRestriction::class,
             'channel' => OrderChannel::class,
+            'phone_verified' => 'boolean',
             'customer_id' => 'integer',
             'customer_group_id' => 'integer',
             'expiring_notified_at' => 'datetime',
