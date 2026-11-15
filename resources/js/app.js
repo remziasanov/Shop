@@ -510,8 +510,15 @@ document.addEventListener('alpine:init', () => {
             // The keyboard focus was in a slide that just became inert (arrow keys on its link): move it to the new
             // slide, or to the carousel, so it is never lost.
             if (focused && focused !== slides[this.index]) {
-                const target = slides[this.index]?.querySelector('a[href], button:not([disabled])');
-                target ? target.focus({ preventScroll: true }) : this.$el.focus?.({ preventScroll: true });
+                let target = slides[this.index]?.querySelector('a[href], button:not([disabled])');
+
+                if (!target) {
+                    // A slide without a link: the carousel itself takes the focus (programmatic only, not a tab stop).
+                    this.$el.setAttribute('tabindex', '-1');
+                    target = this.$el;
+                }
+
+                target.focus({ preventScroll: true });
             }
         },
 
