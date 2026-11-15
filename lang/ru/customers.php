@@ -15,6 +15,7 @@ return [
         'phone' => 'Телефон',
         'group' => 'Группа',
         'verified' => 'Подтверждён',
+        'phone_verified' => 'Телефон подтверждён',
         'orders' => 'Заказов',
         'purchased' => 'Сумма выкупленных',
         'registered' => 'Зарегистрирован',
@@ -27,6 +28,7 @@ return [
     'filters' => [
         'group' => 'Группа',
         'verified' => 'Email подтверждён',
+        'phone_verified' => 'Телефон подтверждён',
         'blocked' => 'Заблокирован',
         'has_orders' => 'Есть обращения',
         'registered' => 'Период регистрации',
@@ -40,6 +42,8 @@ return [
     ],
 
     'view' => [
+        'phone_verified' => 'Телефон',
+        'phone_not_verified' => 'Не подтверждён',
         'section_main' => 'Покупатель',
         'section_status' => 'Состояние аккаунта',
         'section_company' => 'Реквизиты компании',

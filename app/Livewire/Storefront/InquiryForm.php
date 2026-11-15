@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace App\Livewire\Storefront;
 
+use App\Enums\PhoneVerificationPurpose;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
 use App\Livewire\Storefront\Concerns\SelectsVariant;
+use App\Livewire\Storefront\Concerns\VerifiesPhone;
+use App\Models\Customer;
 use App\Models\Product;
+use App\Services\Access\ViewerContext;
 use App\Services\Orders\InquiryData;
 use App\Services\Orders\OrderService;
+use App\Services\PhoneVerification\PhoneVerificationGate;
 use App\Services\Sales\AvailabilityService;
 use App\Support\QtyLimit;
 use Illuminate\Contracts\View\View;
@@ -26,6 +31,7 @@ class InquiryForm extends Component
     use RequiresOpenShop;
     use SalesFormSupport;
     use SelectsVariant;
+    use VerifiesPhone;
 
     #[Locked]
     public int $productId;
@@ -68,8 +74,38 @@ class InquiryForm extends Component
         return $this->contactAttributes();
     }
 
-    public function submit(OrderService $orders): void
+    public function updatedPhone(string $value): void
     {
+        $this->resetPhoneVerificationOnChange($value);
+    }
+
+    protected function pvPurpose(): PhoneVerificationPurpose
+    {
+        return PhoneVerificationPurpose::GuestCheckout;
+    }
+
+    protected function pvCustomer(): ?Customer
+    {
+        return app(ViewerContext::class)->customer();
+    }
+
+    protected function afterPhoneVerified(): void
+    {
+        $this->resetErrorBag('form');
+        $this->normalizeEmailInput();
+        $this->validate();
+        $this->placeInquiry();
+    }
+
+    public function submit(): void
+    {
+        // The code step is open: Enter and the main button mean «Подтвердить».
+        if ($this->pvActive) {
+            $this->confirmPhoneCode();
+
+            return;
+        }
+
         $product = $this->product();
         $this->resetErrorBag('form');
 
@@ -89,6 +125,37 @@ class InquiryForm extends Component
         $this->validate();
 
         if (! $this->passesGuard()) {
+            return;
+        }
+
+        // PV-13 б: the call starts only after the rest of the form is valid.
+        $gate = app(PhoneVerificationGate::class);
+        $customer = $this->pvCustomer();
+
+        if ($gate->accountBlocked($customer)) {
+            $this->addError('form', __('phone_verification.errors.account_locked'));
+
+            return;
+        }
+
+        if ($gate->guestNeedsVerification($customer, false, false, true, 0)
+            && ! $gate->isPhoneVerified($this->phone, $this->pvPurpose(), $customer, PhoneVerificationGate::session())
+            && ! $gate->wasSkipped($this->phone, $this->pvPurpose(), PhoneVerificationGate::session())
+            && ! $this->beginPhoneVerification($this->phone)) {
+            return;
+        }
+
+        $this->placeInquiry();
+    }
+
+    private function placeInquiry(): void
+    {
+        $product = $this->product();
+        $orders = app(OrderService::class);
+
+        if ($product === null) {
+            $this->addError('form', __('sales.errors.inquiry_unavailable'));
+
             return;
         }
 
@@ -124,6 +191,7 @@ class InquiryForm extends Component
             'actions' => $unit !== null ? $availability->actionsFor($unit) : null,
             'consentLink' => $this->consentLink(),
             'mustSignIn' => $this->mustSignIn(),
+            'accountLocked' => app(PhoneVerificationGate::class)->accountBlocked($this->pvCustomer()),
         ]);
     }
 

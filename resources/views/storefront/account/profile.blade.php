@@ -14,8 +14,21 @@
             <x-account.field prefix="pf" name="name" :label="__('account.fields.name')" :value="$customer->name" autocomplete="name" maxlength="150" />
             <x-account.field prefix="pf" name="phone" type="tel" :label="__('account.fields.phone')" :value="$customer->phone" autocomplete="tel" inputmode="tel"
                              x-data="phoneMask" x-on:input="format($event)" />
+            @if ($customer->phone_verified_at)
+                <p class="text-sm text-success-ink" data-phone-verified>{{ __('phone_verification.screen.verified') }}</p>
+            @elseif ($phonePrompt)
+                <p class="text-sm text-ink-mid"><a href="{{ route('customer.phone') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-phone-prompt-link>{{ __('phone_verification.screen.prompt_action') }}</a></p>
+            @endif
             <x-account.button>{{ __('account.profile.save') }}</x-account.button>
         </form>
+
+        @if ($telegramPhone)
+            {{-- TG-09, PV-13 е: the phone Telegram verified goes to the profile and counts as verified. --}}
+            <form method="POST" action="{{ route('customer.profile.telegram-phone') }}" class="mt-3" data-telegram-phone>
+                @csrf
+                <x-account.button variant="secondary">{{ __('phone_verification.screen.telegram_save') }}</x-account.button>
+            </form>
+        @endif
 
         <section class="mt-8 border-t border-line pt-6" aria-labelledby="profile-email-title">
             <h2 id="profile-email-title" class="text-lg font-semibold">{{ __('account.profile.email_title') }}</h2>

@@ -9,6 +9,7 @@ use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Models\Customer;
 use App\Services\Access\ViewerContext;
 use App\Services\Customers\CustomerNotificationService;
+use App\Services\PhoneVerification\PhoneVerificationGate;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
@@ -20,7 +21,7 @@ class AccountController extends Controller
 {
     use RendersAccountPages;
 
-    public function index(Request $request, ViewerContext $viewer, CustomerNotificationService $notifications): View
+    public function index(Request $request, ViewerContext $viewer, CustomerNotificationService $notifications, PhoneVerificationGate $gate): View
     {
         $customer = $request->user('customer');
         abort_unless($customer instanceof Customer, 403);
@@ -29,6 +30,8 @@ class AccountController extends Controller
             'customer' => $customer,
             'groupName' => $viewer->group()->name,
             'unreadCount' => $notifications->unreadCount($customer),
+            'phonePrompt' => $gate->accountPrompt($customer),
+            'phoneLocked' => $gate->accountBlocked($customer),
         ]);
     }
 }

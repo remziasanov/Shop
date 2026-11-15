@@ -6,11 +6,14 @@ namespace App\Livewire\Storefront;
 
 use App\Enums\AgeRestriction;
 use App\Enums\CheckoutChoice;
+use App\Enums\PhoneVerificationPurpose;
 use App\Exceptions\CartChangedException;
 use App\Exceptions\SalesException;
 use App\Livewire\Storefront\Concerns\HandlesPromoCode;
 use App\Livewire\Storefront\Concerns\RequiresOpenShop;
 use App\Livewire\Storefront\Concerns\SalesFormSupport;
+use App\Livewire\Storefront\Concerns\VerifiesPhone;
+use App\Models\Customer;
 use App\Services\Access\ViewerContext;
 use App\Services\Age\AgeGate;
 use App\Services\Cart\CartService;
@@ -18,6 +21,7 @@ use App\Services\Cart\CartSummary;
 use App\Services\Customers\CustomerAddressService;
 use App\Services\Orders\CheckoutData;
 use App\Services\Orders\OrderService;
+use App\Services\PhoneVerification\PhoneVerificationGate;
 use App\Services\Sales\CheckoutMethods;
 use App\Settings\SalesSettings;
 use Illuminate\Contracts\View\View;
@@ -36,6 +40,7 @@ class CheckoutForm extends Component
     use HandlesPromoCode;
     use RequiresOpenShop;
     use SalesFormSupport;
+    use VerifiesPhone;
 
     public string $name = '';
 
@@ -161,8 +166,41 @@ class CheckoutForm extends Component
         ];
     }
 
-    public function submit(CartService $carts, OrderService $orders): void
+    /**
+     * PV-13 г: another number than the verified one resets the verification.
+     */
+    public function updatedPhone(string $value): void
     {
+        $this->resetPhoneVerificationOnChange($value);
+    }
+
+    protected function pvPurpose(): PhoneVerificationPurpose
+    {
+        return PhoneVerificationPurpose::GuestCheckout;
+    }
+
+    protected function pvCustomer(): ?Customer
+    {
+        return app(ViewerContext::class)->customer();
+    }
+
+    protected function afterPhoneVerified(): void
+    {
+        $this->resetErrorBag('form');
+        $this->normalizeEmailInput();
+        $this->validate();
+        $this->placeRequests();
+    }
+
+    public function submit(CartService $carts): void
+    {
+        // The code step is open: Enter, the sticky bar and the Telegram main button all mean «Подтвердить».
+        if ($this->pvActive) {
+            $this->confirmPhoneCode();
+
+            return;
+        }
+
         $cart = $carts->current(request());
 
         if ($cart === null) {
@@ -176,6 +214,54 @@ class CheckoutForm extends Component
         $this->validate();
 
         if (! $this->passesGuard()) {
+            return;
+        }
+
+        // PV-13 б: the call starts only now, when the cart is not empty and every field is valid.
+        if (! $this->passesPhoneGate()) {
+            return;
+        }
+
+        $this->placeRequests();
+    }
+
+    /**
+     * PV-07, PV-13: the guest scenarios and the lock of an unverified account. True: go on (nothing to verify, already
+     * verified, or the provider failed and the owner skips); false: the code step is shown or an error was added.
+     */
+    private function passesPhoneGate(): bool
+    {
+        $gate = app(PhoneVerificationGate::class);
+        $customer = $this->pvCustomer();
+
+        if ($gate->accountBlocked($customer)) {
+            $this->addError('form', __('phone_verification.errors.account_locked'));
+
+            return false;
+        }
+
+        $summary = $this->summary();
+        $orderTotal = $summary !== null && $summary->hasOrder ? $summary->itemsTotal : 0;
+
+        if (! $gate->guestNeedsVerification($customer, $summary !== null && $summary->hasOrder, $summary !== null && $summary->hasReservation, false, $orderTotal)) {
+            return true;
+        }
+
+        if ($gate->isPhoneVerified($this->phone, $this->pvPurpose(), $customer, PhoneVerificationGate::session()) || $gate->wasSkipped($this->phone, $this->pvPurpose(), PhoneVerificationGate::session())) {
+            return true;
+        }
+
+        return $this->beginPhoneVerification($this->phone);
+    }
+
+    private function placeRequests(): void
+    {
+        $cart = app(CartService::class)->current(request());
+        $orders = app(OrderService::class);
+
+        if ($cart === null) {
+            $this->redirectRoute('cart');
+
             return;
         }
 
@@ -258,6 +344,7 @@ class CheckoutForm extends Component
             'consentLink' => $this->consentLink(),
             'ageLevel' => $this->ageLevel(),
             'savedAddresses' => $customer !== null ? app(CustomerAddressService::class)->listFor($customer) : [],
+            'accountLocked' => app(PhoneVerificationGate::class)->accountBlocked($customer),
         ]);
     }
 

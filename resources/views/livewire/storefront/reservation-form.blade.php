@@ -29,6 +29,7 @@
                 <x-storefront.field prefix="rs" name="phone" type="tel" :label="__('storefront_sales.fields.phone')" required autocomplete="tel" inputmode="tel"
                                     :placeholder="__('storefront_sales.checkout.phone_placeholder')" x-data="phoneMask" x-on:input="format($event)" />
                 <x-storefront.field prefix="rs" name="email" type="email" :label="__('storefront_sales.fields.email')" autocomplete="email" maxlength="190" />
+                <x-storefront.phone-verify prefix="rs-pv" :active="$pvActive" :method="$pvMethod" :can-sms="$pvCanSms" :resend-at="$pvResendAt" :phone="$pvPhone" :locked="$accountLocked" />
                 <x-storefront.field prefix="rs" name="desiredDate" type="date" :label="__('storefront_sales.reservation.desired_date')" :min="now()->format('Y-m-d')" :max="$reservedUntil->format('Y-m-d')"
                                     :hint="__('storefront_sales.reservation.desired_hint', ['date' => $reservedUntil->format('d.m.Y')])" />
                 <x-storefront.field prefix="rs" name="comment" type="textarea" :label="__('storefront_sales.fields.comment')" maxlength="2000" />

@@ -20,6 +20,7 @@ use App\Http\Controllers\Storefront\Account\NotificationController;
 use App\Http\Controllers\Storefront\Account\OrderBlankController;
 use App\Http\Controllers\Storefront\Account\OrderHistoryController;
 use App\Http\Controllers\Storefront\Account\PasswordResetController;
+use App\Http\Controllers\Storefront\Account\PhoneVerificationController;
 use App\Http\Controllers\Storefront\Account\ProfileController;
 use App\Http\Controllers\Storefront\Account\RegisterController;
 use App\Http\Controllers\Storefront\Account\SecurityController;
@@ -144,6 +145,8 @@ Route::prefix('account')->middleware('account.private')->group(function (): void
 
         Route::get('/profile', [ProfileController::class, 'show'])->name('customer.profile');
         Route::post('/profile', [ProfileController::class, 'update'])->name('customer.profile.update');
+        Route::post('/profile/telegram-phone', [ProfileController::class, 'saveTelegramPhone'])->name('customer.profile.telegram-phone');
+        Route::get('/phone', [PhoneVerificationController::class, 'show'])->name('customer.phone');
         Route::post('/profile/password', [ProfileController::class, 'updatePassword'])->name('customer.profile.password');
         Route::post('/profile/email', [ProfileController::class, 'requestEmail'])->name('customer.email.request');
         Route::get('/profile/email/confirm', [ProfileController::class, 'showEmailConfirm'])->name('customer.email.confirm');

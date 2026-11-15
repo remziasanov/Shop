@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Http\Requests\Account\CodeRequest;
 use App\Services\Customers\CustomerAuthService;
+use App\Services\PhoneVerification\PhoneVerificationGate;
 use App\Services\Telegram\MiniApp\TelegramSessionService;
 use App\Support\PiiMask;
 use Illuminate\Contracts\View\View;
@@ -38,7 +39,7 @@ class EmailConfirmationController extends Controller
         ]);
     }
 
-    public function store(CodeRequest $request, CustomerAuthService $auth): RedirectResponse
+    public function store(CodeRequest $request, CustomerAuthService $auth, PhoneVerificationGate $gate): RedirectResponse
     {
         $email = $this->pendingEmail($request);
 
@@ -57,7 +58,8 @@ class EmailConfirmationController extends Controller
         // TM-04 (в): the confirmed registration links this Telegram to the new account.
         app(TelegramSessionService::class)->linkSessionAccount($request->session(), $customer);
 
-        return redirect()->intended(route('account'))->with('status', __('account.confirm.done'));
+        // PV-13 б: the call to the phone starts only after the e-mail is confirmed; the customer decides on the next page.
+        return redirect()->intended($gate->accountPrompt($customer) ? route('customer.phone') : route('account'))->with('status', __('account.confirm.done'));
     }
 
     public function resend(Request $request, CustomerAuthService $auth): RedirectResponse

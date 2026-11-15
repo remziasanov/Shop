@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Account;
 
+use App\Enums\PhoneVerificationPurpose;
 use App\Exceptions\FormGuardException;
 use App\Exceptions\WholesaleApplicationException;
 use App\Http\Controllers\Controller;
@@ -11,6 +12,8 @@ use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Http\Requests\Account\WholesaleApplicationRequest;
 use App\Models\Customer;
 use App\Services\Customers\WholesaleApplicationService;
+use App\Services\PhoneVerification\PhoneChallenge;
+use App\Services\PhoneVerification\PhoneVerificationGate;
 use App\Services\Sales\FormGuard;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -44,7 +47,7 @@ class WholesaleApplicationController extends Controller
         ]);
     }
 
-    public function store(WholesaleApplicationRequest $request, FormGuard $guard, WholesaleApplicationService $applications): RedirectResponse
+    public function store(WholesaleApplicationRequest $request, FormGuard $guard, WholesaleApplicationService $applications, PhoneVerificationGate $gate, PhoneChallenge $challenges): RedirectResponse
     {
         $customer = $request->user('customer');
         abort_unless($customer instanceof Customer, 403);
@@ -56,8 +59,18 @@ class WholesaleApplicationController extends Controller
             return back()->withInput()->withErrors(['form' => $e->getMessage()]);
         }
 
+        $data = $request->applicationData();
+
         try {
-            $applications->submit($customer, $request->applicationData(), $request->ip(), $request->userAgent());
+            // PV-07, PV-13 б: the call starts only after the form is valid and the customer may apply at all.
+            if ($gate->wholesaleEnabled() && ! $gate->isPhoneVerified($data['phone'], PhoneVerificationPurpose::Wholesale, $customer, $request->session())) {
+                $applications->assertCanApply($customer);
+                $challenges->parkWholesale($request->session(), $customer, $data);
+
+                return redirect()->route('customer.phone');
+            }
+
+            $applications->submit($customer, $data, $request->ip(), $request->userAgent());
         } catch (WholesaleApplicationException $e) {
             return back()->withInput()->withErrors(['form' => $e->getMessage()]);
         }
