@@ -169,6 +169,15 @@ describe('fixes from the preview check', function (): void {
             ->and($html)->toContain('rounded-tile bg-tile');
     });
 
+    it('sets the C6 cell number in the text face when the theme has no monospace face (as in the previews)', function (): void {
+        Product::factory()->create(['stock_qty' => 3]);
+
+        stage22UseTheme('gazeta');
+        expect(app(ThemeRegistry::class)->find('gazeta')->fonts['mono']['family'] ?? null)->toBeNull()
+            ->and($this->get(route('catalog.index'))->assertOk()->getContent())
+            ->toContain('<span class="" data-card-number')->not->toMatch('/class="font-mono" data-card-number/');
+    });
+
     it('sets the C4 characteristic lines in the monospace face only when the theme has one', function (): void {
         $category = Category::factory()->create();
         Product::factory()->inCategory($category)->create(['stock_qty' => 3]);

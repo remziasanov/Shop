@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Filament\Pages\Settings\ManageAppearanceSettings;
 use App\Models\Category;
 use App\Models\User;
+use App\Services\Themes\ThemeRegistry;
 use App\Settings\AppearanceSettings;
 use Livewire\Livewire;
 
@@ -14,7 +15,6 @@ use Livewire\Livewire;
  */
 
 beforeEach(function (): void {
-    $this->withoutVite();
     $this->actingAs(User::factory()->admin()->create());
 });
 
@@ -42,7 +42,9 @@ it('switches every theme on and back to default without errors', function (strin
         ->assertSet('data.theme_id', $id);
 
     expect(app(AppearanceSettings::class)->refresh()->theme_id)->toBe($id);
-    $this->get(route('home'))->assertOk();
+    $primary = strtolower(app(ThemeRegistry::class)->find($id)->colors['primary']);
+    $on = $this->get(route('home'))->assertOk()->assertSee('--shop-primary: '.$primary.';', false);
+    $id === 'default' ? $on->assertDontSee('data-contrast', false) : $on->assertSee('data-contrast', false);
 
     Livewire::test(ManageAppearanceSettings::class)
         ->call('selectTheme', 'default')
@@ -50,5 +52,5 @@ it('switches every theme on and back to default without errors', function (strin
         ->assertSet('data.theme_id', 'default');
 
     expect(app(AppearanceSettings::class)->refresh()->theme_id)->toBe('default');
-    $this->get(route('home'))->assertOk();
+    $this->get(route('home'))->assertOk()->assertDontSee('data-contrast', false);
 })->with(fn () => stage22GalleryIds());
