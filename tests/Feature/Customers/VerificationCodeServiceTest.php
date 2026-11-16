@@ -197,40 +197,42 @@ it('locks the requester for 24 hours after 20 wrong entries per day and tells th
     $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.201');
 });
 
-it('does not tell anybody when the locked address has no account', function (): void {
+it('locks the requester of an address without an account exactly like one with an account, and mails nobody (CA-05, CA-12)', function (): void {
     burnTwentyEntries($this->codes, 'ghost@example.com', '192.0.2.100', 'session-a', deliver: false);
 
-    // No account: no code was ever issued, so nothing was counted and nothing was mailed.
+    // No account: no code was ever issued, but every entry counted all the same, so the lock is the same as for a real
+    // account (otherwise the lock would show whether an account exists); nobody is mailed.
     Mail::assertNotQueued(CustomerCodeGuessingMail::class);
-    expect($this->codes->lockedFor('ghost@example.com', '192.0.2.100'))->toBe(0);
+    expect($this->codes->lockedFor('ghost@example.com', '192.0.2.100'))->toBeGreaterThan(86000)
+        ->and($this->codes->lockedFor('ghost@example.com', '192.0.2.101'))->toBe(0);
 });
 
-it('does not count wrong entries when no code is open for the address (SEC-04)', function (): void {
-    foreach (range(1, 25) as $i) {
+it('counts a wrong entry without an open code for the requester only, so nobody else is locked (CA-05, SEC-04)', function (): void {
+    foreach (range(1, 25) as $_) {
         try {
-            $this->codes->verify(VerificationPurpose::Login, $this->email, '123456', '192.0.2.'.(100 + $i));
-        } catch (CustomerAuthException) {
+            $this->codes->verify(VerificationPurpose::Login, $this->email, '123456', '192.0.2.101');
+        } catch (CustomerAuthException|CustomerThrottledException) {
         }
     }
 
-    expect($this->codes->lockedFor($this->email, '192.0.2.101'))->toBe(0)
-        ->and(RateLimiter::attempts('customer-code:wrong:'.sha1($this->email.'|192.0.2.101')))->toBe(0);
+    expect($this->codes->lockedFor($this->email, '192.0.2.101'))->toBeGreaterThan(0)
+        ->and($this->codes->lockedFor($this->email, '192.0.2.102'))->toBe(0)
+        ->and(RateLimiter::attempts('customer-code:wrong:'.sha1($this->email.'|192.0.2.102')))->toBe(0);
 });
 
-it('verifies a code only from the session that requested it and does not burn it for others (SEC-04)', function (): void {
-    $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.10', binding: 'victim-session');
-    $code = lastSentCode(VerificationPurpose::Login);
+it('mails the owner about guessing at most once per address per day, and only for an existing account (CA-12)', function (): void {
+    makeCustomer(['email' => $this->email]);
 
-    foreach (range(1, 8) as $_) {
-        expect(fn () => $this->codes->verify(VerificationPurpose::Login, $this->email, $code, '192.0.2.99', 'attacker-session'))->toThrow(CustomerAuthException::class);
-    }
+    // Two different requesters lock themselves on the same address.
+    burnTwentyEntries($this->codes, $this->email, '192.0.2.100', 'session-a');
+    $this->travel(2)->hours();
+    Cache::forget('customer-code:day:'.sha1($this->email));
+    RateLimiter::clear('customer-code:day:'.sha1($this->email));
+    RateLimiter::clear('customer-code:email:'.sha1($this->email));
+    burnTwentyEntries($this->codes, $this->email, '192.0.2.200', 'session-b');
 
-    // The right code from another session is refused and neither counted nor annulled.
-    $row = CustomerVerificationCode::query()->firstOrFail();
-    expect($row->attempts)->toBe(0)->and($row->consumed_at)->toBeNull()
-        ->and(RateLimiter::attempts('customer-code:wrong:'.sha1($this->email.'|192.0.2.99')))->toBe(0);
-
-    expect($this->codes->verify(VerificationPurpose::Login, $this->email, $code, '192.0.2.10', 'victim-session')->consumed_at)->not->toBeNull();
+    expect($this->codes->lockedFor($this->email, '192.0.2.200'))->toBeGreaterThan(0);
+    Mail::assertQueued(CustomerCodeGuessingMail::class, 1);
 });
 
 it('lets an attacker lock only themselves: the victim can still request a reset code from another IP (SEC-04)', function (): void {
@@ -274,4 +276,31 @@ it('deletes long expired codes', function (): void {
 
     expect($this->codes->purgeExpired(1))->toBe(1)
         ->and(CustomerVerificationCode::query()->count())->toBe(0);
+});
+
+it('does not spend the address quotas of a request refused by its own IP limit (SEC-03)', function (): void {
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_IP_PER_HOUR) as $i) {
+        $this->codes->request(VerificationPurpose::Login, "other{$i}@example.com", '192.0.2.77', deliver: false);
+    }
+
+    $emailKey = 'customer-code:email:'.sha1($this->email);
+    $dayKey = 'customer-code:day:'.sha1($this->email);
+
+    foreach (range(1, 8) as $_) {
+        expect(fn () => $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.77', deliver: false))->toThrow(CustomerThrottledException::class);
+    }
+
+    expect(RateLimiter::attempts($emailKey))->toBe(0)->and(RateLimiter::attempts($dayKey))->toBe(0);
+});
+
+it('fails closed when the lock of a counter cannot be taken (SEC-03)', function (): void {
+    $key = 'customer-code:ip:192.0.2.55';
+    $lock = Cache::lock('rate-limit:'.sha1($key), 30);
+    expect($lock->get())->toBeTrue();
+
+    try {
+        expect(fn () => $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.55', deliver: false))->toThrow(CustomerThrottledException::class);
+    } finally {
+        $lock->release();
+    }
 });

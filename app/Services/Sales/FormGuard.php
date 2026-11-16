@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Services\Sales;
 
 use App\Exceptions\FormGuardException;
+use App\Support\AtomicRateLimiter;
 use App\Support\ClientIpKey;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Spam protection of the checkout, reservation and inquiry forms (SF-48, D-048): a honeypot field, a signed
@@ -71,12 +71,12 @@ final class FormGuard
             $keys[] = 'sales-form:tg:'.$telegramUserId;
         }
 
-        // SEC-03: count first, then decide, so parallel submits cannot all pass the check. Every key is counted even
+        // SEC-03: count first, then decide, atomically (a lock per counter, fail closed: REFUSED is over every limit). Every key is counted even
         // when an earlier one already refused; a refused submit uses quota.
         $refused = false;
 
         foreach ($keys as $key) {
-            if (RateLimiter::hit($key, self::DECAY_SECONDS) > self::MAX_ATTEMPTS) {
+            if (AtomicRateLimiter::hit($key, self::DECAY_SECONDS) > self::MAX_ATTEMPTS) {
                 $refused = true;
             }
         }

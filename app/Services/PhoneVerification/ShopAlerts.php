@@ -16,7 +16,7 @@ use Throwable;
 /**
  * Warnings to the shop about the phone verification provider (PV-05, PV-09): e-mail to the notification addresses and
  * Telegram to the work chat, each channel on its switch of «Настройки → Уведомления». Never more than once per hour per
- * topic. A problem while queueing is logged and never reaches the customer's request.
+ * topic (once a day for the guest-share notice). A problem while queueing is logged and never reaches the customer's request.
  */
 final class ShopAlerts
 {
@@ -38,6 +38,15 @@ final class ShopAlerts
     }
 
     /**
+     * Only the guest share of the daily budget is used up (SEC-01, D-198): a lighter notice, once a day, that does not
+     * claim the whole limit is gone.
+     */
+    public function guestShare(int $guestCap, int $limit): bool
+    {
+        return $this->send(SendPhoneVerificationAlert::TOPIC_GUEST_SHARE, ['cap' => (string) $guestCap, 'limit' => (string) $limit], 86400);
+    }
+
+    /**
      * @param  string  $balance  roubles, decimal string
      * @param  string  $threshold  roubles, decimal string
      */
@@ -50,11 +59,11 @@ final class ShopAlerts
      * @param  array<string, string>  $params
      * @return bool true when the warning was queued, false when the hourly limit held it back or nothing is configured
      */
-    private function send(string $topic, array $params = []): bool
+    private function send(string $topic, array $params = [], int $interval = self::INTERVAL_SECONDS): bool
     {
         try {
             // `add` is atomic: of two parallel requests only one sends.
-            if (! Cache::add('phone-verification:alert:'.$topic, 1, self::INTERVAL_SECONDS)) {
+            if (! Cache::add('phone-verification:alert:'.$topic, 1, $interval)) {
                 return false;
             }
 

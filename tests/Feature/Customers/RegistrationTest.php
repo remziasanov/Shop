@@ -49,11 +49,15 @@ it('registers an unconfirmed customer in the default group and sends a code (CA-
         ->and($customer->consent_at)->not->toBeNull()
         ->and($customer->consent_ip)->toBe('127.0.0.1')
         ->and($customer->auth_version)->toBe(1)
-        ->and(Hash::check('secret-pass-1', $customer->password))->toBeTrue()
+        // SEC-06: the chosen password is not stored until the code is confirmed (it travels in the code).
+        ->and(Hash::check('secret-pass-1', $customer->password))->toBeFalse()
         ->and($customer->password)->not->toContain('secret-pass-1');
 
     expect(lastSentCode(VerificationPurpose::Register))->toMatch('/^\d{6}$/');
     $this->assertGuest('customer');
+
+    $this->post(route('customer.confirm.store'), ['code' => lastSentCode(VerificationPurpose::Register)])->assertRedirect(route('account'));
+    expect(Hash::check('secret-pass-1', $customer->fresh()->password))->toBeTrue();
 });
 
 it('falls back to «Розница» when no group is flagged as default (CG-11)', function (): void {
@@ -148,7 +152,8 @@ it('re-registration on an unconfirmed address sends a new code and applies its d
     expect(Customer::query()->count())->toBe(1);
     $customer = Customer::query()->firstOrFail();
     expect($customer->name)->toBe('Иван Тестов')
-        ->and(Hash::check('secret-pass-1', $customer->password))->toBeTrue();
+        ->and(Hash::check('secret-pass-1', $customer->password))->toBeFalse()
+        ->and(Hash::check('brand-new-pass-2', $customer->password))->toBeFalse();
     Mail::assertQueuedCount(2);
 
     $this->post(route('customer.confirm.store'), ['code' => lastSentCode(VerificationPurpose::Register)])->assertRedirect(route('account'));

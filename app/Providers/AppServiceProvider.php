@@ -28,6 +28,8 @@ use App\Services\Users\PermissionService;
 use App\Services\Variants\VariantAggregator;
 use App\Settings\PhoneVerificationSettings;
 use App\Settings\TelegramSettings;
+use App\Support\ClientIpKey;
+use App\Support\SanitizingFailedJobProvider;
 use App\View\Composers\StorefrontComposer;
 use App\View\Composers\ThemeComposer;
 use Filament\Auth\Http\Controllers\LogoutController as FilamentLogoutController;
@@ -40,6 +42,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
@@ -64,6 +67,10 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(CategoryTree::class);
+        // NF-15, D-206: the failed-jobs table keeps no bound values of a QueryException (APP_DEBUG off).
+        $this->app->extend('queue.failer', fn ($failer, $app) => $failer::class === DatabaseUuidFailedJobProvider::class
+            ? new SanitizingFailedJobProvider($app['db'], (string) $app['config']['queue.failed.database'], (string) $app['config']['queue.failed.table'])
+            : $failer);
         $this->app->singleton(PriceRuleRepository::class);
         $this->app->singleton(PriceChangeContext::class);
         // Holds the deferred-refresh state of bulk variant operations (VR-06).
@@ -93,13 +100,13 @@ class AppServiceProvider extends ServiceProvider
         Model::preventLazyLoading(! $this->app->isProduction());
 
         // TG-04: Telegram sends updates from a few addresses.
-        RateLimiter::for('telegram-webhook', fn (Request $request): Limit => Limit::perMinute(120)->by((string) $request->ip()));
+        RateLimiter::for('telegram-webhook', fn (Request $request): Limit => Limit::perMinute(120)->by(ClientIpKey::of($request->ip())));
 
         // TM-13: every /tg endpoint has its own bucket per IP (a shared one let the phone polling or a busy moment of one
         // mobile network starve the session call). Telegram clients of one carrier share an address, so the caps are
         // generous but finite: the session call verifies a signature, the others only read or write one row.
         foreach (['session' => 60, 'write-access' => 20, 'phone' => 40, 'leave' => 20, 'start' => 60] as $name => $perMinute) {
-            RateLimiter::for('tg-'.$name, fn (Request $request): Limit => Limit::perMinute($perMinute)->by((string) $request->ip()));
+            RateLimiter::for('tg-'.$name, fn (Request $request): Limit => Limit::perMinute($perMinute)->by(ClientIpKey::of($request->ip())));
         }
 
         $this->configureFilamentFormats();

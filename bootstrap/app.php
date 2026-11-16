@@ -11,6 +11,7 @@ use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\StorefrontOpen;
 use App\Http\Middleware\TelegramCookieMode;
 use App\Http\Middleware\ThemePreviewHeaders;
+use App\Http\Middleware\ThrottleByClientNetwork;
 use App\Http\Middleware\ValidateCustomerSession;
 use App\Services\Catalog\RedirectService;
 use App\Support\SanitizedQueryException;
@@ -52,6 +53,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'customer.auth' => AuthenticateCustomer::class,
             'customer.guest' => RedirectIfCustomer::class,
             'account.private' => PrivateAccountPage::class,
+            // D-208: numeric route limits count an IPv6 visitor by /64.
+            'throttle' => ThrottleByClientNetwork::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

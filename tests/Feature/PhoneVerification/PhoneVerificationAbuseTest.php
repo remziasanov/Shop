@@ -16,6 +16,7 @@ use App\Services\PhoneVerification\PhoneVerificationService;
 use App\Support\ClientIpKey;
 use App\Support\TelegramMode;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 
 /** Security audit SEC-01, SEC-03, SEC-04 (D-198, D-199, D-200): abuse limits of the phone verification. */
@@ -217,5 +218,92 @@ describe('SEC-04 wrong entries (phone)', function (): void {
         $chance = PhoneVerificationService::MAX_ATTEMPTS * PhoneVerificationService::PER_NUMBER_PER_DAY / 10 ** PhoneVerificationService::CODE_LENGTH;
 
         expect($chance)->toBeLessThan(0.01);
+    });
+});
+
+describe('PV-03 per-number cap of real guesses (D-200)', function (): void {
+    function wrongCodeFor(string $code): string
+    {
+        return $code === '0000' ? '1111' : '0000';
+    }
+
+    it('refuses the 16th real wrong guess at a number across all requesters, but not starts or the owner entries that were no guesses', function (): void {
+        Carbon::setTestNow('2026-11-22 10:00:00');
+        $phone = abusePhone(21);
+
+        // Entries without an open challenge are no guesses: they never use the cap.
+        foreach (range(1, 12) as $i) {
+            expectAbuseError(fn () => $this->pv->verify($phone, $this->purpose, '1234', phoneSession(), '198.51.100.'.$i), PhoneVerificationError::NoActiveCode);
+        }
+
+        expect(RateLimiter::attempts('phone-verification:guesses:'.sha1($phone)))->toBe(0);
+
+        // Three challenges of three outsiders (their own IPs, so no per-requester lock): 3 x 5 = 15 real guesses.
+        foreach (range(1, 3) as $k) {
+            Carbon::setTestNow(now()->addSeconds(61));
+            $session = phoneSession();
+            $this->pv->start($phone, $this->purpose, $session, '203.0.113.'.$k);
+
+            foreach (range(1, 5) as $n) {
+                $code = wrongCodeFor((string) $this->gateway->lastCode);
+                $expected = $n === 5 ? PhoneVerificationError::TooManyAttempts : PhoneVerificationError::WrongCode;
+                expectAbuseError(fn () => $this->pv->verify($phone, $this->purpose, $code, $session, '203.0.113.'.$k), $expected);
+            }
+        }
+
+        expect(RateLimiter::attempts('phone-verification:guesses:'.sha1($phone)))->toBe(15);
+
+        // The 4th challenge (a start is not blocked) cannot be guessed at any more, from any requester.
+        Carbon::setTestNow(now()->addHour());
+        $fourth = phoneSession();
+        $this->pv->start($phone, $this->purpose, $fourth, '203.0.113.99');
+        expectAbuseError(fn () => $this->pv->verify($phone, $this->purpose, wrongCodeFor((string) $this->gateway->lastCode), $fourth, '203.0.113.99'), PhoneVerificationError::NumberLocked);
+        expect(PhoneVerification::query()->latest('id')->firstOrFail()->attempts)->toBe(0);
+    });
+
+    it('does not use the cap for a correct entry or an exhausted code', function (): void {
+        $phone = abusePhone(22);
+        $owner = phoneSession();
+        $this->pv->start($phone, $this->purpose, $owner, '203.0.113.5');
+        $this->pv->verify($phone, $this->purpose, (string) $this->gateway->lastCode, $owner, '203.0.113.5');
+
+        expect(RateLimiter::attempts('phone-verification:guesses:'.sha1($phone)))->toBe(0);
+    });
+});
+
+describe('D-198 guest share alert', function (): void {
+    it('sends the lighter guest-share alert, not the daily-limit one, when only the guest share is used up', function (): void {
+        enablePhoneVerification(['daily_limit' => 10]);
+        PhoneVerification::factory()->count(8)->create();
+        Cache::forget('phone-verification:alert:daily_limit');
+        Cache::forget('phone-verification:alert:guest_share');
+
+        expectAbuseError(fn () => $this->pv->start(abusePhone(31), $this->purpose, phoneSession(), '192.0.2.70'), PhoneVerificationError::DailyLimit);
+
+        expect(Cache::has('phone-verification:alert:guest_share'))->toBeTrue()
+            ->and(Cache::has('phone-verification:alert:daily_limit'))->toBeFalse();
+
+        PhoneVerification::factory()->count(2)->create();
+        Carbon::setTestNow(now()->addMinutes(5));
+        expectAbuseError(fn () => $this->pv->start(abusePhone(32), $this->purpose, phoneSession(), '192.0.2.71'), PhoneVerificationError::DailyLimit);
+
+        expect(Cache::has('phone-verification:alert:daily_limit'))->toBeTrue();
+    });
+});
+
+describe('SEC-03 atomic counters (D-199)', function (): void {
+    it('fails closed when the lock of a counter cannot be taken (entry limit per IP)', function (): void {
+        $phone = abusePhone(41);
+        $owner = phoneSession();
+        $this->pv->start($phone, $this->purpose, $owner, '203.0.113.7');
+
+        $lock = Cache::lock('rate-limit:'.sha1('phone-verification:entry-ip:203.0.113.7'), 30);
+        expect($lock->get())->toBeTrue();
+
+        // Even the right code is refused while the counter cannot be taken; and the entry is not judged at all.
+        expectAbuseError(fn () => $this->pv->verify($phone, $this->purpose, (string) $this->gateway->lastCode, $owner, '203.0.113.7'), PhoneVerificationError::Throttled);
+        expect(PhoneVerification::query()->firstOrFail()->attempts)->toBe(0);
+
+        $lock->release();
     });
 });

@@ -38,7 +38,8 @@ it('does not overwrite the stored account when the unconfirmed address is regist
 
     $customer = Customer::query()->firstOrFail();
     expect($customer->name)->toBe('Жертва')
-        ->and(Hash::check('victim-password-1', $customer->password))->toBeTrue()
+        // SEC-06: no registration password is stored before a code is confirmed (it waits in the code).
+        ->and(Hash::check('victim-password-1', $customer->password))->toBeFalse()
         ->and(Hash::check('attacker-password-1', $customer->password))->toBeFalse();
 });
 

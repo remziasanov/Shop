@@ -7,7 +7,6 @@ namespace App\Services\Customers;
 use App\Enums\VerificationPurpose;
 use App\Events\CustomerEmailVerified;
 use App\Exceptions\CustomerAuthException;
-use App\Exceptions\CustomerNotVerifiedException;
 use App\Exceptions\CustomerThrottledException;
 use App\Mail\CustomerAccountExistsMail;
 use App\Mail\CustomerEmailChangedMail;
@@ -18,6 +17,7 @@ use App\Models\CustomerVerificationCode;
 use App\Services\Cart\CartMerger;
 use App\Services\Cart\CartService;
 use App\Settings\CustomerSettings;
+use App\Support\AtomicRateLimiter;
 use App\Support\ClientIpKey;
 use App\Support\PiiMask;
 use App\Support\TelegramMode;
@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 /**
  * The customer account flows (CA-02…CA-08, CA-31, CA-32): registration with an e-mail code, sign-in by password or by
@@ -72,6 +73,9 @@ final class CustomerAuthService
     public const PASSWORD_ATTEMPTS_PER_MINUTE = 5;
 
     public const PASSWORD_FAILURES_BEFORE_LOCK = 5;
+
+    /** Daily cap of current-password checks per customer (password and e-mail change share it). */
+    public const CURRENT_PASSWORD_CHECKS_PER_DAY = 20;
 
     public const LOCK_SECONDS = 900;
 
@@ -119,8 +123,8 @@ final class CustomerAuthService
         $data = new RegistrationData($data->name, $this->canon($data->email), $data->phone, $data->password, $data->ip, $data->bindingToken);
         $ipKey = 'customer-register:ip:'.ClientIpKey::of($data->ip);
 
-        if (RateLimiter::hit($ipKey, 3600) > self::REGISTRATIONS_PER_IP_PER_HOUR) {
-            throw new CustomerThrottledException(RateLimiter::availableIn($ipKey));
+        if (AtomicRateLimiter::hit($ipKey, 3600) > self::REGISTRATIONS_PER_IP_PER_HOUR) {
+            throw $this->throttled($ipKey);
         }
 
         try {
@@ -219,7 +223,6 @@ final class CustomerAuthService
      * Checks e-mail and password with the limits of CA-06 / CA-12 and returns the customer who may sign in.
      *
      * @throws CustomerAuthException wrong data, blocked account, deletion pending
-     * @throws CustomerNotVerifiedException the password is right but the address is not confirmed (a code was sent)
      * @throws CustomerThrottledException
      */
     public function authenticateByPassword(string $email, string $password, string $ip, ?string $bindingToken = null): Customer
@@ -243,19 +246,26 @@ final class CustomerAuthService
 
         $attemptsKey = 'customer-login:attempts:'.$pair;
 
-        if (RateLimiter::hit($attemptsKey, 60) > self::PASSWORD_ATTEMPTS_PER_MINUTE) {
-            throw new CustomerThrottledException(RateLimiter::availableIn($attemptsKey));
+        if (AtomicRateLimiter::hit($attemptsKey, 60) > self::PASSWORD_ATTEMPTS_PER_MINUTE) {
+            throw $this->throttled($attemptsKey);
         }
 
         $customer = $this->findByEmail($email);
         // The hash is checked even for an unknown address, so both cases take the same time.
         $valid = Hash::check($password, $customer !== null ? $customer->password : self::DUMMY_HASH) && $customer !== null;
 
+        // SEC-06: an account whose address is not confirmed cannot sign in with a password, and the answer is exactly the
+        // one for wrong credentials; otherwise the sign-in would tell a freshly registered address from a registered one.
+        // (A new unconfirmed account has an unusable hash anyway; this also covers older rows with a real hash.)
+        if ($customer !== null && ! $customer->hasVerifiedEmail()) {
+            $valid = false;
+        }
+
         $failKey = 'customer-login:fail:'.$pair;
 
         if (! $valid) {
-            RateLimiter::hit($ipFailKey, self::PASSWORD_FAILURES_PER_IP_WINDOW);
-            $failures = RateLimiter::hit($failKey, self::LOCK_SECONDS);
+            AtomicRateLimiter::hit($ipFailKey, self::PASSWORD_FAILURES_PER_IP_WINDOW);
+            $failures = AtomicRateLimiter::hit($failKey, self::LOCK_SECONDS);
 
             if ($failures >= self::PASSWORD_FAILURES_BEFORE_LOCK) {
                 Cache::put($lockKey, now()->getTimestamp() + self::LOCK_SECONDS, self::LOCK_SECONDS);
@@ -270,16 +280,6 @@ final class CustomerAuthService
 
         if ($customer->is_blocked || $customer->anonymized_at !== null) {
             throw new CustomerAuthException(__('account.errors.blocked'));
-        }
-
-        if (! $customer->hasVerifiedEmail()) {
-            try {
-                $this->resendRegistrationCode($email, $ip, $bindingToken);
-            } catch (CustomerAuthException) {
-                // A code was sent a moment ago: the customer uses it.
-            }
-
-            throw new CustomerNotVerifiedException($email);
         }
 
         if ($customer->deletion_requested_at !== null) {
@@ -503,19 +503,7 @@ final class CustomerAuthService
      */
     public function changePassword(Customer $customer, string $currentPassword, string $newPassword, Session $session): void
     {
-        $key = 'customer-password-change:'.$customer->id;
-
-        if (RateLimiter::tooManyAttempts($key, self::PASSWORD_ATTEMPTS_PER_MINUTE)) {
-            throw new CustomerThrottledException(RateLimiter::availableIn($key));
-        }
-
-        if (! Hash::check($currentPassword, $customer->password)) {
-            RateLimiter::hit($key, 60);
-
-            throw new CustomerAuthException(__('account.errors.current_password'), 'current_password');
-        }
-
-        RateLimiter::clear($key);
+        $this->assertCurrentPassword($customer, $currentPassword);
 
         $customer->forceFill(['password' => $newPassword])->save();
         $customer->bumpAuthVersion();
@@ -535,19 +523,7 @@ final class CustomerAuthService
      */
     public function requestEmailChange(Customer $customer, string $newEmail, string $ip, string $currentPassword, ?string $bindingToken = null): void
     {
-        $key = 'customer-email-change-auth:'.$customer->id;
-
-        if (RateLimiter::tooManyAttempts($key, self::PASSWORD_ATTEMPTS_PER_MINUTE)) {
-            throw new CustomerThrottledException(RateLimiter::availableIn($key));
-        }
-
-        if (! Hash::check($currentPassword, $customer->password)) {
-            RateLimiter::hit($key, 60);
-
-            throw new CustomerAuthException(__('account.errors.current_password'), 'current_password');
-        }
-
-        RateLimiter::clear($key);
+        $this->assertCurrentPassword($customer, $currentPassword);
 
         $this->issueEmailChangeCode($customer, $newEmail, $ip, $bindingToken);
     }
@@ -578,8 +554,8 @@ final class CustomerAuthService
         // customer could enumerate registered addresses. Every attempt counts per customer, per address and per IP.
         $customerKey = 'customer-email-change:'.$customer->id;
 
-        if (RateLimiter::hit($customerKey, 3600) > self::EMAIL_CHANGES_PER_HOUR) {
-            throw new CustomerThrottledException(RateLimiter::availableIn($customerKey));
+        if (AtomicRateLimiter::hit($customerKey, 3600) > self::EMAIL_CHANGES_PER_HOUR) {
+            throw $this->throttled($customerKey);
         }
 
         $holder = Customer::query()->where('email', $newEmail)->whereNotNull('email_verified_at')->first();
@@ -736,6 +712,44 @@ final class CustomerAuthService
     }
 
     /**
+     * Checks the current password of a signed-in customer (password change, e-mail change; SEC-05). One counter is
+     * shared by both forms: 5 checks per minute and 20 per day. Every check is counted first and the attempt is given
+     * back when the password is right, so only wrong guesses use the quota.
+     *
+     * @throws CustomerAuthException the password is wrong
+     * @throws CustomerThrottledException
+     */
+    private function assertCurrentPassword(Customer $customer, string $currentPassword): void
+    {
+        $minuteKey = 'customer-current-password:minute:'.$customer->id;
+        $dayKey = 'customer-current-password:day:'.$customer->id;
+
+        // Both are counted before the comparison; the day counter is hit first so that a refused minute does not hide it.
+        $dayHits = AtomicRateLimiter::hit($dayKey, 86400);
+        $minuteHits = AtomicRateLimiter::hit($minuteKey, 60);
+
+        if ($dayHits > self::CURRENT_PASSWORD_CHECKS_PER_DAY) {
+            throw $this->throttled($dayKey);
+        }
+
+        if ($minuteHits > self::PASSWORD_ATTEMPTS_PER_MINUTE) {
+            throw $this->throttled($minuteKey);
+        }
+
+        if (! Hash::check($currentPassword, $customer->password)) {
+            throw new CustomerAuthException(__('account.errors.current_password'), 'current_password');
+        }
+
+        AtomicRateLimiter::decrement($dayKey, 86400);
+        AtomicRateLimiter::decrement($minuteKey, 60);
+    }
+
+    private function throttled(string $key): CustomerThrottledException
+    {
+        return new CustomerThrottledException(max(1, RateLimiter::availableIn($key)));
+    }
+
+    /**
      * @return Customer|null null when the address belongs to a confirmed (or anonymized) account: nothing is changed,
      *                       but the code limits ran, so that case costs the requester the same as a new address (SEC-06)
      *
@@ -749,8 +763,9 @@ final class CustomerAuthService
             $customer = $this->findByEmail($data->email, lock: true);
 
             if ($customer !== null && ($customer->hasVerifiedEmail() || $customer->anonymized_at !== null)) {
-                // Same work and same limits as for a new address: the password is hashed, the code limits are spent.
+                // Same work and same limits as for a new address: the password is hashed (twice, as below), the code limits are spent.
                 Hash::make($data->password);
+                Hash::make(Str::random(64));
                 $this->codes->request(VerificationPurpose::Register, $data->email, $data->ip, null, null, deliver: false, binding: $data->bindingToken);
 
                 return null;
@@ -765,12 +780,16 @@ final class CustomerAuthService
             }
 
             $hash = Hash::make($data->password);
+            // A hash of a random string nobody knows (made with the configured cost, so the `hashed` cast accepts it).
+            $unusable = Hash::make(Str::random(64));
 
             if (! $customer->exists) {
+                // SEC-06: the chosen password is NOT stored yet (it travels in the code and is set on confirmation), so a
+                // password sign-in cannot tell a freshly registered address from a registered one.
                 $customer->forceFill([
                     'name' => trim($data->name),
                     'phone' => $data->phone,
-                    'password' => $hash,
+                    'password' => $unusable,
                     'consent_at' => now(),
                     'consent_ip' => $data->ip,
                 ])->save();

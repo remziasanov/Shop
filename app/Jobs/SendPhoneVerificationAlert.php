@@ -41,6 +41,8 @@ class SendPhoneVerificationAlert implements ShouldBeUnique, ShouldQueue
 
     public const TOPIC_DAILY_LIMIT = 'daily_limit';
 
+    public const TOPIC_GUEST_SHARE = 'guest_share';
+
     public int $maxExceptions = 3;
 
     public int $timeout = 30;
@@ -48,7 +50,7 @@ class SendPhoneVerificationAlert implements ShouldBeUnique, ShouldQueue
     public int $uniqueFor = 3600;
 
     /**
-     * @param  array<string, string>  $params  placeholders of the text (`kind`, `balance`, `threshold`, `limit`)
+     * @param  array<string, string>  $params  placeholders of the text (`kind`, `balance`, `threshold`, `limit`, `cap`)
      */
     public function __construct(
         public readonly string $topic,

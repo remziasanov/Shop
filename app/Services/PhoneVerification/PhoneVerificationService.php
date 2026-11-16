@@ -22,6 +22,7 @@ use App\Models\PhoneVerification;
 use App\Models\User;
 use App\Services\Users\AuditLogger;
 use App\Settings\PhoneVerificationSettings;
+use App\Support\AtomicRateLimiter;
 use App\Support\ClientIpKey;
 use App\Support\PhoneNormalizer;
 use App\Support\PiiMask;
@@ -255,11 +256,10 @@ final class PhoneVerificationService
 
         $ipKey = 'phone-verification:entry-ip:'.ClientIpKey::of($ip);
 
-        if (RateLimiter::tooManyAttempts($ipKey, self::ENTRIES_PER_IP_PER_HOUR)) {
-            throw PhoneVerificationException::throttled(RateLimiter::availableIn($ipKey));
+        // Count first, then compare (SEC-03): the entry is counted atomically, the refusal stays counted.
+        if (AtomicRateLimiter::hit($ipKey, self::HOUR) > self::ENTRIES_PER_IP_PER_HOUR) {
+            throw PhoneVerificationException::throttled(max(1, RateLimiter::availableIn($ipKey)));
         }
-
-        RateLimiter::hit($ipKey, self::HOUR);
 
         $binding = $this->binding($session);
         $input = trim($code);
@@ -286,6 +286,15 @@ final class PhoneVerificationService
             throw new PhoneVerificationException(PhoneVerificationError::Expired);
         }
 
+        // PV-03, D-200: at most 15 REAL guesses per number per 24 h across all requesters. Only an entry against an open
+        // challenge of this session reaches this point, so a start or an entry without a code never counts. Counted
+        // first (atomic); the slot is given back below when the entry was not a guess after all.
+        $guessKey = $this->numberKey('guesses', $phone);
+
+        if (AtomicRateLimiter::hit($guessKey, self::DAY) > self::WRONG_ENTRIES_PER_DAY) {
+            throw PhoneVerificationException::throttled(max(1, RateLimiter::availableIn($guessKey)), PhoneVerificationError::NumberLocked);
+        }
+
         // Atomic: two parallel requests cannot spend more than the allowed number of attempts.
         $counted = PhoneVerification::query()
             ->whereKey($row->id)
@@ -294,6 +303,7 @@ final class PhoneVerificationService
             ->increment('attempts');
 
         if ($counted === 0) {
+            AtomicRateLimiter::decrement($guessKey, self::DAY);
             $this->finish($row, PhoneVerificationOutcome::Failed);
 
             throw new PhoneVerificationException(PhoneVerificationError::TooManyAttempts);
@@ -319,6 +329,9 @@ final class PhoneVerificationService
             ->whereKey($row->id)
             ->where('outcome', PhoneVerificationOutcome::Pending->value)
             ->update(['outcome' => PhoneVerificationOutcome::Verified->value, 'verified_at' => now(), 'updated_at' => now()]);
+
+        // A correct entry is not a wrong guess: it gives its slot back, so the owner's own entry never uses the cap.
+        AtomicRateLimiter::decrement($guessKey, self::DAY);
 
         if ($won !== 1) {
             throw new PhoneVerificationException(PhoneVerificationError::NoActiveCode);
@@ -478,8 +491,15 @@ final class PhoneVerificationService
 
         // The daily limit of the shop is counted in the database, not in the cache (PV-06). A refused start leaves no
         // accepted row, so it never burns this budget (D-199). Guests stop at their share (SEC-01).
-        if ($this->dailyBudgetExhausted($phone, $purpose, $customer)) {
-            $this->alerts->dailyLimit($this->settings->daily_limit);
+        $exhausted = $this->dailyBudgetExhausted($phone, $purpose, $customer);
+
+        if ($exhausted !== null) {
+            // D-198: only the guest share is used up -> a lighter notice (once a day), not «the daily limit is reached».
+            if ($exhausted === 'guest') {
+                $this->alerts->guestShare($this->guestCap(max(0, $this->settings->daily_limit)), max(0, $this->settings->daily_limit));
+            } else {
+                $this->alerts->dailyLimit($this->settings->daily_limit);
+            }
 
             if ($purpose !== PhoneVerificationPurpose::Test && $this->behavior($this->settings->on_daily_limit, PhoneVerificationBehavior::Block) === PhoneVerificationBehavior::Skip) {
                 return $this->skipped($this->unsent($phone, $purpose, $method, $binding, $ip, $customer, PhoneVerificationOutcome::SkippedProvider, 'daily_limit'));
@@ -612,7 +632,8 @@ final class PhoneVerificationService
         $wait = 0;
 
         foreach ($limits as [$key, $max, $decay]) {
-            if (RateLimiter::hit($key, $decay) > $max) {
+            // Atomic on the file cache; a lock that is not obtained counts as over the limit (fail closed, D-199).
+            if (AtomicRateLimiter::hit($key, $decay) > $max) {
                 $wait = max($wait, RateLimiter::availableIn($key), 1);
             }
         }
@@ -623,25 +644,28 @@ final class PhoneVerificationService
     }
 
     /**
-     * The shop's daily budget is spent for this request: all of `daily_limit`, or, for a guest, the guest share of it
-     * (SEC-01). Signed-in customers, numbers with a completed order and the admin test use the whole budget.
+     * The shop's daily budget is spent for this request: `full` = all of `daily_limit`, `guest` = for a guest, the guest
+     * share of it (SEC-01); null when a code may be sent. Signed-in customers, numbers with a completed order and the admin test use the whole budget.
      */
-    private function dailyBudgetExhausted(string $phone, PhoneVerificationPurpose $purpose, ?Customer $customer): bool
+    private function dailyBudgetExhausted(string $phone, PhoneVerificationPurpose $purpose, ?Customer $customer): ?string
     {
         $limit = max(0, $this->settings->daily_limit);
         $usage = $this->dailyUsage();
 
         if ($usage >= $limit) {
-            return true;
+            return 'full';
         }
 
         if ($customer !== null || $purpose === PhoneVerificationPurpose::Test) {
-            return false;
+            return null;
         }
 
-        $guestCap = $limit > 0 ? max(1, intdiv($limit * self::GUEST_SHARE_PERCENT, 100)) : 0;
+        return $usage >= $this->guestCap($limit) && ! $this->hasCompletedOrder($phone) ? 'guest' : null;
+    }
 
-        return $usage >= $guestCap && ! $this->hasCompletedOrder($phone);
+    private function guestCap(int $limit): int
+    {
+        return $limit > 0 ? max(1, intdiv($limit * self::GUEST_SHARE_PERCENT, 100)) : 0;
     }
 
     /**
@@ -679,7 +703,7 @@ final class PhoneVerificationService
      */
     private function registerWrongEntry(string $phone, string $ip): void
     {
-        $count = RateLimiter::hit($this->numberKey('wrong', $phone).':'.sha1(ClientIpKey::of($ip)), self::DAY);
+        $count = AtomicRateLimiter::hit($this->numberKey('wrong', $phone).':'.sha1(ClientIpKey::of($ip)), self::DAY);
 
         if ($count >= self::WRONG_ENTRIES_PER_DAY) {
             Cache::add($this->lockKey($phone, $ip), now()->getTimestamp() + self::DAY, self::DAY);

@@ -51,7 +51,7 @@ it('answers a wrong password and an unknown address with the same message (CA-05
 
     $wrongPassword->assertSessionHasErrors('email');
     $unknown->assertSessionHasErrors('email');
-    expect(session('errors')->first('email'))->toBe(__('account.errors.credentials'));
+    expect(session()->get('errors')->getBag('default')->first('email'))->toBe(__('account.errors.credentials'));
     $this->assertGuest('customer');
 });
 
@@ -91,17 +91,21 @@ it('does not sign in a blocked customer and gives a neutral message (CA-06)', fu
 
     $this->post(route('customer.login.store'), loginBody())->assertSessionHasErrors('email');
 
-    expect(session('errors')->first('email'))->toContain('Обратитесь в магазин')->not->toContain('internal note');
+    expect(session()->get('errors')->getBag('default')->first('email'))->toContain('Обратитесь в магазин')->not->toContain('internal note');
     $this->assertGuest('customer');
 });
 
-it('sends an unconfirmed customer with the right password to the confirmation (CA-03)', function (): void {
+it('answers a password sign-in to an unconfirmed account exactly like wrong credentials (CA-03, SEC-06)', function (): void {
     $this->customer->forceFill(['email_verified_at' => null])->save();
 
-    $this->post(route('customer.login.store'), loginBody())->assertRedirect(route('customer.confirm'));
+    $unconfirmed = $this->from(route('customer.login'))->post(route('customer.login.store'), loginBody());
+    $unconfirmed->assertRedirect(route('customer.login'))->assertSessionHasErrors(['email' => __('account.errors.credentials')]);
+
+    $unknown = $this->from(route('customer.login'))->post(route('customer.login.store'), loginBody(['email' => 'nobody@example.com']));
+    $unknown->assertRedirect(route('customer.login'))->assertSessionHasErrors(['email' => __('account.errors.credentials')]);
 
     $this->assertGuest('customer');
-    expect(lastSentCode(VerificationPurpose::Register))->toMatch('/^\d{6}$/');
+    Mail::assertNothingQueued();
 });
 
 it('keeps a pending deletion from a password sign-in (CA-16)', function (): void {

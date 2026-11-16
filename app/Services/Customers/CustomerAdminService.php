@@ -167,7 +167,12 @@ final class CustomerAdminService
             throw new CustomerAccountException(__('customers.errors.already_verified'));
         }
 
-        $this->codes->request(VerificationPurpose::Register, $customer->email, $ip, $customer, $this->latestRegistrationPayload($customer));
+        // Bound like a storefront code: only the browser session that registered can enter it (SEC-04). The payload holds
+        // the SHA-256 of that session's token, which is exactly the stored `session_hash`.
+        $payload = $this->latestRegistrationPayload($customer);
+        $binding = is_array($payload) && is_string($payload['binding'] ?? null) ? $payload['binding'] : null;
+
+        $this->codes->request(VerificationPurpose::Register, $customer->email, $ip, $customer, $payload, boundSessionHash: $binding);
         $this->audit->record(AuditAction::CustomerCodeResent, $actor, $customer);
     }
 

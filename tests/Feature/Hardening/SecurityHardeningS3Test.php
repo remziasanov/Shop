@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 use App\Filament\Avatars\InitialsAvatarProvider;
 use App\Filament\Pages\Settings\ManageNotificationSettings;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\System\EnvironmentChecker;
 use App\Support\SanitizedQueryException;
+use App\Support\SanitizingFailedJobProvider;
 use Filament\Actions\Exceptions\ActionNotResolvableException;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 
 function adminPath(string $suffix = ''): string
@@ -58,6 +62,18 @@ it('sends the CSP on the admin panel and never allows script-src (S3-2)', functi
     expect($csp)->toBe("object-src 'none'; base-uri 'self'")->not->toContain('script-src');
 });
 
+it('does not send the CSP on a PDF response but keeps the other headers (S3-2)', function (): void {
+    $this->actingAs(User::factory()->admin()->create());
+    $order = Order::factory()->create();
+
+    $response = $this->get(route('admin.orders.pdf', $order))->assertOk()
+        ->assertHeader('Content-Type', 'application/pdf')
+        ->assertHeaderMissing('Content-Security-Policy')
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+    expect($response->headers->get('Referrer-Policy'))->not->toBeNull();
+});
+
 it('sends HSTS only for a secure request in production (S3-2)', function (): void {
     $this->get('/up')->assertHeaderMissing('Strict-Transport-Security');
 
@@ -80,8 +96,20 @@ it('sends HSTS only for a secure request in production (S3-2)', function (): voi
 it('refuses PHP-like files under public/storage in .htaccess without php_flag (S3-3)', function (): void {
     $htaccess = (string) file_get_contents(base_path('public/.htaccess'));
 
-    expect($htaccess)->toContain('RewriteRule ^storage/.*\.(php\d?|phtml|phar)$ - [F,L]')
+    expect($htaccess)->toContain('RewriteRule ^storage/.*\.(php\d*|pht|phps|phar|phtml)(/|$) - [F,L,NC]')
         ->and($htaccess)->not->toContain('php_flag')->not->toContain('php_admin_flag');
+
+    // Apache is not available in tests: evaluate the pattern itself (the NC flag = case-insensitive).
+    preg_match('/RewriteRule (\^storage\/\S+) - \[F,L,NC\]/', $htaccess, $m);
+    $pattern = '#'.$m[1].'#i';
+
+    foreach (['x.php', 'x.PHP', 'a/b.Php5', 'x.php8', 'x.pht', 'x.phps', 'x.phar', 'x.PHTML', 'x.php/a.jpg', 'x.phtml/y'] as $path) {
+        expect(preg_match($pattern, 'storage/'.$path))->toBe(1, $path);
+    }
+
+    foreach (['x.jpg', 'photo.phpx.jpg', 'x.phpfoo', 'phpinfo.png', 'x.pdf'] as $path) {
+        expect(preg_match($pattern, 'storage/'.$path))->toBe(0, $path);
+    }
 });
 
 // 4. Avatars.
@@ -181,4 +209,63 @@ it('shows a generic error and logs only the class when the mailer fails (S3-9)',
     Livewire::test(ManageNotificationSettings::class)
         ->callAction(TestAction::make('sendTestMail')->schemaComponent('testMailActions', schema: 'form'))
         ->assertNotified(__('notifications.test.mail_failed'));
+});
+
+// Review of PR #51, round 1 (R2).
+it('keeps names and connection errors of a driver message but never a bound value (S3-8, D-206)', function (string $driverText, array $errorInfo, array $keep, array $drop): void {
+    $driver = new PDOException($driverText);
+    $driver->errorInfo = $errorInfo;
+
+    $text = SanitizedQueryException::from(new QueryException('mysql', 'insert into t (a) values (?)', ['x'], $driver))->getMessage();
+
+    foreach ($keep as $needle) {
+        expect($text)->toContain($needle);
+    }
+
+    foreach ($drop as $needle) {
+        expect($text)->not->toContain($needle);
+    }
+})->with([
+    'unknown column' => ["Unknown column 'qty' in 'field list'", ['42S22', 1054, "Unknown column 'qty' in 'field list'"], ['unknown column qty'], []],
+    'missing table' => ["Table 'shop.orders' doesn't exist", ['42S02', 1146, "Table 'shop.orders' doesn't exist"], ['shop.orders'], []],
+    'too long' => ["Data too long for column 'name' at row 1", ['22001', 1406, "Data too long for column 'name' at row 1"], ['column name'], []],
+    'incorrect value' => ["Incorrect integer value: 'ivan@mail.ru' for column 'qty' at row 1", ['HY000', 1366, "Incorrect integer value: 'ivan@mail.ru' for column 'qty' at row 1"], ['column qty'], ['ivan@mail.ru']],
+    'foreign key' => ['Cannot add or update a child row: a foreign key constraint fails (`shop`.`order_items`, CONSTRAINT `order_items_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`))', ['23000', 1452, 'Cannot add or update a child row: a foreign key constraint fails (`shop`.`order_items`, CONSTRAINT `order_items_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`))'], ['order_items_order_id_foreign'], []],
+    'duplicate' => ["Duplicate entry 'ivan@mail.ru' for key 'customers.customers_email_unique'", ['23000', 1062, "Duplicate entry 'ivan@mail.ru' for key 'customers.customers_email_unique'"], ['customers.customers_email_unique'], ['ivan@mail.ru']],
+    'sqlite unique' => ['UNIQUE constraint failed: customers.email', ['23000', 19, 'UNIQUE constraint failed: customers.email'], ['customers.email'], []],
+    'connection refused' => ['SQLSTATE[HY000] [2002] Connection refused', [], ['[2002] Connection refused'], []],
+    'access denied' => ["SQLSTATE[HY000] [1045] Access denied for user 'shop'@'10.0.0.5' (using password: YES)", [], ["Access denied for user 'shop'@'10.0.0.5'"], ['secret']],
+    'unknown database' => ["SQLSTATE[HY000] [1049] Unknown database 'shopdb'", [], ["Unknown database 'shopdb'"], []],
+]);
+
+it('stores no bound values of a QueryException in failed_jobs unless APP_DEBUG is on (S3-8, D-206)', function (): void {
+    config(['app.debug' => false]);
+    $driver = new PDOException("Duplicate entry 'ivan@mail.ru' for key 'customers.customers_email_unique'");
+    $driver->errorInfo = ['23000', 1062, "Duplicate entry 'ivan@mail.ru' for key 'customers.customers_email_unique'"];
+    $query = new QueryException('mysql', 'insert into customers (email) values (?)', ['ivan@mail.ru'], $driver);
+
+    $failer = app('queue.failer');
+    expect($failer)->toBeInstanceOf(SanitizingFailedJobProvider::class);
+
+    $failer->log('database', 'default', json_encode(['uuid' => 'u-1', 'job' => 'X']), $query);
+
+    $stored = (string) DB::table('failed_jobs')->where('uuid', 'u-1')->value('exception');
+    expect($stored)->not->toContain('ivan@mail.ru')->toContain('customers_email_unique');
+
+    config(['app.debug' => true]);
+    $failer->log('database', 'default', json_encode(['uuid' => 'u-2', 'job' => 'X']), $query);
+    expect((string) DB::table('failed_jobs')->where('uuid', 'u-2')->value('exception'))->toContain('ivan@mail.ru');
+});
+
+it('counts a route throttle by the /64 network of an IPv6 visitor (D-208)', function (): void {
+    Route::middleware('throttle:2,1')->get('/_probe-throttle', fn () => 'ok');
+
+    $get = fn (string $ip) => $this->withServerVariables(['REMOTE_ADDR' => $ip])->get('/_probe-throttle');
+
+    $get('2001:db8:7:7::1')->assertOk();
+    $get('2001:db8:7:7:ffff::2')->assertOk();
+    $get('2001:db8:7:7:aaaa::3')->assertStatus(429);
+    // Another /64 and another IPv4 address are unaffected.
+    $get('2001:db8:7:8::1')->assertOk();
+    $get('192.0.2.1')->assertOk();
 });

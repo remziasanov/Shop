@@ -12,6 +12,7 @@ use App\Mail\CustomerCodeMail;
 use App\Models\Customer;
 use App\Models\CustomerVerificationCode;
 use App\Settings\CustomerSettings;
+use App\Support\AtomicRateLimiter;
 use App\Support\ClientIpKey;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -26,13 +27,15 @@ use Illuminate\Support\Str;
  *    code cannot be read back from the database.
  *  - A code lives `code_ttl_minutes`, takes `code_max_attempts` wrong entries (then it is annulled), is single use,
  *    and a new code annuls the previous open codes of the same address and purpose.
- *  - Limits (RateLimiter on the cache, all counted first and compared after, SEC-03): 5 code requests per hour per
- *    e-mail, 10 per 24 hours per e-mail across all requesters (SEC-04), 10 per hour per IP, 20 entries per hour per IP,
+ *  - Limits (counted first and compared after, atomically through {@see AtomicRateLimiter}, SEC-03): 10 code requests
+ *    per hour per IP (counted first), 5 per hour per e-mail, 10 per 24 hours per e-mail across all requesters
+ *    (SEC-04), 20 entries per hour per IP,
  *    a resend pause per address and purpose, and 20 wrong entries per day per requester (address + client IP key),
  *    after which code requests and entries of that requester for that address are blocked for 24 hours and the owner
  *    is told by mail.
  *  - A code is verified only from the browser session that requested it (`session_hash`, SEC-04); codes without a
- *    binding (issued by staff) accept any session. An entry that finds no open code of the session is not counted.
+ *    binding (issued by staff) accept any session. An entry that finds no open code of the session counts as a wrong
+ *    entry as well (CA-05: otherwise the lock would show whether an account exists).
  *
  * Every limit is evaluated the same way for addresses that have no account, so answers do not reveal whether an
  * account exists (CA-05): {@see request()} with `$deliver = false` runs all checks and then sends nothing.
@@ -64,6 +67,7 @@ final class VerificationCodeService
      * @param  array<string, mixed>|null  $payload  stored with the code (the new address of a change-email request)
      * @param  bool  $deliver  false when the address has no eligible account: all limits apply, nothing is stored or sent
      * @param  string|null  $binding  token of the requesting browser session; the code can be entered only from it
+     * @param  string|null  $boundSessionHash  the same binding as an already stored SHA-256 (staff-issued codes), used when no token is given
      *
      * @throws CustomerThrottledException an hourly or daily limit, or the 24-hour lock of this requester
      * @throws CustomerAuthException the resend pause is not over
@@ -76,28 +80,31 @@ final class VerificationCodeService
         ?array $payload = null,
         bool $deliver = true,
         ?string $binding = null,
+        ?string $boundSessionHash = null,
     ): void {
         $this->assertNotLocked($email, $ip);
 
-        // SEC-03: count first, then decide. A refused request keeps its hit (it is an attempt as well).
+        // SEC-03: count first, then decide (atomically: a cache lock per counter, fail closed). The requester's own IP key
+        // goes FIRST and the address keys only when it passed, so a request refused by its IP limit does not use up the
+        // per-address quotas of somebody else's address. A refused request keeps its hit (it is an attempt as well).
         $limits = [
-            ['customer-code:email:'.$this->hash($email), self::REQUESTS_PER_EMAIL_PER_HOUR, self::HOUR],
             ['customer-code:ip:'.ClientIpKey::of($ip), self::REQUESTS_PER_IP_PER_HOUR, self::HOUR],
+            ['customer-code:email:'.$this->hash($email), self::REQUESTS_PER_EMAIL_PER_HOUR, self::HOUR],
             [$this->dayKey($email), self::REQUESTS_PER_EMAIL_PER_DAY, self::DAY],
         ];
 
         foreach ($limits as [$key, $max, $decay]) {
-            if (RateLimiter::hit($key, $decay) > $max) {
-                throw new CustomerThrottledException(RateLimiter::availableIn($key));
+            if (AtomicRateLimiter::hit($key, $decay) > $max) {
+                throw $this->throttled($key);
             }
         }
 
         $pauseKey = $this->pauseKey($purpose, $email);
 
-        if (RateLimiter::hit($pauseKey, max(1, $this->settings->code_resend_seconds)) > 1) {
+        if (AtomicRateLimiter::hit($pauseKey, max(1, $this->settings->code_resend_seconds)) > 1) {
             // Too early: a repeated click costs nothing, the quota of the other limits is given back.
-            foreach ($limits as [$key]) {
-                RateLimiter::decrement($key);
+            foreach ($limits as [$key, , $decay]) {
+                AtomicRateLimiter::decrement($key, $decay);
             }
 
             throw $this->resendWait($pauseKey);
@@ -108,7 +115,7 @@ final class VerificationCodeService
         }
 
         $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $sessionHash = $this->sessionHash($binding);
+        $sessionHash = $this->sessionHash($binding) ?? ($boundSessionHash !== null && $boundSessionHash !== '' ? $boundSessionHash : null);
 
         DB::transaction(function () use ($purpose, $email, $ip, $customer, $payload, $code, $sessionHash): void {
             $now = now();
@@ -172,8 +179,8 @@ final class VerificationCodeService
 
         $ipKey = 'customer-code:entry-ip:'.ClientIpKey::of($ip);
 
-        if (RateLimiter::hit($ipKey, self::HOUR) > self::ENTRIES_PER_IP_PER_HOUR) {
-            throw new CustomerThrottledException(RateLimiter::availableIn($ipKey));
+        if (AtomicRateLimiter::hit($ipKey, self::HOUR) > self::ENTRIES_PER_IP_PER_HOUR) {
+            throw $this->throttled($ipKey);
         }
 
         $input = trim($input);
@@ -194,7 +201,11 @@ final class VerificationCodeService
             ->first();
 
         if ($row === null) {
-            // SEC-04: nothing to guess here, so the entry is not counted against the address.
+            // CA-05: an entry without an open code counts like any wrong entry. A code exists in a session only when the
+            // account exists, so not counting it would show whether an account exists. The counter and the lock belong
+            // to this requester only (address + client IP key), so this cannot lock the real owner out (SEC-04).
+            $this->registerWrongEntry($email, $ip);
+
             throw $this->invalid();
         }
 
@@ -315,7 +326,7 @@ final class VerificationCodeService
     private function registerWrongEntry(string $email, string $ip): void
     {
         $key = 'customer-code:wrong:'.$this->hash($email.'|'.ClientIpKey::of($ip));
-        $count = RateLimiter::hit($key, self::DAY);
+        $count = AtomicRateLimiter::hit($key, self::DAY);
 
         if ($count < self::WRONG_ENTRIES_PER_DAY) {
             return;
@@ -328,9 +339,11 @@ final class VerificationCodeService
             return;
         }
 
+        // The warning goes to a real owner only, and at most once per address per 24 hours (several requesters cannot
+        // turn it into a mail flood). Which branch ran is invisible to the requester.
         $owner = Customer::query()->where('email', $email)->exists();
 
-        if ($owner) {
+        if ($owner && Cache::add('customer-code:guess-mail:'.$this->hash($email), 1, self::DAY)) {
             Mail::to($email)->queue(new CustomerCodeGuessingMail);
         }
     }
@@ -361,6 +374,11 @@ final class VerificationCodeService
     private function dayKey(string $email): string
     {
         return 'customer-code:day:'.$this->hash($email);
+    }
+
+    private function throttled(string $key): CustomerThrottledException
+    {
+        return new CustomerThrottledException(max(1, RateLimiter::availableIn($key)));
     }
 
     private function resendWait(string $pauseKey): CustomerAuthException

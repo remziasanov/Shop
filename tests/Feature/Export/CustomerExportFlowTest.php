@@ -286,6 +286,20 @@ it('takes the request slot atomically before the check and keeps the refused req
     expect(RateLimiter::attempts($key))->toBe(0);
 });
 
+it('fails closed when the lock of the request or download counter cannot be taken (CX-09, D-177)', function (): void {
+    $service = app(CustomerExportService::class);
+
+    $lock = Cache::lock('rate-limit:'.sha1('customer-export-request:'.$this->customer->id), 30);
+    expect($lock->get())->toBeTrue()
+        ->and(fn () => $service->ensureCanRequest($this->customer))->toThrow(ExportThrottledException::class);
+    $lock->release();
+
+    $lock = Cache::lock('rate-limit:'.sha1('customer-export-download:'.$this->customer->id), 30);
+    expect($lock->get())->toBeTrue()
+        ->and(fn () => $service->hitDownload($this->customer))->toThrow(ExportThrottledException::class);
+    $lock->release();
+});
+
 it('does not let a request pass on a stale check when another one took the last slot meanwhile (TD-26)', function (): void {
     setSettings(CustomerSettings::class, ['export_requests_per_hour' => 1]);
     $service = app(CustomerExportService::class);

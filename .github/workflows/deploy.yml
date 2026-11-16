@@ -194,7 +194,7 @@ jobs:
             exit 1
           fi
           if ! ssh beget 'echo connected' > /dev/null; then
-            echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге."
+            echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге. Если ключ принят, но соединение отвергается, проверьте строку BEGET_KNOWN_HOSTS: имя хоста в ней должно совпадать с BEGET_HOST, а ключ сервера — не измениться (несовпадение ключа хоста тоже останавливает подключение)."
             exit 1
           fi
           # D-111: an existing regular file under the document root name is never replaced; stop before uploading.

@@ -30,7 +30,11 @@ class SecurityHeaders
             $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         }
 
-        $response->headers->set('Content-Security-Policy', implode('; ', $csp));
+        // D-202: not on a PDF (the admin order PDF is shown inline): `object-src 'none'` can stop the built-in PDF viewer
+        // of Chromium browsers, and a PDF has no markup the policy could protect.
+        if (! str_starts_with(strtolower((string) $response->headers->get('Content-Type')), 'application/pdf')) {
+            $response->headers->set('Content-Security-Policy', implode('; ', $csp));
+        }
 
         if ($request->isSecure() && app()->isProduction()) {
             // No includeSubDomains / preload: the shop does not own the other subdomains of its domain.
