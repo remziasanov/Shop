@@ -25,9 +25,9 @@ final class AccountDeletionService
      * @throws CustomerAuthException
      * @throws CustomerThrottledException
      */
-    public function requestCode(Customer $customer, string $ip): void
+    public function requestCode(Customer $customer, string $ip, ?string $bindingToken = null): void
     {
-        $this->codes->request(VerificationPurpose::DeleteAccount, $customer->email, $ip, $customer);
+        $this->codes->request(VerificationPurpose::DeleteAccount, $customer->email, $ip, $customer, binding: $bindingToken);
     }
 
     /**
@@ -36,9 +36,9 @@ final class AccountDeletionService
      * @throws CustomerAuthException
      * @throws CustomerThrottledException
      */
-    public function confirm(Customer $customer, string $code, string $ip): Customer
+    public function confirm(Customer $customer, string $code, string $ip, ?string $bindingToken = null): Customer
     {
-        $row = $this->codes->verify(VerificationPurpose::DeleteAccount, $customer->email, $code, $ip);
+        $row = $this->codes->verify(VerificationPurpose::DeleteAccount, $customer->email, $code, $ip, $bindingToken);
 
         if ($row->customer_id !== $customer->id) {
             throw new CustomerAuthException(__('account.errors.code_invalid'), 'code');

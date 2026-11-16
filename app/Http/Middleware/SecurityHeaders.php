@@ -18,12 +18,23 @@ class SecurityHeaders
     {
         $response = $next($request);
 
+        // D-202: one CSP header with every directive. No script-src: the storefront has inline scripts and the
+        // admin-editable head/body code (a script policy would need nonces).
+        $csp = ["object-src 'none'", "base-uri 'self'"];
+
         if ($this->framableByTelegram($request)) {
             // TM-12, D-103: the Mini App runs in a frame of Telegram Web; nobody else may frame the shop.
             $response->headers->remove('X-Frame-Options');
-            $response->headers->set('Content-Security-Policy', "frame-ancestors 'self' https://web.telegram.org");
+            array_unshift($csp, "frame-ancestors 'self' https://web.telegram.org");
         } else {
             $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+        }
+
+        $response->headers->set('Content-Security-Policy', implode('; ', $csp));
+
+        if ($request->isSecure() && app()->isProduction()) {
+            // No includeSubDomains / preload: the shop does not own the other subdomains of its domain.
+            $response->headers->set('Strict-Transport-Security', 'max-age=15552000');
         }
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');

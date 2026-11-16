@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Filament\Avatars\InitialsAvatarProvider;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\MyTelegram;
 use App\Livewire\Admin\PriceRecalcBanner;
@@ -44,6 +45,8 @@ class AdminPanelProvider extends PanelProvider
                     ->url(fn (): string => MyTelegram::getUrl())
                     ->icon('heroicon-o-paper-airplane'),
             ])
+            // D-204: no third-party avatar service.
+            ->defaultAvatarProvider(InitialsAvatarProvider::class)
             ->brandName(fn (): string => $this->brandName())
             ->colors([
                 'primary' => Color::Blue,

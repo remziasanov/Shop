@@ -353,24 +353,38 @@ describe('limits (PV-06, NF-53)', function (): void {
         expectPvError(fn () => $this->pv->verify('+79990009999', $this->purpose, '1234', $this->session, PV_IP), PhoneVerificationError::Throttled);
     });
 
-    it('locks a number for 24 hours after 15 wrong entries a day', function (): void {
-        $this->pv->start(PV_PHONE, $this->purpose, $this->session, PV_IP);
-        $right = $this->gateway->lastCode;
-        $wrong = $right === '0000' ? '1111' : '0000';
+    it('locks one requester (number + IP) for 24 hours after 15 wrong guesses a day, not the number itself (SEC-04)', function (): void {
+        $wrong = '0000';
 
-        foreach (range(1, 15) as $i) {
-            expect(fn () => $this->pv->verify(PV_PHONE, $this->purpose, $wrong, $this->session, '192.0.2.'.$i))->toThrow(PhoneVerificationException::class);
+        // 5 attempts per code: 15 real guesses take three codes.
+        foreach (range(1, 3) as $round) {
+            $this->pv->start(PV_PHONE, $this->purpose, $this->session, PV_IP);
+            $right = $this->gateway->lastCode;
+            $wrong = $right === '0000' ? '1111' : '0000';
+
+            foreach (range(1, 5) as $i) {
+                expect(fn () => $this->pv->verify(PV_PHONE, $this->purpose, $wrong, $this->session, PV_IP))->toThrow(PhoneVerificationException::class);
+            }
+
+            Carbon::setTestNow(now()->addSeconds(61));
         }
 
-        // Even the right code and a new request are refused now.
-        $e = expectPvError(fn () => $this->pv->verify(PV_PHONE, $this->purpose, $right, $this->session, PV_IP), PhoneVerificationError::NumberLocked);
+        // This requester is locked out of the number, even with a fresh code request.
+        $e = expectPvError(fn () => $this->pv->verify(PV_PHONE, $this->purpose, $wrong, $this->session, PV_IP), PhoneVerificationError::NumberLocked);
         expect($e->retryAfter)->toBeBetween(86000, 86400);
-        expectPvError(fn () => $this->pv->start(PV_PHONE, $this->purpose, phoneSession(), '203.0.113.5'), PhoneVerificationError::NumberLocked);
-        expect(count($this->gateway->calls))->toBe(1);
+        expectPvError(fn () => $this->pv->start(PV_PHONE, $this->purpose, $this->session, PV_IP), PhoneVerificationError::NumberLocked);
+        expect(count($this->gateway->calls))->toBe(3);
 
-        Carbon::setTestNow(now()->addHours(24)->addMinute());
+        // Another requester (the owner of the number) is not affected.
+        Carbon::setTestNow(now()->addHour());
+        $owner = phoneSession();
+        $this->pv->start(PV_PHONE, $this->purpose, $owner, '203.0.113.5');
+        $this->pv->verify(PV_PHONE, $this->purpose, $this->gateway->lastCode, $owner, '203.0.113.5');
+
+        // The lock of the first requester expires after 24 hours.
+        Carbon::setTestNow(now()->addHours(24));
         $this->pv->start(PV_PHONE, $this->purpose, $this->session, PV_IP);
-        expect(count($this->gateway->calls))->toBe(2);
+        expect(count($this->gateway->calls))->toBe(5);
     });
 });
 

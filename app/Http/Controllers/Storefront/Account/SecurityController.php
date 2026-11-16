@@ -38,7 +38,7 @@ class SecurityController extends Controller
     public function requestDeletion(Request $request, AccountDeletionService $deletion): RedirectResponse
     {
         try {
-            $deletion->requestCode($this->currentCustomer($request), (string) $request->ip());
+            $deletion->requestCode($this->currentCustomer($request), (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
@@ -63,7 +63,7 @@ class SecurityController extends Controller
     public function resendDeletionCode(Request $request, AccountDeletionService $deletion): RedirectResponse
     {
         try {
-            $deletion->requestCode($this->currentCustomer($request), (string) $request->ip());
+            $deletion->requestCode($this->currentCustomer($request), (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
@@ -77,7 +77,7 @@ class SecurityController extends Controller
     public function confirmDeletion(CodeRequest $request, AccountDeletionService $deletion, CustomerAuthService $auth): RedirectResponse
     {
         try {
-            $deletion->confirm($this->currentCustomer($request), $request->code(), (string) $request->ip());
+            $deletion->confirm($this->currentCustomer($request), $request->code(), (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }

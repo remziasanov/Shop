@@ -9,9 +9,9 @@ use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
+use App\Http\Requests\Account\ChangeEmailRequest;
 use App\Http\Requests\Account\ChangePasswordRequest;
 use App\Http\Requests\Account\CodeRequest;
-use App\Http\Requests\Account\EmailRequest;
 use App\Http\Requests\Account\ProfileRequest;
 use App\Models\Customer;
 use App\Models\TelegramAccount;
@@ -124,12 +124,13 @@ class ProfileController extends Controller
     /**
      * E-mail change, step 1: a code goes to the new address.
      */
-    public function requestEmail(EmailRequest $request, CustomerAuthService $auth): RedirectResponse
+    public function requestEmail(ChangeEmailRequest $request, CustomerAuthService $auth): RedirectResponse
     {
         try {
-            $auth->requestEmailChange($this->customer($request), $request->email(), (string) $request->ip());
+            $auth->requestEmailChange($this->customer($request), $request->email(), (string) $request->ip(), (string) $request->validated('email_current_password'), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
-            return $this->failure($request, $e);
+            // The form has its own field name, so the error does not show under the change-password form.
+            return $this->failure($request, $e->field === 'current_password' ? new CustomerAuthException($e->getMessage(), 'email_current_password') : $e);
         }
 
         $request->session()->put(self::NEW_EMAIL_KEY, $request->email());
@@ -163,7 +164,7 @@ class ProfileController extends Controller
         }
 
         try {
-            $auth->requestEmailChange($this->customer($request), $email, (string) $request->ip());
+            $auth->resendEmailChangeCode($this->customer($request), $email, (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
@@ -183,7 +184,7 @@ class ProfileController extends Controller
         }
 
         try {
-            $auth->confirmEmailChange($this->customer($request), $email, $request->code(), (string) $request->ip(), $request->session());
+            $auth->confirmEmailChange($this->customer($request), $email, $request->code(), (string) $request->ip(), $request->session(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }

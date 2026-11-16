@@ -57,7 +57,7 @@ it('rejects a non-canonical address on registration, sign-in, reset, login code 
     $this->post(route('customer.password.send-code'), ['email' => 'иван@example.com'])->assertSessionHasErrors('email');
 
     signInCustomer($this, $customer);
-    $this->post(route('customer.email.request'), ['email' => 'иван@example.com'])->assertSessionHasErrors('email');
+    $this->post(route('customer.email.request'), ['email' => 'иван@example.com', 'email_current_password' => 'password-123'])->assertSessionHasErrors('email');
 
     expect(Customer::query()->count())->toBe(1);
     Mail::assertNothingQueued();

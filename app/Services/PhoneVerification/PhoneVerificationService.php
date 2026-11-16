@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\PhoneVerification;
 
 use App\Enums\AuditAction;
+use App\Enums\OrderStatus;
 use App\Enums\PhoneVerificationBehavior;
 use App\Enums\PhoneVerificationDriver;
 use App\Enums\PhoneVerificationError;
@@ -16,10 +17,12 @@ use App\Exceptions\PhoneProviderFailure;
 use App\Exceptions\PhoneProviderRefusal;
 use App\Exceptions\PhoneVerificationException;
 use App\Models\Customer;
+use App\Models\Order;
 use App\Models\PhoneVerification;
 use App\Models\User;
 use App\Services\Users\AuditLogger;
 use App\Settings\PhoneVerificationSettings;
+use App\Support\ClientIpKey;
 use App\Support\PhoneNormalizer;
 use App\Support\PiiMask;
 use App\Support\ShopName;
@@ -40,8 +43,10 @@ use Illuminate\Support\Str;
  *  - One provider call per request, never a call and an SMS in one request, no retries. The SMS follows a call only on
  *    {@see requestSms()} (the customer's button, not earlier than 60 s after the call).
  *  - Limits (RateLimiter on the cache, NF-53): per number 1 per 60 s, 3 per hour, 6 per day; per IP (IPv6 by /64) and per
- *    session 10 per hour; entries: 20 per hour per IP, 15 wrong per day per number, then the number is locked for 24 h.
- *    The shop's daily limit is counted in the database (rows accepted by the provider).
+ *    session 10 per hour, per IP 15 per day (SEC-01, D-198); every limit is counted first and judged afterwards (SEC-03).
+ *    Entries: 20 per hour per IP; 15 wrong guesses per day per requester (number + IP) lock that requester out of the
+ *    number for 24 h (SEC-04, D-200). The shop's daily limit is counted in the database (rows accepted by the provider);
+ *    guests may use only {@see GUEST_SHARE_PERCENT} % of it (SEC-01).
  *  - Only a provider failure of the PV-05 list (network, timeout, 5xx, authorization) may skip a verification, and only
  *    when the owner chose so. Limits, a wrong code, an expired code, too many attempts, a zero balance never skip.
  *  - A verified number is remembered in the session for 24 hours and for the same purpose ({@see isVerified()}).
@@ -67,6 +72,12 @@ final class PhoneVerificationService
     public const PER_IP_PER_HOUR = 10;
 
     public const PER_SESSION_PER_HOUR = 10;
+
+    /** SEC-01, D-198: starts per 24 h from one IP (IPv6: /64). */
+    public const PER_IP_PER_DAY = 15;
+
+    /** SEC-01, D-198: the share of `daily_limit` guests may use; the rest is for signed-in customers and known buyers. */
+    public const GUEST_SHARE_PERCENT = 80;
 
     public const ENTRIES_PER_IP_PER_HOUR = 20;
 
@@ -240,9 +251,9 @@ final class PhoneVerificationService
     public function verify(string $phone, PhoneVerificationPurpose $purpose, string $code, Session $session, string $ip): PhoneVerification
     {
         $phone = $this->normalize($phone);
-        $this->assertNotLocked($phone);
+        $this->assertNotLocked($phone, $ip);
 
-        $ipKey = 'phone-verification:entry-ip:'.$this->ipKey($ip);
+        $ipKey = 'phone-verification:entry-ip:'.ClientIpKey::of($ip);
 
         if (RateLimiter::tooManyAttempts($ipKey, self::ENTRIES_PER_IP_PER_HOUR)) {
             throw PhoneVerificationException::throttled(RateLimiter::availableIn($ipKey));
@@ -262,15 +273,15 @@ final class PhoneVerificationService
             ->orderByDesc('id')
             ->first();
 
+        // SEC-04: only a real guess against an open code counts. Without an open challenge of THIS session (the query is
+        // bound to the session that started the code) nobody can guess anything, so nothing is counted and an outsider
+        // cannot burn the number's budget.
         if ($row === null) {
-            $this->registerWrongEntry($phone);
-
             throw new PhoneVerificationException(PhoneVerificationError::NoActiveCode);
         }
 
         if ($row->expires_at->lte(now())) {
             $this->finish($row, PhoneVerificationOutcome::Expired);
-            $this->registerWrongEntry($phone);
 
             throw new PhoneVerificationException(PhoneVerificationError::Expired);
         }
@@ -284,7 +295,6 @@ final class PhoneVerificationService
 
         if ($counted === 0) {
             $this->finish($row, PhoneVerificationOutcome::Failed);
-            $this->registerWrongEntry($phone);
 
             throw new PhoneVerificationException(PhoneVerificationError::TooManyAttempts);
         }
@@ -299,7 +309,7 @@ final class PhoneVerificationService
                 $this->finish($row, PhoneVerificationOutcome::Failed);
             }
 
-            $this->registerWrongEntry($phone);
+            $this->registerWrongEntry($phone, $ip);
 
             throw new PhoneVerificationException($row->attempts >= self::MAX_ATTEMPTS ? PhoneVerificationError::TooManyAttempts : PhoneVerificationError::WrongCode);
         }
@@ -463,11 +473,12 @@ final class PhoneVerificationService
 
         $binding = $this->binding($session);
 
-        $this->assertNotLocked($phone);
+        $this->assertNotLocked($phone, $ip);
         $this->consumeLimits($phone, $ip, $binding);
 
-        // The daily limit of the shop is counted in the database, not in the cache (PV-06).
-        if ($this->dailyUsage() >= max(0, $this->settings->daily_limit)) {
+        // The daily limit of the shop is counted in the database, not in the cache (PV-06). A refused start leaves no
+        // accepted row, so it never burns this budget (D-199). Guests stop at their share (SEC-01).
+        if ($this->dailyBudgetExhausted($phone, $purpose, $customer)) {
             $this->alerts->dailyLimit($this->settings->daily_limit);
 
             if ($purpose !== PhoneVerificationPurpose::Test && $this->behavior($this->settings->on_daily_limit, PhoneVerificationBehavior::Block) === PhoneVerificationBehavior::Skip) {
@@ -569,34 +580,80 @@ final class PhoneVerificationService
     }
 
     /**
-     * Number, IP and session limits of PV-06: all are checked first, then all are counted, so a refused request uses up
-     * no quota. Throws with the longest wait of the limits that hold.
+     * Number, IP and session limits of PV-06 (SEC-01, SEC-03, D-198, D-199). Every limit is COUNTED FIRST and judged on the
+     * returned count (`hit() > max`), so parallel requests cannot all pass a check made before any of them counted.
+     * The limits are applied in three gates, and a refusal stops at its gate: (1) the requester's own limits (IP per
+     * hour, IP per day, session) - a refused outsider never touches the counters of a number he asks for; (2) the pause
+     * of the number; (3) the number's hour and day limits. Counters of the gates passed stay counted (that is what makes
+     * a burst fail). The shop-wide daily budget is not a counter, it is read from accepted rows, so a refusal never
+     * burns it. Throws with the longest wait of the limits that hold in the failing gate.
      */
     private function consumeLimits(string $phone, string $ip, string $binding): void
     {
-        $limits = [
-            [$this->numberKey('pause', $phone), 1, self::PAUSE_SECONDS],
+        $ipKey = ClientIpKey::of($ip);
+
+        $this->hitGate([
+            ['phone-verification:ip:'.$ipKey, self::PER_IP_PER_HOUR, self::HOUR],
+            ['phone-verification:ip-day:'.$ipKey, self::PER_IP_PER_DAY, self::DAY],
+            ['phone-verification:session:'.$binding, self::PER_SESSION_PER_HOUR, self::HOUR],
+        ]);
+        $this->hitGate([[$this->numberKey('pause', $phone), 1, self::PAUSE_SECONDS]]);
+        $this->hitGate([
             [$this->numberKey('hour', $phone), self::PER_NUMBER_PER_HOUR, self::HOUR],
             [$this->numberKey('day', $phone), self::PER_NUMBER_PER_DAY, self::DAY],
-            ['phone-verification:ip:'.$this->ipKey($ip), self::PER_IP_PER_HOUR, self::HOUR],
-            ['phone-verification:session:'.$binding, self::PER_SESSION_PER_HOUR, self::HOUR],
-        ];
+        ]);
+    }
 
+    /**
+     * @param  list<array{0: string, 1: int, 2: int}>  $limits  key, maximum, window in seconds
+     */
+    private function hitGate(array $limits): void
+    {
         $wait = 0;
 
-        foreach ($limits as [$key, $max]) {
-            if (RateLimiter::tooManyAttempts($key, $max)) {
-                $wait = max($wait, RateLimiter::availableIn($key));
+        foreach ($limits as [$key, $max, $decay]) {
+            if (RateLimiter::hit($key, $decay) > $max) {
+                $wait = max($wait, RateLimiter::availableIn($key), 1);
             }
         }
 
         if ($wait > 0) {
             throw PhoneVerificationException::throttled($wait);
         }
+    }
 
-        foreach ($limits as [$key, , $decay]) {
-            RateLimiter::hit($key, $decay);
+    /**
+     * The shop's daily budget is spent for this request: all of `daily_limit`, or, for a guest, the guest share of it
+     * (SEC-01). Signed-in customers, numbers with a completed order and the admin test use the whole budget.
+     */
+    private function dailyBudgetExhausted(string $phone, PhoneVerificationPurpose $purpose, ?Customer $customer): bool
+    {
+        $limit = max(0, $this->settings->daily_limit);
+        $usage = $this->dailyUsage();
+
+        if ($usage >= $limit) {
+            return true;
         }
+
+        if ($customer !== null || $purpose === PhoneVerificationPurpose::Test) {
+            return false;
+        }
+
+        $guestCap = $limit > 0 ? max(1, intdiv($limit * self::GUEST_SHARE_PERCENT, 100)) : 0;
+
+        return $usage >= $guestCap && ! $this->hasCompletedOrder($phone);
+    }
+
+    /**
+     * A number that bought something already (status `completed`: «Выполнен» / «Выкуплен»). Cancelled, expired, closed
+     * inquiries and orders still in progress do not count: they cost the shop nothing to fake.
+     */
+    private function hasCompletedOrder(string $phone): bool
+    {
+        return Order::query()
+            ->where('customer_phone', $phone)
+            ->where('status', OrderStatus::Completed->value)
+            ->exists();
     }
 
     private function assertEnabled(): void
@@ -606,9 +663,9 @@ final class PhoneVerificationService
         }
     }
 
-    private function assertNotLocked(string $phone): void
+    private function assertNotLocked(string $phone, string $ip): void
     {
-        $until = Cache::get($this->lockKey($phone));
+        $until = Cache::get($this->lockKey($phone, $ip));
         $left = is_int($until) ? $until - now()->getTimestamp() : 0;
 
         if ($left > 0) {
@@ -617,14 +674,15 @@ final class PhoneVerificationService
     }
 
     /**
-     * 15 wrong entries a day lock the number for 24 hours (PV-03).
+     * 15 wrong guesses a day from one requester (IP, IPv6 by /64) lock that requester out of the number for 24 hours
+     * (PV-03, SEC-04, D-200): an outsider can lock only himself, never the owner of the number.
      */
-    private function registerWrongEntry(string $phone): void
+    private function registerWrongEntry(string $phone, string $ip): void
     {
-        $count = RateLimiter::hit($this->numberKey('wrong', $phone), self::DAY);
+        $count = RateLimiter::hit($this->numberKey('wrong', $phone).':'.sha1(ClientIpKey::of($ip)), self::DAY);
 
         if ($count >= self::WRONG_ENTRIES_PER_DAY) {
-            Cache::add($this->lockKey($phone), now()->getTimestamp() + self::DAY, self::DAY);
+            Cache::add($this->lockKey($phone, $ip), now()->getTimestamp() + self::DAY, self::DAY);
         }
     }
 
@@ -736,31 +794,8 @@ final class PhoneVerificationService
         return 'phone-verification:'.$kind.':'.sha1($phone);
     }
 
-    private function lockKey(string $phone): string
+    private function lockKey(string $phone, string $ip): string
     {
-        return 'phone-verification:lock:'.sha1($phone);
-    }
-
-    /**
-     * IPv4 as is, IPv6 by its /64 subnet (PV-06): one customer's whole subnet is one «address».
-     */
-    private function ipKey(string $ip): string
-    {
-        $packed = @inet_pton($ip);
-
-        if ($packed === false) {
-            return sha1($ip);
-        }
-
-        if (strlen($packed) === 16) {
-            // ::ffff:a.b.c.d is an IPv4 address in disguise.
-            if (str_starts_with($packed, str_repeat("\0", 10)."\xff\xff")) {
-                return bin2hex(substr($packed, 12));
-            }
-
-            return bin2hex(substr($packed, 0, 8)).'/64';
-        }
-
-        return bin2hex($packed);
+        return 'phone-verification:lock:'.sha1($phone).':'.sha1(ClientIpKey::of($ip));
     }
 }

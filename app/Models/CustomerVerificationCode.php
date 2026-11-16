@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property CarbonInterface $sent_at
  * @property CarbonInterface|null $consumed_at
  * @property string $ip
+ * @property string|null $session_hash
  * @property array<string, mixed>|null $payload
  * @property CarbonInterface|null $created_at
  */

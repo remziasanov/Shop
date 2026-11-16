@@ -77,6 +77,7 @@ class EnvironmentChecker
             'app_url' => fn () => $this->appUrl(),
             'trusted_hosts' => fn () => $this->trustedHosts(),
             'session_secure' => fn () => $this->sessionSecure(),
+            'client_ip' => fn () => $this->clientIp(),
             'cache_store' => fn () => $this->cacheStore(),
             'queue_connection' => fn () => $this->queueConnection(),
             'log_level' => fn () => $this->logLevel(),
@@ -261,6 +262,18 @@ class EnvironmentChecker
         }
 
         return $this->result('session_secure', CheckStatus::Ok, $secure ? __('system.values.on') : __('system.values.off'));
+    }
+
+    /**
+     * Hardening S3-1: the address the app sees for the current request. Every per-IP limit uses it; behind a hosting
+     * proxy that hides the visitor it would be one shared counter, so the owner compares it with their own address.
+     */
+    private function clientIp(): CheckResult
+    {
+        // The console has no visitor (REMOTE_ADDR is empty): the value then points to the page.
+        $ip = (string) request()->ip();
+
+        return $this->result('client_ip', CheckStatus::Ok, $ip === '' ? __('system.values.client_ip_cli') : $ip, __('system.hints.client_ip'));
     }
 
     private function cacheStore(): CheckResult

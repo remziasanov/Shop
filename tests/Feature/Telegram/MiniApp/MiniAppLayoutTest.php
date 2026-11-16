@@ -75,17 +75,17 @@ it('marks the main buttons with data-tg-main (TM-07)', function (): void {
 });
 
 it('sends the frame headers of Telegram on /tg and in the Telegram mode only (TM-12)', function (): void {
-    $this->get('/')->assertHeader('X-Frame-Options', 'SAMEORIGIN')->assertHeaderMissing('Content-Security-Policy');
+    $this->get('/')->assertHeader('X-Frame-Options', 'SAMEORIGIN')->assertHeader('Content-Security-Policy', "object-src 'none'; base-uri 'self'");
 
     $entry = $this->get('/tg');
     $entry->assertHeaderMissing('X-Frame-Options');
-    expect($entry->headers->get('Content-Security-Policy'))->toBe("frame-ancestors 'self' https://web.telegram.org");
+    expect($entry->headers->get('Content-Security-Policy'))->toBe("frame-ancestors 'self' https://web.telegram.org; object-src 'none'; base-uri 'self'");
 
     tgVisitor();
 
     $page = $this->get('/catalog');
     $page->assertHeaderMissing('X-Frame-Options');
-    expect($page->headers->get('Content-Security-Policy'))->toBe("frame-ancestors 'self' https://web.telegram.org");
+    expect($page->headers->get('Content-Security-Policy'))->toBe("frame-ancestors 'self' https://web.telegram.org; object-src 'none'; base-uri 'self'");
 });
 
 it('never lets the admin panel be framed, even in the Telegram mode (TM-12)', function (): void {
@@ -95,7 +95,7 @@ it('never lets the admin panel be framed, even in the Telegram mode (TM-12)', fu
     $response = $this->get('/'.$admin.'/login');
 
     $response->assertHeader('X-Frame-Options', 'SAMEORIGIN');
-    expect($response->headers->get('Content-Security-Policy'))->toBeNull();
+    expect($response->headers->get('Content-Security-Policy'))->toBe("object-src 'none'; base-uri 'self'");
 });
 
 it('shows the closed-shop page in the Telegram mode for a visitor (TM-11)', function (): void {

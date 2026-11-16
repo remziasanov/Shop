@@ -18,6 +18,7 @@ return [
     ],
     'values' => [
         'enabled' => 'включено',
+        'client_ip_cli' => 'не определяется в консоли: откройте страницу «Система» в админке',
         'missing' => 'отсутствует',
         'writable' => 'доступна запись',
         'not_writable' => 'нет доступа на запись',
@@ -50,6 +51,7 @@ return [
         'app_debug' => 'APP_DEBUG',
         'app_url' => 'APP_URL',
         'trusted_hosts' => 'Доверенные домены',
+        'client_ip' => 'Адрес посетителя, который видит приложение',
         'session_secure' => 'SESSION_SECURE_COOKIE',
         'cache_store' => 'Кэш (CACHE_STORE)',
         'queue_connection' => 'Очередь (QUEUE_CONNECTION)',
@@ -97,6 +99,7 @@ return [
         'app_debug' => 'Установите APP_DEBUG=false в файле .env.',
         'app_url_invalid' => 'Укажите в .env полный адрес сайта, например APP_URL=https://example.ru.',
         'app_url_https' => 'В production адрес сайта должен начинаться с https://: исправьте APP_URL в .env.',
+        'client_ip' => 'Сравните с вашим адресом (любой сервис «мой IP»). Если показан адрес прокси хостинга, пределы по адресам (вход, формы, Telegram) общие для всех посетителей.',
         'trusted_hosts' => 'Запросы с других доменов отклоняются. Технический домен Beget добавьте в SHOP_EXTRA_HOSTS (через запятую).',
         'session_secure' => 'Установите SESSION_SECURE_COOKIE=true в .env, чтобы сессия не передавалась по http.',
         'cache_store' => 'Redis и Memcached недоступны на хостинге: установите CACHE_STORE=file.',

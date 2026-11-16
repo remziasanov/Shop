@@ -18,6 +18,7 @@ use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
 
@@ -40,6 +41,9 @@ class ManageNotificationSettings extends SettingsPage
                 Actions::make([
                     Action::make('sendTestMail')
                         ->label(__('shop.settings.notifications.send_test_mail'))
+                        // D-206: sending mail is part of changing this page, a view-only role may not trigger it.
+                        ->visible(fn (): bool => $this->canEdit())
+                        ->authorize(fn (): bool => $this->canEdit())
                         ->action(fn () => $this->sendTestMail()),
                 ])->key('testMailActions'),
                 Repeater::make('notify_emails')
@@ -103,6 +107,8 @@ class ManageNotificationSettings extends SettingsPage
 
     private function sendTestMail(): void
     {
+        abort_unless($this->canEdit(), 403);
+
         $recipients = array_values(array_filter(array_map(
             fn (mixed $row): ?string => is_array($row) ? ($row['email'] ?? null) : (is_string($row) ? $row : null),
             (array) ($this->data['notify_emails'] ?? []),
@@ -118,7 +124,9 @@ class ManageNotificationSettings extends SettingsPage
         try {
             Mail::to($to)->send(new TestMail);
         } catch (Throwable $e) {
-            Notification::make()->danger()->title(__('notifications.test.mail_failed', ['error' => $e->getMessage()]))->send();
+            // NF-15: the mailer message may contain addresses; only the class is logged and shown generically.
+            Log::warning('Test mail failed', ['exception' => $e::class]);
+            Notification::make()->danger()->title(__('notifications.test.mail_failed'))->send();
 
             return;
         }

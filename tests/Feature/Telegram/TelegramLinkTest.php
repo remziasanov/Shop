@@ -89,11 +89,12 @@ describe('issuing', function (): void {
 
 describe('customer link (c_)', function (): void {
     it('asks with the masked e-mail and links only after «Подключить»; then mails the owner and writes a cabinet note (TG-07)', function (): void {
-        $customer = Customer::factory()->create(['email' => 'ivan@mail.ru']);
+        $customer = Customer::factory()->create(['email' => 'ivan@mail.ru', 'name' => 'Иван Петров']);
         $param = startParam(app(TelegramLinkService::class)->customerLink($customer));
 
         $question = telegramWebhook(tgMessage(1, '/start '.$param));
-        $question->assertJsonPath('text', __('telegram.link.confirm_customer', ['email' => 'i***@mail.ru']))
+        // Hardening S3-7: the first name and the phishing warning are shown next to the masked e-mail.
+        $question->assertJsonPath('text', __('telegram.link.confirm_customer', ['email' => 'i***@mail.ru', 'name' => 'Иван'])."\n\n".__('telegram.link.confirm_warning'))
             ->assertJsonPath('reply_markup.inline_keyboard.0.0.text', __('telegram.link.button_connect'))
             ->assertJsonPath('reply_markup.inline_keyboard.0.1.text', __('telegram.link.button_decline'));
 

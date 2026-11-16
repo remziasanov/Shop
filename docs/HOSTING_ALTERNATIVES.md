@@ -79,7 +79,7 @@
 | `BEGET_SSH_KEY` | приватный ключ целиком, со строками `BEGIN`/`END` |
 | `BEGET_PATH` | полный путь к папке сайта, например `/home/u/user/example.ru` (без корня сайта на конце) |
 | `BEGET_PHP` | путь к консольному PHP из шага 2.1.4 |
-| `BEGET_KNOWN_HOSTS` | необязательно: `ssh-keyscan -t ed25519 АДРЕС` |
+| `BEGET_KNOWN_HOSTS` | обязательно (деплой без него останавливается): `ssh-keyscan -t ed25519 АДРЕС` |
 
 3. **Environment variables** (не секреты, вкладка рядом):
 

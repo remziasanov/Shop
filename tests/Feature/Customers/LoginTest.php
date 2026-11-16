@@ -207,3 +207,31 @@ it('shows the sign-in link to guests and the account menu to customers (CA-19)',
 it('never exposes the password or the remember token', function (): void {
     expect(Customer::query()->first()->toArray())->not->toHaveKeys(['password', 'remember_token', 'blocked_reason']);
 });
+
+it('throttles password sign-in per IP after 20 failures for any addresses; another IP is unaffected (SEC-02)', function (): void {
+    foreach (range(1, 20) as $i) {
+        $this->post(route('customer.login.store'), loginBody(['email' => "spray{$i}@example.com", 'password' => 'wrong-password']))
+            ->assertSessionHasErrors('email');
+    }
+
+    // The 21st attempt from the same IP is refused before the password is checked, even with a correct one.
+    $this->post(route('customer.login.store'), loginBody(['email' => 'spray21@example.com', 'password' => 'wrong-password']))
+        ->assertStatus(429);
+    $this->post(route('customer.login.store'), loginBody())->assertStatus(429);
+    $this->assertGuest('customer');
+
+    // Another client address is not affected.
+    nextRequest();
+    $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.77'])
+        ->post(route('customer.login.store'), loginBody())->assertRedirect();
+    $this->assertAuthenticated('customer');
+});
+
+it('still signs in with the right password from an IP below the failure limit (SEC-02)', function (): void {
+    foreach (range(1, 19) as $i) {
+        $this->post(route('customer.login.store'), loginBody(['email' => "spray{$i}@example.com", 'password' => 'wrong-password']));
+    }
+
+    $this->post(route('customer.login.store'), loginBody())->assertRedirect();
+    $this->assertAuthenticated('customer');
+});

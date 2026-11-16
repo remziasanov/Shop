@@ -13,6 +13,10 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
+    # Hardening S3-3: never execute or serve PHP-like files from uploaded media (no PHP-flag directive here: it breaks
+    # PHP-FPM/CGI with a 500 on shared hosting).
+    RewriteRule ^storage/.*\.(php\d?|phtml|phar)$ - [F,L]
+
     # NF-04: flag static assets for long cache headers (applied by mod_headers below).
     RewriteRule ^build/ - [E=SHOP_CACHE_IMMUTABLE:1]
     RewriteRule ^storage/ - [E=SHOP_CACHE_MONTH:1]

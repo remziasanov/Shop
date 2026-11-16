@@ -13,7 +13,9 @@ use App\Http\Middleware\TelegramCookieMode;
 use App\Http\Middleware\ThemePreviewHeaders;
 use App\Http\Middleware\ValidateCustomerSession;
 use App\Services\Catalog\RedirectService;
+use App\Support\SanitizedQueryException;
 use App\Support\TrustedHosts;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -56,6 +58,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // NF-15, D-206: reported, logged and rendered query exceptions carry no bound values (and no driver text that
+        // may echo a value). With APP_DEBUG on (a developer machine, demo data) the full message stays for debugging.
+        $exceptions->map(fn (QueryException $e) => config('app.debug') ? $e : SanitizedQueryException::from($e));
 
         // SF-80, D-018: a storefront 404 (unknown route or ModelNotFoundException, which Laravel converts
         // to NotFoundHttpException) is checked against the slug-change redirects; only then is a query made.

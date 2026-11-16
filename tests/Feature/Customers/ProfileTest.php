@@ -6,7 +6,9 @@ use App\Enums\VerificationPurpose;
 use App\Events\CustomerEmailVerified;
 use App\Mail\CustomerCodeMail;
 use App\Mail\CustomerEmailChangedMail;
+use App\Models\CustomerVerificationCode;
 use App\Services\Customers\CustomerAuthService;
+use App\Settings\CustomerSettings;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -67,7 +69,7 @@ it('cannot change e-mail, group or blocking through the profile form (mass assig
 it('changes the e-mail with a code sent to the new address, keeps this session, ends the others, tells the old address (CA-08)', function (): void {
     Event::fake([CustomerEmailVerified::class]);
 
-    $this->post(route('customer.email.request'), ['email' => 'Brand.New@Example.com'])->assertRedirect(route('customer.email.confirm'));
+    $this->post(route('customer.email.request'), ['email' => 'Brand.New@Example.com', 'email_current_password' => 'password-123'])->assertRedirect(route('customer.email.confirm'));
     Mail::assertQueued(CustomerCodeMail::class, fn (CustomerCodeMail $mail): bool => $mail->hasTo('brand.new@example.com') && $mail->purpose === VerificationPurpose::ChangeEmail);
     expect($this->customer->fresh()->email)->toBe('profile.owner@example.com');
 
@@ -91,7 +93,7 @@ it('changes the e-mail with a code sent to the new address, keeps this session, 
 });
 
 it('does not change the e-mail with a wrong code', function (): void {
-    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com']);
+    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com', 'email_current_password' => 'password-123']);
 
     $this->post(route('customer.email.confirm.store'), ['code' => '000000'])->assertSessionHasErrors('code');
 
@@ -100,7 +102,7 @@ it('does not change the e-mail with a wrong code', function (): void {
 
 it('does not take the code of another customer for the e-mail change', function (): void {
     $other = makeCustomer(['email' => 'second.owner@example.com']);
-    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com']);
+    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com', 'email_current_password' => 'password-123']);
     $code = lastSentCode(VerificationPurpose::ChangeEmail);
 
     session()->flush();
@@ -115,15 +117,15 @@ it('does not take the code of another customer for the e-mail change', function 
 it('refuses the same address and an address of another confirmed account', function (): void {
     makeCustomer(['email' => 'taken@example.com']);
 
-    $this->post(route('customer.email.request'), ['email' => 'profile.owner@example.com'])->assertSessionHasErrors('email');
-    $this->post(route('customer.email.request'), ['email' => 'taken@example.com'])->assertSessionHasErrors('email');
+    $this->post(route('customer.email.request'), ['email' => 'profile.owner@example.com', 'email_current_password' => 'password-123'])->assertSessionHasErrors('email');
+    $this->post(route('customer.email.request'), ['email' => 'taken@example.com', 'email_current_password' => 'password-123'])->assertSessionHasErrors('email');
     Mail::assertNothingQueued();
 });
 
 it('replaces an unconfirmed account that only holds the new address', function (): void {
     makeCustomer(['email' => 'squatter@example.com', 'email_verified_at' => null]);
 
-    $this->post(route('customer.email.request'), ['email' => 'squatter@example.com'])->assertRedirect(route('customer.email.confirm'));
+    $this->post(route('customer.email.request'), ['email' => 'squatter@example.com', 'email_current_password' => 'password-123'])->assertRedirect(route('customer.email.confirm'));
     $this->post(route('customer.email.confirm.store'), ['code' => lastSentCode(VerificationPurpose::ChangeEmail)])->assertRedirect(route('customer.profile'));
 
     expect($this->customer->fresh()->email)->toBe('squatter@example.com');
@@ -162,19 +164,55 @@ it('limits e-mail change requests before it says that an address is taken (CA-05
 
     // The refusal is an answer only behind the limits: the 5th request per address still gets it, the 6th gets 429.
     foreach (range(1, 5) as $_) {
-        $this->post(route('customer.email.request'), ['email' => 'taken@example.com'])->assertSessionHasErrors('email');
+        $this->post(route('customer.email.request'), ['email' => 'taken@example.com', 'email_current_password' => 'password-123'])->assertSessionHasErrors('email');
         $this->travel(61)->seconds();
     }
 
-    $this->post(route('customer.email.request'), ['email' => 'taken@example.com'])->assertStatus(429);
+    $this->post(route('customer.email.request'), ['email' => 'taken@example.com', 'email_current_password' => 'password-123'])->assertStatus(429);
     Mail::assertNothingQueued();
 });
 
 it('limits e-mail change requests per customer across different addresses (CA-12)', function (): void {
     foreach (range(1, CustomerAuthService::EMAIL_CHANGES_PER_HOUR) as $i) {
         makeCustomer(['email' => "taken{$i}@example.com"]);
-        $this->post(route('customer.email.request'), ['email' => "taken{$i}@example.com"])->assertSessionHasErrors('email');
+        $this->post(route('customer.email.request'), ['email' => "taken{$i}@example.com", 'email_current_password' => 'password-123'])->assertSessionHasErrors('email');
     }
 
-    $this->post(route('customer.email.request'), ['email' => 'free.address@example.com'])->assertStatus(429);
+    $this->post(route('customer.email.request'), ['email' => 'free.address@example.com', 'email_current_password' => 'password-123'])->assertStatus(429);
+});
+
+it('needs the current password to start an e-mail change and issues no code without it (SEC-05)', function (): void {
+    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com'])->assertSessionHasErrors('email_current_password');
+    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com', 'email_current_password' => 'wrong-password'])->assertSessionHasErrors('email_current_password');
+
+    Mail::assertNothingQueued();
+    expect(CustomerVerificationCode::query()->count())->toBe(0);
+
+    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com', 'email_current_password' => 'password-123'])
+        ->assertRedirect(route('customer.email.confirm'));
+    Mail::assertQueued(CustomerCodeMail::class, fn (CustomerCodeMail $mail): bool => $mail->hasTo('brand.new@example.com'));
+});
+
+it('resends the e-mail change code without asking for the password again (SEC-05)', function (): void {
+    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com', 'email_current_password' => 'password-123']);
+    $this->travel(app(CustomerSettings::class)->code_resend_seconds + 1)->seconds();
+
+    $this->from(route('customer.email.confirm'))->post(route('customer.email.confirm.resend'))->assertSessionHasNoErrors();
+});
+
+it('tells the old address what to do when the change was not theirs (SEC-05)', function (): void {
+    $html = (new CustomerEmailChangedMail('b***@example.com'))->render();
+
+    expect($html)->toContain(__('account.mail.email_changed_hint'));
+});
+
+it('shows a wrong e-mail form password only on the e-mail form, not on the change-password form (SEC-05)', function (): void {
+    $this->post(route('customer.email.request'), ['email' => 'brand.new@example.com', 'email_current_password' => 'wrong-password']);
+
+    $html = $this->get(route('customer.profile'))->assertOk()->getContent();
+    $emailForm = substr($html, strpos($html, 'profile-email-title'), strpos($html, 'profile-password-title') - strpos($html, 'profile-email-title'));
+    $passwordForm = substr($html, strpos($html, 'profile-password-title'));
+
+    expect($emailForm)->toContain(__('account.errors.current_password'))
+        ->and($passwordForm)->not->toContain(__('account.errors.current_password'));
 });
