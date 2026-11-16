@@ -250,8 +250,9 @@ describe('the workplace (TS-06)', function (): void {
     });
 
     it('searches by number, phone and name', function (): void {
-        $a = Order::factory()->order()->create(['customer_name' => 'Анатолий Звонарёв', 'customer_phone' => '+79001112233']);
-        $b = Order::factory()->order()->create(['customer_name' => 'Борис Другой', 'customer_phone' => '+79004445566']);
+        // Fixed numbers: random factory numbers could contain the searched digits («1112») or be part of the other phone.
+        $a = Order::factory()->order()->create(['number' => 'Z-00777', 'customer_name' => 'Анатолий Звонарёв', 'customer_phone' => '+79001112233']);
+        $b = Order::factory()->order()->create(['number' => 'Z-00888', 'customer_name' => 'Борис Другой', 'customer_phone' => '+79004445566']);
 
         Livewire::test(WorkplaceList::class)->set('tab', 'all')
             ->set('search', 'Звонар')->assertSee('Анатолий')->assertDontSee('Борис')
