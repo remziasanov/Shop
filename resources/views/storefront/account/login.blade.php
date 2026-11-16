@@ -42,6 +42,11 @@
                 {{ __('account.login.no_account') }}
                 <a href="{{ route('customer.register') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.register.submit') }}</a>
             </p>
+            {{-- SEC-06: shown to everybody, so it says nothing about any address. --}}
+            <p class="mt-3 text-sm text-ink-mid" data-unconfirmed-hint>
+                {{ __('account.login.unconfirmed_hint') }}
+                <a href="{{ route('customer.register') }}" class="text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{{ __('account.login.unconfirmed_link') }}</a>
+            </p>
         @endif
     </x-account.card>
 @endsection

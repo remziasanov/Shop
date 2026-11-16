@@ -6,7 +6,9 @@ use App\Enums\VerificationPurpose;
 use App\Mail\CustomerCodeMail;
 use App\Models\Customer;
 use App\Services\Customers\CustomerAuthService;
+use App\Support\ClientIpKey;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 
 beforeEach(function (): void {
     $this->withoutVite();
@@ -238,4 +240,21 @@ it('still signs in with the right password from an IP below the failure limit (S
 
     $this->post(route('customer.login.store'), loginBody())->assertRedirect();
     $this->assertAuthenticated('customer');
+});
+
+it('gives the per-IP failure slot back on a successful sign-in and counts failures before the password check (SEC-02, D-193)', function (): void {
+    $key = 'customer-login:ip-fail:'.ClientIpKey::of('127.0.0.1');
+
+    $this->post(route('customer.login.store'), loginBody(['password' => 'wrong-password']));
+    expect(RateLimiter::attempts($key))->toBe(1);
+
+    $this->post(route('customer.login.store'), loginBody())->assertRedirect();
+    expect(RateLimiter::attempts($key))->toBe(1);
+});
+
+it('shows a neutral hint for a customer who never entered the registration code, on every sign-in page view (SEC-06)', function (): void {
+    $this->get(route('customer.login'))
+        ->assertOk()
+        ->assertSee('Регистрировались, но не ввели код из письма?')
+        ->assertSee(route('customer.register'), false);
 });

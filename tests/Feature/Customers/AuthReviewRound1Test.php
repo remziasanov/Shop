@@ -171,3 +171,14 @@ it('caps the wrong current-password checks per customer per day (SEC-05)', funct
     expect(Hash::check('password-123', $customer->fresh()->password))->toBeTrue()
         ->and(RateLimiter::attempts('customer-current-password:day:'.$customer->id))->toBeGreaterThanOrEqual(20);
 });
+
+it('does not use up the daily current-password checks with requests the minute limit refused (SEC-05)', function (): void {
+    $customer = signInCustomer($this, makeCustomer());
+
+    foreach (range(1, 25) as $_) {
+        $this->post(route('customer.profile.password'), ['current_password' => 'wrong', 'password' => 'brand-new-pass-7', 'password_confirmation' => 'brand-new-pass-7']);
+    }
+
+    // Only the 5 checks that passed the minute limit are counted for the day.
+    expect(RateLimiter::attempts('customer-current-password:day:'.$customer->id))->toBe(5);
+});

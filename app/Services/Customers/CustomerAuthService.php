@@ -240,13 +240,17 @@ final class CustomerAuthService
         // SEC-02: failed sign-ins of this client for ANY address; checked before the password hash is computed.
         $ipFailKey = 'customer-login:ip-fail:'.$ipKeyPart;
 
-        if (RateLimiter::tooManyAttempts($ipFailKey, self::PASSWORD_FAILURES_PER_IP)) {
-            throw new CustomerThrottledException(RateLimiter::availableIn($ipFailKey));
+        // D-193: counted first (atomically) so a parallel burst cannot overshoot; the slot is given back on a successful
+        // sign-in and when the pair limit below refuses the request before any password was checked.
+        if (AtomicRateLimiter::hit($ipFailKey, self::PASSWORD_FAILURES_PER_IP_WINDOW) > self::PASSWORD_FAILURES_PER_IP) {
+            throw $this->throttled($ipFailKey);
         }
 
         $attemptsKey = 'customer-login:attempts:'.$pair;
 
         if (AtomicRateLimiter::hit($attemptsKey, 60) > self::PASSWORD_ATTEMPTS_PER_MINUTE) {
+            AtomicRateLimiter::decrement($ipFailKey, self::PASSWORD_FAILURES_PER_IP_WINDOW);
+
             throw $this->throttled($attemptsKey);
         }
 
@@ -264,7 +268,6 @@ final class CustomerAuthService
         $failKey = 'customer-login:fail:'.$pair;
 
         if (! $valid) {
-            AtomicRateLimiter::hit($ipFailKey, self::PASSWORD_FAILURES_PER_IP_WINDOW);
             $failures = AtomicRateLimiter::hit($failKey, self::LOCK_SECONDS);
 
             if ($failures >= self::PASSWORD_FAILURES_BEFORE_LOCK) {
@@ -277,6 +280,7 @@ final class CustomerAuthService
         }
 
         RateLimiter::clear($failKey);
+        AtomicRateLimiter::decrement($ipFailKey, self::PASSWORD_FAILURES_PER_IP_WINDOW);
 
         if ($customer->is_blocked || $customer->anonymized_at !== null) {
             throw new CustomerAuthException(__('account.errors.blocked'));
@@ -724,16 +728,15 @@ final class CustomerAuthService
         $minuteKey = 'customer-current-password:minute:'.$customer->id;
         $dayKey = 'customer-current-password:day:'.$customer->id;
 
-        // Both are counted before the comparison; the day counter is hit first so that a refused minute does not hide it.
-        $dayHits = AtomicRateLimiter::hit($dayKey, 86400);
-        $minuteHits = AtomicRateLimiter::hit($minuteKey, 60);
-
-        if ($dayHits > self::CURRENT_PASSWORD_CHECKS_PER_DAY) {
-            throw $this->throttled($dayKey);
+        // The minute limit goes first: a request it refuses must not use up the owner's daily checks.
+        if (AtomicRateLimiter::hit($minuteKey, 60) > self::PASSWORD_ATTEMPTS_PER_MINUTE) {
+            throw $this->throttled($minuteKey);
         }
 
-        if ($minuteHits > self::PASSWORD_ATTEMPTS_PER_MINUTE) {
-            throw $this->throttled($minuteKey);
+        if (AtomicRateLimiter::hit($dayKey, 86400) > self::CURRENT_PASSWORD_CHECKS_PER_DAY) {
+            AtomicRateLimiter::decrement($minuteKey, 60);
+
+            throw $this->throttled($dayKey);
         }
 
         if (! Hash::check($currentPassword, $customer->password)) {

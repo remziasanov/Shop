@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\RateLimiter;
  * requests read the same value and all pass a limit (security review of PR #51, SEC-03). Each change of a counter is
  * therefore done under a cache lock of that counter: the file store implements locks with `flock`, so they are exclusive
  * across PHP processes. If the lock cannot be taken in time, the request is treated as over every limit (fail closed).
+ *
+ * Usage note for tests: `Lock::block()` measures its timeout with the clock (`Carbon::now()`). A test that freezes time
+ * (`Carbon::setTestNow()` / `travelTo()` without moving it) while a counter lock is held by someone else would wait
+ * forever. Tests that need a held lock must pass `$waitSeconds = 0`.
  */
 final class AtomicRateLimiter
 {

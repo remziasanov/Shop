@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Filament\Avatars\InitialsAvatarProvider;
 use App\Filament\Pages\Settings\ManageNotificationSettings;
+use App\Http\Middleware\SecurityHeaders;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\System\EnvironmentChecker;
@@ -14,6 +15,7 @@ use Filament\Actions\Testing\TestAction;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -74,14 +76,29 @@ it('does not send the CSP on a PDF response but keeps the other headers (S3-2)',
     expect($response->headers->get('Referrer-Policy'))->not->toBeNull();
 });
 
+it('sends only frame-ancestors on a PDF in the Telegram mode and keeps X-Frame-Options outside it (D-202)', function (): void {
+    $middleware = new SecurityHeaders;
+    $pdf = static fn () => new Response('%PDF-1.4', 200, ['Content-Type' => 'application/pdf']);
+
+    $plain = $middleware->handle(Request::create('/orders/1/pdf'), $pdf);
+    expect($plain->headers->get('X-Frame-Options'))->toBe('SAMEORIGIN')
+        ->and($plain->headers->has('Content-Security-Policy'))->toBeFalse();
+
+    $telegram = $middleware->handle(Request::create('/tg/orders/1/pdf'), $pdf);
+    expect($telegram->headers->has('X-Frame-Options'))->toBeFalse()
+        ->and($telegram->headers->get('Content-Security-Policy'))->toBe("frame-ancestors 'self' https://web.telegram.org");
+});
+
 it('sends HSTS only for a secure request in production (S3-2)', function (): void {
     $this->get('/up')->assertHeaderMissing('Strict-Transport-Security');
 
     $this->app['env'] = 'production';
+    // In production TrustHosts accepts only the host of APP_URL (CI uses https://example.ru, a laptop http://localhost).
+    $host = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost';
 
     try {
-        $this->get('https://localhost/up')->assertHeader('Strict-Transport-Security', 'max-age=15552000');
-        $this->get('http://localhost/up')->assertHeaderMissing('Strict-Transport-Security');
+        $this->get("https://{$host}/up")->assertHeader('Strict-Transport-Security', 'max-age=15552000');
+        $this->get("http://{$host}/up")->assertHeaderMissing('Strict-Transport-Security');
     } finally {
         // In production TrustHosts stores the host patterns in a static of the Symfony request: reset them, or later
         // tests with another host get 400 (as CanonicalHostTest does).

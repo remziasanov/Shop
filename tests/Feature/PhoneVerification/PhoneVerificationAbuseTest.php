@@ -253,12 +253,13 @@ describe('PV-03 per-number cap of real guesses (D-200)', function (): void {
 
         expect(RateLimiter::attempts('phone-verification:guesses:'.sha1($phone)))->toBe(15);
 
-        // The 4th challenge (a start is not blocked) cannot be guessed at any more, from any requester.
+        // A 4th start is refused with the same outcome as the entry, and the provider is not called (no paid call/SMS).
         Carbon::setTestNow(now()->addHour());
-        $fourth = phoneSession();
-        $this->pv->start($phone, $this->purpose, $fourth, '203.0.113.99');
-        expectAbuseError(fn () => $this->pv->verify($phone, $this->purpose, wrongCodeFor((string) $this->gateway->lastCode), $fourth, '203.0.113.99'), PhoneVerificationError::NumberLocked);
-        expect(PhoneVerification::query()->latest('id')->firstOrFail()->attempts)->toBe(0);
+        $callsBefore = count($this->gateway->calls);
+        $rowsBefore = PhoneVerification::query()->count();
+        expectAbuseError(fn () => $this->pv->start($phone, $this->purpose, phoneSession(), '203.0.113.99'), PhoneVerificationError::NumberLocked);
+        expect(count($this->gateway->calls))->toBe($callsBefore)
+            ->and(PhoneVerification::query()->count())->toBe($rowsBefore);
     });
 
     it('does not use the cap for a correct entry or an exhausted code', function (): void {

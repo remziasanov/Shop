@@ -375,17 +375,17 @@ describe('limits (PV-06, NF-53)', function (): void {
         expectPvError(fn () => $this->pv->start(PV_PHONE, $this->purpose, $this->session, PV_IP), PhoneVerificationError::NumberLocked);
         expect(count($this->gateway->calls))->toBe(3);
 
-        // Another requester (the owner) can still ask for a code (starting is never blocked by guesses), but the number
-        // has used its 15 real guesses of the day (PV-03, D-200): the entry is refused until the window ends.
+        // Another requester (the owner) is refused as well: the number has used its 15 real guesses of the day
+        // (PV-03, D-200), so no challenge is started and the provider is not called.
         Carbon::setTestNow(now()->addHour());
         $owner = phoneSession();
-        $this->pv->start(PV_PHONE, $this->purpose, $owner, '203.0.113.5');
-        expectPvError(fn () => $this->pv->verify(PV_PHONE, $this->purpose, $this->gateway->lastCode, $owner, '203.0.113.5'), PhoneVerificationError::NumberLocked);
+        expectPvError(fn () => $this->pv->start(PV_PHONE, $this->purpose, $owner, '203.0.113.5'), PhoneVerificationError::NumberLocked);
+        expect(count($this->gateway->calls))->toBe(3);
 
-        // The lock of the first requester expires after 24 hours.
+        // The lock of the first requester and the guess window expire after 24 hours.
         Carbon::setTestNow(now()->addHours(24));
         $this->pv->start(PV_PHONE, $this->purpose, $this->session, PV_IP);
-        expect(count($this->gateway->calls))->toBe(5);
+        expect(count($this->gateway->calls))->toBe(4);
         $this->pv->verify(PV_PHONE, $this->purpose, $this->gateway->lastCode, $this->session, PV_IP);
     });
 });

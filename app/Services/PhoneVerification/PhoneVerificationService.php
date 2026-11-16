@@ -487,6 +487,7 @@ final class PhoneVerificationService
         $binding = $this->binding($session);
 
         $this->assertNotLocked($phone, $ip);
+        $this->assertGuessBudgetLeft($phone);
         $this->consumeLimits($phone, $ip, $binding);
 
         // The daily limit of the shop is counted in the database, not in the cache (PV-06). A refused start leaves no
@@ -684,6 +685,19 @@ final class PhoneVerificationService
     {
         if (! $this->isEnabled()) {
             throw new PhoneVerificationException(PhoneVerificationError::Disabled);
+        }
+    }
+
+    /**
+     * D-200: a number that has used its real guesses of the window gets no new challenge (and no paid call or SMS):
+     * the owner would be refused at the entry anyway. A plain read; nothing is counted here.
+     */
+    private function assertGuessBudgetLeft(string $phone): void
+    {
+        $guessKey = $this->numberKey('guesses', $phone);
+
+        if (RateLimiter::attempts($guessKey) >= self::WRONG_ENTRIES_PER_DAY) {
+            throw PhoneVerificationException::throttled(max(1, RateLimiter::availableIn($guessKey)), PhoneVerificationError::NumberLocked);
         }
     }
 
