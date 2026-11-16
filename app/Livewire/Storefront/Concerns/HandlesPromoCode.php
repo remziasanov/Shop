@@ -54,7 +54,8 @@ trait HandlesPromoCode
         $guard = app(PromoAttemptGuard::class);
         $ip = (string) request()->ip();
         $session = (string) session()->getId();
-        $wait = $guard->retryAfter($ip, $session);
+        // RE-02: the attempt is counted first and then compared (atomically), the IP by its /64 network.
+        $wait = $guard->attempt($ip, $session);
 
         if ($wait > 0) {
             $this->promoError = $guard->message($wait);
@@ -62,7 +63,6 @@ trait HandlesPromoCode
             return;
         }
 
-        $guard->hit($ip, $session);
         $outcome = app(PromoCartService::class)->apply($cart, $carts->summary($cart, $this->summaryChoice()), $input);
 
         if ($outcome->result->isApplied()) {

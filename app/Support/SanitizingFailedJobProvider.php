@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Support;
 
-use Illuminate\Database\QueryException;
 use Illuminate\Queue\Failed\DatabaseUuidFailedJobProvider;
 
 /**
@@ -18,8 +17,9 @@ final class SanitizingFailedJobProvider extends DatabaseUuidFailedJobProvider
 {
     public function log($connection, $queue, $payload, $exception)
     {
-        if ($exception instanceof QueryException && ! config('app.debug')) {
-            $exception = SanitizedQueryException::from($exception);
+        // Also an exception that wraps a QueryException (a ViewException repeats the query text with values).
+        if (! config('app.debug')) {
+            $exception = SanitizedQueryException::sanitize($exception);
         }
 
         return parent::log($connection, $queue, $payload, $exception);

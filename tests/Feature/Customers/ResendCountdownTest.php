@@ -233,5 +233,5 @@ it('reports the longest of the lock, the hourly limit and the pause as the resen
         $this->travel($limit + 1)->seconds();
     }
 
-    expect($codes->resendAvailableIn('svc.hourly@example.com', VerificationPurpose::Login, '192.0.2.20'))->toBeGreaterThan($limit);
+    expect($codes->resendAvailableIn('svc.hourly@example.com', VerificationPurpose::Login, '192.0.2.31'))->toBeGreaterThan($limit);
 });

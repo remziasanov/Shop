@@ -363,3 +363,16 @@ it('keeps the CI and deploy check in sync with the config (D-106)', function () 
 
     expect($parseCode)->toBe(2);
 });
+
+it('warns in production when zend.exception_ignore_args is off (NF-15, RE-hardening 2)', function () {
+    setEnvironment('production');
+
+    $off = iniCheck(['zend.exception_ignore_args' => ''], 'exception_ignore_args');
+
+    expect($off->status)->toBe(CheckStatus::Warning)
+        ->and($off->hint)->toContain('.user.ini')
+        ->and(iniCheck(['zend.exception_ignore_args' => '1'], 'exception_ignore_args')->status)->toBe(CheckStatus::Ok);
+
+    setEnvironment('local');
+    expect(iniCheck(['zend.exception_ignore_args' => ''], 'exception_ignore_args')->status)->toBe(CheckStatus::Ok);
+});

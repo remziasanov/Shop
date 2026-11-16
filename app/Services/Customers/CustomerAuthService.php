@@ -552,7 +552,7 @@ final class CustomerAuthService
         }
 
         // Too early for a new code: refused before the customer's own hourly limit is spent (a repeated click costs nothing).
-        $this->codes->assertPauseOver(VerificationPurpose::ChangeEmail, $newEmail);
+        $this->codes->assertPauseOver(VerificationPurpose::ChangeEmail, $newEmail, $ip);
 
         // CA-05, CA-12: «the address is taken» is an answer that exists only behind the limits, otherwise a signed-in
         // customer could enumerate registered addresses. Every attempt counts per customer, per address and per IP.

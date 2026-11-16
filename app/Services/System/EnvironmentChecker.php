@@ -92,6 +92,7 @@ class EnvironmentChecker
             'post_max_size' => fn () => $this->uploadLimit('post_max_size'),
             'memory_limit' => fn () => $this->memoryLimit(),
             'max_execution_time' => fn () => $this->maxExecutionTime(),
+            'exception_ignore_args' => fn () => $this->exceptionIgnoreArgs(),
             'photos_size' => fn () => $this->photosSize(),
             'legal_pages' => fn () => $this->legalPages(),
             'staff_roles' => fn () => $this->staffRoles(),
@@ -567,6 +568,20 @@ class EnvironmentChecker
 
         return $this->result('max_execution_time', $low ? CheckStatus::Warning : CheckStatus::Ok, (string) $seconds,
             $low ? __('system.hints.max_execution_time') : null);
+    }
+
+    /**
+     * NF-15, RE-hardening 2: with `zend.exception_ignore_args` off every logged stack trace prints the argument values
+     * of the calls (a phone number fits), so production should have it on.
+     */
+    private function exceptionIgnoreArgs(): CheckResult
+    {
+        $raw = strtolower(trim($this->iniValue('zend.exception_ignore_args')));
+        $off = in_array($raw, ['', '0', 'off', 'false', 'no'], true);
+
+        return $this->result('exception_ignore_args', $this->isProduction() && $off ? CheckStatus::Warning : CheckStatus::Ok,
+            __('system.values.'.($off ? 'off' : 'on')),
+            $this->isProduction() && $off ? __('system.hints.exception_ignore_args') : null);
     }
 
     private function memoryLimit(): CheckResult

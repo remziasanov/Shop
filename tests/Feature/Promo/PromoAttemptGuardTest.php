@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Services\Promo\PromoAttemptGuard;
+use Illuminate\Support\Facades\RateLimiter;
 
 beforeEach(function (): void {
     $this->guard = app(PromoAttemptGuard::class);
@@ -85,4 +86,24 @@ it('restarts the series of failures after a success (PM-14)', function (): void 
     $this->guard->failed('203.0.113.9', 's9');
 
     expect($this->guard->retryAfter('203.0.113.9', 's9'))->toBe(0);
+});
+
+it('counts the attempts of one IPv6 /64 network together: the 11th address is refused (RE-02)', function (): void {
+    foreach (range(1, PromoAttemptGuard::PER_MINUTE) as $i) {
+        expect($this->guard->attempt('2001:db8:aaaa:bbbb::'.$i, 'fresh-session-'.$i))->toBe(0);
+    }
+
+    expect($this->guard->attempt('2001:db8:aaaa:bbbb::ff', 'fresh-session-11'))->toBeGreaterThan(0)
+        // another /64 is not affected
+        ->and($this->guard->attempt('2001:db8:aaaa:cccc::1', 'fresh-session-12'))->toBe(0);
+});
+
+it('counts first and then compares, so a refused attempt keeps its hit (RE-02)', function (): void {
+    foreach (range(1, PromoAttemptGuard::PER_MINUTE + 2) as $_) {
+        $this->guard->attempt('203.0.113.50', 'count-first');
+    }
+
+    $key = 'promo-attempt:minute:ip:'.sha1('203.0.113.50');
+
+    expect(RateLimiter::attempts($key))->toBe(PromoAttemptGuard::PER_MINUTE + 2);
 });

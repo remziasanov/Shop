@@ -247,14 +247,59 @@ it('lets an attacker lock only themselves: the victim can still request a reset 
     Mail::assertQueued(CustomerCodeMail::class, fn (CustomerCodeMail $mail): bool => $mail->purpose === VerificationPurpose::PasswordReset);
 });
 
-it('refuses the 11th code request for one address within 24 hours (SEC-04)', function (): void {
-    foreach (range(1, 10) as $i) {
+it('refuses the 31st code request for one address within 24 hours, from any number of IPs (SEC-04, RE-01)', function (): void {
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_EMAIL_PER_DAY) as $i) {
         $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.'.$i, binding: 'b'.$i);
-        // The hourly limit is 5: move on so only the daily cap is under test.
-        $this->travel(61)->minutes();
     }
 
-    expect(fn () => $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.50'))->toThrow(CustomerThrottledException::class);
+    expect(fn () => $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.200'))->toThrow(CustomerThrottledException::class);
+});
+
+it('does not let one client switch off the codes of an address for another client (RE-01)', function (): void {
+    makeCustomer(['email' => $this->email]);
+
+    $this->codes->request(VerificationPurpose::PasswordReset, $this->email, '198.51.100.7', binding: 'victim-session');
+    $victimCode = lastSentCode(VerificationPurpose::PasswordReset);
+
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_EMAIL_PER_HOUR) as $_) {
+        $this->codes->request(VerificationPurpose::PasswordReset, $this->email, '192.0.2.9', binding: 'attacker-session');
+        $this->travel(61)->seconds();
+    }
+
+    // Client A is over its own limit now ...
+    expect(fn () => $this->codes->request(VerificationPurpose::PasswordReset, $this->email, '192.0.2.9', binding: 'attacker-session'))->toThrow(CustomerThrottledException::class);
+
+    // ... the victim's earlier code is still valid (an attacker's request annuls only codes of its own session) ...
+    expect(CustomerVerificationCode::query()->where('session_hash', hash('sha256', 'victim-session'))->open()->count())->toBe(1);
+
+    // ... and the victim may ask again at once: no pause or hourly counter was started by the stranger.
+    $this->codes->request(VerificationPurpose::PasswordReset, $this->email, '198.51.100.7', binding: 'victim-session');
+    $code = lastSentCode(VerificationPurpose::PasswordReset);
+    expect($code)->not->toBe('')
+        ->and($victimCode)->not->toBe('');
+    expect($this->codes->verify(VerificationPurpose::PasswordReset, $this->email, $code, '198.51.100.7', 'victim-session'))->toBeInstanceOf(CustomerVerificationCode::class);
+});
+
+it('picks the code of the caller\'s own session when several sessions have open codes (RE-01)', function (): void {
+    $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.1', binding: 'session-a');
+    $codeA = lastSentCode(VerificationPurpose::Login);
+    $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.2', binding: 'session-b');
+    $codeB = lastSentCode(VerificationPurpose::Login);
+
+    expect(CustomerVerificationCode::query()->open()->count())->toBe(2);
+
+    // Session A is not annulled by B's later request, and each session accepts only its own code.
+    expect(fn () => $this->codes->verify(VerificationPurpose::Login, $this->email, $codeB, '192.0.2.1', 'session-a'))->toThrow(CustomerAuthException::class);
+    expect($this->codes->verify(VerificationPurpose::Login, $this->email, $codeA, '192.0.2.1', 'session-a'))->toBeInstanceOf(CustomerVerificationCode::class)
+        ->and($this->codes->verify(VerificationPurpose::Login, $this->email, $codeB, '192.0.2.2', 'session-b'))->toBeInstanceOf(CustomerVerificationCode::class);
+});
+
+it('annuls an open code of the same session when it asks again (CA-04)', function (): void {
+    $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.1', binding: 'session-a');
+    $this->travel(61)->seconds();
+    $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.1', binding: 'session-a');
+
+    expect(CustomerVerificationCode::query()->open()->count())->toBe(1);
 });
 
 it('counts a request before it decides, so the counter shows the refused attempt too (SEC-03)', function (): void {
@@ -263,7 +308,7 @@ it('counts a request before it decides, so the counter shows the refused attempt
         $this->travel(61)->seconds();
     }
 
-    $key = 'customer-code:email:'.sha1($this->email);
+    $key = 'customer-code:email:'.sha1($this->email.'|192.0.2.10');
     expect(RateLimiter::attempts($key))->toBe(5);
 
     expect(fn () => $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.10', deliver: false))->toThrow(CustomerThrottledException::class);

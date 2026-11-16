@@ -26,11 +26,12 @@ use Illuminate\Support\Str;
  *  - The code is 6 digits from `random_int`. Only an HMAC-SHA256 (app key, over id|purpose|email|code) is stored, so a
  *    code cannot be read back from the database.
  *  - A code lives `code_ttl_minutes`, takes `code_max_attempts` wrong entries (then it is annulled), is single use,
- *    and a new code annuls the previous open codes of the same address and purpose.
+ *    and a new code annuls the previous open codes of the same address, purpose and browser session (D-195: a code of
+ *    another session is never annulled by a stranger's request).
  *  - Limits (counted first and compared after, atomically through {@see AtomicRateLimiter}, SEC-03): 10 code requests
- *    per hour per IP (counted first), 5 per hour per e-mail, 10 per 24 hours per e-mail across all requesters
- *    (SEC-04), 20 entries per hour per IP,
- *    a resend pause per address and purpose, and 20 wrong entries per day per requester (address + client IP key),
+ *    per hour per IP (counted first), 5 per hour per requester (address + client IP key), 30 per 24 hours per e-mail
+ *    across all requesters (SEC-04, RE-01), 20 entries per hour per IP,
+ *    a resend pause per address, purpose and client IP key, and 20 wrong entries per day per requester (address + client IP key),
  *    after which code requests and entries of that requester for that address are blocked for 24 hours and the owner
  *    is told by mail.
  *  - A code is verified only from the browser session that requested it (`session_hash`, SEC-04); codes without a
@@ -44,6 +45,7 @@ use Illuminate\Support\Str;
  */
 final class VerificationCodeService
 {
+    /** RE-01: the narrow limit belongs to the requester (address + client IP key), a stranger cannot use up the owner's quota. */
     public const REQUESTS_PER_EMAIL_PER_HOUR = 5;
 
     public const REQUESTS_PER_IP_PER_HOUR = 10;
@@ -52,8 +54,8 @@ final class VerificationCodeService
 
     public const WRONG_ENTRIES_PER_DAY = 20;
 
-    /** SEC-04: the global bound on guessing; all requesters of one address share it. */
-    public const REQUESTS_PER_EMAIL_PER_DAY = 10;
+    /** SEC-04, RE-01: the global bound on guessing; all requesters of one address share it (30 x 5 tries / 10^6 = 0.015 % a day). */
+    public const REQUESTS_PER_EMAIL_PER_DAY = 30;
 
     private const HOUR = 3600;
 
@@ -89,7 +91,7 @@ final class VerificationCodeService
         // per-address quotas of somebody else's address. A refused request keeps its hit (it is an attempt as well).
         $limits = [
             ['customer-code:ip:'.ClientIpKey::of($ip), self::REQUESTS_PER_IP_PER_HOUR, self::HOUR],
-            ['customer-code:email:'.$this->hash($email), self::REQUESTS_PER_EMAIL_PER_HOUR, self::HOUR],
+            [$this->requesterKey($email, $ip), self::REQUESTS_PER_EMAIL_PER_HOUR, self::HOUR],
             [$this->dayKey($email), self::REQUESTS_PER_EMAIL_PER_DAY, self::DAY],
         ];
 
@@ -99,7 +101,7 @@ final class VerificationCodeService
             }
         }
 
-        $pauseKey = $this->pauseKey($purpose, $email);
+        $pauseKey = $this->pauseKey($purpose, $email, $ip);
 
         if (AtomicRateLimiter::hit($pauseKey, max(1, $this->settings->code_resend_seconds)) > 1) {
             // Too early: a repeated click costs nothing, the quota of the other limits is given back.
@@ -120,10 +122,12 @@ final class VerificationCodeService
         DB::transaction(function () use ($purpose, $email, $ip, $customer, $payload, $code, $sessionHash): void {
             $now = now();
 
+            // Only the open codes of the same session go (RE-01); a code issued without a binding annuls them all.
             CustomerVerificationCode::query()
                 ->where('email', $email)
                 ->where('purpose', $purpose->value)
                 ->whereNull('consumed_at')
+                ->when($sessionHash !== null, fn ($query) => $query->where('session_hash', $sessionHash))
                 ->update(['consumed_at' => $now]);
 
             $row = new CustomerVerificationCode;
@@ -150,14 +154,14 @@ final class VerificationCodeService
     }
 
     /**
-     * The resend pause of this address and purpose; used by callers that must refuse a request that is too early
+     * The resend pause of this address, purpose and requester (client IP key); used by callers that must refuse a request that is too early
      * before they spend any limit of their own (the e-mail change of a customer). A pure read.
      *
      * @throws CustomerAuthException the pause is not over (error key `resend`, not the `code` field)
      */
-    public function assertPauseOver(VerificationPurpose $purpose, string $email): void
+    public function assertPauseOver(VerificationPurpose $purpose, string $email, string $ip): void
     {
-        $pauseKey = $this->pauseKey($purpose, $email);
+        $pauseKey = $this->pauseKey($purpose, $email, $ip);
 
         if (RateLimiter::tooManyAttempts($pauseKey, 1)) {
             throw $this->resendWait($pauseKey);
@@ -273,7 +277,7 @@ final class VerificationCodeService
     {
         $waits = [$this->lockedFor($email, $ip)];
 
-        $emailKey = 'customer-code:email:'.$this->hash($email);
+        $emailKey = $this->requesterKey($email, $ip);
 
         if (RateLimiter::tooManyAttempts($emailKey, self::REQUESTS_PER_EMAIL_PER_HOUR)) {
             $waits[] = RateLimiter::availableIn($emailKey);
@@ -283,7 +287,7 @@ final class VerificationCodeService
             $waits[] = RateLimiter::availableIn($this->dayKey($email));
         }
 
-        $pauseKey = $this->pauseKey($purpose, $email);
+        $pauseKey = $this->pauseKey($purpose, $email, $ip);
 
         if (RateLimiter::tooManyAttempts($pauseKey, 1)) {
             $waits[] = RateLimiter::availableIn($pauseKey);
@@ -361,9 +365,17 @@ final class VerificationCodeService
         return new CustomerAuthException(__('account.errors.code_invalid'), 'code');
     }
 
-    private function pauseKey(VerificationPurpose $purpose, string $email): string
+    /**
+     * The resend pause is per requester (RE-01): a stranger's request does not start the owner's pause.
+     */
+    private function pauseKey(VerificationPurpose $purpose, string $email, string $ip): string
     {
-        return 'customer-code:pause:'.$purpose->value.':'.$this->hash($email);
+        return 'customer-code:pause:'.$purpose->value.':'.$this->hash($email.'|'.ClientIpKey::of($ip));
+    }
+
+    private function requesterKey(string $email, string $ip): string
+    {
+        return 'customer-code:email:'.$this->hash($email.'|'.ClientIpKey::of($ip));
     }
 
     private function lockKey(string $email, string $ip): string
