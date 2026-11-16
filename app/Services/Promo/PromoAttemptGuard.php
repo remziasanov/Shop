@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
  * (`file` on the hosting), so no table is needed; the failure counter and the pause are kept per IP and per session too.
  *
  * The IP subject is {@see ClientIpKey} (an IPv6 host by its /64 network) and attempts are counted first and compared
- * after, atomically (RE-02, D-208). Use: {@see attempt()} before evaluating a code (a positive number means «too many
+ * after, atomically (RE-02, D-209). Use: {@see attempt()} before evaluating a code (a positive number means «too many
  * attempts», do not evaluate), then {@see failed()} or {@see succeeded()} with the outcome.
  */
 final class PromoAttemptGuard
@@ -59,43 +59,6 @@ final class PromoAttemptGuard
         }
 
         return max(0, $wait);
-    }
-
-    /**
-     * Seconds the visitor has to wait (0 = the attempt is allowed); a pure read, nothing is counted.
-     */
-    public function retryAfter(string $ip, string $sessionId): int
-    {
-        $wait = 0;
-
-        foreach ($this->subjects($ip, $sessionId) as $subject) {
-            if ($this->limiter->tooManyAttempts($this->key('minute', $subject), self::PER_MINUTE)) {
-                $wait = max($wait, $this->limiter->availableIn($this->key('minute', $subject)));
-            }
-
-            if ($this->limiter->tooManyAttempts($this->key('hour', $subject), self::PER_HOUR)) {
-                $wait = max($wait, $this->limiter->availableIn($this->key('hour', $subject)));
-            }
-
-            $until = $this->cache->get($this->key('pause', $subject));
-
-            if (is_int($until)) {
-                $wait = max($wait, $until - Carbon::now()->getTimestamp());
-            }
-        }
-
-        return max(0, $wait);
-    }
-
-    /**
-     * Counts an attempt against the minute and hour limits.
-     */
-    public function hit(string $ip, string $sessionId): void
-    {
-        foreach ($this->subjects($ip, $sessionId) as $subject) {
-            AtomicRateLimiter::hit($this->key('minute', $subject), 60);
-            AtomicRateLimiter::hit($this->key('hour', $subject), 3600);
-        }
     }
 
     /**

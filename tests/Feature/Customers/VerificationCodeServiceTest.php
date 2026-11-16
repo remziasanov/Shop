@@ -261,7 +261,7 @@ it('does not let one client switch off the codes of an address for another clien
     $this->codes->request(VerificationPurpose::PasswordReset, $this->email, '198.51.100.7', binding: 'victim-session');
     $victimCode = lastSentCode(VerificationPurpose::PasswordReset);
 
-    foreach (range(1, VerificationCodeService::REQUESTS_PER_EMAIL_PER_HOUR) as $_) {
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_REQUESTER_PER_HOUR) as $_) {
         $this->codes->request(VerificationPurpose::PasswordReset, $this->email, '192.0.2.9', binding: 'attacker-session');
         $this->travel(61)->seconds();
     }
@@ -303,7 +303,7 @@ it('annuls an open code of the same session when it asks again (CA-04)', functio
 });
 
 it('counts a request before it decides, so the counter shows the refused attempt too (SEC-03)', function (): void {
-    foreach (range(1, VerificationCodeService::REQUESTS_PER_EMAIL_PER_HOUR) as $_) {
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_REQUESTER_PER_HOUR) as $_) {
         $this->codes->request(VerificationPurpose::Login, $this->email, '192.0.2.10', deliver: false);
         $this->travel(61)->seconds();
     }

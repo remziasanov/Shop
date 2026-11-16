@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\CustomerThrottledException;
+use App\Exceptions\PhoneVerificationException;
 use App\Filament\Avatars\InitialsAvatarProvider;
 use App\Filament\Pages\Settings\ManageNotificationSettings;
 use App\Http\Middleware\SecurityHeaders;
@@ -22,6 +24,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\ViewException;
 use Livewire\Livewire;
+use Psr\Log\LoggerInterface;
 
 function adminPath(string $suffix = ''): string
 {
@@ -334,4 +337,16 @@ it('gives every numeric throttle route its own counter per client (D-208)', func
 
     // Route A is used up, route B of the same client is not.
     $get('/_probe-route-b')->assertOk();
+});
+
+it('does not write expected customer 429/422 exceptions to the log (hardening, report() returning true)', function (): void {
+    $logger = Mockery::mock(LoggerInterface::class);
+    $logger->shouldReceive('log', 'error', 'warning', 'critical', 'alert', 'emergency')->never();
+    app()->instance(LoggerInterface::class, $logger);
+
+    Route::get('/_throttled', fn () => throw new CustomerThrottledException(30));
+    Route::get('/_phone', fn () => throw PhoneVerificationException::throttled(30));
+
+    $this->get('/_throttled')->assertStatus(429);
+    $this->get('/_phone')->assertStatus(429);
 });

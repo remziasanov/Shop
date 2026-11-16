@@ -111,6 +111,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureFilamentFormats();
         $this->forceCanonicalUrl();
+        $this->hideExceptionArguments();
 
         // A queue worker lives longer than a request: re-read the category tree from the cache per job.
         Queue::looping(function (): void {
@@ -146,6 +147,17 @@ class AppServiceProvider extends ServiceProvider
 
         // NF-12: passwords of at least 10 characters everywhere (user form, password reset).
         Password::defaults(fn () => Password::min(10));
+    }
+
+    /**
+     * NF-15, D-206: in production stack traces never print call arguments (a phone number fits): `zend.exception_ignore_args`
+     * is INI_ALL, so the application enforces it itself instead of depending on the php.ini of the host.
+     */
+    public function hideExceptionArguments(): void
+    {
+        if ($this->app->isProduction()) {
+            ini_set('zend.exception_ignore_args', '1');
+        }
     }
 
     /**

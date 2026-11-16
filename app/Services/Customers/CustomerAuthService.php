@@ -654,20 +654,31 @@ final class CustomerAuthService
         }
 
         $hash = hash('sha256', $bindingToken);
+        // session_hash equals payload['binding'] by construction, so the row is selected in SQL: a stranger's many
+        // re-registrations of the same address cannot push this session's row out of a window.
         $rows = CustomerVerificationCode::query()
             ->where('email', $email)
             ->where('purpose', VerificationPurpose::Register->value)
+            ->where('session_hash', $hash)
             ->orderByDesc('id')
-            ->limit(20)
             ->get();
 
+        $bindingOnly = null;
+
         foreach ($rows as $row) {
-            if (hash_equals($row->email, $email) && is_array($row->payload) && hash_equals((string) ($row->payload['binding'] ?? ''), $hash)) {
+            if (! hash_equals($row->email, $email) || ! is_array($row->payload) || ! hash_equals((string) ($row->payload['binding'] ?? ''), $hash)) {
+                continue;
+            }
+
+            // Prefer the newest row that carries the registration data, not only the binding.
+            if (count($row->payload) > 1) {
                 return $row->payload;
             }
+
+            $bindingOnly ??= $row->payload;
         }
 
-        return ['binding' => $hash];
+        return $bindingOnly ?? ['binding' => $hash];
     }
 
     /**

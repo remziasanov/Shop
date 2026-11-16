@@ -67,6 +67,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // may echo a value). With APP_DEBUG on (a developer machine, demo data) the full message stays for debugging.
         $exceptions->map(fn (QueryException $e) => config('app.debug') ? $e : SanitizedQueryException::from($e));
 
+        // This catch-all mapper MUST stay the LAST map(): Laravel uses the first matching mapper in registration order,
+        // so any map() added after it would never run.
         // D-206: an exception that wraps a QueryException (a ViewException repeats the query text with values) is reported
         // without the values as well; HTTP exceptions keep their class and status.
         $exceptions->map(fn (Throwable $e) => config('app.debug') || $e instanceof HttpExceptionInterface ? $e : SanitizedQueryException::sanitize($e));

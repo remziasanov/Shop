@@ -116,7 +116,7 @@ return [
         'cron' => 'Планировщик не запускался более 5 минут. Проверьте задачи cron в панели Beget (см. docs/DEPLOY_BEGET.md, раздел про cron).',
         'upload_limit' => 'Фото и файлы импорта могут весить до 10 МБ: увеличьте upload_max_filesize и post_max_size до 10M и выше в настройках PHP на хостинге. Большие ZIP-архивы с фото загружайте по SFTP.',
         'max_execution_time' => 'Рекомендуется не менее 30 секунд: увеличьте max_execution_time в настройках PHP на хостинге (в консоли обычно 0 — без ограничения).',
-        'exception_ignore_args' => 'В production параметр zend.exception_ignore_args выключен: в журнал ошибок попадают значения аргументов (например, телефоны). Попросите хостинг включить его (On) или задайте zend.exception_ignore_args = On в php.ini или .user.ini, если хостинг это позволяет.',
+        'exception_ignore_args' => 'В production параметр zend.exception_ignore_args выключен: в журнал ошибок попадают значения аргументов (например, телефоны). Приложение включает его само при запуске; если значение всё же выключено, задайте zend.exception_ignore_args = On в php.ini или .user.ini. Через SSH команда shop:doctor может читать другой php.ini, чем веб-сервер: ориентируйтесь на страницу «Система».',
         'memory_limit' => 'Рекомендуется не менее 128M: увеличьте memory_limit в настройках PHP на хостинге.',
     ],
 ];

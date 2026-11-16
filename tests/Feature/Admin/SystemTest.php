@@ -6,6 +6,7 @@ use App\Enums\CheckStatus;
 use App\Filament\Pages\SystemStatus;
 use App\Models\Page;
 use App\Models\User;
+use App\Providers\AppServiceProvider;
 use App\Services\System\CheckResult;
 use App\Services\System\EnvironmentChecker;
 use App\Services\System\Heartbeat;
@@ -375,4 +376,23 @@ it('warns in production when zend.exception_ignore_args is off (NF-15, RE-harden
 
     setEnvironment('local');
     expect(iniCheck(['zend.exception_ignore_args' => ''], 'exception_ignore_args')->status)->toBe(CheckStatus::Ok);
+});
+
+it('forces zend.exception_ignore_args on in production and leaves it alone elsewhere (NF-15, D-206)', function () {
+    $original = (string) ini_get('zend.exception_ignore_args');
+
+    try {
+        ini_set('zend.exception_ignore_args', '0');
+        setEnvironment('local');
+        app()->getProvider(AppServiceProvider::class)->hideExceptionArguments();
+        expect(ini_get('zend.exception_ignore_args'))->toBe('0');
+
+        setEnvironment('production');
+        app()->getProvider(AppServiceProvider::class)->hideExceptionArguments();
+        expect(ini_get('zend.exception_ignore_args'))->toBe('1')
+            ->and(envCheck('exception_ignore_args')->status)->toBe(CheckStatus::Ok);
+    } finally {
+        ini_set('zend.exception_ignore_args', $original === '' ? '0' : $original);
+        setEnvironment('testing');
+    }
 });

@@ -46,7 +46,7 @@ use Illuminate\Support\Str;
 final class VerificationCodeService
 {
     /** RE-01: the narrow limit belongs to the requester (address + client IP key), a stranger cannot use up the owner's quota. */
-    public const REQUESTS_PER_EMAIL_PER_HOUR = 5;
+    public const REQUESTS_PER_REQUESTER_PER_HOUR = 5;
 
     public const REQUESTS_PER_IP_PER_HOUR = 10;
 
@@ -64,7 +64,7 @@ final class VerificationCodeService
     public function __construct(private readonly CustomerSettings $settings) {}
 
     /**
-     * Issues a code and queues the mail (CA-04). The previous open codes of this address and purpose are annulled.
+     * Issues a code and queues the mail (CA-04). The previous open codes of this address and purpose issued to the same session are annulled (CA-04, D-195).
      *
      * @param  array<string, mixed>|null  $payload  stored with the code (the new address of a change-email request)
      * @param  bool  $deliver  false when the address has no eligible account: all limits apply, nothing is stored or sent
@@ -91,7 +91,7 @@ final class VerificationCodeService
         // per-address quotas of somebody else's address. A refused request keeps its hit (it is an attempt as well).
         $limits = [
             ['customer-code:ip:'.ClientIpKey::of($ip), self::REQUESTS_PER_IP_PER_HOUR, self::HOUR],
-            [$this->requesterKey($email, $ip), self::REQUESTS_PER_EMAIL_PER_HOUR, self::HOUR],
+            [$this->requesterKey($email, $ip), self::REQUESTS_PER_REQUESTER_PER_HOUR, self::HOUR],
             [$this->dayKey($email), self::REQUESTS_PER_EMAIL_PER_DAY, self::DAY],
         ];
 
@@ -270,7 +270,7 @@ final class VerificationCodeService
 
     /**
      * Seconds until the next code of this purpose may be requested for the address; 0 when it may be requested now.
-     * It is the longest of the 24-hour lock, the hourly request limit of the address and the resend pause, so the
+     * It is the longest of the 24-hour lock, the hourly request limit of the requester (address + network) and the resend pause, so the
      * countdown on the code pages never disagrees with what the request enforces.
      */
     public function resendAvailableIn(string $email, VerificationPurpose $purpose, string $ip): int
@@ -279,7 +279,7 @@ final class VerificationCodeService
 
         $emailKey = $this->requesterKey($email, $ip);
 
-        if (RateLimiter::tooManyAttempts($emailKey, self::REQUESTS_PER_EMAIL_PER_HOUR)) {
+        if (RateLimiter::tooManyAttempts($emailKey, self::REQUESTS_PER_REQUESTER_PER_HOUR)) {
             $waits[] = RateLimiter::availableIn($emailKey);
         }
 

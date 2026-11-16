@@ -297,11 +297,10 @@ describe('rate limits (NF-53)', function (): void {
         $guard = app(PromoAttemptGuard::class);
 
         foreach (range(1, PromoAttemptGuard::PER_MINUTE) as $_) {
-            expect($guard->retryAfter('203.0.113.9', 'session-x'))->toBe(0);
-            $guard->hit('203.0.113.9', 'session-x');
+            expect($guard->attempt('203.0.113.9', 'session-x'))->toBe(0);
         }
 
-        expect($guard->retryAfter('203.0.113.9', 'session-x'))->toBeGreaterThan(0);
+        expect($guard->attempt('203.0.113.9', 'session-x'))->toBeGreaterThan(0);
     });
 
     it('limits wholesale applications of one customer', function (): void {

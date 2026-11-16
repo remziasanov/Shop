@@ -75,7 +75,7 @@ it('keeps the victim password when the attacker registered first and the victim 
     $this->auth->register(registrationFor('victim-password-1', 'victim-session', 'Жертва'));
     $victimCode = lastSentCode(VerificationPurpose::Register);
     $this->travel(61)->seconds();
-    // The attacker registers again before the victim has entered the code (it annuls the victim's code).
+    // The attacker registers again before the victim has entered the code (the victim's code stays valid: codes of other sessions are not annulled).
     $this->auth->register(registrationFor('attacker-password-2', 'attacker-session', 'Атакующий'));
 
     // The victim asks for a new code from his own session: the resent code carries the victim's data, not the attacker's.
@@ -147,6 +147,30 @@ it('lets a staff resend confirm only the pending registration, never a password 
 
     $customer = Customer::query()->firstOrFail();
     expect($customer->email_verified_at)->not->toBeNull()
+        ->and(Hash::check('victim-password-1', $customer->password))->toBeTrue()
+        ->and(Hash::check('attacker-password-1', $customer->password))->toBeFalse();
+});
+
+it('keeps the victim registration data after a stranger re-registers the address many times (RE-01 follow-up)', function (): void {
+    $this->auth->register(registrationFor('victim-password-1', 'victim-session', 'Жертва'));
+
+    foreach (range(1, 25) as $i) {
+        $this->travel(61)->seconds();
+        $stranger = new RegistrationData('Чужой', 'victim@example.com', '+79001234567', 'attacker-password-1', '198.51.100.'.$i, 'attacker-session-'.$i);
+        try {
+            $this->auth->register($stranger);
+        } catch (Throwable) {
+            // the daily bound of the address may refuse some of them: not what this test is about
+        }
+    }
+
+    // A day later the address has fresh quota again; the victim asks for a resend from his own session.
+    $this->travel(2)->days();
+    $this->auth->resendRegistrationCode($this->email, '192.0.2.11', 'victim-session');
+    $this->auth->confirmRegistration($this->email, lastSentCode(VerificationPurpose::Register), '192.0.2.11', 'victim-session');
+
+    $customer = Customer::query()->firstOrFail();
+    expect($customer->name)->toBe('Жертва')
         ->and(Hash::check('victim-password-1', $customer->password))->toBeTrue()
         ->and(Hash::check('attacker-password-1', $customer->password))->toBeFalse();
 });
