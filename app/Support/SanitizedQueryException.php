@@ -7,6 +7,7 @@ namespace App\Support;
 use Illuminate\Database\QueryException;
 use ReflectionProperty;
 use RuntimeException;
+use Throwable;
 
 /**
  * A QueryException without personal data (NF-15, D-206 hardening S3-8).
@@ -26,6 +27,37 @@ final class SanitizedQueryException extends RuntimeException
         private readonly string $sql,
     ) {
         parent::__construct($message, $code);
+    }
+
+    /**
+     * The exception as it may be reported or stored (APP_DEBUG off): a QueryException is replaced by its sanitized
+     * form, and so is any exception that has a QueryException in its `previous` chain (a ViewException repeats the
+     * query text with values in its own message). The replacement keeps the class name of the outer exception, the
+     * sanitized query reason, and the file, line and trace of the outer exception; the chain is dropped (D-206).
+     * Anything else is returned unchanged.
+     */
+    public static function sanitize(Throwable $e): Throwable
+    {
+        if ($e instanceof QueryException) {
+            return self::from($e);
+        }
+
+        for ($previous = $e->getPrevious(); $previous !== null; $previous = $previous->getPrevious()) {
+            if ($previous instanceof QueryException) {
+                $query = self::from($previous);
+                $sanitized = new self($e::class.': '.$query->getMessage(), $query->getCode(), $query->sqlState, $query->sql);
+
+                foreach (['file' => $e->getFile(), 'line' => $e->getLine()] as $property => $value) {
+                    (new ReflectionProperty(RuntimeException::class, $property))->setValue($sanitized, $value);
+                }
+
+                (new ReflectionProperty(\Exception::class, 'trace'))->setValue($sanitized, $e->getTrace());
+
+                return $sanitized;
+            }
+        }
+
+        return $e;
     }
 
     public static function from(QueryException $e): self

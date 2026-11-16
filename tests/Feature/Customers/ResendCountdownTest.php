@@ -200,7 +200,7 @@ it('counts the hourly limit into the countdown and answers 429 through the resen
     $limit = app(CustomerSettings::class)->code_resend_seconds;
 
     // Four more requests after the pause each use up the hourly limit of 5 per address.
-    foreach (range(1, VerificationCodeService::REQUESTS_PER_EMAIL_PER_HOUR - 1) as $_) {
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_REQUESTER_PER_HOUR - 1) as $_) {
         $this->travel($limit + 1)->seconds();
         $this->from($page)->post($resend)->assertSessionHasNoErrors();
     }
@@ -228,10 +228,10 @@ it('reports the longest of the lock, the hourly limit and the pause as the resen
     $codes = app(VerificationCodeService::class);
     $limit = app(CustomerSettings::class)->code_resend_seconds;
 
-    foreach (range(1, VerificationCodeService::REQUESTS_PER_EMAIL_PER_HOUR) as $_) {
+    foreach (range(1, VerificationCodeService::REQUESTS_PER_REQUESTER_PER_HOUR) as $_) {
         $codes->request(VerificationPurpose::Login, 'svc.hourly@example.com', '192.0.2.31', deliver: false);
         $this->travel($limit + 1)->seconds();
     }
 
-    expect($codes->resendAvailableIn('svc.hourly@example.com', VerificationPurpose::Login, '192.0.2.20'))->toBeGreaterThan($limit);
+    expect($codes->resendAvailableIn('svc.hourly@example.com', VerificationPurpose::Login, '192.0.2.31'))->toBeGreaterThan($limit);
 });

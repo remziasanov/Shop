@@ -42,9 +42,13 @@ class PhoneVerificationException extends RuntimeException
         return $this->reason->isThrottle();
     }
 
+    /**
+     * Laravel treats `false` as «fall back to the default reporting», so `true` («already handled») is what keeps
+     * this expected exception out of the log.
+     */
     public function report(): bool
     {
-        return false;
+        return true;
     }
 
     public function render(Request $request): Response|JsonResponse

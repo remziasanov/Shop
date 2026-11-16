@@ -22,6 +22,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -65,6 +66,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // NF-15, D-206: reported, logged and rendered query exceptions carry no bound values (and no driver text that
         // may echo a value). With APP_DEBUG on (a developer machine, demo data) the full message stays for debugging.
         $exceptions->map(fn (QueryException $e) => config('app.debug') ? $e : SanitizedQueryException::from($e));
+
+        // This catch-all mapper MUST stay the LAST map(): Laravel uses the first matching mapper in registration order,
+        // so any map() added after it would never run.
+        // D-206: an exception that wraps a QueryException (a ViewException repeats the query text with values) is reported
+        // without the values as well; HTTP exceptions keep their class and status.
+        $exceptions->map(fn (Throwable $e) => config('app.debug') || $e instanceof HttpExceptionInterface ? $e : SanitizedQueryException::sanitize($e));
 
         // SF-80, D-018: a storefront 404 (unknown route or ModelNotFoundException, which Laravel converts
         // to NotFoundHttpException) is checked against the slug-change redirects; only then is a query made.

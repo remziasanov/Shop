@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\CustomerThrottledException;
+use App\Exceptions\PhoneVerificationException;
 use App\Filament\Avatars\InitialsAvatarProvider;
 use App\Filament\Pages\Settings\ManageNotificationSettings;
 use App\Http\Middleware\SecurityHeaders;
@@ -20,7 +22,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\ViewException;
 use Livewire\Livewire;
+use Psr\Log\LoggerInterface;
 
 function adminPath(string $suffix = ''): string
 {
@@ -182,6 +186,40 @@ it('reports a QueryException without the bound values (S3-8, NF-15)', function (
         ->and($text)->toContain('23000')->toContain('1062')->toContain('customers_email_unique')->toContain('values (?, ?)');
 });
 
+function viewExceptionWrappingQuery(): ViewException
+{
+    $driver = new PDOException("Duplicate entry 'ivan@mail.ru' for key 'customers.customers_email_unique'");
+    $driver->errorInfo = ['23000', 1062, "Duplicate entry 'ivan@mail.ru' for key 'customers.customers_email_unique'"];
+    $query = new QueryException('mysql', 'select * from customers where email = ?', ['ivan@mail.ru'], $driver);
+
+    return new ViewException($query->getMessage().' (View: x.blade.php)', 0, 1, 'x.blade.php', 1, $query);
+}
+
+it('reports an exception that wraps a QueryException without the bound values (RE-hardening 1, D-206)', function (): void {
+    config(['app.debug' => false]);
+    $logged = null;
+    Log::shouldReceive('error')->andReturnUsing(function (string $message, array $context = []) use (&$logged): void {
+        $logged = [$message, (string) ($context['exception'] ?? '')];
+    });
+
+    app(ExceptionHandler::class)->report(viewExceptionWrappingQuery());
+
+    $text = json_encode($logged, JSON_UNESCAPED_UNICODE);
+
+    expect($logged)->not->toBeNull()
+        ->and($text)->not->toContain('ivan@mail.ru')
+        ->and($text)->toContain('ViewException')->toContain('customers_email_unique')->toContain('where email = ?');
+});
+
+it('stores no bound values of a wrapped QueryException in failed_jobs (RE-hardening 1, D-206)', function (): void {
+    config(['app.debug' => false]);
+
+    app('queue.failer')->log('database', 'default', json_encode(['uuid' => 'u-3', 'job' => 'X']), viewExceptionWrappingQuery());
+
+    $stored = (string) DB::table('failed_jobs')->where('uuid', 'u-3')->value('exception');
+    expect($stored)->not->toContain('ivan@mail.ru')->toContain('ViewException')->toContain('customers_email_unique');
+});
+
 it('keeps the full message when APP_DEBUG is on (S3-8)', function (): void {
     config(['app.debug' => true]);
     $logged = null;
@@ -285,4 +323,30 @@ it('counts a route throttle by the /64 network of an IPv6 visitor (D-208)', func
     // Another /64 and another IPv4 address are unaffected.
     $get('2001:db8:7:8::1')->assertOk();
     $get('192.0.2.1')->assertOk();
+});
+
+it('gives every numeric throttle route its own counter per client (D-208)', function (): void {
+    Route::middleware('throttle:2,1')->get('/_probe-route-a', fn () => 'a');
+    Route::middleware('throttle:2,1')->get('/_probe-route-b', fn () => 'b');
+
+    $get = fn (string $uri) => $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.77'])->get($uri);
+
+    $get('/_probe-route-a')->assertOk();
+    $get('/_probe-route-a')->assertOk();
+    $get('/_probe-route-a')->assertStatus(429);
+
+    // Route A is used up, route B of the same client is not.
+    $get('/_probe-route-b')->assertOk();
+});
+
+it('does not write expected customer 429/422 exceptions to the log (hardening, report() returning true)', function (): void {
+    $logger = Mockery::mock(LoggerInterface::class);
+    $logger->shouldReceive('log', 'error', 'warning', 'critical', 'alert', 'emergency')->never();
+    app()->instance(LoggerInterface::class, $logger);
+
+    Route::get('/_throttled', fn () => throw new CustomerThrottledException(30));
+    Route::get('/_phone', fn () => throw PhoneVerificationException::throttled(30));
+
+    $this->get('/_throttled')->assertStatus(429);
+    $this->get('/_phone')->assertStatus(429);
 });

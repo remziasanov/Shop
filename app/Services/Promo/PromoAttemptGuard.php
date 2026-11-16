@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Promo;
 
+use App\Support\AtomicRateLimiter;
+use App\Support\ClientIpKey;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Carbon;
@@ -13,8 +15,9 @@ use Illuminate\Support\Carbon;
  * and per session, and a 30 second pause after 5 failed attempts in a row. Everything lives in the cache store
  * (`file` on the hosting), so no table is needed; the failure counter and the pause are kept per IP and per session too.
  *
- * Use: ask {@see retryAfter()} first (a positive number means «too many attempts», do not evaluate the code), then
- * {@see hit()} to count the attempt and {@see failed()} or {@see succeeded()} with the outcome.
+ * The IP subject is {@see ClientIpKey} (an IPv6 host by its /64 network) and attempts are counted first and compared
+ * after, atomically (RE-02, D-209). Use: {@see attempt()} before evaluating a code (a positive number means «too many
+ * attempts», do not evaluate), then {@see failed()} or {@see succeeded()} with the outcome.
  */
 final class PromoAttemptGuard
 {
@@ -32,40 +35,30 @@ final class PromoAttemptGuard
     ) {}
 
     /**
-     * Seconds the visitor has to wait (0 = the attempt is allowed).
+     * Counts the attempt first and then decides: seconds the visitor has to wait (0 = the attempt is allowed, it is
+     * counted). A refused attempt keeps its hit.
      */
-    public function retryAfter(string $ip, string $sessionId): int
+    public function attempt(string $ip, string $sessionId): int
     {
         $wait = 0;
 
         foreach ($this->subjects($ip, $sessionId) as $subject) {
-            if ($this->limiter->tooManyAttempts($this->key('minute', $subject), self::PER_MINUTE)) {
-                $wait = max($wait, $this->limiter->availableIn($this->key('minute', $subject)));
-            }
-
-            if ($this->limiter->tooManyAttempts($this->key('hour', $subject), self::PER_HOUR)) {
-                $wait = max($wait, $this->limiter->availableIn($this->key('hour', $subject)));
-            }
-
             $until = $this->cache->get($this->key('pause', $subject));
 
             if (is_int($until)) {
                 $wait = max($wait, $until - Carbon::now()->getTimestamp());
             }
+
+            foreach ([['minute', self::PER_MINUTE, 60], ['hour', self::PER_HOUR, 3600]] as [$kind, $max, $decay]) {
+                $key = $this->key($kind, $subject);
+
+                if (AtomicRateLimiter::hit($key, $decay) > $max) {
+                    $wait = max($wait, $this->limiter->availableIn($key), 1);
+                }
+            }
         }
 
         return max(0, $wait);
-    }
-
-    /**
-     * Counts an attempt against the minute and hour limits.
-     */
-    public function hit(string $ip, string $sessionId): void
-    {
-        foreach ($this->subjects($ip, $sessionId) as $subject) {
-            $this->limiter->hit($this->key('minute', $subject), 60);
-            $this->limiter->hit($this->key('hour', $subject), 3600);
-        }
     }
 
     /**
@@ -107,7 +100,7 @@ final class PromoAttemptGuard
      */
     private function subjects(string $ip, string $sessionId): array
     {
-        return ['ip:'.sha1($ip), 'session:'.sha1($sessionId)];
+        return ['ip:'.sha1(ClientIpKey::of($ip)), 'session:'.sha1($sessionId)];
     }
 
     private function key(string $kind, string $subject): string
