@@ -37,7 +37,7 @@ class PasswordResetController extends Controller
     public function sendCode(EmailRequest $request, CustomerAuthService $auth): RedirectResponse
     {
         try {
-            $auth->requestPasswordReset($request->email(), (string) $request->ip());
+            $auth->requestPasswordReset($request->email(), (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
@@ -72,7 +72,7 @@ class PasswordResetController extends Controller
         }
 
         try {
-            $auth->requestPasswordReset($email, (string) $request->ip());
+            $auth->requestPasswordReset($email, (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
@@ -92,7 +92,7 @@ class PasswordResetController extends Controller
         }
 
         try {
-            $auth->verifyPasswordResetCode($email, $request->code(), (string) $request->ip(), $request->session());
+            $auth->verifyPasswordResetCode($email, $request->code(), (string) $request->ip(), $request->session(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }

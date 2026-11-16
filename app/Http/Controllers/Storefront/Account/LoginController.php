@@ -6,7 +6,6 @@ namespace App\Http\Controllers\Storefront\Account;
 
 use App\Enums\VerificationPurpose;
 use App\Exceptions\CustomerAuthException;
-use App\Exceptions\CustomerNotVerifiedException;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\RendersAccountPages;
 use App\Http\Requests\Account\CodeRequest;
@@ -44,10 +43,6 @@ class LoginController extends Controller
     {
         try {
             $customer = $auth->authenticateByPassword($request->email(), (string) $request->validated('password'), (string) $request->ip(), RegisterController::bindingToken($request));
-        } catch (CustomerNotVerifiedException $e) {
-            $request->session()->put(RegisterController::PENDING_EMAIL_KEY, $e->email);
-
-            return redirect()->route('customer.confirm')->with('status', $e->getMessage());
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
@@ -63,7 +58,7 @@ class LoginController extends Controller
     public function sendCode(EmailRequest $request, CustomerAuthService $auth): RedirectResponse
     {
         try {
-            $auth->requestLoginCode($request->email(), (string) $request->ip());
+            $auth->requestLoginCode($request->email(), (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
@@ -98,7 +93,7 @@ class LoginController extends Controller
         }
 
         try {
-            $auth->requestLoginCode($email, (string) $request->ip());
+            $auth->requestLoginCode($email, (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }
@@ -115,7 +110,7 @@ class LoginController extends Controller
         }
 
         try {
-            $customer = $auth->authenticateByCode($email, $request->code(), (string) $request->ip());
+            $customer = $auth->authenticateByCode($email, $request->code(), (string) $request->ip(), RegisterController::bindingToken($request));
         } catch (CustomerAuthException $e) {
             return $this->failure($request, $e);
         }

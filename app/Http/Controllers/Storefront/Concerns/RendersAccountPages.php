@@ -37,7 +37,7 @@ trait RendersAccountPages
      */
     protected function resendSeconds(string $email, VerificationPurpose $purpose): int
     {
-        return app(VerificationCodeService::class)->resendAvailableIn($email, $purpose);
+        return app(VerificationCodeService::class)->resendAvailableIn($email, $purpose, (string) request()->ip());
     }
 
     /**
@@ -54,7 +54,7 @@ trait RendersAccountPages
     protected function failure(Request $request, CustomerAuthException $e): RedirectResponse
     {
         return back()
-            ->withInput($request->except(['password', 'password_confirmation', 'current_password', 'code']))
+            ->withInput($request->except(['password', 'password_confirmation', 'current_password', 'email_current_password', 'code']))
             ->withErrors([$e->field => $e->getMessage()]);
     }
 

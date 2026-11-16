@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace App\Services\Sales;
 
 use App\Exceptions\FormGuardException;
+use App\Support\AtomicRateLimiter;
+use App\Support\ClientIpKey;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Spam protection of the checkout, reservation and inquiry forms (SF-48, D-048): a honeypot field, a signed
@@ -64,20 +65,24 @@ final class FormGuard
         $this->checkSpam($honeypot, $token);
 
         // TM-05: a Mini App visitor is limited by the Telegram user as well (several people may share one IP).
-        $keys = ['sales-form:'.$ip];
+        $keys = ['sales-form:'.ClientIpKey::of($ip)];
 
         if ($telegramUserId !== null) {
             $keys[] = 'sales-form:tg:'.$telegramUserId;
         }
 
+        // SEC-03: count first, then decide, atomically (a lock per counter, fail closed: REFUSED is over every limit). Every key is counted even
+        // when an earlier one already refused; a refused submit uses quota.
+        $refused = false;
+
         foreach ($keys as $key) {
-            if (RateLimiter::tooManyAttempts($key, self::MAX_ATTEMPTS)) {
-                throw new FormGuardException(__('sales.guard.rate_limited'));
+            if (AtomicRateLimiter::hit($key, self::DECAY_SECONDS) > self::MAX_ATTEMPTS) {
+                $refused = true;
             }
         }
 
-        foreach ($keys as $key) {
-            RateLimiter::hit($key, self::DECAY_SECONDS);
+        if ($refused) {
+            throw new FormGuardException(__('sales.guard.rate_limited'));
         }
     }
 }

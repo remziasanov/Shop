@@ -23,6 +23,15 @@ use Filament\Schemas\Schema;
  */
 final class RoleForm
 {
+    /**
+     * Sections whose right lets the holder put scripts into storefront pages, which is the same as administrator
+     * rights (staff browse the storefront in the origin of the admin panel); D-205.
+     */
+    private const SCRIPT_RIGHT_HINTS = [
+        'settings.seo' => 'roles.form.script_right_seo',
+        'html_block' => 'roles.form.script_right_html',
+    ];
+
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
@@ -133,6 +142,7 @@ final class RoleForm
                 ->label(PermissionRegistry::sectionLabel($section))
                 ->options(self::options($section, $permissions))
                 ->columns(['default' => 2, 'md' => 4])
+                ->helperText(isset(self::SCRIPT_RIGHT_HINTS[$section]) ? __(self::SCRIPT_RIGHT_HINTS[$section]) : null)
                 ->bulkToggleable();
         }
 

@@ -36,6 +36,7 @@
             <form method="POST" action="{{ route('customer.email.request') }}" class="space-y-4" novalidate>
                 @csrf
                 <x-account.field prefix="pe" name="email" type="email" :label="__('account.profile.new_email')" autocomplete="email" maxlength="190" />
+                <x-account.field prefix="pe" name="email_current_password" type="password" :label="__('account.fields.current_password')" autocomplete="current-password" />
                 <x-account.button variant="secondary">{{ __('account.profile.email_send_code') }}</x-account.button>
             </form>
         </section>

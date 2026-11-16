@@ -147,7 +147,7 @@ jobs:
           BEGET_HOST: ${{ secrets.BEGET_HOST }}
           BEGET_USER: ${{ secrets.BEGET_USER }}
           BEGET_SSH_KEY: ${{ secrets.BEGET_SSH_KEY }}
-          # Optional: pinned host keys (output of `ssh-keyscan HOST`); otherwise the key is fetched on the fly.
+          # Required: pinned host keys (known_hosts line of the server); the job fails when it is empty.
           BEGET_KNOWN_HOSTS: ${{ secrets.BEGET_KNOWN_HOSTS }}
         run: |
           umask 077
@@ -155,13 +155,14 @@ jobs:
           # Strip CR: a key pasted from Windows Notepad would be unreadable for OpenSSH.
           printf '%s\n' "$BEGET_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          if [ -n "$BEGET_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$BEGET_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
-          else
-            ssh-keyscan -H "$BEGET_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # The host key must be pinned (D-203): no ssh-keyscan on the fly, a spoofed server could not be noticed.
+          if [ -z "$BEGET_KNOWN_HOSTS" ]; then
+            echo "::error::Секрет BEGET_KNOWN_HOSTS пуст. Задайте строку known_hosts сервера (docs/DEPLOY_BEGET.md, раздел 5.1). Ничего не загружено."
+            exit 1
           fi
+          printf '%s\n' "$BEGET_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
           if [ ! -s ~/.ssh/known_hosts ]; then
-            echo "::error::Не получен ключ хоста (ssh-keyscan или секрет BEGET_KNOWN_HOSTS). Проверьте секрет BEGET_HOST."
+            echo "::error::Секрет BEGET_KNOWN_HOSTS не содержит строк known_hosts. Ничего не загружено."
             exit 1
           fi
           cat > ~/.ssh/config <<SSHCONF
@@ -193,7 +194,7 @@ jobs:
             exit 1
           fi
           if ! ssh beget 'echo connected' > /dev/null; then
-            echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге."
+            echo "::error::Не удалось подключиться по SSH. Проверьте BEGET_HOST, BEGET_USER и что публичный ключ добавлен в ~/.ssh/authorized_keys на хостинге. Если ключ принят, но соединение отвергается, проверьте строку BEGET_KNOWN_HOSTS: имя хоста в ней должно совпадать с BEGET_HOST, а ключ сервера — не измениться (несовпадение ключа хоста тоже останавливает подключение)."
             exit 1
           fi
           # D-111: an existing regular file under the document root name is never replaced; stop before uploading.

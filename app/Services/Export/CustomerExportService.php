@@ -20,6 +20,7 @@ use App\Models\Order;
 use App\Services\Customers\CustomerNotificationService;
 use App\Services\Telegram\CustomerTelegramNotifier;
 use App\Settings\CustomerSettings;
+use App\Support\AtomicRateLimiter;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\File;
@@ -100,8 +101,8 @@ final class CustomerExportService
 
     /**
      * CX-09: takes one slot of the hourly request limit and checks the number of unfinished exports. The slot is taken
-     * first with an atomic increment (`RateLimiter::hit()`), then compared with the limit, so parallel requests cannot
-     * all pass a stale check. A request refused for exceeding the limit stays counted; a request refused for another
+     * first with an atomic increment ({@see AtomicRateLimiter}: a per-counter cache lock, exact on the file store; fail closed),
+     * then compared with the limit, so parallel requests cannot all pass a stale check. A request refused for exceeding the limit stays counted; a request refused for another
      * reason must give its slot back with {@see releaseRequestSlot()}.
      *
      * @throws ExportThrottledException
@@ -111,7 +112,7 @@ final class CustomerExportService
         $key = $this->requestKey($customer);
         $limit = max(1, $this->settings->export_requests_per_hour);
 
-        if (RateLimiter::hit($key, self::HOUR) > $limit) {
+        if (AtomicRateLimiter::hit($key, self::HOUR) > $limit) {
             $wait = max(1, RateLimiter::availableIn($key));
 
             throw new ExportThrottledException(__('customer_export.errors.too_many_requests', ['time' => CustomerThrottledException::humanTime($wait)]), $wait);
@@ -135,7 +136,7 @@ final class CustomerExportService
      */
     public function releaseRequestSlot(Customer $customer): void
     {
-        RateLimiter::decrement($this->requestKey($customer), self::HOUR);
+        AtomicRateLimiter::decrement($this->requestKey($customer), self::HOUR);
     }
 
     /**
@@ -147,7 +148,7 @@ final class CustomerExportService
     {
         $key = 'customer-export-download:'.$customer->id;
 
-        if (RateLimiter::hit($key, self::HOUR) > max(1, $this->settings->export_downloads_per_hour)) {
+        if (AtomicRateLimiter::hit($key, self::HOUR) > max(1, $this->settings->export_downloads_per_hour)) {
             $wait = max(1, RateLimiter::availableIn($key));
 
             throw new ExportThrottledException(__('customer_export.errors.too_many_downloads', ['time' => CustomerThrottledException::humanTime($wait)]), $wait);

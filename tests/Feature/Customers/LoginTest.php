@@ -6,7 +6,9 @@ use App\Enums\VerificationPurpose;
 use App\Mail\CustomerCodeMail;
 use App\Models\Customer;
 use App\Services\Customers\CustomerAuthService;
+use App\Support\ClientIpKey;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 
 beforeEach(function (): void {
     $this->withoutVite();
@@ -51,7 +53,7 @@ it('answers a wrong password and an unknown address with the same message (CA-05
 
     $wrongPassword->assertSessionHasErrors('email');
     $unknown->assertSessionHasErrors('email');
-    expect(session('errors')->first('email'))->toBe(__('account.errors.credentials'));
+    expect(session()->get('errors')->getBag('default')->first('email'))->toBe(__('account.errors.credentials'));
     $this->assertGuest('customer');
 });
 
@@ -91,17 +93,21 @@ it('does not sign in a blocked customer and gives a neutral message (CA-06)', fu
 
     $this->post(route('customer.login.store'), loginBody())->assertSessionHasErrors('email');
 
-    expect(session('errors')->first('email'))->toContain('Обратитесь в магазин')->not->toContain('internal note');
+    expect(session()->get('errors')->getBag('default')->first('email'))->toContain('Обратитесь в магазин')->not->toContain('internal note');
     $this->assertGuest('customer');
 });
 
-it('sends an unconfirmed customer with the right password to the confirmation (CA-03)', function (): void {
+it('answers a password sign-in to an unconfirmed account exactly like wrong credentials (CA-03, SEC-06)', function (): void {
     $this->customer->forceFill(['email_verified_at' => null])->save();
 
-    $this->post(route('customer.login.store'), loginBody())->assertRedirect(route('customer.confirm'));
+    $unconfirmed = $this->from(route('customer.login'))->post(route('customer.login.store'), loginBody());
+    $unconfirmed->assertRedirect(route('customer.login'))->assertSessionHasErrors(['email' => __('account.errors.credentials')]);
+
+    $unknown = $this->from(route('customer.login'))->post(route('customer.login.store'), loginBody(['email' => 'nobody@example.com']));
+    $unknown->assertRedirect(route('customer.login'))->assertSessionHasErrors(['email' => __('account.errors.credentials')]);
 
     $this->assertGuest('customer');
-    expect(lastSentCode(VerificationPurpose::Register))->toMatch('/^\d{6}$/');
+    Mail::assertNothingQueued();
 });
 
 it('keeps a pending deletion from a password sign-in (CA-16)', function (): void {
@@ -206,4 +212,49 @@ it('shows the sign-in link to guests and the account menu to customers (CA-19)',
 
 it('never exposes the password or the remember token', function (): void {
     expect(Customer::query()->first()->toArray())->not->toHaveKeys(['password', 'remember_token', 'blocked_reason']);
+});
+
+it('throttles password sign-in per IP after 20 failures for any addresses; another IP is unaffected (SEC-02)', function (): void {
+    foreach (range(1, 20) as $i) {
+        $this->post(route('customer.login.store'), loginBody(['email' => "spray{$i}@example.com", 'password' => 'wrong-password']))
+            ->assertSessionHasErrors('email');
+    }
+
+    // The 21st attempt from the same IP is refused before the password is checked, even with a correct one.
+    $this->post(route('customer.login.store'), loginBody(['email' => 'spray21@example.com', 'password' => 'wrong-password']))
+        ->assertStatus(429);
+    $this->post(route('customer.login.store'), loginBody())->assertStatus(429);
+    $this->assertGuest('customer');
+
+    // Another client address is not affected.
+    nextRequest();
+    $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.77'])
+        ->post(route('customer.login.store'), loginBody())->assertRedirect();
+    $this->assertAuthenticated('customer');
+});
+
+it('still signs in with the right password from an IP below the failure limit (SEC-02)', function (): void {
+    foreach (range(1, 19) as $i) {
+        $this->post(route('customer.login.store'), loginBody(['email' => "spray{$i}@example.com", 'password' => 'wrong-password']));
+    }
+
+    $this->post(route('customer.login.store'), loginBody())->assertRedirect();
+    $this->assertAuthenticated('customer');
+});
+
+it('gives the per-IP failure slot back on a successful sign-in and counts failures before the password check (SEC-02, D-193)', function (): void {
+    $key = 'customer-login:ip-fail:'.ClientIpKey::of('127.0.0.1');
+
+    $this->post(route('customer.login.store'), loginBody(['password' => 'wrong-password']));
+    expect(RateLimiter::attempts($key))->toBe(1);
+
+    $this->post(route('customer.login.store'), loginBody())->assertRedirect();
+    expect(RateLimiter::attempts($key))->toBe(1);
+});
+
+it('shows a neutral hint for a customer who never entered the registration code, on every sign-in page view (SEC-06)', function (): void {
+    $this->get(route('customer.login'))
+        ->assertOk()
+        ->assertSee('Регистрировались, но не ввели код из письма?')
+        ->assertSee(route('customer.register'), false);
 });

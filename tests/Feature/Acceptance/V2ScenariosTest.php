@@ -799,7 +799,7 @@ it('20. cabinet and personal data: guest order linking, reorder, e-mail change w
     expect($row->product_id)->toBe($product->id)->and($row->price_at_add)->toBe('700.00');
 
     // The e-mail change goes through a code sent to the NEW address; 5 wrong codes kill the code.
-    $this->post(route('customer.email.request'), ['email' => 'new.ivan@example.com'])->assertRedirect(route('customer.email.confirm'));
+    $this->post(route('customer.email.request'), ['email' => 'new.ivan@example.com', 'email_current_password' => 'secret-pass-1'])->assertRedirect(route('customer.email.confirm'));
     Mail::assertQueued(CustomerCodeMail::class, fn ($mail): bool => $mail->hasTo('new.ivan@example.com'));
     $code = lastSentCode(VerificationPurpose::ChangeEmail);
     $wrong = $code === '000000' ? '111111' : '000000';

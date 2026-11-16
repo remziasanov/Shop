@@ -54,7 +54,7 @@ function codePage(TestCase $test, string $kind): array
             return [route('customer.password.code'), route('customer.password.resend'), VerificationPurpose::PasswordReset];
         case 'e-mail change':
             signInCustomer($test, makeCustomer(['email' => 'cd.change@example.com']));
-            $test->post(route('customer.email.request'), ['email' => 'cd.new@example.com']);
+            $test->post(route('customer.email.request'), ['email' => 'cd.new@example.com', 'email_current_password' => 'password-123']);
 
             return [route('customer.email.confirm'), route('customer.email.confirm.resend'), VerificationPurpose::ChangeEmail];
         default:
@@ -164,22 +164,22 @@ it('hands out the same remaining seconds for an address without an account (CA-0
 it('reports the remaining pause per address and purpose', function (): void {
     $codes = app(VerificationCodeService::class);
 
-    expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register))->toBe(0);
+    expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register, '192.0.2.20'))->toBe(0);
 
     $codes->request(VerificationPurpose::Register, 'svc.owner@example.com', '192.0.2.20');
     $limit = app(CustomerSettings::class)->code_resend_seconds;
 
-    expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register))->toBeGreaterThan(0)->toBeLessThanOrEqual($limit)
+    expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register, '192.0.2.20'))->toBeGreaterThan(0)->toBeLessThanOrEqual($limit)
         // The key is case-insensitive like the request itself, and per purpose.
-        ->and($codes->resendAvailableIn('SVC.Owner@example.com', VerificationPurpose::Register))->toBeGreaterThan(0)
-        ->and($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Login))->toBe(0)
-        ->and($codes->resendAvailableIn('other@example.com', VerificationPurpose::Register))->toBe(0);
+        ->and($codes->resendAvailableIn('SVC.Owner@example.com', VerificationPurpose::Register, '192.0.2.20'))->toBeGreaterThan(0)
+        ->and($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Login, '192.0.2.20'))->toBe(0)
+        ->and($codes->resendAvailableIn('other@example.com', VerificationPurpose::Register, '192.0.2.20'))->toBe(0);
 
     $this->travel(20)->seconds();
-    expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register))->toBeLessThanOrEqual($limit - 19);
+    expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register, '192.0.2.20'))->toBeLessThanOrEqual($limit - 19);
 
     $this->travel($limit)->seconds();
-    expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register))->toBe(0);
+    expect($codes->resendAvailableIn('svc.owner@example.com', VerificationPurpose::Register, '192.0.2.20'))->toBe(0);
 });
 
 it('hands out the same countdown for an existing account and for an address without one (CA-05)', function (): void {
@@ -213,7 +213,7 @@ it('counts the hourly limit into the countdown and answers 429 through the resen
 
 it('does not spend the 5 per hour e-mail change limit of the customer on a request that is too early (TD-15)', function (): void {
     signInCustomer($this, makeCustomer(['email' => 'cd.spend@example.com']));
-    $this->post(route('customer.email.request'), ['email' => 'cd.spend.new@example.com']);
+    $this->post(route('customer.email.request'), ['email' => 'cd.spend.new@example.com', 'email_current_password' => 'password-123']);
 
     // Ten early clicks on the resend button would exhaust 5 changes per hour if they were counted.
     foreach (range(1, 10) as $_) {
@@ -233,5 +233,5 @@ it('reports the longest of the lock, the hourly limit and the pause as the resen
         $this->travel($limit + 1)->seconds();
     }
 
-    expect($codes->resendAvailableIn('svc.hourly@example.com', VerificationPurpose::Login))->toBeGreaterThan($limit);
+    expect($codes->resendAvailableIn('svc.hourly@example.com', VerificationPurpose::Login, '192.0.2.20'))->toBeGreaterThan($limit);
 });

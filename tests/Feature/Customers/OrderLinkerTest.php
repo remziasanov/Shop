@@ -78,7 +78,7 @@ it('links the requests of the new address after a confirmed e-mail change', func
     $order = Order::factory()->create(['customer_email' => 'new.address@example.com']);
     signInCustomer($this, $customer);
 
-    $this->post(route('customer.email.request'), ['email' => 'new.address@example.com'])->assertRedirect();
+    $this->post(route('customer.email.request'), ['email' => 'new.address@example.com', 'email_current_password' => 'password-123'])->assertRedirect();
     $this->post(route('customer.email.confirm.store'), ['code' => lastSentCode(VerificationPurpose::ChangeEmail)])->assertRedirect();
 
     expect($order->fresh()->customer_id)->toBe($customer->id);

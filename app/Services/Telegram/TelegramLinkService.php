@@ -194,7 +194,14 @@ class TelegramLinkService
             return $this->messages->reply($account, __('telegram.link.already_yours'), $this->messages->openShopMarkup());
         }
 
-        return $this->messages->reply($account, __('telegram.link.confirm_customer', ['email' => PiiMask::email($customer->email)]), $this->confirmMarkup($token));
+        // D-207: the e-mail is masked; the first name and a warning help a person who got a foreign link (phishing).
+        $firstName = mb_substr((string) preg_split('/\s+/u', trim((string) $customer->name), 2)[0], 0, 40);
+        $email = PiiMask::email($customer->email);
+        $question = $firstName === ''
+            ? __('telegram.link.confirm_customer_unnamed', ['email' => $email])
+            : __('telegram.link.confirm_customer', ['email' => $email, 'name' => $firstName]);
+
+        return $this->messages->reply($account, $question."\n\n".__('telegram.link.confirm_warning'), $this->confirmMarkup($token));
     }
 
     /**

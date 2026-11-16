@@ -18,12 +18,34 @@ class SecurityHeaders
     {
         $response = $next($request);
 
+        // D-202: one CSP header with every directive. No script-src: the storefront has inline scripts and the
+        // admin-editable head/body code (a script policy would need nonces).
+        $csp = ["object-src 'none'", "base-uri 'self'"];
+        $frameAncestors = null;
+
         if ($this->framableByTelegram($request)) {
             // TM-12, D-103: the Mini App runs in a frame of Telegram Web; nobody else may frame the shop.
             $response->headers->remove('X-Frame-Options');
-            $response->headers->set('Content-Security-Policy', "frame-ancestors 'self' https://web.telegram.org");
+            $frameAncestors = "frame-ancestors 'self' https://web.telegram.org";
+            array_unshift($csp, $frameAncestors);
         } else {
             $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+        }
+
+        // D-202: a PDF (the admin order PDF is shown inline) gets no `object-src 'none'`, which can stop the built-in PDF
+        // viewer of Chromium browsers, and no markup policy; only `frame-ancestors` stays in the Telegram mode, where
+        // X-Frame-Options is removed (outside it X-Frame-Options SAMEORIGIN above already protects the PDF).
+        if (str_starts_with(strtolower((string) $response->headers->get('Content-Type')), 'application/pdf')) {
+            if ($frameAncestors !== null) {
+                $response->headers->set('Content-Security-Policy', $frameAncestors);
+            }
+        } else {
+            $response->headers->set('Content-Security-Policy', implode('; ', $csp));
+        }
+
+        if ($request->isSecure() && app()->isProduction()) {
+            // No includeSubDomains / preload: the shop does not own the other subdomains of its domain.
+            $response->headers->set('Strict-Transport-Security', 'max-age=15552000');
         }
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');

@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 use App\Enums\VerificationPurpose;
 use App\Events\CustomerEmailVerified;
+use App\Mail\CustomerAccountExistsMail;
+use App\Mail\CustomerCodeMail;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\CustomerVerificationCode;
 use App\Models\Order;
 use App\Services\Access\CustomerGroupService;
+use App\Services\Customers\VerificationCodeService;
 use App\Settings\CustomerSettings;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
@@ -45,11 +49,15 @@ it('registers an unconfirmed customer in the default group and sends a code (CA-
         ->and($customer->consent_at)->not->toBeNull()
         ->and($customer->consent_ip)->toBe('127.0.0.1')
         ->and($customer->auth_version)->toBe(1)
-        ->and(Hash::check('secret-pass-1', $customer->password))->toBeTrue()
+        // SEC-06: the chosen password is not stored until the code is confirmed (it travels in the code).
+        ->and(Hash::check('secret-pass-1', $customer->password))->toBeFalse()
         ->and($customer->password)->not->toContain('secret-pass-1');
 
     expect(lastSentCode(VerificationPurpose::Register))->toMatch('/^\d{6}$/');
     $this->assertGuest('customer');
+
+    $this->post(route('customer.confirm.store'), ['code' => lastSentCode(VerificationPurpose::Register)])->assertRedirect(route('account'));
+    expect(Hash::check('secret-pass-1', $customer->fresh()->password))->toBeTrue();
 });
 
 it('falls back to «Розница» when no group is flagged as default (CG-11)', function (): void {
@@ -144,7 +152,8 @@ it('re-registration on an unconfirmed address sends a new code and applies its d
     expect(Customer::query()->count())->toBe(1);
     $customer = Customer::query()->firstOrFail();
     expect($customer->name)->toBe('Иван Тестов')
-        ->and(Hash::check('secret-pass-1', $customer->password))->toBeTrue();
+        ->and(Hash::check('secret-pass-1', $customer->password))->toBeFalse()
+        ->and(Hash::check('brand-new-pass-2', $customer->password))->toBeFalse();
     Mail::assertQueuedCount(2);
 
     $this->post(route('customer.confirm.store'), ['code' => lastSentCode(VerificationPurpose::Register)])->assertRedirect(route('account'));
@@ -157,14 +166,39 @@ it('re-registration on an unconfirmed address sends a new code and applies its d
         ->and(Hash::check('secret-pass-1', $customer->password))->toBeFalse();
 });
 
-it('refuses to register on a confirmed address and keeps that account untouched (CA-05)', function (): void {
+it('answers a registration on a confirmed address exactly like a new one and changes nothing (CA-05, SEC-06)', function (): void {
     $existing = makeCustomer(['email' => 'ivan.test@example.com', 'name' => 'Владелец']);
+    $before = Customer::query()->count();
 
-    $this->post(route('customer.register.store'), registrationBody())
-        ->assertSessionHasErrors('email');
+    $known = $this->post(route('customer.register.store'), registrationBody());
+    $known->assertRedirect(route('customer.confirm'))->assertSessionHasNoErrors();
+    $knownStatus = session('status');
 
-    expect($existing->fresh()->name)->toBe('Владелец');
-    Mail::assertNothingQueued();
+    // Same flash text and same redirect for an address nobody has.
+    $this->flushSession();
+    $new = $this->post(route('customer.register.store'), registrationBody(['email' => 'brand.new.sec06@example.com']));
+    $new->assertRedirect(route('customer.confirm'));
+
+    expect(session('status'))->toBe($knownStatus)
+        ->and(Customer::query()->count())->toBe($before + 1)
+        ->and($existing->fresh()->name)->toBe('Владелец')
+        ->and($existing->fresh()->password)->toBe($existing->password);
+
+    Mail::assertQueued(CustomerAccountExistsMail::class, fn (CustomerAccountExistsMail $mail): bool => $mail->hasTo('ivan.test@example.com'));
+    Mail::assertNotQueued(CustomerCodeMail::class, fn (CustomerCodeMail $mail): bool => $mail->hasTo('ivan.test@example.com'));
+    expect(CustomerVerificationCode::query()->where('email', 'ivan.test@example.com')->count())->toBe(0);
+});
+
+it('shows a neutral wrong-code answer on the code page of a registered address and does not count it (SEC-06, SEC-04)', function (): void {
+    makeCustomer(['email' => 'ivan.test@example.com']);
+    $this->post(route('customer.register.store'), registrationBody());
+
+    foreach (range(1, 6) as $_) {
+        $this->from(route('customer.confirm'))->post(route('customer.confirm.store'), ['code' => '123456'])
+            ->assertSessionHasErrors(['code' => __('account.errors.code_invalid')]);
+    }
+
+    expect(app(VerificationCodeService::class)->lockedFor('ivan.test@example.com', '127.0.0.1'))->toBe(0);
 });
 
 it('limits registrations to 5 per hour per IP with HTTP 429 (CA-12)', function (): void {
