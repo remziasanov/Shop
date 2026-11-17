@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\CheckStatus;
+use App\Services\System\CheckResult;
 use App\Services\System\EnvironmentChecker;
 use Illuminate\Support\Facades\File;
 
@@ -31,7 +32,7 @@ afterEach(function (): void {
     File::deleteDirectory($this->sandbox);
 });
 
-function storageLinkCheck(): object
+function storageLinkCheck(): CheckResult
 {
     return collect(app(EnvironmentChecker::class)->run())->firstWhere('key', 'storage_link');
 }
@@ -59,7 +60,7 @@ it('passes for a symlink and errors once its target is gone', function (): void 
     expect(storageLinkCheck()->status)->toBe(CheckStatus::Error);
 });
 
-it('passes for a Windows junction', function (): void {
+it('passes for a Windows junction and errors once its target is gone', function (): void {
     if (PHP_OS_FAMILY !== 'Windows') {
         $this->markTestSkipped('Junctions exist on Windows only.');
     }
@@ -73,4 +74,9 @@ it('passes for a Windows junction', function (): void {
     }
 
     expect(storageLinkCheck()->status)->toBe(CheckStatus::Ok);
+
+    // A broken junction still resolves to its missing target: only the directory check catches it.
+    File::deleteDirectory($this->sandbox.'/target');
+
+    expect(storageLinkCheck()->status)->toBe(CheckStatus::Error);
 });
