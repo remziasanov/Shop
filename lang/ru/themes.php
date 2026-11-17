@@ -60,5 +60,29 @@ return [
             'onAccent_accent' => 'текст на акценте',
         ],
         'phone_preview' => 'Предпросмотр на телефоне',
+        // D-210: texts of the schematic miniature on a gallery card.
+        'mini' => [
+            'search' => 'Поиск',
+            'hero_title' => 'Новая коллекция',
+            'hero_button' => 'Смотреть',
+            'product' => 'Товар',
+            'price' => '1 290 ₽',
+            'buy' => 'Купить',
+        ],
+    ],
+
+    // D-210: overlay of the theme preview over the gallery.
+    'overlay' => [
+        'label' => 'Предпросмотр темы :name',
+        'title' => 'Предпросмотр',
+        'prev' => 'Предыдущая тема',
+        'next' => 'Следующая тема',
+        'select' => 'Выбрать',
+        'close' => 'Закрыть',
+        'device' => 'Устройство',
+        'desktop' => 'Компьютер',
+        'phone' => 'Телефон',
+        'frame_title' => 'Витрина в выбранной теме',
+        'counter' => ':index из :total',
     ],
 ];

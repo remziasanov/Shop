@@ -20,6 +20,8 @@ final class ActiveTheme
 
     private bool $preview = false;
 
+    private bool $embed = false;
+
     private ?Request $forRequest = null;
 
     public function __construct(
@@ -51,6 +53,17 @@ final class ActiveTheme
     }
 
     /**
+     * Whether the preview was started from the admin overlay (D-210). The storefront hides its own bar only when the
+     * page is also framed (Sec-Fetch-Dest: iframe), see ThemeComposer.
+     */
+    public function isEmbedPreview(): bool
+    {
+        $this->current();
+
+        return $this->preview && $this->embed;
+    }
+
+    /**
      * The saved (public) theme.
      */
     public function saved(): ResolvedTheme
@@ -79,6 +92,7 @@ final class ActiveTheme
     private function resolve(Request $request): ResolvedTheme
     {
         $this->preview = false;
+        $this->embed = false;
 
         try {
             $user = $request->hasSession() ? Auth::guard('web')->user() : null;
@@ -89,6 +103,7 @@ final class ActiveTheme
 
         if ($state !== null) {
             $this->preview = true;
+            $this->embed = $state['embed'];
 
             return $this->resolver->resolve($this->themes->findOrDefault($state['theme_id']), $state['overrides']);
         }
