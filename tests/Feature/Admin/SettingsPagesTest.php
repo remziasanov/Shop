@@ -222,7 +222,7 @@ it('never deletes replaced files outside the settings directory', function () {
     Storage::disk('public')->assertExists('products/photo.png');
 });
 
-it('gives every settings page a translated title and menu label', function () {
+it('gives every settings page a translated title and menu label (TG-01)', function () {
     $pages = collect(File::files(app_path('Filament/Pages/Settings')))
         ->map(fn (SplFileInfo $file): string => 'App\\Filament\\Pages\\Settings\\'.$file->getFilenameWithoutExtension())
         ->filter(fn (string $class): bool => in_array(AdminOnlySettingsPage::class, class_uses_recursive($class), true));
@@ -230,6 +230,7 @@ it('gives every settings page a translated title and menu label', function () {
     expect($pages)->not->toBeEmpty()->toContain(ManageTelegramSettings::class);
 
     foreach ($pages as $page) {
-        expect($page::getNavigationLabel())->not->toStartWith('shop.settings.', $page);
+        expect($page::getNavigationLabel())->not->toStartWith('shop.settings.', $page)
+            ->and(app($page)->getTitle())->not->toStartWith('shop.settings.', $page);
     }
 });
