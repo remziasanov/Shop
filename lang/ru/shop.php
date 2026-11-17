@@ -241,6 +241,10 @@ return [
             'title' => 'Подтверждение телефона',
         ],
 
+        'telegram' => [
+            'title' => 'Telegram',
+        ],
+
         'catalog' => [
             'title' => 'Каталог и фильтры',
             'sections' => [
