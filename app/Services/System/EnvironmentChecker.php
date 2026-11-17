@@ -192,8 +192,10 @@ class EnvironmentChecker
 
     private function storageLink(): CheckResult
     {
-        $path = public_path('storage');
-        $ok = is_link($path) || is_dir($path);
+        // realpath() follows symlinks and Windows junctions alike: PHP reports a junction as neither a link nor a
+        // directory, and a broken link resolves to false.
+        $target = realpath(public_path('storage'));
+        $ok = $target !== false && is_dir($target);
 
         return $this->result('storage_link', $ok ? CheckStatus::Ok : CheckStatus::Error,
             $ok ? __('system.values.exists') : __('system.values.missing'),
