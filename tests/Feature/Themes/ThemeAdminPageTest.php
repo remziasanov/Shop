@@ -21,7 +21,7 @@ function appearance(): AppearanceSettings
     return app(AppearanceSettings::class)->refresh();
 }
 
-it('shows the gallery with default first, groups, swatches, fonts and the active mark (TH-22)', function (): void {
+it('shows the gallery with default first, groups, miniatures, fonts and the active mark (TH-22)', function (): void {
     Livewire::test(ManageAppearanceSettings::class)
         ->assertSee('data-theme-gallery', false)
         ->assertSee('data-theme-card="default"', false)
@@ -163,12 +163,12 @@ it('starts a preview with the unsaved form colors for the form theme and stored 
         ->fillForm(['ov_colors' => ['primary' => '#ABCDEF']])
         ->call('previewTheme', 'volt');
 
-    expect(session(ThemePreview::SESSION_KEY))->toBe(['theme_id' => 'volt', 'overrides' => ['colors' => ['primary' => '#ABCDEF']]])
+    expect(session(ThemePreview::SESSION_KEY))->toBe(['theme_id' => 'volt', 'overrides' => ['colors' => ['primary' => '#ABCDEF']], 'embed' => true])
         ->and(appearance()->theme_overrides)->toBe([]);
 
     Livewire::test(ManageAppearanceSettings::class)->call('previewTheme', 'monohrom');
 
-    expect(session(ThemePreview::SESSION_KEY))->toBe(['theme_id' => 'monohrom', 'overrides' => []]);
+    expect(session(ThemePreview::SESSION_KEY))->toBe(['theme_id' => 'monohrom', 'overrides' => [], 'embed' => true]);
 });
 
 it('is read-only for staff with only the view right (TH-26)', function (): void {

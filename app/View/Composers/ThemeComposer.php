@@ -9,6 +9,7 @@ use App\Services\Themes\ThemeCss;
 use App\Services\Themes\ThemeRegistry;
 use App\Services\Themes\ThemeResolver;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
 use Throwable;
 
 /**
@@ -43,7 +44,7 @@ final class ThemeComposer
             $this->data = [
                 'theme' => $theme,
                 'themeAssets' => $this->css->assets($theme),
-                'themePreviewBar' => $this->isPreview() ? [
+                'themePreviewBar' => $this->isPreview() && ! $this->hideBar($request) ? [
                     'name' => $theme->name,
                     'id' => $theme->id,
                     'index' => $this->indexOf($theme->id),
@@ -60,6 +61,20 @@ final class ThemeComposer
     private function indexOf(string $id): int
     {
         return (int) array_search($id, array_keys($this->themes->all()), true);
+    }
+
+    /**
+     * D-210: a preview started from the admin overlay is shown in an iframe next to the overlay's own controls, so the
+     * bar is left out there. Only when the browser says the document is framed: a top-level tab of the same session
+     * (and a browser without Sec-Fetch-Dest) keeps the bar. The response stays private, no-store (TH-30).
+     */
+    private function hideBar(Request $request): bool
+    {
+        try {
+            return $this->active->isEmbedPreview() && $request->headers->get('Sec-Fetch-Dest') === 'iframe';
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function isPreview(): bool

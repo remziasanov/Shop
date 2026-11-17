@@ -31,9 +31,11 @@ final class ThemePreview
     }
 
     /**
+     * $embed marks a preview shown in the iframe of the admin overlay (D-210): the storefront hides its own bar there.
+     *
      * @param  array<string, mixed>  $overrides
      */
-    public function start(Session $session, string $themeId, array $overrides = []): void
+    public function start(Session $session, string $themeId, array $overrides = [], bool $embed = false): void
     {
         $theme = $this->themes->find($themeId);
 
@@ -41,7 +43,13 @@ final class ThemePreview
             return;
         }
 
-        $session->put(self::SESSION_KEY, ['theme_id' => $theme->id, 'overrides' => $this->resolver->sanitizeOverrides($overrides)]);
+        $state = ['theme_id' => $theme->id, 'overrides' => $this->resolver->sanitizeOverrides($overrides)];
+
+        if ($embed) {
+            $state['embed'] = true;
+        }
+
+        $session->put(self::SESSION_KEY, $state);
     }
 
     public function exit(Session $session): void
@@ -52,7 +60,7 @@ final class ThemePreview
     /**
      * The stored preview, only for a user who may preview and only with a known theme id.
      *
-     * @return array{theme_id: string, overrides: array<string, mixed>}|null
+     * @return array{theme_id: string, overrides: array<string, mixed>, embed: bool}|null
      */
     public function state(?Session $session, ?User $user): ?array
     {
@@ -66,7 +74,7 @@ final class ThemePreview
             return null;
         }
 
-        return ['theme_id' => $raw['theme_id'], 'overrides' => $this->resolver->sanitizeOverrides($raw['overrides'] ?? [])];
+        return ['theme_id' => $raw['theme_id'], 'overrides' => $this->resolver->sanitizeOverrides($raw['overrides'] ?? []), 'embed' => ($raw['embed'] ?? false) === true];
     }
 
     /**

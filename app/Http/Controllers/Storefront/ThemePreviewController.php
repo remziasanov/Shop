@@ -26,7 +26,7 @@ class ThemePreviewController extends Controller
         $next = $this->previews->neighbour($state['theme_id'], $step);
 
         // Another theme is shown with its own saved overrides, not with the colors of the one just left.
-        $this->previews->start($request->session(), $next, app(ThemeManager::class)->overridesFor($next));
+        $this->previews->start($request->session(), $next, app(ThemeManager::class)->overridesFor($next), $state['embed']);
 
         return redirect()->back(fallback: route('home'));
     }
@@ -54,7 +54,7 @@ class ThemePreviewController extends Controller
     }
 
     /**
-     * @return array{theme_id: string, overrides: array<string, mixed>}
+     * @return array{theme_id: string, overrides: array<string, mixed>, embed: bool}
      */
     private function state(Request $request): array
     {

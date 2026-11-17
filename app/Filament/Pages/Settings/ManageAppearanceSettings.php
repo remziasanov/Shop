@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Themes\FontRegistry;
 use App\Services\Themes\Theme;
 use App\Services\Themes\ThemeManager;
+use App\Services\Themes\ThemeMiniature;
 use App\Services\Themes\ThemePreview;
 use App\Services\Themes\ThemeRegistry;
 use App\Services\Themes\ThemeResolver;
@@ -183,16 +184,80 @@ class ManageAppearanceSettings extends SettingsPage
     }
 
     /**
-     * TH-27: starts the staff preview of a theme in a new tab. For the theme of the form the unsaved colors and fonts
-     * are taken; another theme is shown with its stored overrides.
+     * TH-27, D-210: starts the staff preview of a theme in the overlay over the gallery (the iframe of the overlay loads
+     * the storefront). For the theme of the form the unsaved colors and fonts are taken; another theme is shown with
+     * its stored overrides.
      */
     public function previewTheme(string $id): void
     {
-        $user = $this->staff();
-        $previews = app(ThemePreview::class);
-        abort_unless($previews->canPreview($user) && $this->canEdit(), 403);
+        $this->authorizePreview();
+        $this->openPreview($id);
+    }
 
-        if (! app(ThemeRegistry::class)->has($id)) {
+    /**
+     * D-210: ← / → of the overlay: the previous / next theme of the registry, the preview restarts.
+     */
+    public function previewStep(int $step): void
+    {
+        $previews = $this->authorizePreview();
+        $state = $previews->state(app('session.store'), $this->staff());
+
+        $this->skipRender();
+
+        if ($state === null) {
+            Notification::make()->warning()->title(__('themes.overlay.no_preview'))->send();
+
+            return;
+        }
+
+        $this->openPreview($previews->neighbour($state['theme_id'], $step < 0 ? -1 : 1));
+    }
+
+    /**
+     * D-210: «Выбрать» of the overlay: the previewed theme is switched on the same way as in the gallery, then the
+     * preview ends and the overlay closes.
+     */
+    public function applyPreview(string $id): void
+    {
+        $previews = $this->authorizePreview();
+        $state = $previews->state(app('session.store'), $this->staff());
+
+        // The overlay shows `$id`: apply exactly that theme, never a different one left in the session by another tab.
+        if ($state === null || $state['theme_id'] !== $id || ! app(ThemeRegistry::class)->has($id)) {
+            $this->skipRender();
+            Notification::make()->warning()->title(__($state === null ? 'themes.overlay.no_preview' : 'themes.overlay.stale_preview'))->send();
+
+            return;
+        }
+
+        $this->selectTheme($id);
+        $previews->exit(app('session.store'));
+        $this->dispatch('theme-preview-close');
+    }
+
+    /**
+     * D-210: the overlay was closed (✕, Esc, backdrop): the preview ends, so the own storefront tabs of the staff member
+     * do not stay in the preview.
+     */
+    public function closePreview(): void
+    {
+        $this->skipRender();
+        $this->authorizePreview()->exit(app('session.store'));
+    }
+
+    private function authorizePreview(): ThemePreview
+    {
+        $previews = app(ThemePreview::class);
+        abort_unless($previews->canPreview($this->staff()) && $this->canEdit(), 403);
+
+        return $previews;
+    }
+
+    private function openPreview(string $id): void
+    {
+        $registry = app(ThemeRegistry::class);
+
+        if (! $registry->has($id)) {
             return;
         }
 
@@ -200,8 +265,19 @@ class ManageAppearanceSettings extends SettingsPage
             ? $this->overridesFromState()
             : app(ThemeManager::class)->overridesFor($id);
 
-        $previews->start(app('session.store'), $id, $overrides);
-        $this->js('window.open('.json_encode(route('home'), JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT).', "_blank")');
+        app(ThemePreview::class)->start(app('session.store'), $id, $overrides, embed: true);
+
+        $ids = array_keys($registry->all());
+
+        $this->dispatch(
+            'theme-preview-open',
+            id: $id,
+            name: $registry->findOrDefault($id)->name,
+            index: (int) array_search($id, $ids, true),
+            total: count($ids),
+            active: $id === $this->currentThemeId(),
+            url: route('home'),
+        );
     }
 
     /**
@@ -231,6 +307,9 @@ class ManageAppearanceSettings extends SettingsPage
      */
     private function card(Theme $theme, string $current): array
     {
+        $mini = app(ThemeMiniature::class);
+        // D-210: the miniature is drawn in the theme as the visitor would see it: the form's colors for the edited theme.
+        $resolved = app(ThemeResolver::class)->resolve($theme, $theme->id === $current ? $this->overridesFromState() : app(ThemeManager::class)->overridesFor($theme->id));
         $font = function (string $role) use ($theme): string {
             $family = app(FontRegistry::class)->find($theme->fonts[$role]['family'] ?? null);
 
@@ -242,7 +321,8 @@ class ManageAppearanceSettings extends SettingsPage
             'name' => $theme->name,
             'niche' => $theme->niche,
             'active' => $theme->id === $current,
-            'swatches' => array_map(fn (string $key): string => (string) ($theme->colors[$key] ?? ''), ['bg', 'surface', 'ink', 'primary', 'accent']),
+            'mini_style' => $mini->style($resolved),
+            'mini_faces' => $mini->faces($resolved),
             'display' => $font('display'),
             'body' => $font('body'),
         ];
