@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\RoundingStep;
 use App\Enums\SalesMode;
+use App\Filament\Concerns\AdminOnlySettingsPage;
 use App\Filament\Pages\Settings\ManageAgeGateSettings;
 use App\Filament\Pages\Settings\ManageAppearanceSettings;
 use App\Filament\Pages\Settings\ManageGeneralSettings;
@@ -21,6 +22,7 @@ use App\Settings\PricingSettings;
 use App\Settings\SalesSettings;
 use App\Settings\SeoSettings;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -218,4 +220,17 @@ it('never deletes replaced files outside the settings directory', function () {
         ->call('save');
 
     Storage::disk('public')->assertExists('products/photo.png');
+});
+
+it('gives every settings page a translated title and menu label (TG-01)', function () {
+    $pages = collect(File::files(app_path('Filament/Pages/Settings')))
+        ->map(fn (SplFileInfo $file): string => 'App\\Filament\\Pages\\Settings\\'.$file->getFilenameWithoutExtension())
+        ->filter(fn (string $class): bool => in_array(AdminOnlySettingsPage::class, class_uses_recursive($class), true));
+
+    expect($pages)->not->toBeEmpty()->toContain(ManageTelegramSettings::class);
+
+    foreach ($pages as $page) {
+        expect($page::getNavigationLabel())->not->toStartWith('shop.settings.', $page)
+            ->and(app($page)->getTitle())->not->toStartWith('shop.settings.', $page);
+    }
 });
