@@ -21,7 +21,7 @@ function appearance(): AppearanceSettings
     return app(AppearanceSettings::class)->refresh();
 }
 
-it('shows the gallery with default first, groups, swatches, fonts and the active mark (TH-22)', function (): void {
+it('shows the gallery with default first, groups, miniatures, fonts and the active mark (TH-22)', function (): void {
     Livewire::test(ManageAppearanceSettings::class)
         ->assertSee('data-theme-gallery', false)
         ->assertSee('data-theme-card="default"', false)

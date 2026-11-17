@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Filament\Pages\Settings\ManageAppearanceSettings;
+use App\Filament\Pages\ThemePhonePreview;
 use App\Models\User;
 use App\Services\Themes\ThemeMiniature;
 use App\Services\Themes\ThemePreview;
@@ -126,7 +127,7 @@ it('steps to the previous and next theme from the overlay and restarts the previ
 it('selects the previewed theme from the overlay, ends the preview and closes the overlay', function (): void {
     Livewire::test(ManageAppearanceSettings::class)
         ->call('previewTheme', 'volt')
-        ->call('applyPreview')
+        ->call('applyPreview', 'volt')
         ->assertSet('data.theme_id', 'volt')
         ->assertDispatched('theme-preview-close')
         ->assertNotified('Тема «Вольт» включена')
@@ -142,10 +143,53 @@ it('exits the preview when the overlay closes', function (): void {
     expect(session()->has(ThemePreview::SESSION_KEY))->toBeFalse();
 });
 
-it('does nothing from the overlay without a started preview', function (): void {
-    Livewire::test(ManageAppearanceSettings::class)->call('previewStep', 1)->call('applyPreview')->assertNotDispatched('theme-preview-open');
+it('warns instead of acting from the overlay without a started preview', function (): void {
+    Livewire::test(ManageAppearanceSettings::class)
+        ->call('previewStep', 1)->assertNotDispatched('theme-preview-open')->assertNotified(__('themes.overlay.no_preview'))
+        ->call('applyPreview', 'volt')->assertNotDispatched('theme-preview-close')->assertNotified(__('themes.overlay.stale_preview'));
 
     expect(app(AppearanceSettings::class)->refresh()->theme_id)->toBe('default');
+});
+
+it('applies only the theme the overlay shows, not another one left in the session', function (): void {
+    $component = Livewire::test(ManageAppearanceSettings::class)->call('previewTheme', 'volt');
+
+    // Another tab moved the session preview to a different theme.
+    app(ThemePreview::class)->start(app('session.store'), 'monohrom', [], embed: true);
+
+    $component->call('applyPreview', 'volt')->assertNotDispatched('theme-preview-close')->assertNotified(__('themes.overlay.stale_preview'));
+    $component->call('applyPreview', 'no-such-theme')->assertNotDispatched('theme-preview-close');
+
+    expect(app(AppearanceSettings::class)->refresh()->theme_id)->toBe('default')
+        ->and(session(ThemePreview::SESSION_KEY)['theme_id'])->toBe('monohrom');
+});
+
+it('does not re-render the gallery when the overlay steps or closes', function (): void {
+    $component = Livewire::test(ManageAppearanceSettings::class)->call('previewTheme', 'volt');
+
+    expect($component->call('previewStep', 1)->effects['html'] ?? null)->toBeNull();
+    expect($component->call('closePreview')->effects['html'] ?? null)->toBeNull();
+});
+
+it('wires the overlay for Esc inside the frame, a failed call, the pressed device button and the phone frame height', function (): void {
+    $html = Livewire::test(ManageAppearanceSettings::class)->html();
+
+    expect($html)->toContain('x-on:load="watchFrame()"')->toContain("e.key === 'Escape'")
+        ->toContain('.finally(() => { this.busy = false; })')
+        ->toContain('applyPreview(this.id)')
+        ->toContain("x-bind:class=\"mode === 'phone' ? 'shop-tg-ov-on' : ''\"")
+        ->toContain('height: min(844px, calc(100% - 20px))');
+});
+
+it('restarts a preview left by the overlay without the embed flag when the phone page opens (TH-29, D-210)', function (): void {
+    $staff = User::factory()->withPermissions(['settings.appearance.update'])->create();
+    $this->actingAs($staff)->withSession([ThemePreview::SESSION_KEY => ['theme_id' => 'monohrom', 'overrides' => [], 'embed' => true]]);
+
+    Livewire::test(ThemePhonePreview::class);
+
+    expect(session(ThemePreview::SESSION_KEY))->toBe(['theme_id' => 'monohrom', 'overrides' => []]);
+
+    $this->withHeaders(['Sec-Fetch-Dest' => 'iframe'])->get(route('home'))->assertOk()->assertSee('data-theme-preview-bar', false);
 });
 
 it('refuses the overlay actions to staff without the update right (TH-26)', function (): void {
@@ -153,7 +197,7 @@ it('refuses the overlay actions to staff without the update right (TH-26)', func
 
     Livewire::test(ManageAppearanceSettings::class)->assertDontSee('data-theme-preview-overlay', false);
 
-    foreach ([['previewTheme', ['volt']], ['previewStep', [1]], ['applyPreview', []], ['closePreview', []]] as [$method, $args]) {
+    foreach ([['previewTheme', ['volt']], ['previewStep', [1]], ['applyPreview', ['volt']], ['closePreview', []]] as [$method, $args]) {
         Livewire::test(ManageAppearanceSettings::class)->call($method, ...$args)->assertForbidden();
     }
 
@@ -170,7 +214,6 @@ it('hides the storefront bar only for an overlay preview shown in a frame (D-210
     expect($framed->getContent())->not->toContain('data-theme-preview-bar');
     expect($framed->headers->get('Cache-Control'))->toContain('no-store')->toContain('private')
         ->and($framed->headers->get('X-Robots-Tag'))->toContain('noindex');
-
 });
 
 it('keeps the storefront bar in an own tab of the overlay session and when the browser sends no frame header', function (): void {
@@ -193,7 +236,7 @@ it('keeps the embed flag when the storefront bar steps to another theme', functi
     expect(session(ThemePreview::SESSION_KEY)['embed'])->toBeTrue();
 });
 
-it('does not hide the bar for a guest with a forged embed flag (TH-30)', function (): void {
+it('ignores a forged overlay preview of a guest (TH-30)', function (): void {
     auth()->logout();
     $this->flushSession();
 

@@ -61,11 +61,12 @@
         .shop-tg-ov-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .shop-tg-ov-switch { display: none; }
         @media (min-width: 1024px) { .shop-tg-ov-switch { display: inline-flex; } }
+        .shop-tg-ov-switch .shop-tg-ov-on { background: var(--primary-600); color: #fff; --tw-ring-color: var(--primary-600); }
         .shop-tg-ov-body { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; background: var(--gray-100); overflow: auto; }
         .dark .shop-tg-ov-body { background: var(--gray-950); }
         .shop-tg-ov-frame { display: block; flex: 1; width: 100%; height: 100%; border: 0; background: #fff; }
         .shop-tg-ov-body.is-phone { padding: 1rem; }
-        .shop-tg-ov-body.is-phone .shop-tg-ov-frame { flex: none; width: 390px; max-width: 100%; height: min(844px, 100%); border: 10px solid #1f2937; border-radius: 2.5rem; box-sizing: content-box; }
+        .shop-tg-ov-body.is-phone .shop-tg-ov-frame { flex: none; width: 390px; max-width: 100%; height: min(844px, calc(100% - 20px)); border: 10px solid #1f2937; border-radius: 2.5rem; box-sizing: content-box; }
         @media (max-width: 639px) { .shop-tg-ov { padding: 0; } .shop-tg-ov-win { border-radius: 0; } }
     </style>
     @foreach ($groups as $group)
@@ -130,8 +131,11 @@
                     if (! this.open) { this.mode = 'desktop'; this.open = true; this.$nextTick(() => { this.$refs.frame.src = this.url; }); return; }
                     try { this.$refs.frame.contentWindow.location.replace(this.url); } catch (e) { this.$refs.frame.src = this.url; }
                 },
-                step(n) { this.busy = true; $wire.previewStep(n).then(() => { this.busy = false; }); },
-                apply() { this.busy = true; $wire.applyPreview().then(() => { this.busy = false; }); },
+                step(n) { this.busy = true; $wire.previewStep(n).finally(() => { this.busy = false; }); },
+                apply() { this.busy = true; $wire.applyPreview(this.id).finally(() => { this.busy = false; }); },
+                watchFrame() {
+                    try { this.$refs.frame.contentWindow.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.close(); }); } catch (e) {}
+                },
                 finish() { this.open = false; this.$refs.frame.src = 'about:blank'; },
                 close() { if (! this.open) return; this.finish(); $wire.closePreview(); },
             }"
@@ -148,14 +152,14 @@
                         <x-filament::button size="sm" color="gray" type="button" x-on:click="step(-1)" x-bind:disabled="busy" x-bind:title="@js(__('themes.overlay.prev'))" :aria-label="__('themes.overlay.prev')">←</x-filament::button>
                         <x-filament::button size="sm" color="gray" type="button" x-on:click="step(1)" x-bind:disabled="busy" x-bind:title="@js(__('themes.overlay.next'))" :aria-label="__('themes.overlay.next')">→</x-filament::button>
                         <span class="shop-tg-ov-switch" role="group" aria-label="{{ __('themes.overlay.device') }}" style="gap: .25rem">
-                            <x-filament::button size="sm" color="gray" type="button" x-on:click="mode = 'desktop'" x-bind:aria-pressed="mode === 'desktop'">{{ __('themes.overlay.desktop') }}</x-filament::button>
-                            <x-filament::button size="sm" color="gray" type="button" x-on:click="mode = 'phone'" x-bind:aria-pressed="mode === 'phone'">{{ __('themes.overlay.phone') }}</x-filament::button>
+                            <x-filament::button size="sm" color="gray" type="button" x-on:click="mode = 'desktop'" x-bind:aria-pressed="mode === 'desktop'" x-bind:class="mode === 'desktop' ? 'shop-tg-ov-on' : ''">{{ __('themes.overlay.desktop') }}</x-filament::button>
+                            <x-filament::button size="sm" color="gray" type="button" x-on:click="mode = 'phone'" x-bind:aria-pressed="mode === 'phone'" x-bind:class="mode === 'phone' ? 'shop-tg-ov-on' : ''">{{ __('themes.overlay.phone') }}</x-filament::button>
                         </span>
                         <x-filament::button size="sm" type="button" x-on:click="apply()" x-bind:disabled="busy || active">{{ __('themes.overlay.select') }}</x-filament::button>
                         <x-filament::button size="sm" color="gray" type="button" x-on:click="close()" :aria-label="__('themes.overlay.close')" :title="__('themes.overlay.close')">✕</x-filament::button>
                     </div>
                     <div class="shop-tg-ov-body" x-bind:class="mode === 'phone' ? 'is-phone' : ''">
-                        <iframe x-ref="frame" class="shop-tg-ov-frame" title="{{ __('themes.overlay.frame_title') }}" data-theme-preview-frame></iframe>
+                        <iframe x-ref="frame" x-on:load="watchFrame()" class="shop-tg-ov-frame" title="{{ __('themes.overlay.frame_title') }}" data-theme-preview-frame></iframe>
                     </div>
                 </div>
             </div>

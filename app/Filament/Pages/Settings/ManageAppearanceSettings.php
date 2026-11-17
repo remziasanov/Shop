@@ -202,7 +202,11 @@ class ManageAppearanceSettings extends SettingsPage
         $previews = $this->authorizePreview();
         $state = $previews->state(app('session.store'), $this->staff());
 
+        $this->skipRender();
+
         if ($state === null) {
+            Notification::make()->warning()->title(__('themes.overlay.no_preview'))->send();
+
             return;
         }
 
@@ -213,16 +217,20 @@ class ManageAppearanceSettings extends SettingsPage
      * D-210: «Выбрать» of the overlay: the previewed theme is switched on the same way as in the gallery, then the
      * preview ends and the overlay closes.
      */
-    public function applyPreview(): void
+    public function applyPreview(string $id): void
     {
         $previews = $this->authorizePreview();
         $state = $previews->state(app('session.store'), $this->staff());
 
-        if ($state === null) {
+        // The overlay shows `$id`: apply exactly that theme, never a different one left in the session by another tab.
+        if ($state === null || $state['theme_id'] !== $id || ! app(ThemeRegistry::class)->has($id)) {
+            $this->skipRender();
+            Notification::make()->warning()->title(__('themes.overlay.stale_preview'))->send();
+
             return;
         }
 
-        $this->selectTheme($state['theme_id']);
+        $this->selectTheme($id);
         $previews->exit(app('session.store'));
         $this->dispatch('theme-preview-close');
     }
@@ -233,6 +241,7 @@ class ManageAppearanceSettings extends SettingsPage
      */
     public function closePreview(): void
     {
+        $this->skipRender();
         $this->authorizePreview()->exit(app('session.store'));
     }
 
