@@ -134,7 +134,16 @@
                 step(n) { this.busy = true; $wire.previewStep(n).finally(() => { this.busy = false; }); },
                 apply() { this.busy = true; $wire.applyPreview(this.id).finally(() => { this.busy = false; }); },
                 watchFrame() {
-                    try { this.$refs.frame.contentWindow.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.close(); }); } catch (e) {}
+                    // Capture phase: runs before the storefront's own Escape handlers. While a storefront layer is open
+                    // (modal, sheet, photo gallery, mobile menu) Escape closes that layer, not the preview window.
+                    try {
+                        const win = this.$refs.frame.contentWindow;
+                        win.addEventListener('keydown', (e) => {
+                            if (e.key !== 'Escape') return;
+                            const layers = win.document.querySelectorAll('[aria-modal=true], [x-overlay], #mobile-menu');
+                            if (! Array.from(layers).some((el) => el.getClientRects().length > 0)) this.close();
+                        }, true);
+                    } catch (e) {}
                 },
                 finish() { this.open = false; this.$refs.frame.src = 'about:blank'; },
                 close() { if (! this.open) return; this.finish(); $wire.closePreview(); },

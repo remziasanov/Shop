@@ -225,7 +225,7 @@ class ManageAppearanceSettings extends SettingsPage
         // The overlay shows `$id`: apply exactly that theme, never a different one left in the session by another tab.
         if ($state === null || $state['theme_id'] !== $id || ! app(ThemeRegistry::class)->has($id)) {
             $this->skipRender();
-            Notification::make()->warning()->title(__('themes.overlay.stale_preview'))->send();
+            Notification::make()->warning()->title(__($state === null ? 'themes.overlay.no_preview' : 'themes.overlay.stale_preview'))->send();
 
             return;
         }

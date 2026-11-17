@@ -146,7 +146,7 @@ it('exits the preview when the overlay closes', function (): void {
 it('warns instead of acting from the overlay without a started preview', function (): void {
     Livewire::test(ManageAppearanceSettings::class)
         ->call('previewStep', 1)->assertNotDispatched('theme-preview-open')->assertNotified(__('themes.overlay.no_preview'))
-        ->call('applyPreview', 'volt')->assertNotDispatched('theme-preview-close')->assertNotified(__('themes.overlay.stale_preview'));
+        ->call('applyPreview', 'volt')->assertNotDispatched('theme-preview-close')->assertNotified(__('themes.overlay.no_preview'));
 
     expect(app(AppearanceSettings::class)->refresh()->theme_id)->toBe('default');
 });
@@ -174,7 +174,7 @@ it('does not re-render the gallery when the overlay steps or closes', function (
 it('wires the overlay for Esc inside the frame, a failed call, the pressed device button and the phone frame height', function (): void {
     $html = Livewire::test(ManageAppearanceSettings::class)->html();
 
-    expect($html)->toContain('x-on:load="watchFrame()"')->toContain("e.key === 'Escape'")
+    expect($html)->toContain('x-on:load="watchFrame()"')->toContain("e.key !== 'Escape'")->toContain('[aria-modal=true], [x-overlay], #mobile-menu')
         ->toContain('.finally(() => { this.busy = false; })')
         ->toContain('applyPreview(this.id)')
         ->toContain("x-bind:class=\"mode === 'phone' ? 'shop-tg-ov-on' : ''\"")
