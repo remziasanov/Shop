@@ -192,8 +192,13 @@ class EnvironmentChecker
 
     private function storageLink(): CheckResult
     {
+        // realpath() follows symlinks and Windows junctions alike (PHP reports a junction as neither a link nor a
+        // directory). It returns false for a broken symlink but still returns the missing target of a broken junction,
+        // so is_dir() on the result is required. The realpath cache would keep a removed link for minutes in FPM.
         $path = public_path('storage');
-        $ok = is_link($path) || is_dir($path);
+        clearstatcache(true, $path);
+        $target = realpath($path);
+        $ok = $target !== false && is_dir($target);
 
         return $this->result('storage_link', $ok ? CheckStatus::Ok : CheckStatus::Error,
             $ok ? __('system.values.exists') : __('system.values.missing'),
